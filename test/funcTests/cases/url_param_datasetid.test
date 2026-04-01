@@ -1,0 +1,199 @@
+#
+# FILE            url_param_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET entity/entities with datasetId filter returns only matching instances
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with 3 speed instances: default (100), radar (98), lidar (102)
+# 02. GET entity - datasetId=@none (default instance only)
+# 03. GET entity - datasetId=urn:sensor:radar (named instance only)
+# 04. GET entity - datasetId=@none,urn:sensor:lidar (two instances)
+# 05. GET entity - datasetId=urn:nonexistent (no match, attribute dropped)
+# 06. GET entities - datasetId=urn:sensor:radar (collection query)
+#
+
+echo "01. Create entity with 3 speed instances: default (100), radar (98), lidar (102)"
+echo "================================================================================"
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    },
+    {
+      "type": "Property",
+      "value": 102,
+      "datasetId": "urn:sensor:lidar"
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity - datasetId=@none (default instance only)"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none'
+echo
+echo
+
+
+echo "03. GET entity - datasetId=urn:sensor:radar (named instance only)"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar'
+echo
+echo
+
+
+echo "04. GET entity - datasetId=@none,urn:sensor:lidar (two instances)"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none,urn:sensor:lidar'
+echo
+echo
+
+
+echo "05. GET entity - datasetId=urn:nonexistent (no match, attribute dropped)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:nonexistent'
+echo
+echo
+
+
+echo "06. GET entities - datasetId=urn:sensor:radar (collection query)"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&datasetId=urn:sensor:radar'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with 3 speed instances: default (100), radar (98), lidar (102)
+================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entity - datasetId=@none (default instance only)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 101
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+03. GET entity - datasetId=urn:sensor:radar (named instance only)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 137
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 98,
+    "datasetId": "urn:sensor:radar"
+  }
+}
+
+
+
+04. GET entity - datasetId=@none,urn:sensor:lidar (two instances)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 214
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 102,
+      "datasetId": "urn:sensor:lidar"
+    }
+  ]
+}
+
+
+
+05. GET entity - datasetId=urn:nonexistent (no match, attribute dropped)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 42
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle"
+}
+
+
+
+06. GET entities - datasetId=urn:sensor:radar (collection query)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

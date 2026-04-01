@@ -1,0 +1,524 @@
+#
+# FILE            query_entities_pagination.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /entities with limit, offset, and count pagination
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1
+# 02. Create entity E2
+# 03. Create entity E3
+# 04. Create entity E4
+# 05. Create entity E5
+# 06. GET entities?limit=2 - see E1, E2
+# 07. GET entities?limit=2&offset=2 - see E3, E4
+# 08. GET entities?limit=2&offset=4 - see E5
+# 09. GET entities?count=true - all 5 + NGSILD-Results-Count: 5
+# 10. GET entities?limit=2&count=true - E1, E2 + NGSILD-Results-Count: 5
+# 11. GET entities?limit=0&count=true - empty array + NGSILD-Results-Count: 5
+# 12. GET entities?limit=0 (without count) - 400 error
+# 13. GET entities?offset=10 - empty array
+# 14. GET entities (no limit param) - all 5 (default limit 20 > 5)
+#
+
+echo "01. Create entity E1"
+echo "===================="
+payload='{
+  "id": "urn:e1",
+  "type": "T",
+  "a": {
+    "type": "Property",
+    "value": 1
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create entity E2"
+echo "===================="
+payload='{
+  "id": "urn:e2",
+  "type": "T",
+  "a": {
+    "type": "Property",
+    "value": 2
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create entity E3"
+echo "===================="
+payload='{
+  "id": "urn:e3",
+  "type": "T",
+  "a": {
+    "type": "Property",
+    "value": 3
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Create entity E4"
+echo "===================="
+payload='{
+  "id": "urn:e4",
+  "type": "T",
+  "a": {
+    "type": "Property",
+    "value": 4
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Create entity E5"
+echo "===================="
+payload='{
+  "id": "urn:e5",
+  "type": "T",
+  "a": {
+    "type": "Property",
+    "value": 5
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. GET entities?limit=2 - see E1, E2"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=2&type=T'
+echo
+echo
+
+
+echo "07. GET entities?limit=2&offset=2 - see E3, E4"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=2&offset=2&type=T'
+echo
+echo
+
+
+echo "08. GET entities?limit=2&offset=4 - see E5"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=2&offset=4&type=T'
+echo
+echo
+
+
+echo "09. GET entities?count=true - all 5 + NGSILD-Results-Count: 5"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities?count=true&type=T'
+echo
+echo
+
+
+echo "10. GET entities?limit=2&count=true - E1, E2 + NGSILD-Results-Count: 5"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/entities?limit=2&count=true&type=T'
+echo
+echo
+
+
+echo "11. GET entities?limit=0&count=true - empty array + NGSILD-Results-Count: 5"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=0&count=true&type=T'
+echo
+echo
+
+
+echo "12. GET entities?limit=0 (without count) - 400 error"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=0&type=T'
+echo
+echo
+
+
+echo "13. GET entities?offset=10 - empty array"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/entities?offset=10&type=T'
+echo
+echo
+
+
+echo "14. GET entities (no limit param) - all 5 (default limit 20 > 5)"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. Create entity E2
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e2
+Content-Length: 0
+
+
+
+
+03. Create entity E3
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e3
+Content-Length: 0
+
+
+
+
+04. Create entity E4
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e4
+Content-Length: 0
+
+
+
+
+05. Create entity E5
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e5
+Content-Length: 0
+
+
+
+
+06. GET entities?limit=2 - see E1, E2
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>; rel="next"; type="application/json"
+Content-Length: 215
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 1
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 2
+    }
+  }
+]
+
+
+
+07. GET entities?limit=2&offset=2 - see E3, E4
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=0>; rel="prev"; type="application/json", </ngsi-ld/v1/entities?type=T&limit=2&offset=4>; rel="next"; type="application/json"
+Content-Length: 215
+
+[
+  {
+    "id": "urn:e3",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 3
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 4
+    }
+  }
+]
+
+
+
+08. GET entities?limit=2&offset=4 - see E5
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>; rel="prev"; type="application/json"
+Content-Length: 109
+
+[
+  {
+    "id": "urn:e5",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 5
+    }
+  }
+]
+
+
+
+09. GET entities?count=true - all 5 + NGSILD-Results-Count: 5
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 5
+Content-Length: 533
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 1
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 2
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 3
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 4
+    }
+  },
+  {
+    "id": "urn:e5",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 5
+    }
+  }
+]
+
+
+
+10. GET entities?limit=2&count=true - E1, E2 + NGSILD-Results-Count: 5
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 5
+Link: </ngsi-ld/v1/entities?count=true&type=T&limit=2&offset=2>; rel="next"; type="application/json"
+Content-Length: 215
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 1
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 2
+    }
+  }
+]
+
+
+
+11. GET entities?limit=0&count=true - empty array + NGSILD-Results-Count: 5
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 5
+Content-Length: 533
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 1
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 2
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 3
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 4
+    }
+  },
+  {
+    "id": "urn:e5",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 5
+    }
+  }
+]
+
+
+
+12. GET entities?limit=0 (without count) - 400 error
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Invalid request",
+  "detail": "limit=0 is only valid when count=true"
+}
+
+
+
+13. GET entities?offset=10 - empty array
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&limit=20&offset=0>; rel="prev"; type="application/json"
+Content-Length: 3
+
+[]
+
+
+
+14. GET entities (no limit param) - all 5 (default limit 20 > 5)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 533
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 1
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 2
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 3
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 4
+    }
+  },
+  {
+    "id": "urn:e5",
+    "type": "T",
+    "a": {
+      "type": "Property",
+      "value": 5
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

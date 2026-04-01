@@ -1,0 +1,899 @@
+#
+# FILE            query_entities_geo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Geo-query filtering (georel, geometry, coordinates, geoproperty)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 in Madrid (location: Point [-3.703, 40.417])
+# 02. Create entity E2 in Barcelona (location: Point [2.154, 41.390])
+# 03. Create entity E3 in Paris (location: Point [2.349, 48.864])
+# 04. GET entities near Madrid within 600 km - should get E1 and E2
+# 05. GET entities near Madrid within 50 km - should get only E1
+# 06. GET entities within a polygon covering Iberian Peninsula - should get E1 and E2
+# 07. GET entities intersecting a polygon covering France - should get E3
+# 08. GET entities disjoint from a polygon covering Iberian Peninsula - should get E3
+# 09. Verify GeoJSON is returned correctly (un-expansion check)
+# 10. Create entity E4 with custom geoproperty "operationArea" (Polygon)
+# 11. GET entities with geoproperty=operationArea, georel=intersects
+# 12. GET entities with georel=equals - should get 501 Not Implemented (MongoDB limitation)
+# 13. GET entities with georel=overlaps with polygon overlapping Iberia+France - should get E1, E2, E3
+# 14. GET entities with georel=contains, operationArea contains Point [0,40] - should get E4
+# 15. Create entity E5 with custom geoproperty "observationPoint" (Point)
+# 16. GET entities with geoproperty=observationPoint, georel=near - should get E5 (tests dynamic index)
+#
+
+echo "01. Create entity E1 in Madrid"
+echo "=============================="
+payload='{
+  "id": "urn:e1",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [-3.703, 40.417]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create entity E2 in Barcelona"
+echo "================================="
+payload='{
+  "id": "urn:e2",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [2.154, 41.390]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create entity E3 in Paris"
+echo "============================="
+payload='{
+  "id": "urn:e3",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [2.349, 48.864]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET entities near Madrid within 600 km - should get E1 and E2"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo
+echo
+
+
+echo "05. GET entities near Madrid within 50 km - should get only E1"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo
+echo
+
+
+echo "06. GET entities within Iberian Peninsula polygon - should get E1 and E2"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=within&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,44\],\[-10,44\],\[-10,35\]\]\]'
+echo
+echo
+
+
+echo "07. GET entities intersecting France polygon - should get E3"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Polygon&coordinates=\[\[\[-5,42\],\[9,42\],\[9,52\],\[-5,52\],\[-5,42\]\]\]'
+echo
+echo
+
+
+echo "08. GET entities disjoint from Iberian Peninsula polygon - should get E3"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=disjoint&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,44\],\[-10,44\],\[-10,35\]\]\]'
+echo
+echo
+
+
+echo "09. Retrieve entity E1 - verify GeoJSON returned correctly"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+echo "10. Create entity E4 with custom geoproperty operationArea (Polygon)"
+echo "===================================================================="
+payload='{
+  "id": "urn:e4",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [0, 0]
+    }
+  },
+  "operationArea": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Polygon",
+      "coordinates": [
+        [[-5, 35], [5, 35], [5, 44], [-5, 44], [-5, 35]]
+      ]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "11. GET entities with geoproperty=operationArea, georel=intersects with Madrid"
+echo "=============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Point&coordinates=\[0,40\]&geoproperty=operationArea'
+echo
+echo
+
+
+echo "12. GET entities with georel=equals - should get 501 (MongoDB limitation)"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=equals&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo
+echo
+
+
+echo "13. GET entities with georel=overlaps, polygon spanning Iberia+France - should get E1, E2, E3"
+echo "============================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=overlaps&geometry=Polygon&coordinates=\[\[\[-10,35\],\[10,35\],\[10,52\],\[-10,52\],\[-10,35\]\]\]'
+echo
+echo
+
+
+echo "14. GET entities with georel=contains, operationArea contains Point [0,40] - should get E4"
+echo "=========================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=contains&geometry=Point&coordinates=\[0,40\]&geoproperty=operationArea'
+echo
+echo
+
+
+echo "15. Create entity E5 with custom geoproperty observationPoint"
+echo "============================================================="
+payload='{
+  "id": "urn:e5",
+  "type": "Sensor",
+  "observationPoint": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [10.0, 50.0]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "16. GET entities with geoproperty=observationPoint, georel=near - should get E5"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Sensor&georel=near%3BmaxDistance%3D%3D100000&geometry=Point&coordinates=\[10.0,50.0\]&geoproperty=observationPoint'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 in Madrid
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. Create entity E2 in Barcelona
+=================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e2
+Content-Length: 0
+
+
+
+
+03. Create entity E3 in Paris
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e3
+Content-Length: 0
+
+
+
+
+04. GET entities near Madrid within 600 km - should get E1 and E2
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 666
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+05. GET entities near Madrid within 50 km - should get only E1
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 666
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+06. GET entities within Iberian Peninsula polygon - should get E1 and E2
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 666
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+07. GET entities intersecting France polygon - should get E3
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 666
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+08. GET entities disjoint from Iberian Peninsula polygon - should get E3
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 666
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+09. Retrieve entity E1 - verify GeoJSON returned correctly
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "id": "urn:e1",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        -3.703,
+        40.417
+      ]
+    }
+  }
+}
+
+
+
+10. Create entity E4 with custom geoproperty operationArea (Polygon)
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e4
+Content-Length: 0
+
+
+
+
+11. GET entities with geoproperty=operationArea, georel=intersects with Madrid
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 1365
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    }
+  }
+]
+
+
+
+12. GET entities with georel=equals - should get 501 (MongoDB limitation)
+=========================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 176
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+  "title": "Unsupported georel",
+  "detail": "georel 'equals' is not supported (MongoDB limitation)"
+}
+
+
+
+13. GET entities with georel=overlaps, polygon spanning Iberia+France - should get E1, E2, E3
+=============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 1365
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    }
+  }
+]
+
+
+
+14. GET entities with georel=contains, operationArea contains Point [0,40] - should get E4
+==========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 1365
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    }
+  }
+]
+
+
+
+15. Create entity E5 with custom geoproperty observationPoint
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e5
+Content-Length: 0
+
+
+
+
+16. GET entities with geoproperty=observationPoint, georel=near - should get E5
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+[
+  {
+    "id": "urn:e5",
+    "type": "Sensor",
+    "observationPoint": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          10,
+          50
+        ]
+      }
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

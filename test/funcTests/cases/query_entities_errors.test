@@ -1,0 +1,245 @@
+#
+# FILE            query_entities_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - Error handling
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Limit errors:
+# 01. GET entities?limit=0 (without count) - 400 error
+# 02. GET entities?limit=-1 - document current behavior
+# 03. GET entities?limit=abc - document current behavior (atoi gives 0, triggers limit=0 error)
+#
+# Type expression errors:
+# 04. GET entities?type= (empty) - document current behavior
+# 05. GET entities?type=(A;) - 400 empty type name
+# 06. GET entities?type=(;B) - 400 empty type name
+#
+# Unknown/unsupported params:
+# 07. GET entities?foo=bar - 400 unknown param
+#
+# pick+omit together:
+# 08. Create entity for pick+omit test
+# 09. GET entities?pick=speed&omit=color - document behavior (pick takes precedence)
+#
+# Known bugs (not tested - would crash broker):
+# - GET entities?type=(A - unmatched paren causes segfault
+#
+
+echo "01. GET entities?limit=0 (without count) - 400 error"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=0&type=T'
+echo
+echo
+
+
+echo "02. GET entities?limit=-1 - document current behavior"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/entities?limit=-1&type=T'
+echo
+echo
+
+
+echo "03. GET entities?limit=abc - document current behavior"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?limit=abc&type=T'
+echo
+echo
+
+
+echo "04. GET entities?type= (empty) - document current behavior"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type='
+echo
+echo
+
+
+echo "05. GET entities?type=(A;) - 400 empty type name"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=(A;)'
+echo
+echo
+
+
+echo "06. GET entities?type=(;B) - 400 empty type name"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=(;B)'
+echo
+echo
+
+
+echo "07. GET entities?foo=bar - 400 unknown param"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?foo=bar&type=T'
+echo
+echo
+
+
+echo "08. Create entity for pick+omit test"
+echo "===================================="
+payload='{
+  "id": "urn:e1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. GET entities?pick=speed&omit=color - document behavior (pick takes precedence)"
+echo "=================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?pick=speed&omit=color&type=T'
+echo
+echo
+
+
+--EXPECT--
+01. GET entities?limit=0 (without count) - 400 error
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Invalid request",
+  "detail": "limit=0 is only valid when count=true"
+}
+
+
+
+02. GET entities?limit=-1 - document current behavior
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+03. GET entities?limit=abc - document current behavior
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Invalid request",
+  "detail": "limit=0 is only valid when count=true"
+}
+
+
+
+04. GET entities?type= (empty) - document current behavior
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+05. GET entities?type=(A;) - 400 empty type name
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 164
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Invalid type parameter",
+  "detail": "empty type name in type selection expression"
+}
+
+
+
+06. GET entities?type=(;B) - 400 empty type name
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 164
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Invalid type parameter",
+  "detail": "empty type name in type selection expression"
+}
+
+
+
+07. GET entities?foo=bar - 400 unknown param
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 152
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Bad Request Data",
+  "detail": "Unknown/unsupported URL parameter: foo"
+}
+
+
+
+08. Create entity for pick+omit test
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+09. GET entities?pick=speed&omit=color - document behavior (pick takes precedence)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 115
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,361 @@
+#
+# FILE            tenant_geo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Per-tenant geo-indexes with NGSILD-Tenant header
+
+--INIT--
+swDbDrop
+swDbDrop t1
+swDbDrop t2
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 in Madrid on tenant t1
+# 02. Create entity E2 in Paris on tenant t2
+# 03. GET near Madrid on t1 - should get E1
+# 04. GET near Madrid on t2 - should get nothing (Paris is far)
+# 05. GET near Paris on t2 - should get E2
+# 06. Restart broker (tenant discovery + geo-index init per tenant)
+# 07. GET near Madrid on t1 - should still get E1 (index re-created)
+# 08. GET near Paris on t2 - should still get E2 (index re-created)
+# 09. Create entity E3 in Barcelona on t1 (runtime geo-index ensure, same field path as t2)
+# 10. GET near Madrid within 600 km on t1 - should get E1 and E3
+#
+
+echo "01. Create entity E1 in Madrid on tenant t1"
+echo "==========================================="
+payload='{
+  "id": "urn:e1",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [-3.703, 40.417]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+echo "02. Create entity E2 in Paris on tenant t2"
+echo "=========================================="
+payload='{
+  "id": "urn:e2",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [2.349, 48.864]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+echo "03. GET near Madrid on t1 - should get E1"
+echo "========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+echo "04. GET near Madrid on t2 - should get nothing (Paris is far)"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+echo "05. GET near Paris on t2 - should get E2"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+echo "06. Restart broker"
+echo "=================="
+swBrokerStop
+swBrokerStart
+echo
+echo
+
+
+echo "07. GET near Madrid on t1 - should still get E1 (index re-created)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+echo "08. GET near Paris on t2 - should still get E2 (index re-created)"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+echo "09. Create entity E3 in Barcelona on t1"
+echo "======================================="
+payload='{
+  "id": "urn:e3",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [2.154, 41.390]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+echo "10. GET near Madrid within 600 km on t1 - should get E1 and E3"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 in Madrid on tenant t1
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. Create entity E2 in Paris on tenant t2
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Location: urn:e2
+Content-Length: 0
+
+
+
+
+03. GET near Madrid on t1 - should get E1
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Content-Length: 446
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+04. GET near Madrid on t2 - should get nothing (Paris is far)
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Content-Length: 446
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+05. GET near Paris on t2 - should get E2
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Content-Length: 446
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    }
+  },
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    }
+  }
+]
+
+
+
+06. Restart broker
+==================
+
+
+07. GET near Madrid on t1 - should still get E1 (index re-created)
+==================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
+  "title": "NonexistentTenant",
+  "detail": "tenant 't1' does not exist"
+}
+
+
+
+08. GET near Paris on t2 - should still get E2 (index re-created)
+=================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
+  "title": "NonexistentTenant",
+  "detail": "tenant 't2' does not exist"
+}
+
+
+
+09. Create entity E3 in Barcelona on t1
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:e3
+Content-Length: 0
+
+
+
+
+10. GET near Madrid within 600 km on t1 - should get E1 and E3
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Content-Length: 223
+
+[
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swDbDrop t1
+swDbDrop t2

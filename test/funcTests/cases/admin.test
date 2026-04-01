@@ -1,0 +1,456 @@
+#
+# FILE            admin.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Admin API plugin endpoints
+
+--INIT--
+swDbDrop
+export SW_BROKER_EXTRA_PARAMS="--database /home/kz/git/swBroker/plugins/dummy.so --apiPlugins /home/kz/git/swBroker/plugins/admin.so --pretty-print 2 --foreground"
+swBrokerStart
+
+--RUN--
+
+#
+# 01. GET /admin/health - liveness probe
+# 02. GET /admin/version - broker version info
+# 03. GET /admin/log - default log settings (all off)
+# 04. GET /admin/tenants - no tenants yet
+# 05. GET /admin/plugins - loaded plugins (mongoc + admin)
+# 06. PUT /admin/log?verbose=on - turn on verbose
+# 07. GET /admin/log - verbose is on
+# 08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels
+# 09. PATCH /admin/log?traceLevels=10,11 - add more trace levels
+# 10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels
+# 11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info
+# 12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info
+# 13. Create entity in tenant t1 - to populate tenant list
+# 14. Create entity in tenant t2 - to populate tenant list
+# 15. GET /admin/tenants - now shows t1 and t2
+# 16. PUT /admin/log?debug=on - turn on debug
+# 17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99
+# 18. GET /admin/log - all clean
+#
+
+echo "01. GET /admin/health - liveness probe"
+echo "======================================"
+swCurl --url /admin/health
+echo
+echo
+
+
+echo "02. GET /admin/version - broker version info"
+echo "============================================"
+swCurl --url /admin/version
+echo
+echo
+
+
+echo "03. GET /admin/log - default log settings (all off)"
+echo "==================================================="
+swCurl --url /admin/log
+echo
+echo
+
+
+echo "04. GET /admin/tenants - no tenants yet"
+echo "======================================="
+swCurl --url /admin/tenants
+echo
+echo
+
+
+echo "05. GET /admin/plugins - loaded plugins (mongoc + admin)"
+echo "========================================================"
+swCurl --url /admin/plugins
+echo
+echo
+
+
+echo "06. PUT /admin/log?verbose=on - turn on verbose"
+echo "==============================================="
+swCurl -X PUT --url '/admin/log?verbose=on'
+echo
+echo
+
+
+echo "07. GET /admin/log - verbose is on"
+echo "=================================="
+swCurl --url /admin/log
+echo
+echo
+
+
+echo "08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels"
+echo "=========================================================="
+swCurl -X POST --url '/admin/log?traceLevels=1,2,5-8'
+echo
+echo
+
+
+echo "09. PATCH /admin/log?traceLevels=10,11 - add more trace levels"
+echo "=============================================================="
+swCurl -X PATCH --url '/admin/log?traceLevels=10,11'
+echo
+echo
+
+
+echo "10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels"
+echo "================================================================"
+swCurl -X DELETE --url '/admin/log?traceLevels=5-8'
+echo
+echo
+
+
+echo "11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info"
+echo "=================================================================================="
+swCurl -X PUT --url '/admin/log?traceLevels=99&info=on'
+echo
+echo
+
+
+echo "12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info"
+echo "======================================================================"
+swCurl -X DELETE --url '/admin/log?verbose=off&info=off'
+echo
+echo
+
+
+echo "13. Create entity in tenant t1 - to populate tenant list"
+echo "========================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "14. Create entity in tenant t2 - to populate tenant list"
+echo "========================================================"
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "15. GET /admin/tenants - now shows t1 and t2"
+echo "============================================"
+swCurl --url /admin/tenants
+echo
+echo
+
+
+echo "16. PUT /admin/log?debug=on - turn on debug"
+echo "==========================================="
+swCurl -X PUT --url '/admin/log?debug=on'
+echo
+echo
+
+
+echo "17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99"
+echo "======================================================================================"
+swCurl -X DELETE --url '/admin/log?debug=off&traceLevels=99'
+echo
+echo
+
+
+echo "18. GET /admin/log - all clean"
+echo "=============================="
+swCurl --url /admin/log
+echo
+echo
+
+
+--EXPECT--
+01. GET /admin/health - liveness probe
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 21
+
+{
+  "status": "ok"
+}
+
+
+
+02. GET /admin/version - broker version info
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "swBroker version": "unknown",
+  "kbase": "0.10.0",
+  "kalloc": "0.10.1",
+  "ktrace": "0.10.0",
+  "kjson": "0.10.2",
+  "kargs": "0.10.0",
+  "swRest": "0.1.0",
+  "swJsonld": "0.1.0",
+  "swNgsild": "post-0.2.0",
+  "Next File Descriptor": 11
+}
+
+
+
+03. GET /admin/log - default log settings (all off)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 79
+
+{
+  "verbose": false,
+  "debug": false,
+  "info": false,
+  "traceLevels": ""
+}
+
+
+
+04. GET /admin/tenants - no tenants yet
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+05. GET /admin/plugins - loaded plugins (mongoc + admin)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 48
+
+{
+  "db": "dummy",
+  "api": [
+    "admin"
+  ]
+}
+
+
+
+06. PUT /admin/log?verbose=on - turn on verbose
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 78
+
+{
+  "verbose": true,
+  "debug": false,
+  "info": false,
+  "traceLevels": ""
+}
+
+
+
+07. GET /admin/log - verbose is on
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 78
+
+{
+  "verbose": true,
+  "debug": false,
+  "info": false,
+  "traceLevels": ""
+}
+
+
+
+08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 85
+
+{
+  "verbose": true,
+  "debug": false,
+  "info": false,
+  "traceLevels": "1-2,5-8"
+}
+
+
+
+09. PATCH /admin/log?traceLevels=10,11 - add more trace levels
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 91
+
+{
+  "verbose": true,
+  "debug": false,
+  "info": false,
+  "traceLevels": "1-2,5-8,10-11"
+}
+
+
+
+10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 87
+
+{
+  "verbose": true,
+  "debug": false,
+  "info": false,
+  "traceLevels": "1-2,10-11"
+}
+
+
+
+11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 79
+
+{
+  "verbose": true,
+  "debug": false,
+  "info": true,
+  "traceLevels": "99"
+}
+
+
+
+12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 81
+
+{
+  "verbose": false,
+  "debug": false,
+  "info": false,
+  "traceLevels": "99"
+}
+
+
+
+13. Create entity in tenant t1 - to populate tenant list
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:E1
+Content-Length: 0
+
+
+
+
+14. Create entity in tenant t2 - to populate tenant list
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Location: urn:E2
+Content-Length: 0
+
+
+
+
+15. GET /admin/tenants - now shows t1 and t2
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 19
+
+[
+  "t2",
+  "t1"
+]
+
+
+
+16. PUT /admin/log?debug=on - turn on debug
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 80
+
+{
+  "verbose": false,
+  "debug": true,
+  "info": false,
+  "traceLevels": "99"
+}
+
+
+
+17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 79
+
+{
+  "verbose": false,
+  "debug": false,
+  "info": false,
+  "traceLevels": ""
+}
+
+
+
+18. GET /admin/log - all clean
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 79
+
+{
+  "verbose": false,
+  "debug": false,
+  "info": false,
+  "traceLevels": ""
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swDbDrop t1
+swDbDrop t2

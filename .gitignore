@@ -1,0 +1,16 @@
+*.o
+*.a
+*.so
+*.so.*
+*~
+bin/
+lib/
+plugins/
+*.out
+*.diff
+*.expect
+*.init
+*.run
+*.teardown
+*.name
+*.stderr

@@ -1,0 +1,876 @@
+#
+# FILE            query_entities_q_simple.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - q parameter simple filters (==, !=, >, <, >=, <=, existence)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create E1: speed=100, color="red", active=true
+# 02. Create E2: speed=50, color="blue", active=false
+# 03. Create E3: speed=75, color="red", active=true
+# 04. q=speed==100 - E1 only
+# 05. q=speed>60 - E1, E3
+# 06. q=speed>=75 - E1, E3
+# 07. q=speed<75 - E2
+# 08. q=speed<=75 - E2, E3
+# 09. q=speed!=100 - E2, E3
+# 10. q=color=="red" - E1, E3
+# 11. q=color!="red" - E2
+# 12. q=active==true - E1, E3
+# 13. q=speed (existence) - E1, E2, E3
+# 14. q=nonExistent (existence, no match) - empty
+#
+
+echo "01. Create E1: speed=100, color=red, active=true"
+echo "================================================"
+payload='{
+  "id": "urn:entity:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "active": {
+    "type": "Property",
+    "value": true
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2: speed=50, color=blue, active=false"
+echo "================================================="
+payload='{
+  "id": "urn:entity:E2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "active": {
+    "type": "Property",
+    "value": false
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create E3: speed=75, color=red, active=true"
+echo "==============================================="
+payload='{
+  "id": "urn:entity:E3",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 75
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "active": {
+    "type": "Property",
+    "value": true
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. q=speed==100 - E1 only"
+echo "=========================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3D%3D100'
+echo
+echo
+
+
+echo "05. q=speed>60 - E1, E3"
+echo "======================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E60'
+echo
+echo
+
+
+echo "06. q=speed>=75 - E1, E3"
+echo "========================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E%3D75'
+echo
+echo
+
+
+echo "07. q=speed<75 - E2"
+echo "==================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3C75'
+echo
+echo
+
+
+echo "08. q=speed<=75 - E2, E3"
+echo "========================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3C%3D75'
+echo
+echo
+
+
+echo "09. q=speed!=100 - E2, E3"
+echo "========================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed!%3D100'
+echo
+echo
+
+
+echo "10. q=color==%22red%22 - E1, E3"
+echo "==============================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22'
+echo
+echo
+
+
+echo "11. q=color!=%22red%22 - E2"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color!%3D%22red%22'
+echo
+echo
+
+
+echo "12. q=active==true - E1, E3"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=active%3D%3Dtrue'
+echo
+echo
+
+
+echo "13. q=speed (existence) - E1, E2, E3"
+echo "===================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed'
+echo
+echo
+
+
+echo "14. q=nonExistent (existence, no match) - empty"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=nonExistent'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1: speed=100, color=red, active=true
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E1
+Content-Length: 0
+
+
+
+
+02. Create E2: speed=50, color=blue, active=false
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E2
+Content-Length: 0
+
+
+
+
+03. Create E3: speed=75, color=red, active=true
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E3
+Content-Length: 0
+
+
+
+
+04. q=speed==100 - E1 only
+==========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+05. q=speed>60 - E1, E3
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+06. q=speed>=75 - E1, E3
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+07. q=speed<75 - E2
+===================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+08. q=speed<=75 - E2, E3
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+09. q=speed!=100 - E2, E3
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+10. q=color==%22red%22 - E1, E3
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+11. q=color!=%22red%22 - E2
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+12. q=active==true - E1, E3
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+13. q=speed (existence) - E1, E2, E3
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+14. q=nonExistent (existence, no match) - empty
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

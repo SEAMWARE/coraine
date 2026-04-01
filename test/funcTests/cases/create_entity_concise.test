@@ -1,0 +1,214 @@
+#
+# FILE            create_entity_concise.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /ngsi-ld/v1/entities - concise input format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Concise input format: value key present but no explicit "type" field
+#
+# Property and Relationship:
+# 01. Create entity with concise Property and Relationship
+# 02. GET entity E1 - verify type fields are added
+#
+# GeoProperty inferred from GeoJSON value:
+# 03. Create entity with concise GeoProperty (hasValue = GeoJSON, no type)
+# 04. GET entity E2 - verify GeoProperty type is inferred
+#
+# GeoProperty with explicit type (already works):
+# 05. Create entity with concise GeoProperty with explicit type
+# 06. GET entity E3 - verify GeoProperty
+#
+
+echo "01. Create entity with concise Property and Relationship"
+echo "========================================================"
+payload='{
+  "id": "urn:conc:E1",
+  "type": "T",
+  "speed": {
+    "value": 100,
+    "unitCode": "KMH"
+  },
+  "rel": {
+    "object": "urn:target:1"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity E1 - verify type fields are added"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:conc:E1
+echo
+echo
+
+
+echo "03. Create entity with concise GeoProperty (no explicit type)"
+echo "============================================================="
+payload='{
+  "id": "urn:conc:E2",
+  "type": "T",
+  "location": {
+    "value": {
+      "type": "Point",
+      "coordinates": [1.0, 2.0]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET entity E2 - verify GeoProperty type is inferred"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:conc:E2
+echo
+echo
+
+
+echo "05. Create entity with concise GeoProperty with explicit type"
+echo "============================================================="
+payload='{
+  "id": "urn:conc:E3",
+  "type": "T",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [3.0, 4.0]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. GET entity E3 - verify GeoProperty"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:conc:E3
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with concise Property and Relationship
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:conc:E1
+Content-Length: 0
+
+
+
+
+02. GET entity E1 - verify type fields are added
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 196
+
+{
+  "id": "urn:conc:E1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "unitCode": "KMH"
+  },
+  "rel": {
+    "type": "Relationship",
+    "object": "urn:target:1"
+  }
+}
+
+
+
+03. Create entity with concise GeoProperty (no explicit type)
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:conc:E2
+Content-Length: 0
+
+
+
+
+04. GET entity E2 - verify GeoProperty type is inferred
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 185
+
+{
+  "id": "urn:conc:E2",
+  "type": "T",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        1,
+        2
+      ]
+    }
+  }
+}
+
+
+
+05. Create entity with concise GeoProperty with explicit type
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:conc:E3
+Content-Length: 0
+
+
+
+
+06. GET entity E3 - verify GeoProperty
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 185
+
+{
+  "id": "urn:conc:E3",
+  "type": "T",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        3,
+        4
+      ]
+    }
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

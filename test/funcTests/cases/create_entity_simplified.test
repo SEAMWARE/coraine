@@ -1,0 +1,271 @@
+#
+# FILE            create_entity_simplified.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /ngsi-ld/v1/entities - simplified input format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Simplified input format: attributes as plain values (no wrapper object)
+#
+# Scalar values:
+# 01. Create entity with simplified integer, string, boolean, float, null
+# 02. GET entity E1 - verify normalized output
+#
+# GeoJSON value (simplified GeoProperty):
+# 03. Create entity with simplified GeoJSON Point
+# 04. GET entity E2 - verify GeoProperty in normalized output
+#
+# Array value (simplified array Property):
+# 05. Create entity with simplified array value
+# 06. GET entity E3 - verify Property with array value
+#
+# Object value (simplified object Property, NOT GeoJSON):
+# 07. Create entity with simplified plain object value
+# 08. GET entity E4 - verify Property with object value
+#
+
+echo "01. Create entity with simplified scalar values"
+echo "==============================================="
+payload='{
+  "id": "urn:simp:E1",
+  "type": "T",
+  "speed": 100,
+  "name": "Car 1",
+  "active": true,
+  "temperature": 22.5,
+  "notes": null
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity E1 - verify normalized output"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entities/urn:simp:E1
+echo
+echo
+
+
+echo "03. Create entity with simplified GeoJSON Point"
+echo "==============================================="
+payload='{
+  "id": "urn:simp:E2",
+  "type": "T",
+  "location": {
+    "type": "Point",
+    "coordinates": [1.0, 2.0]
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET entity E2 - verify GeoProperty in normalized output"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:simp:E2
+echo
+echo
+
+
+echo "05. Create entity with simplified array value"
+echo "============================================="
+payload='{
+  "id": "urn:simp:E3",
+  "type": "T",
+  "tags": ["fast", "red", "sporty"]
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. GET entity E3 - verify Property with array value"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:simp:E3
+echo
+echo
+
+
+echo "07. Create entity with simplified plain object value"
+echo "===================================================="
+payload='{
+  "id": "urn:simp:E4",
+  "type": "T",
+  "metadata": {
+    "key": "val",
+    "num": 42
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. GET entity E4 - verify Property with object value"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:simp:E4
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with simplified scalar values
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:simp:E1
+Content-Length: 0
+
+
+
+
+02. GET entity E1 - verify normalized output
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 349
+
+{
+  "id": "urn:simp:E1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "name": {
+    "type": "Property",
+    "value": "Car 1"
+  },
+  "active": {
+    "type": "Property",
+    "value": true
+  },
+  "temperature": {
+    "type": "Property",
+    "value": 22.5
+  },
+  "notes": {
+    "type": "Property",
+    "value": null
+  }
+}
+
+
+
+03. Create entity with simplified GeoJSON Point
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:simp:E2
+Content-Length: 0
+
+
+
+
+04. GET entity E2 - verify GeoProperty in normalized output
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 185
+
+{
+  "id": "urn:simp:E2",
+  "type": "T",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        1,
+        2
+      ]
+    }
+  }
+}
+
+
+
+05. Create entity with simplified array value
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:simp:E3
+Content-Length: 0
+
+
+
+
+06. GET entity E3 - verify Property with array value
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 145
+
+{
+  "id": "urn:simp:E3",
+  "type": "T",
+  "tags": {
+    "type": "Property",
+    "value": [
+      "fast",
+      "red",
+      "sporty"
+    ]
+  }
+}
+
+
+
+07. Create entity with simplified plain object value
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:simp:E4
+Content-Length: 0
+
+
+
+
+08. GET entity E4 - verify Property with object value
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 143
+
+{
+  "id": "urn:simp:E4",
+  "type": "T",
+  "metadata": {
+    "type": "Property",
+    "value": {
+      "key": "val",
+      "num": 42
+    }
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

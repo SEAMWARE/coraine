@@ -1,0 +1,69 @@
+#
+# FILE            query_entities_no_match.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /entities?type=NonExistent returns empty array
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create Vehicle E1 with speed
+# 02. GET entities?type=NonExistent - empty array (no match)
+#
+
+echo "01. Create Vehicle E1 with speed"
+echo "=================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entities?type=NonExistent - empty array (no match)"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=NonExistent'
+echo
+echo
+
+
+--EXPECT--
+01. Create Vehicle E1 with speed
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entities?type=NonExistent - empty array (no match)
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

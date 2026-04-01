@@ -1,0 +1,138 @@
+#
+# FILE            url_param_sysattrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET entity/entities with sysAttrs=true returns timestamps
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create a simple entity with speed
+# 02. GET entity with sysAttrs=true - timestamps present
+# 03. GET entity without sysAttrs - timestamps stripped
+# 04. GET entities with sysAttrs=true - array path with timestamps
+#
+
+echo "01. Create a simple entity with speed"
+echo "====================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity with sysAttrs=true - timestamps present"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?sysAttrs=true'
+echo
+echo
+
+
+echo "03. GET entity without sysAttrs - timestamps stripped"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+echo "04. GET entities with sysAttrs=true - array path with timestamps"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&sysAttrs=true'
+echo
+echo
+
+
+--EXPECT--
+01. Create a simple entity with speed
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entity with sysAttrs=true - timestamps present
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "createdAt": REGEX([0-9]+),
+    "modifiedAt": REGEX([0-9]+)
+  },
+  "createdAt": REGEX([0-9]+),
+  "modifiedAt": REGEX([0-9]+)
+}
+
+
+
+03. GET entity without sysAttrs - timestamps stripped
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 101
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+04. GET entities with sysAttrs=true - array path with timestamps
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 247
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100,
+      "createdAt": REGEX([0-9]+),
+      "modifiedAt": REGEX([0-9]+)
+    },
+    "createdAt": REGEX([0-9]+),
+    "modifiedAt": REGEX([0-9]+)
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

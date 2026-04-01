@@ -1,0 +1,121 @@
+#
+# FILE            create_entity_mixed_formats.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /ngsi-ld/v1/entities - mixed normalized/concise/simplified input
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Mixed input format: normalized, concise, and simplified attributes in one entity
+#
+# 01. Create entity with mix of all three formats
+# 02. GET entity E1 - verify all attributes come back normalized
+#
+
+echo "01. Create entity with mix of normalized, concise, and simplified"
+echo "================================================================="
+payload='{
+  "id": "urn:mix:E1",
+  "type": "T",
+  "normalizedAttr": {
+    "type": "Property",
+    "value": "fully normalized"
+  },
+  "conciseAttr": {
+    "value": 42
+  },
+  "simplifiedString": "hello",
+  "simplifiedInt": 99,
+  "simplifiedBool": false,
+  "conciseRel": {
+    "object": "urn:target:1"
+  },
+  "simplifiedGeo": {
+    "type": "Point",
+    "coordinates": [10.0, 20.0]
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity E1 - verify all attributes normalized"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:mix:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with mix of normalized, concise, and simplified
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:mix:E1
+Content-Length: 0
+
+
+
+
+02. GET entity E1 - verify all attributes normalized
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 628
+
+{
+  "id": "urn:mix:E1",
+  "type": "T",
+  "normalizedAttr": {
+    "type": "Property",
+    "value": "fully normalized"
+  },
+  "conciseAttr": {
+    "type": "Property",
+    "value": 42
+  },
+  "simplifiedString": {
+    "type": "Property",
+    "value": "hello"
+  },
+  "simplifiedInt": {
+    "type": "Property",
+    "value": 99
+  },
+  "simplifiedBool": {
+    "type": "Property",
+    "value": false
+  },
+  "conciseRel": {
+    "type": "Relationship",
+    "object": "urn:target:1"
+  },
+  "simplifiedGeo": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [
+        10,
+        20
+      ]
+    }
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

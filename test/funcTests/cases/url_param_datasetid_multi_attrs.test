@@ -1,0 +1,202 @@
+#
+# FILE            url_param_datasetid_multi_attrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+datasetId filter on entity with multiple attributes - partial match and no-default
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity: speed (default + radar), color (only urn:paint:factory, no default)
+# 02. Filter datasetId=urn:sensor:radar - speed kept (radar only), color dropped (no match)
+# 03. Filter datasetId=@none - speed kept (default only), color dropped (no default)
+# 04. Filter datasetId=urn:paint:factory - speed dropped, color kept
+# 05. Filter datasetId=@none,urn:paint:factory - speed default + color factory
+# 06. GET entities - datasetId=urn:paint:factory (array path, partial match)
+#
+
+echo "01. Create entity: speed (default + radar), color (only urn:paint:factory, no default)"
+echo "======================================================================================"
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  ],
+  "color": {
+    "type": "Property",
+    "value": "red",
+    "datasetId": "urn:paint:factory"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Filter datasetId=urn:sensor:radar - speed kept (radar only), color dropped (no match)"
+echo "========================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar'
+echo
+echo
+
+
+echo "03. Filter datasetId=@none - speed kept (default only), color dropped (no default)"
+echo "=================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none'
+echo
+echo
+
+
+echo "04. Filter datasetId=urn:paint:factory - speed dropped, color kept"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:paint:factory'
+echo
+echo
+
+
+echo "05. Filter datasetId=@none,urn:paint:factory - speed default + color factory"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none,urn:paint:factory'
+echo
+echo
+
+
+echo "06. GET entities - datasetId=urn:paint:factory (array path, partial match)"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&datasetId=urn:paint:factory'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity: speed (default + radar), color (only urn:paint:factory, no default)
+======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. Filter datasetId=urn:sensor:radar - speed kept (radar only), color dropped (no match)
+=========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 137
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 98,
+    "datasetId": "urn:sensor:radar"
+  }
+}
+
+
+
+03. Filter datasetId=@none - speed kept (default only), color dropped (no default)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 101
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+04. Filter datasetId=urn:paint:factory - speed dropped, color kept
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 141
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "color": {
+    "type": "Property",
+    "value": "red",
+    "datasetId": "urn:paint:factory"
+  }
+}
+
+
+
+05. Filter datasetId=@none,urn:paint:factory - speed default + color factory
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 200
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red",
+    "datasetId": "urn:paint:factory"
+  }
+}
+
+
+
+06. GET entities - datasetId=urn:paint:factory (array path, partial match)
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "color": {
+      "type": "Property",
+      "value": "red",
+      "datasetId": "urn:paint:factory"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,109 @@
+#
+# FILE            query_entities_with_type_and_pick.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /entities?type=X&pick=Y combines type filter with pick
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create Vehicle V1 with speed and color
+# 02. Create Building B1 with height
+# 03. GET entities?type=Vehicle&pick=speed - only V1 with only speed
+#
+
+echo "01. Create Vehicle V1 with speed and color"
+echo "=========================================="
+payload='{
+  "id": "urn:v1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create Building B1 with height"
+echo "=================================="
+payload='{
+  "id": "urn:b1",
+  "type": "Building",
+  "height": {
+    "type": "Property",
+    "value": 50
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET entities?type=Vehicle&pick=speed - only V1 with only speed"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed'
+echo
+echo
+
+
+--EXPECT--
+01. Create Vehicle V1 with speed and color
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:v1
+Content-Length: 0
+
+
+
+
+02. Create Building B1 with height
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:b1
+Content-Length: 0
+
+
+
+
+03. GET entities?type=Vehicle&pick=speed - only V1 with only speed
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 121
+
+[
+  {
+    "id": "urn:v1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

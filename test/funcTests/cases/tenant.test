@@ -1,0 +1,200 @@
+#
+# FILE            tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Multi-tenant support via NGSILD-Tenant header
+
+--INIT--
+swDbDrop
+swDbDrop t1
+swBrokerStart
+
+--RUN--
+
+#
+# 01. GET /entities with unknown tenant t1 - 404 NonexistentTenant
+# 02. POST /entities with NGSILD-Tenant: t1 - auto-creates tenant, 201 Created
+# 03. GET /entities (default tenant) - entity NOT visible
+# 04. GET /entities with NGSILD-Tenant: t1 - entity IS visible, response echoes tenant header
+# 05. POST /entities to default tenant - 201 Created
+# 06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1
+# 07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered, entity still there
+#
+
+echo "01. GET /entities with unknown tenant t1 - 404 NonexistentTenant"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "02. POST /entities with NGSILD-Tenant: t1 - auto-creates tenant, 201 Created"
+echo "============================================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "03. GET /entities (default tenant) - entity NOT visible"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T'
+echo
+echo
+
+
+echo "04. GET /entities with NGSILD-Tenant: t1 - entity IS visible, response echoes tenant header"
+echo "==========================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "05. POST /entities to default tenant - 201 Created"
+echo "=================================================="
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json"
+echo
+echo
+
+
+echo "06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered"
+echo "=============================================================================="
+swBrokerStop
+swBrokerStart
+swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+--EXPECT--
+01. GET /entities with unknown tenant t1 - 404 NonexistentTenant
+================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
+  "title": "NonexistentTenant",
+  "detail": "tenant 't1' does not exist"
+}
+
+
+
+02. POST /entities with NGSILD-Tenant: t1 - auto-creates tenant, 201 Created
+============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:E1
+Content-Length: 0
+
+
+
+
+03. GET /entities (default tenant) - entity NOT visible
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 48
+
+[
+  {
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+04. GET /entities with NGSILD-Tenant: t1 - entity IS visible, response echoes tenant header
+===========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Content-Length: 48
+
+[
+  {
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+05. POST /entities to default tenant - 201 Created
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:E2
+Content-Length: 0
+
+
+
+
+06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Content-Length: 93
+
+[
+  {
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered
+==============================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
+  "title": "NonexistentTenant",
+  "detail": "tenant 't1' does not exist"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swDbDrop t1

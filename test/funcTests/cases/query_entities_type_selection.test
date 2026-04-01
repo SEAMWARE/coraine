@@ -1,0 +1,572 @@
+#
+# FILE            query_entities_type_selection.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - Type Selection Language (OR, AND, mixed)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Setup:
+# 01. Create E1 type=Building
+# 02. Create E2 type=House
+# 03. Create E3 type=[Home, Vehicle]
+# 04. Create E4 type=Motorhome
+#
+# Type selection queries:
+# 05. ?type=Building - E1 only
+# 06. ?type=Building,House - E1, E2 (OR with comma)
+# 07. ?type=Building|House - E1, E2 (OR with pipe)
+# 08. ?type=(Home;Vehicle) - E3 (AND)
+# 09. ?type=(Home;Vehicle)|Motorhome - E3, E4 (mixed)
+# 10. ?type=Home - E3 (multi-type entity matches on any single type)
+# 11. ?type=(Building;Vehicle) - empty (no entity has both)
+#
+# Extended combinatorics:
+# 12. Create E5 type=[Home, Vehicle, Boat]
+# 13. ?type=(Building;House),(Home;Motorhome) - two AND groups OR'd with comma (no match)
+# 14. ?type=(Home;Vehicle;Boat) - 3-type AND (E5 only)
+# 15. ?type=Building,House,Motorhome - 3+ simple OR (E1, E2, E4)
+# 16. ?type=(Home;Vehicle),Motorhome - comma as outer OR with AND group (E3, E4, E5)
+# 17. ?type=Vehicle - partial match on multi-type returns E3 and E5
+#
+
+echo "01. Create E1 type=Building"
+echo "==========================="
+payload='{
+  "id": "urn:entity:E1",
+  "type": "Building",
+  "name": {
+    "type": "Property",
+    "value": "Office"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2 type=House"
+echo "========================"
+payload='{
+  "id": "urn:entity:E2",
+  "type": "House",
+  "name": {
+    "type": "Property",
+    "value": "Cottage"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create E3 type=[Home, Vehicle]"
+echo "=================================="
+payload='{
+  "id": "urn:entity:E3",
+  "type": ["Home", "Vehicle"],
+  "name": {
+    "type": "Property",
+    "value": "Campervan"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Create E4 type=Motorhome"
+echo "============================"
+payload='{
+  "id": "urn:entity:E4",
+  "type": "Motorhome",
+  "name": {
+    "type": "Property",
+    "value": "Winnebago"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. ?type=Building - E1 only"
+echo "============================"
+swCurl --url '/ngsi-ld/v1/entities?type=Building'
+echo
+echo
+
+
+echo "06. ?type=Building,House - E1, E2 (OR with comma)"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Building,House'
+echo
+echo
+
+
+echo "07. ?type=Building|House - E1, E2 (OR with pipe)"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Building|House'
+echo
+echo
+
+
+echo "08. ?type=(Home;Vehicle) - E3 (AND)"
+echo "==================================="
+swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle)'
+echo
+echo
+
+
+echo "09. ?type=(Home;Vehicle)|Motorhome - E3, E4 (mixed)"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle)|Motorhome'
+echo
+echo
+
+
+echo "10. ?type=Home - E3 (multi-type entity matches on any single type)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Home'
+echo
+echo
+
+
+echo "11. ?type=(Building;Vehicle) - empty (no entity has both)"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=(Building;Vehicle)'
+echo
+echo
+
+
+echo "12. Create E5 type=[Home, Vehicle, Boat]"
+echo "========================================"
+payload='{
+  "id": "urn:entity:E5",
+  "type": ["Home", "Vehicle", "Boat"],
+  "name": {
+    "type": "Property",
+    "value": "Houseboat"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "13. ?type=(Building;House),(Home;Motorhome) - two AND groups OR'd with comma (no match)"
+echo "======================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=(Building;House),(Home;Motorhome)'
+echo
+echo
+
+
+echo "14. ?type=(Home;Vehicle;Boat) - 3-type AND (E5 only)"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle;Boat)'
+echo
+echo
+
+
+echo "15. ?type=Building,House,Motorhome - 3+ simple OR (E1, E2, E4)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Building,House,Motorhome'
+echo
+echo
+
+
+echo "16. ?type=(Home;Vehicle),Motorhome - comma as outer OR with AND group (E3, E4, E5)"
+echo "=================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle),Motorhome'
+echo
+echo
+
+
+echo "17. ?type=Vehicle - partial match on multi-type returns E3 and E5"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 type=Building
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E1
+Content-Length: 0
+
+
+
+
+02. Create E2 type=House
+========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E2
+Content-Length: 0
+
+
+
+
+03. Create E3 type=[Home, Vehicle]
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E3
+Content-Length: 0
+
+
+
+
+04. Create E4 type=Motorhome
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E4
+Content-Length: 0
+
+
+
+
+05. ?type=Building - E1 only
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 133
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Building",
+    "name": {
+      "type": "Property",
+      "value": "Office"
+    }
+  }
+]
+
+
+
+06. ?type=Building,House - E1, E2 (OR with comma)
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 261
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Building",
+    "name": {
+      "type": "Property",
+      "value": "Office"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "House",
+    "name": {
+      "type": "Property",
+      "value": "Cottage"
+    }
+  }
+]
+
+
+
+07. ?type=Building|House - E1, E2 (OR with pipe)
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 261
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Building",
+    "name": {
+      "type": "Property",
+      "value": "Office"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "House",
+    "name": {
+      "type": "Property",
+      "value": "Cottage"
+    }
+  }
+]
+
+
+
+08. ?type=(Home;Vehicle) - E3 (AND)
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+[
+  {
+    "id": "urn:entity:E3",
+    "type": [
+      "Home",
+      "Vehicle"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Campervan"
+    }
+  }
+]
+
+
+
+09. ?type=(Home;Vehicle)|Motorhome - E3, E4 (mixed)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 297
+
+[
+  {
+    "id": "urn:entity:E3",
+    "type": [
+      "Home",
+      "Vehicle"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Campervan"
+    }
+  },
+  {
+    "id": "urn:entity:E4",
+    "type": "Motorhome",
+    "name": {
+      "type": "Property",
+      "value": "Winnebago"
+    }
+  }
+]
+
+
+
+10. ?type=Home - E3 (multi-type entity matches on any single type)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+[
+  {
+    "id": "urn:entity:E3",
+    "type": [
+      "Home",
+      "Vehicle"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Campervan"
+    }
+  }
+]
+
+
+
+11. ?type=(Building;Vehicle) - empty (no entity has both)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+12. Create E5 type=[Home, Vehicle, Boat]
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E5
+Content-Length: 0
+
+
+
+
+13. ?type=(Building;House),(Home;Motorhome) - two AND groups OR'd with comma (no match)
+=======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+14. ?type=(Home;Vehicle;Boat) - 3-type AND (E5 only)
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+[
+  {
+    "id": "urn:entity:E5",
+    "type": [
+      "Home",
+      "Vehicle",
+      "Boat"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Houseboat"
+    }
+  }
+]
+
+
+
+15. ?type=Building,House,Motorhome - 3+ simple OR (E1, E2, E4)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 395
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Building",
+    "name": {
+      "type": "Property",
+      "value": "Office"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "House",
+    "name": {
+      "type": "Property",
+      "value": "Cottage"
+    }
+  },
+  {
+    "id": "urn:entity:E4",
+    "type": "Motorhome",
+    "name": {
+      "type": "Property",
+      "value": "Winnebago"
+    }
+  }
+]
+
+
+
+16. ?type=(Home;Vehicle),Motorhome - comma as outer OR with AND group (E3, E4, E5)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 471
+
+[
+  {
+    "id": "urn:entity:E3",
+    "type": [
+      "Home",
+      "Vehicle"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Campervan"
+    }
+  },
+  {
+    "id": "urn:entity:E4",
+    "type": "Motorhome",
+    "name": {
+      "type": "Property",
+      "value": "Winnebago"
+    }
+  },
+  {
+    "id": "urn:entity:E5",
+    "type": [
+      "Home",
+      "Vehicle",
+      "Boat"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Houseboat"
+    }
+  }
+]
+
+
+
+17. ?type=Vehicle - partial match on multi-type returns E3 and E5
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 337
+
+[
+  {
+    "id": "urn:entity:E3",
+    "type": [
+      "Home",
+      "Vehicle"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Campervan"
+    }
+  },
+  {
+    "id": "urn:entity:E5",
+    "type": [
+      "Home",
+      "Vehicle",
+      "Boat"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Houseboat"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

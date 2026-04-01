@@ -1,0 +1,78 @@
+#
+# FILE            retrieve_entity_with_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET entity with single attribute with datasetId returns object with datasetId
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with speed having a named datasetId
+# 02. GET entity E1 - speed with datasetId returned
+#
+
+echo "01. Create entity with speed having a named datasetId"
+echo "======================================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "datasetId": "urn:sensor:radar"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity E1 - speed with datasetId returned"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with speed having a named datasetId
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entity E1 - speed with datasetId returned
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 138
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "datasetId": "urn:sensor:radar"
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

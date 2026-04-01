@@ -1,0 +1,604 @@
+#
+# FILE            query_entities_q_compound.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - q parameter compound filters (AND, OR, parens, range, value list)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create E1: speed=100, color="red", active=true
+# 02. Create E2: speed=50, color="blue", active=false
+# 03. Create E3: speed=75, color="red", active=true
+# 04. q=speed>60;color=="red" (AND) - E1, E3
+# 05. q=speed==100|color=="blue" (OR) - E1, E2
+# 06. q=(speed>60|color=="blue");active==true (grouped OR + AND) - E1, E3
+# 07. q=speed==50..100 (range) - E1, E2, E3
+# 08. q=color=="red","blue" (value list) - E1, E2, E3
+# 09. q=speed==100,75 (numeric value list) - E1, E3
+# 10. q=speed!=50;color!="blue" (AND with !=) - E1, E3
+#
+
+echo "01. Create E1: speed=100, color=red, active=true"
+echo "================================================"
+payload='{
+  "id": "urn:entity:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "active": {
+    "type": "Property",
+    "value": true
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2: speed=50, color=blue, active=false"
+echo "================================================="
+payload='{
+  "id": "urn:entity:E2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "active": {
+    "type": "Property",
+    "value": false
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create E3: speed=75, color=red, active=true"
+echo "==============================================="
+payload='{
+  "id": "urn:entity:E3",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 75
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "active": {
+    "type": "Property",
+    "value": true
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. q=speed>60;color==%22red%22 (AND) - E1, E3"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E60;color%3D%3D%22red%22'
+echo
+echo
+
+
+echo "05. q=speed==100|color==%22blue%22 (OR) - E1, E2"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3D%3D100|color%3D%3D%22blue%22'
+echo
+echo
+
+
+echo "06. q=(speed>60|color==%22blue%22);active==true (grouped OR + AND) - E1, E3"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=(speed%3E60|color%3D%3D%22blue%22);active%3D%3Dtrue'
+echo
+echo
+
+
+echo "07. q=speed==50..100 (range) - E1, E2, E3"
+echo "========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3D%3D50..100'
+echo
+echo
+
+
+echo "08. q=color==%22red%22,%22blue%22 (value list) - E1, E2, E3"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22,%22blue%22'
+echo
+echo
+
+
+echo "09. q=speed==100,75 (numeric value list) - E1, E3"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3D%3D100,75'
+echo
+echo
+
+
+echo "10. q=speed!=50;color!=%22blue%22 (AND with !=) - E1, E3"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed!%3D50;color!%3D%22blue%22'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1: speed=100, color=red, active=true
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E1
+Content-Length: 0
+
+
+
+
+02. Create E2: speed=50, color=blue, active=false
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E2
+Content-Length: 0
+
+
+
+
+03. Create E3: speed=75, color=red, active=true
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E3
+Content-Length: 0
+
+
+
+
+04. q=speed>60;color==%22red%22 (AND) - E1, E3
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+05. q=speed==100|color==%22blue%22 (OR) - E1, E2
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+06. q=(speed>60|color==%22blue%22);active==true (grouped OR + AND) - E1, E3
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+07. q=speed==50..100 (range) - E1, E2, E3
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+08. q=color==%22red%22,%22blue%22 (value list) - E1, E2, E3
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+09. q=speed==100,75 (numeric value list) - E1, E3
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+10. q=speed!=50;color!=%22blue%22 (AND with !=) - E1, E3
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 792
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "active": {
+      "type": "Property",
+      "value": false
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

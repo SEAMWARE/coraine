@@ -1,0 +1,404 @@
+#
+# FILE            query_entities_idpattern.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - idPattern regex filtering on entity IDs
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Setup:
+# 01. Create urn:vehicle:car:001
+# 02. Create urn:vehicle:car:002
+# 03. Create urn:vehicle:truck:001
+# 04. Create urn:sensor:temp:001
+# 05. Create urn:sensor:humidity:001
+#
+# Query tests:
+# 06. idPattern=urn:vehicle.* - all vehicles (3)
+# 07. idPattern=urn:vehicle:car.* - only cars (2)
+# 08. idPattern=.*:001 - all entities ending in :001 (4)
+# 09. idPattern=urn:sensor.* - all sensors (2)
+# 10. idPattern=urn:vehicle:truck.* - only trucks (1)
+# 11. idPattern=urn:nonexistent.* - no match (empty)
+# 12. idPattern combined with type filter (1)
+#
+
+echo "01. Create urn:vehicle:car:001"
+echo "=============================="
+payload='{
+  "id": "urn:vehicle:car:001",
+  "type": "Vehicle",
+  "name": {
+    "type": "Property",
+    "value": "Car 1"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:vehicle:car:002"
+echo "=============================="
+payload='{
+  "id": "urn:vehicle:car:002",
+  "type": "Vehicle",
+  "name": {
+    "type": "Property",
+    "value": "Car 2"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create urn:vehicle:truck:001"
+echo "================================"
+payload='{
+  "id": "urn:vehicle:truck:001",
+  "type": "Vehicle",
+  "name": {
+    "type": "Property",
+    "value": "Truck 1"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Create urn:sensor:temp:001"
+echo "=============================="
+payload='{
+  "id": "urn:sensor:temp:001",
+  "type": "Sensor",
+  "name": {
+    "type": "Property",
+    "value": "Temp Sensor 1"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Create urn:sensor:humidity:001"
+echo "=================================="
+payload='{
+  "id": "urn:sensor:humidity:001",
+  "type": "Sensor",
+  "name": {
+    "type": "Property",
+    "value": "Humidity Sensor 1"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. idPattern=urn:vehicle.* - all vehicles (3)"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle.*'
+echo
+echo
+
+
+echo "07. idPattern=urn:vehicle:car.* - only cars (2)"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle:car.*'
+echo
+echo
+
+
+echo "08. idPattern=.*:001 - all entities ending in :001 (4)"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=.*:001'
+echo
+echo
+
+
+echo "09. idPattern=urn:sensor.* - all sensors (2)"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:sensor.*'
+echo
+echo
+
+
+echo "10. idPattern=urn:vehicle:truck.* - only trucks (1)"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle:truck.*'
+echo
+echo
+
+
+echo "11. idPattern=urn:nonexistent.* - no match (empty)"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:nonexistent.*'
+echo
+echo
+
+
+echo "12. idPattern combined with type filter (1)"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Sensor&idPattern=.*temp.*'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:vehicle:car:001
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vehicle:car:001
+Content-Length: 0
+
+
+
+
+02. Create urn:vehicle:car:002
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vehicle:car:002
+Content-Length: 0
+
+
+
+
+03. Create urn:vehicle:truck:001
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vehicle:truck:001
+Content-Length: 0
+
+
+
+
+04. Create urn:sensor:temp:001
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:sensor:temp:001
+Content-Length: 0
+
+
+
+
+05. Create urn:sensor:humidity:001
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:sensor:humidity:001
+Content-Length: 0
+
+
+
+
+06. idPattern=urn:vehicle.* - all vehicles (3)
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 409
+
+[
+  {
+    "id": "urn:vehicle:car:001",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Car 1"
+    }
+  },
+  {
+    "id": "urn:vehicle:car:002",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Car 2"
+    }
+  },
+  {
+    "id": "urn:vehicle:truck:001",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Truck 1"
+    }
+  }
+]
+
+
+
+07. idPattern=urn:vehicle:car.* - only cars (2)
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 271
+
+[
+  {
+    "id": "urn:vehicle:car:001",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Car 1"
+    }
+  },
+  {
+    "id": "urn:vehicle:car:002",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Car 2"
+    }
+  }
+]
+
+
+
+08. idPattern=.*:001 - all entities ending in :001 (4)
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 565
+
+[
+  {
+    "id": "urn:vehicle:car:001",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Car 1"
+    }
+  },
+  {
+    "id": "urn:vehicle:truck:001",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Truck 1"
+    }
+  },
+  {
+    "id": "urn:sensor:temp:001",
+    "type": "Sensor",
+    "name": {
+      "type": "Property",
+      "value": "Temp Sensor 1"
+    }
+  },
+  {
+    "id": "urn:sensor:humidity:001",
+    "type": "Sensor",
+    "name": {
+      "type": "Property",
+      "value": "Humidity Sensor 1"
+    }
+  }
+]
+
+
+
+09. idPattern=urn:sensor.* - all sensors (2)
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 293
+
+[
+  {
+    "id": "urn:sensor:temp:001",
+    "type": "Sensor",
+    "name": {
+      "type": "Property",
+      "value": "Temp Sensor 1"
+    }
+  },
+  {
+    "id": "urn:sensor:humidity:001",
+    "type": "Sensor",
+    "name": {
+      "type": "Property",
+      "value": "Humidity Sensor 1"
+    }
+  }
+]
+
+
+
+10. idPattern=urn:vehicle:truck.* - only trucks (1)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 141
+
+[
+  {
+    "id": "urn:vehicle:truck:001",
+    "type": "Vehicle",
+    "name": {
+      "type": "Property",
+      "value": "Truck 1"
+    }
+  }
+]
+
+
+
+11. idPattern=urn:nonexistent.* - no match (empty)
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+12. idPattern combined with type filter (1)
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+[
+  {
+    "id": "urn:sensor:temp:001",
+    "type": "Sensor",
+    "name": {
+      "type": "Property",
+      "value": "Temp Sensor 1"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

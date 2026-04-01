@@ -1,0 +1,523 @@
+#
+# FILE            create_entity_value_types.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /ngsi-ld/v1/entities - all JSON value types (BSON round-trip)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Float values:
+# 01. Create entity with float value (3.14)
+# 02. GET entity E1 - verify float round-trip
+#
+# Boolean values:
+# 03. Create entity with boolean true
+# 04. GET entity E2 - verify boolean true round-trip
+# 05. Create entity with boolean false
+# 06. GET entity E3 - verify boolean false round-trip
+#
+# Null value:
+# 07. Create entity with null value
+# 08. GET entity E4 - verify null round-trip
+#
+# Integer values (INT32 vs INT64):
+# 09. Create entity with small integer (42 - fits INT32)
+# 10. GET entity E5 - verify small integer round-trip
+# 11. Create entity with large integer (5000000000 - requires INT64)
+# 12. GET entity E6 - verify large integer round-trip
+#
+# Nested object value:
+# 13. Create entity with nested object value
+# 14. GET entity E7 - verify nested object round-trip
+#
+# Array value:
+# 15. Create entity with array value
+# 16. GET entity E8 - verify array round-trip
+#
+# Dotted attribute name:
+# 17. Create entity with dotted attribute name (sensor.temp)
+# 18. GET entity E9 - verify dotted key round-trip
+#
+
+echo "01. Create entity with float value (3.14)"
+echo "==========================================="
+payload='{
+  "id": "urn:vt:E1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 3.14
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity E1 - verify float round-trip"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E1
+echo
+echo
+
+
+echo "03. Create entity with boolean true"
+echo "===================================="
+payload='{
+  "id": "urn:vt:E2",
+  "type": "T",
+  "active": {
+    "type": "Property",
+    "value": true
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET entity E2 - verify boolean true round-trip"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E2
+echo
+echo
+
+
+echo "05. Create entity with boolean false"
+echo "====================================="
+payload='{
+  "id": "urn:vt:E3",
+  "type": "T",
+  "active": {
+    "type": "Property",
+    "value": false
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. GET entity E3 - verify boolean false round-trip"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E3
+echo
+echo
+
+
+echo "07. Create entity with null value"
+echo "=================================="
+payload='{
+  "id": "urn:vt:E4",
+  "type": "T",
+  "notes": {
+    "type": "Property",
+    "value": null
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. GET entity E4 - verify null round-trip"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E4
+echo
+echo
+
+
+echo "09. Create entity with small integer (42)"
+echo "==========================================="
+payload='{
+  "id": "urn:vt:E5",
+  "type": "T",
+  "count": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. GET entity E5 - verify small integer round-trip"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E5
+echo
+echo
+
+
+echo "11. Create entity with large integer (5000000000)"
+echo "==================================================="
+payload='{
+  "id": "urn:vt:E6",
+  "type": "T",
+  "bignum": {
+    "type": "Property",
+    "value": 5000000000
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "12. GET entity E6 - verify large integer round-trip"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E6
+echo
+echo
+
+
+echo "13. Create entity with nested object value"
+echo "============================================"
+payload='{
+  "id": "urn:vt:E7",
+  "type": "T",
+  "address": {
+    "type": "Property",
+    "value": {
+      "street": "Main St",
+      "num": 5
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "14. GET entity E7 - verify nested object round-trip"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E7
+echo
+echo
+
+
+echo "15. Create entity with array value"
+echo "===================================="
+payload='{
+  "id": "urn:vt:E8",
+  "type": "T",
+  "tags": {
+    "type": "Property",
+    "value": ["alpha", "beta", "gamma"]
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "16. GET entity E8 - verify array round-trip"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E8
+echo
+echo
+
+
+echo "17. Create entity with dotted attribute name (sensor.temp)"
+echo "==========================================================="
+payload='{
+  "id": "urn:vt:E9",
+  "type": "T",
+  "sensor.temp": {
+    "type": "Property",
+    "value": 22.5
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "18. GET entity E9 - verify dotted key round-trip"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:vt:E9
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with float value (3.14)
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E1
+Content-Length: 0
+
+
+
+
+02. GET entity E1 - verify float round-trip
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 99
+
+{
+  "id": "urn:vt:E1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 3.14
+  }
+}
+
+
+
+03. Create entity with boolean true
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E2
+Content-Length: 0
+
+
+
+
+04. GET entity E2 - verify boolean true round-trip
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 100
+
+{
+  "id": "urn:vt:E2",
+  "type": "T",
+  "active": {
+    "type": "Property",
+    "value": true
+  }
+}
+
+
+
+05. Create entity with boolean false
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E3
+Content-Length: 0
+
+
+
+
+06. GET entity E3 - verify boolean false round-trip
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 101
+
+{
+  "id": "urn:vt:E3",
+  "type": "T",
+  "active": {
+    "type": "Property",
+    "value": false
+  }
+}
+
+
+
+07. Create entity with null value
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E4
+Content-Length: 0
+
+
+
+
+08. GET entity E4 - verify null round-trip
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 99
+
+{
+  "id": "urn:vt:E4",
+  "type": "T",
+  "notes": {
+    "type": "Property",
+    "value": null
+  }
+}
+
+
+
+09. Create entity with small integer (42)
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E5
+Content-Length: 0
+
+
+
+
+10. GET entity E5 - verify small integer round-trip
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 97
+
+{
+  "id": "urn:vt:E5",
+  "type": "T",
+  "count": {
+    "type": "Property",
+    "value": 42
+  }
+}
+
+
+
+11. Create entity with large integer (5000000000)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E6
+Content-Length: 0
+
+
+
+
+12. GET entity E6 - verify large integer round-trip
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 106
+
+{
+  "id": "urn:vt:E6",
+  "type": "T",
+  "bignum": {
+    "type": "Property",
+    "value": 5000000000
+  }
+}
+
+
+
+13. Create entity with nested object value
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E7
+Content-Length: 0
+
+
+
+
+14. GET entity E7 - verify nested object round-trip
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 146
+
+{
+  "id": "urn:vt:E7",
+  "type": "T",
+  "address": {
+    "type": "Property",
+    "value": {
+      "street": "Main St",
+      "num": 5
+    }
+  }
+}
+
+
+
+15. Create entity with array value
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E8
+Content-Length: 0
+
+
+
+
+16. GET entity E8 - verify array round-trip
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "id": "urn:vt:E8",
+  "type": "T",
+  "tags": {
+    "type": "Property",
+    "value": [
+      "alpha",
+      "beta",
+      "gamma"
+    ]
+  }
+}
+
+
+
+17. Create entity with dotted attribute name (sensor.temp)
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:vt:E9
+Content-Length: 0
+
+
+
+
+18. GET entity E9 - verify dotted key round-trip
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 105
+
+{
+  "id": "urn:vt:E9",
+  "type": "T",
+  "sensor.temp": {
+    "type": "Property",
+    "value": 22.5
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

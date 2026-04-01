@@ -1,0 +1,187 @@
+#
+# FILE            query_entities_lang.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - lang parameter reduces LanguageProperty in query results
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 with LanguageProperty - 201 Created
+# 02. Create entity E2 with LanguageProperty - 201 Created
+# 03. GET /entities?type=T&lang=en - all LanguageProperty attrs reduced
+# 04. GET /entities?type=T (no lang) - LanguageProperty attrs intact
+#
+
+echo "01. Create entity E1 with LanguageProperty - 201 Created"
+echo "========================================================"
+payload='{
+  "id": "urn:qlang:E1",
+  "type": "T",
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Red Car",
+      "fr": "Voiture Rouge"
+    }
+  },
+  "speed": {
+    "type": "Property",
+    "value": 80
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create entity E2 with LanguageProperty - 201 Created"
+echo "========================================================"
+payload='{
+  "id": "urn:qlang:E2",
+  "type": "T",
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Green Bike",
+      "fr": "Velo Vert"
+    }
+  },
+  "speed": {
+    "type": "Property",
+    "value": 20
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET /entities?type=T&lang=en - all LanguageProperty attrs reduced"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&lang=en'
+echo
+echo
+
+
+echo "04. GET /entities?type=T (no lang) - LanguageProperty attrs intact"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 with LanguageProperty - 201 Created
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:qlang:E1
+Content-Length: 0
+
+
+
+
+02. Create entity E2 with LanguageProperty - 201 Created
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:qlang:E2
+Content-Length: 0
+
+
+
+
+03. GET /entities?type=T&lang=en - all LanguageProperty attrs reduced
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 424
+
+[
+  {
+    "id": "urn:qlang:E1",
+    "type": "T",
+    "name": {
+      "type": "Property",
+      "value": "Red Car",
+      "lang": "en"
+    },
+    "speed": {
+      "type": "Property",
+      "value": 80
+    }
+  },
+  {
+    "id": "urn:qlang:E2",
+    "type": "T",
+    "name": {
+      "type": "Property",
+      "value": "Green Bike",
+      "lang": "en"
+    },
+    "speed": {
+      "type": "Property",
+      "value": 20
+    }
+  }
+]
+
+
+
+04. GET /entities?type=T (no lang) - LanguageProperty attrs intact
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 518
+
+[
+  {
+    "id": "urn:qlang:E1",
+    "type": "T",
+    "name": {
+      "type": "LanguageProperty",
+      "languageMap": {
+        "en": "Red Car",
+        "fr": "Voiture Rouge"
+      }
+    },
+    "speed": {
+      "type": "Property",
+      "value": 80
+    }
+  },
+  {
+    "id": "urn:qlang:E2",
+    "type": "T",
+    "name": {
+      "type": "LanguageProperty",
+      "languageMap": {
+        "en": "Green Bike",
+        "fr": "Velo Vert"
+      }
+    },
+    "speed": {
+      "type": "Property",
+      "value": 20
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

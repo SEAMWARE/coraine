@@ -1,0 +1,90 @@
+#
+# FILE            retrieve_entity_multi_attr.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET entity with multi-attribute returns array with datasetId
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with multi-instance speed (default + urn:sensor:radar)
+# 02. GET entity E1 - both instances returned
+#
+
+echo "01. Create entity with multi-instance speed (default + urn:sensor:radar)"
+echo "========================================================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity E1 - both instances returned"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with multi-instance speed (default + urn:sensor:radar)
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entity E1 - both instances returned
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 213
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  ]
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,57 @@
+#
+# FILE            create_entity_multi_attr.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST entity with multi-attribute (array of instances) returns 201
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with multi-instance attribute (default + named datasetId) - 201 Created
+#
+
+echo "01. Create entity with multi-instance attribute (default + named datasetId) - 201 Created"
+echo "=========================================================================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with multi-instance attribute (default + named datasetId) - 201 Created
+==========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

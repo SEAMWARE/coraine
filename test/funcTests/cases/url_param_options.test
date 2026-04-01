@@ -1,0 +1,294 @@
+#
+# FILE            url_param_options.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Deprecated ?options= URL param for format selection (keyValues, simplified, concise, normalized)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 with speed and color
+# 02. GET entities with options=keyValues
+# 03. GET entities with options=simplified
+# 04. GET entities with options=concise
+# 05. GET entities with options=normalized
+# 06. GET entities with options=sysAttrs
+# 07. GET entities with options=keyValues,sysAttrs (combined)
+# 08. GET entities with format=concise AND options=keyValues (format wins)
+# 09. GET entities with options=keyValues AND format=concise (format wins regardless of order)
+#
+
+echo "01. Create entity E1 with speed and color"
+echo "========================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entities with options=keyValues"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues'
+echo
+echo
+
+
+echo "03. GET entities with options=simplified"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=simplified'
+echo
+echo
+
+
+echo "04. GET entities with options=concise"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=concise'
+echo
+echo
+
+
+echo "05. GET entities with options=normalized"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=normalized'
+echo
+echo
+
+
+echo "06. GET entities with options=sysAttrs"
+echo "======================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=sysAttrs'
+echo
+echo
+
+
+echo "07. GET entities with options=keyValues,sysAttrs (combined)"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues,sysAttrs'
+echo
+echo
+
+
+echo "08. GET entities with format=concise AND options=keyValues (format wins)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=concise&options=keyValues'
+echo
+echo
+
+
+echo "09. GET entities with options=keyValues AND format=concise (format wins regardless of order)"
+echo "============================================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&format=concise'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 with speed and color
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entities with options=keyValues
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 92
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": 100,
+    "color": "red"
+  }
+]
+
+
+
+03. GET entities with options=simplified
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 92
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": 100,
+    "color": "red"
+  }
+]
+
+
+
+04. GET entities with options=concise
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 138
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "value": 100
+    },
+    "color": {
+      "value": "red"
+    }
+  }
+]
+
+
+
+05. GET entities with options=normalized
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    }
+  }
+]
+
+
+
+06. GET entities with options=sysAttrs
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 381
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100,
+      "createdAt": REGEX([0-9]+),
+      "modifiedAt": REGEX([0-9]+)
+    },
+    "color": {
+      "type": "Property",
+      "value": "red",
+      "createdAt": REGEX([0-9]+),
+      "modifiedAt": REGEX([0-9]+)
+    },
+    "createdAt": REGEX([0-9]+),
+    "modifiedAt": REGEX([0-9]+)
+  }
+]
+
+
+
+07. GET entities with options=keyValues,sysAttrs (combined)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": 100,
+    "color": "red",
+    "createdAt": REGEX([0-9]+),
+    "modifiedAt": REGEX([0-9]+)
+  }
+]
+
+
+
+08. GET entities with format=concise AND options=keyValues (format wins)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 138
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "value": 100
+    },
+    "color": {
+      "value": "red"
+    }
+  }
+]
+
+
+
+09. GET entities with options=keyValues AND format=concise (format wins regardless of order)
+============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 138
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "value": 100
+    },
+    "color": {
+      "value": "red"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

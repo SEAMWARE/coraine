@@ -1,0 +1,53 @@
+#
+# FILE            create_entity_value_with_sysattr.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /entities with modifiedAt inside value object succeeds
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with modifiedAt inside a value object (allowed, not a sysattr) - 201 Created
+#
+
+echo "01. Create entity with modifiedAt inside a value object (allowed, not a sysattr) - 201 Created"
+echo "=============================================================================================="
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "data": {
+    "type": "Property",
+    "value": {
+      "modifiedAt": "2025-01-01T00:00:00Z",
+      "info": "test"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with modifiedAt inside a value object (allowed, not a sysattr) - 201 Created
+==============================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

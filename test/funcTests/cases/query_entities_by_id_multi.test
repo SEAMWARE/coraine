@@ -1,0 +1,140 @@
+#
+# FILE            query_entities_by_id_multi.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /entities?id=x,y filters by multiple entity ids
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create Vehicle E1 with speed
+# 02. Create Building E2 with height
+# 03. Create Vehicle E3 with color
+# 04. GET entities?id=urn:e1,urn:e3 - E1 and E3 returned, E2 excluded
+#
+
+echo "01. Create Vehicle E1 with speed"
+echo "================================"
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create Building E2 with height"
+echo "=================================="
+payload='{
+  "id": "urn:e2",
+  "type": "Building",
+  "height": {
+    "type": "Property",
+    "value": 50
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create Vehicle E3 with color"
+echo "================================"
+payload='{
+  "id": "urn:e3",
+  "type": "Vehicle",
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET entities?id=urn:e1,urn:e3 - E1 and E3 returned, E2 excluded"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities?id=urn:e1,urn:e3'
+echo
+echo
+
+
+--EXPECT--
+01. Create Vehicle E1 with speed
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. Create Building E2 with height
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e2
+Content-Length: 0
+
+
+
+
+03. Create Vehicle E3 with color
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e3
+Content-Length: 0
+
+
+
+
+04. GET entities?id=urn:e1,urn:e3 - E1 and E3 returned, E2 excluded
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 242
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    }
+  },
+  {
+    "id": "urn:e3",
+    "type": "Vehicle",
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

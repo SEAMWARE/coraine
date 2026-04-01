@@ -1,0 +1,42 @@
+#
+# FILE            query_entities_empty.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities on empty database returns empty array
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. GET /entities on empty database - 200 OK with empty array
+#
+
+echo "01. GET /entities on empty database - 200 OK with empty array"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities
+echo
+echo
+
+
+--EXPECT--
+01. GET /entities on empty database - 200 OK with empty array
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

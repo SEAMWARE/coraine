@@ -1,0 +1,44 @@
+#
+# FILE            retrieve_entity_not_found.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /entities/{id} for non-existing entity returns 404
+
+--INIT--
+swBrokerStart
+
+--RUN--
+
+#
+# 01. 01. GET /entities/urn:nonexistent - 404 Not Found
+#
+
+echo "01. GET /entities/urn:nonexistent - 404 Not Found"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:nonexistent
+echo
+echo
+
+
+--EXPECT--
+01. GET /entities/urn:nonexistent - 404 Not Found
+=================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 143
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "entity 'urn:nonexistent' not found"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

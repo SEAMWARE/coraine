@@ -1,0 +1,130 @@
+#
+# FILE            usage.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+CLI usage output (-u with various plugin combinations)
+
+--INIT--
+
+--RUN--
+
+#
+# 01. Usage without any plugin (-db /dev/null)
+# 02. Usage with dummy plugin (no extra CLI args)
+# 03. Usage with mongoc plugin (shows DB connection args)
+# 04. Usage with non-existent plugin (error + usage)
+#
+
+echo "01. Usage without any plugin (-db /dev/null)"
+echo "============================================="
+$SW_BROKER -u -db /dev/null 2>&1
+echo
+echo
+
+
+echo "02. Usage with dummy plugin (no extra CLI args)"
+echo "================================================"
+$SW_BROKER -u -db ./plugins/dummy.so 2>&1
+echo
+echo
+
+
+echo "03. Usage with mongoc plugin (shows DB connection args)"
+echo "======================================================="
+$SW_BROKER -u -db ./plugins/mongoc.so 2>&1
+echo
+echo
+
+
+echo "04. Usage with non-existent plugin (error + usage)"
+echo "==================================================="
+$SW_BROKER -u -db dummy2 2>&1
+echo
+echo
+
+
+--EXPECT--
+01. Usage without any plugin (-db /dev/null)
+=============================================
+Usage: swBroker  [--usage/-u (usage)]
+                 [--Usage/-U (extended usage)]
+                 [--verbose/-v (verbose mode)]
+                 [--debug/-d (debug mode)]
+                 [--port/-p <TCP port to listen on>]
+                 [--database/-db <dummy|mongoc>]
+                 [--apiPlugins/-api <admin>]
+                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--foreground/-fg (run in foreground (don't daemonize))]
+
+                 Plugins are loaded from /opt/seamware/plugins
+
+
+02. Usage with dummy plugin (no extra CLI args)
+================================================
+Usage: swBroker  [--usage/-u (usage)]
+                 [--Usage/-U (extended usage)]
+                 [--verbose/-v (verbose mode)]
+                 [--debug/-d (debug mode)]
+                 [--port/-p <TCP port to listen on>]
+                 [--database/-db <dummy|mongoc>]
+                 [--apiPlugins/-api <admin>]
+                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--foreground/-fg (run in foreground (don't daemonize))]
+
+                 Plugins are loaded from /opt/seamware/plugins
+
+
+03. Usage with mongoc plugin (shows DB connection args)
+=======================================================
+Usage: swBroker  [--usage/-u (usage)]
+                 [--Usage/-U (extended usage)]
+                 [--verbose/-v (verbose mode)]
+                 [--debug/-d (debug mode)]
+                 [--port/-p <TCP port to listen on>]
+                 [--database/-db <dummy|mongoc>]
+                 [--apiPlugins/-api <admin>]
+                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--foreground/-fg (run in foreground (don't daemonize))]
+
+                 Database (mongoc) plugin options:
+                 [--dbHost/-dbHost <database server host>]
+                 [--dbName/-dbName <database name>]
+                 [--dbPort/-dbPort <database server port>]
+                 [--dbUser/-dbUser <database user>]
+                 [--dbPwd/-dbPwd <database password>]
+                 [--dbURI/-dbURI <full database URI>]
+                 [--dbTimeout/-dbTimeout <database connection timeout (s)>]
+
+                 Plugins are loaded from /opt/seamware/plugins
+
+
+04. Usage with non-existent plugin (error + usage)
+===================================================
+DB plugin 'dummy2' not found: /opt/seamware/plugins/db/currentState/dummy2.so
+Usage: swBroker  [--usage/-u (usage)]
+                 [--Usage/-U (extended usage)]
+                 [--verbose/-v (verbose mode)]
+                 [--debug/-d (debug mode)]
+                 [--port/-p <TCP port to listen on>]
+                 [--database/-db <dummy|mongoc>]
+                 [--apiPlugins/-api <admin>]
+                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--foreground/-fg (run in foreground (don't daemonize))]
+
+                 Plugins are loaded from /opt/seamware/plugins
+
+
+--TEARDOWN--
+

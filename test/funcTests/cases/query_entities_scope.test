@@ -1,0 +1,576 @@
+#
+# FILE            query_entities_scope.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - scopeQ filtering (exact, hierarchy, wildcard, AND, OR)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Setup:
+# 01. Create E1 scope="/Madrid/Gardens/ParqueNorte"
+# 02. Create E2 scope="/Madrid/Gardens/ParqueSur"
+# 03. Create E3 scope="/Madrid/Districts/Centro"
+# 04. Create E4 scope=["/Madrid/Districts", "/CompanyA"]
+# 05. Create E5 with no scope
+#
+# Scope query tests:
+# 06. scopeQ=/Madrid/Gardens/ParqueNorte - exact match (E1 only)
+# 07. scopeQ=/Madrid/Gardens/# - hierarchy wildcard (E1, E2)
+# 08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)
+# 09. scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro - OR (E1, E3)
+# 10. scopeQ=(/Madrid/Districts;/CompanyA) - AND, entity has both (E4)
+# 11. scopeQ=/# - any entity with scope (E1, E2, E3, E4)
+# 12. No scopeQ - all entities (E1-E5)
+# 13. scopeQ=/Madrid/# - hierarchy from Madrid (E1, E2, E3, E4)
+# 14. scopeQ=/CompanyA - exact match (E4 only, has it in array)
+# 15. scopeQ=/Barcelona/# - no match (empty result)
+# 16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)
+#
+
+echo "01. Create E1 scope=/Madrid/Gardens/ParqueNorte"
+echo "==============================================="
+payload='{
+  "id": "urn:entity:E1",
+  "type": "Park",
+  "scope": "/Madrid/Gardens/ParqueNorte",
+  "name": {
+    "type": "Property",
+    "value": "Parque Norte"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2 scope=/Madrid/Gardens/ParqueSur"
+echo "============================================="
+payload='{
+  "id": "urn:entity:E2",
+  "type": "Park",
+  "scope": "/Madrid/Gardens/ParqueSur",
+  "name": {
+    "type": "Property",
+    "value": "Parque Sur"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create E3 scope=/Madrid/Districts/Centro"
+echo "============================================"
+payload='{
+  "id": "urn:entity:E3",
+  "type": "District",
+  "scope": "/Madrid/Districts/Centro",
+  "name": {
+    "type": "Property",
+    "value": "Centro"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Create E4 scope=[/Madrid/Districts, /CompanyA]"
+echo "=================================================="
+payload='{
+  "id": "urn:entity:E4",
+  "type": "Office",
+  "scope": ["/Madrid/Districts", "/CompanyA"],
+  "name": {
+    "type": "Property",
+    "value": "Branch Office"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Create E5 with no scope"
+echo "==========================="
+payload='{
+  "id": "urn:entity:E5",
+  "type": "Building",
+  "name": {
+    "type": "Property",
+    "value": "Headquarters"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. scopeQ=/Madrid/Gardens/ParqueNorte - exact match (E1 only)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte'
+echo
+echo
+
+
+echo "07. scopeQ=/Madrid/Gardens/# - hierarchy wildcard (E1, E2)"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/%23'
+echo
+echo
+
+
+echo "08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/ParqueNorte'
+echo
+echo
+
+
+echo "09. scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro - OR (E1, E3)"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro'
+echo
+echo
+
+
+echo "10. scopeQ=(/Madrid/Districts;/CompanyA) - AND, entity has both (E4)"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=(/Madrid/Districts;/CompanyA)'
+echo
+echo
+
+
+echo "11. scopeQ=/# - any entity with scope (E1, E2, E3, E4)"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/%23'
+echo
+echo
+
+
+echo "12. No scopeQ - all entities (E1-E5)"
+echo "===================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building'
+echo
+echo
+
+
+echo "13. scopeQ=/Madrid/# - hierarchy from Madrid (E1, E2, E3, E4)"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/%23'
+echo
+echo
+
+
+echo "14. scopeQ=/CompanyA - exact match (E4 only)"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/CompanyA'
+echo
+echo
+
+
+echo "15. scopeQ=/Barcelona/# - no match (empty result)"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Barcelona/%23'
+echo
+echo
+
+
+echo "16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/%23'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 scope=/Madrid/Gardens/ParqueNorte
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E1
+Content-Length: 0
+
+
+
+
+02. Create E2 scope=/Madrid/Gardens/ParqueSur
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E2
+Content-Length: 0
+
+
+
+
+03. Create E3 scope=/Madrid/Districts/Centro
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E3
+Content-Length: 0
+
+
+
+
+04. Create E4 scope=[/Madrid/Districts, /CompanyA]
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E4
+Content-Length: 0
+
+
+
+
+05. Create E5 with no scope
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E5
+Content-Length: 0
+
+
+
+
+06. scopeQ=/Madrid/Gardens/ParqueNorte - exact match (E1 only)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 179
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    }
+  }
+]
+
+
+
+07. scopeQ=/Madrid/Gardens/# - hierarchy wildcard (E1, E2)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 351
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "name": {
+      "type": "Property",
+      "value": "Parque Sur"
+    }
+  }
+]
+
+
+
+08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+09. scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro - OR (E1, E3)
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 350
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "District",
+    "scope": "/Madrid/Districts/Centro",
+    "name": {
+      "type": "Property",
+      "value": "Centro"
+    }
+  }
+]
+
+
+
+10. scopeQ=(/Madrid/Districts;/CompanyA) - AND, entity has both (E4)
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 205
+
+[
+  {
+    "id": "urn:entity:E4",
+    "type": "Office",
+    "scope": [
+      "/Madrid/Districts",
+      "/CompanyA"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    }
+  }
+]
+
+
+
+11. scopeQ=/# - any entity with scope (E1, E2, E3, E4)
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 724
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "name": {
+      "type": "Property",
+      "value": "Parque Sur"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "District",
+    "scope": "/Madrid/Districts/Centro",
+    "name": {
+      "type": "Property",
+      "value": "Centro"
+    }
+  },
+  {
+    "id": "urn:entity:E4",
+    "type": "Office",
+    "scope": [
+      "/Madrid/Districts",
+      "/CompanyA"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    }
+  }
+]
+
+
+
+12. No scopeQ - all entities (E1-E5)
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 860
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "name": {
+      "type": "Property",
+      "value": "Parque Sur"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "District",
+    "scope": "/Madrid/Districts/Centro",
+    "name": {
+      "type": "Property",
+      "value": "Centro"
+    }
+  },
+  {
+    "id": "urn:entity:E4",
+    "type": "Office",
+    "scope": [
+      "/Madrid/Districts",
+      "/CompanyA"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    }
+  },
+  {
+    "id": "urn:entity:E5",
+    "type": "Building",
+    "name": {
+      "type": "Property",
+      "value": "Headquarters"
+    }
+  }
+]
+
+
+
+13. scopeQ=/Madrid/# - hierarchy from Madrid (E1, E2, E3, E4)
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 724
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Park",
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "name": {
+      "type": "Property",
+      "value": "Parque Sur"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "District",
+    "scope": "/Madrid/Districts/Centro",
+    "name": {
+      "type": "Property",
+      "value": "Centro"
+    }
+  },
+  {
+    "id": "urn:entity:E4",
+    "type": "Office",
+    "scope": [
+      "/Madrid/Districts",
+      "/CompanyA"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    }
+  }
+]
+
+
+
+14. scopeQ=/CompanyA - exact match (E4 only)
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 205
+
+[
+  {
+    "id": "urn:entity:E4",
+    "type": "Office",
+    "scope": [
+      "/Madrid/Districts",
+      "/CompanyA"
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    }
+  }
+]
+
+
+
+15. scopeQ=/Barcelona/# - no match (empty result)
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

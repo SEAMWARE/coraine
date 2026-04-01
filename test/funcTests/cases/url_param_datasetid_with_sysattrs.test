@@ -1,0 +1,120 @@
+#
+# FILE            url_param_datasetid_with_sysattrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET with sysAttrs=true and datasetId filter skips timestamps during filtering
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with multi-instance speed (default + urn:sensor:radar)
+# 02. GET entity with sysAttrs=true and datasetId=@none - timestamps preserved, filter works
+# 03. GET entities with sysAttrs=true and datasetId=urn:sensor:radar - array path
+#
+
+echo "01. Create entity with multi-instance speed (default + urn:sensor:radar)"
+echo "========================================================================"
+payload='{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity with sysAttrs=true and datasetId=@none - timestamps preserved, filter works"
+echo "=========================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?sysAttrs=true&datasetId=@none'
+echo
+echo
+
+
+echo "03. GET entities with sysAttrs=true and datasetId=urn:sensor:radar - array path"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&sysAttrs=true&datasetId=urn:sensor:radar'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with multi-instance speed (default + urn:sensor:radar)
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Content-Length: 0
+
+
+
+
+02. GET entity with sysAttrs=true and datasetId=@none - timestamps preserved, filter works
+==========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "id": "urn:e1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "createdAt": REGEX([0-9]+),
+    "modifiedAt": REGEX([0-9]+)
+  },
+  "createdAt": REGEX([0-9]+),
+  "modifiedAt": REGEX([0-9]+)
+}
+
+
+
+03. GET entities with sysAttrs=true and datasetId=urn:sensor:radar - array path
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 285
+
+[
+  {
+    "id": "urn:e1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 98,
+      "createdAt": REGEX([0-9]+),
+      "modifiedAt": REGEX([0-9]+),
+      "datasetId": "urn:sensor:radar"
+    },
+    "createdAt": REGEX([0-9]+),
+    "modifiedAt": REGEX([0-9]+)
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,44 @@
+#
+# FILE            http_not_found.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /nonexistent - 404 Not Found
+
+--INIT--
+swBrokerStart
+
+--RUN--
+
+#
+# 01. GET /nonexistent - 404 Not Found
+#
+
+echo "01. GET /nonexistent - 404 Not Found"
+echo "===================================="
+swCurl --url /nonexistent
+echo
+echo
+
+
+--EXPECT--
+01. GET /nonexistent - 404 Not Found
+====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "GET /nonexistent is not a recognized resource"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

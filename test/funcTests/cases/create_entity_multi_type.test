@@ -1,0 +1,132 @@
+#
+# FILE            create_entity_multi_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /ngsi-ld/v1/entities - Multi-type entity creation and retrieval
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 with type array ["Building", "Residential"] - 201 Created
+# 02. Retrieve entity E1 - type returned as array
+# 03. Create single-type entity E2 - 201 Created (backward compat)
+# 04. Retrieve entity E2 - type returned as string
+#
+
+echo "01. Create entity E1 with type array [\"Building\", \"Residential\"] - 201 Created"
+echo "================================================================================="
+payload='{
+  "id": "urn:entity:E1",
+  "type": ["Building", "Residential"],
+  "name": {
+    "type": "Property",
+    "value": "My house"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve entity E1 - type returned as array"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:entity:E1
+echo
+echo
+
+
+echo "03. Create single-type entity E2 - 201 Created (backward compat)"
+echo "================================================================="
+payload='{
+  "id": "urn:entity:E2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Retrieve entity E2 - type returned as string"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:entity:E2
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 with type array ["Building", "Residential"] - 201 Created
+=================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E1
+Content-Length: 0
+
+
+
+
+02. Retrieve entity E1 - type returned as array
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "id": "urn:entity:E1",
+  "type": [
+    "Building",
+    "Residential"
+  ],
+  "name": {
+    "type": "Property",
+    "value": "My house"
+  }
+}
+
+
+
+03. Create single-type entity E2 - 201 Created (backward compat)
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E2
+Content-Length: 0
+
+
+
+
+04. Retrieve entity E2 - type returned as string
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 108
+
+{
+  "id": "urn:entity:E2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

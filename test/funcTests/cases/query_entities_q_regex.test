@@ -1,0 +1,280 @@
+#
+# FILE            query_entities_q_regex.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities - q parameter regex filters (~= and !~=)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create E1: name="Madrid Central"
+# 02. Create E2: name="Barcelona Norte"
+# 03. Create E3: name="Madrid Sur"
+# 04. q=name~=Madrid - E1, E3
+# 05. q=name~=^Madrid - E1, E3
+# 06. q=name~=Norte$ - E2
+# 07. q=name!~=Madrid - E2
+#
+
+echo "01. Create E1: name=Madrid Central"
+echo "=================================="
+payload='{
+  "id": "urn:entity:E1",
+  "type": "Location",
+  "name": {
+    "type": "Property",
+    "value": "Madrid Central"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2: name=Barcelona Norte"
+echo "==================================="
+payload='{
+  "id": "urn:entity:E2",
+  "type": "Location",
+  "name": {
+    "type": "Property",
+    "value": "Barcelona Norte"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create E3: name=Madrid Sur"
+echo "=============================="
+payload='{
+  "id": "urn:entity:E3",
+  "type": "Location",
+  "name": {
+    "type": "Property",
+    "value": "Madrid Sur"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. q=name~=Madrid - E1, E3"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3DMadrid'
+echo
+echo
+
+
+echo "05. q=name~=^Madrid - E1, E3"
+echo "============================"
+swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3D%5EMadrid'
+echo
+echo
+
+
+echo "06. q=name~=Norte$ - E2"
+echo "======================="
+swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3DNorte%24'
+echo
+echo
+
+
+echo "07. q=name!~=Madrid - E2"
+echo "========================"
+swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name!~%3DMadrid'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1: name=Madrid Central
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E1
+Content-Length: 0
+
+
+
+
+02. Create E2: name=Barcelona Norte
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E2
+Content-Length: 0
+
+
+
+
+03. Create E3: name=Madrid Sur
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:entity:E3
+Content-Length: 0
+
+
+
+
+04. q=name~=Madrid - E1, E3
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 414
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Central"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Barcelona Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Sur"
+    }
+  }
+]
+
+
+
+05. q=name~=^Madrid - E1, E3
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 414
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Central"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Barcelona Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Sur"
+    }
+  }
+]
+
+
+
+06. q=name~=Norte$ - E2
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 414
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Central"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Barcelona Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Sur"
+    }
+  }
+]
+
+
+
+07. q=name!~=Madrid - E2
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 414
+
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Central"
+    }
+  },
+  {
+    "id": "urn:entity:E2",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Barcelona Norte"
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Location",
+    "name": {
+      "type": "Property",
+      "value": "Madrid Sur"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

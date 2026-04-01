@@ -1,0 +1,194 @@
+#
+# FILE            retrieve_entity_pick_omit.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities/{id} - pick and omit params
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with speed, color, temperature
+# 02. GET entity with pick=speed - only speed returned
+# 03. GET entity with omit=speed - color + temperature returned
+# 04. GET entity with pick=speed,color and omit=speed - only color returned
+# 05. GET entity with pick=nonexistent - no user attrs returned
+#
+
+echo "01. Create entity with speed, color, temperature"
+echo "=================================================="
+payload='{
+  "id": "urn:po:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "temperature": {
+    "type": "Property",
+    "value": 25
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity with pick=speed - only speed returned"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=speed'
+echo
+echo
+
+
+echo "03. GET entity with omit=speed - color + temperature returned"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?omit=speed'
+echo
+echo
+
+
+echo "04. GET entity with pick=speed,color and omit=speed - only color returned"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=speed,color&omit=speed'
+echo
+echo
+
+
+echo "05. GET entity with pick=nonexistent - no user attrs returned"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=nonexistent'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with speed, color, temperature
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:po:E1
+Content-Length: 0
+
+
+
+
+02. GET entity with pick=speed - only speed returned
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 229
+
+{
+  "id": "urn:po:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "temperature": {
+    "type": "Property",
+    "value": 25
+  }
+}
+
+
+
+03. GET entity with omit=speed - color + temperature returned
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 229
+
+{
+  "id": "urn:po:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "temperature": {
+    "type": "Property",
+    "value": 25
+  }
+}
+
+
+
+04. GET entity with pick=speed,color and omit=speed - only color returned
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 229
+
+{
+  "id": "urn:po:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "temperature": {
+    "type": "Property",
+    "value": 25
+  }
+}
+
+
+
+05. GET entity with pick=nonexistent - no user attrs returned
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 229
+
+{
+  "id": "urn:po:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "temperature": {
+    "type": "Property",
+    "value": 25
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

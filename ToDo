@@ -1,0 +1,48 @@
+- Name!
+- Seamware github
+- Define DB Model (NOT compatible with Orion/Orion-LD)
+- Do we want it to be aware of SDM? (against NGSI-LD, but can be an "extra")
+- Use existing k-libs + implement ~5 more k-libs (~2-3 weeks for k-libs)
+  - swFuncTest   (testing framework)
+  - swDiff - based on normal diff but with support for REGEX snd SORT_START/END
+    - swDiffGui
+  - swLibs   (umbrella for k-libs + sw-libs)
+    - swRest (REST Server/Client)
+    - swJsonld (expand/compress, @context cache, ...)
+    - swNgsild (anything LD)
+    - swPlug   (plugins)
+
+    - These k-libs are the foundation not only for the broker but for any FIWARE GE we decide to reimplement
+      - for a 20x boost in performace
+      - to occupy 5% on disk
+      - to work as embedded enabler on a small MCU even (or a Raspberry PI)
+        - might need quite an effort to make everything compile/work on new HW
+  - Might take ~6 months to implement 100% NGSI-LD coverage
+
+
+Control Center
+--------------------------------------------------------------------------------
+  - Name!
+  - Seamware github
+  - websocks or http?
+  - Design - sobre la marcha
+  - Can take from a few weeks to ... as long as we want
+  - Android app for the same functionality?
+    - Easy to carry a tablet on a factory floor - makes sense to have an app as well
+    - iOS?
+   
+
+DONE
+--------------------------------------------------------------------------------
+  - Use GEOS (https://github.com/libgeos/geos) lib for genfencing in RAM for subscriptions (~4 days)
+    - With this in place we can make the new mongoc implementation the default (finally)
+  - 100% DDS coverage for ARISE (client for DDS Services and Actions is done - need input from eProsima/CARTIF)
+  - Support for MQTTS
+  - PATCH Pernot subscriptions
+  - Relative Location headers
+  - Remove support for NGSIv1 (~1 day)
+  - Replace Mintaka
+    - To v1.9.1 for GET /temporal/entities/{entityId}
+    - GET /temporal/entities
+    - POST /temporal/entityOperations/query
+  

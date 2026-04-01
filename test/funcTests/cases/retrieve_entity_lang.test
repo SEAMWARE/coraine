@@ -1,0 +1,186 @@
+#
+# FILE            retrieve_entity_lang.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /ngsi-ld/v1/entities/{id} - lang parameter reduces LanguageProperty
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with LanguageProperty and Property - 201 Created
+# 02. GET entity with lang=en - LanguageProperty reduced to Property with value "Blue Car"
+# 03. GET entity with lang=fr - LanguageProperty reduced to Property with value "Voiture Bleue"
+# 04. GET entity with lang=de - fallback to first key (no "de", no "@none")
+# 05. GET entity without lang - LanguageProperty intact with full languageMap
+# 06. Verify non-LanguageProperty attr (speed) is unaffected with lang=en
+#
+
+echo "01. Create entity with LanguageProperty and Property - 201 Created"
+echo "=================================================================="
+payload='{
+  "id": "urn:lang:E1",
+  "type": "T",
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Blue Car",
+      "fr": "Voiture Bleue",
+      "es": "Coche Azul"
+    }
+  },
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entity with lang=en - LanguageProperty reduced to Property"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=en'
+echo
+echo
+
+
+echo "03. GET entity with lang=fr - value Voiture Bleue"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=fr'
+echo
+echo
+
+
+echo "04. GET entity with lang=de - fallback to first key (en)"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=de'
+echo
+echo
+
+
+echo "05. GET entity without lang - LanguageProperty intact"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:lang:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with LanguageProperty and Property - 201 Created
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:lang:E1
+Content-Length: 0
+
+
+
+
+02. GET entity with lang=en - LanguageProperty reduced to Property
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 183
+
+{
+  "id": "urn:lang:E1",
+  "type": "T",
+  "name": {
+    "type": "Property",
+    "value": "Blue Car",
+    "lang": "en"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+03. GET entity with lang=fr - value Voiture Bleue
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 188
+
+{
+  "id": "urn:lang:E1",
+  "type": "T",
+  "name": {
+    "type": "Property",
+    "value": "Voiture Bleue",
+    "lang": "fr"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+04. GET entity with lang=de - fallback to first key (en)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 183
+
+{
+  "id": "urn:lang:E1",
+  "type": "T",
+  "name": {
+    "type": "Property",
+    "value": "Blue Car",
+    "lang": "en"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+05. GET entity without lang - LanguageProperty intact
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 254
+
+{
+  "id": "urn:lang:E1",
+  "type": "T",
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Blue Car",
+      "fr": "Voiture Bleue",
+      "es": "Coche Azul"
+    }
+  },
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
