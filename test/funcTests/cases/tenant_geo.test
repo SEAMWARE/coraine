@@ -182,7 +182,8 @@ Content-Length: REGEX(\d+)
           40.417
         ]
       }
-    }
+    },
+    "geoDistance": 0
   }
 ]
 
@@ -195,24 +196,9 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 3
 
-[
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
-        ]
-      }
-    }
-  }
-]
+[]
 
 
 
@@ -238,7 +224,8 @@ Content-Length: REGEX(\d+)
           48.864
         ]
       }
-    }
+    },
+    "geoDistance": 0
   }
 ]
 
@@ -250,31 +237,59 @@ Content-Length: REGEX(\d+)
 
 07. GET near Madrid on t1 - should still get E1 (index re-created)
 ==================================================================
-HTTP/1.1 404 Not Found
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
-{
-  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
-  "title": "NonexistentTenant",
-  "detail": "tenant 't1' does not exist"
-}
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    },
+    "geoDistance": 0
+  }
+]
 
 
 
 08. GET near Paris on t2 - should still get E2 (index re-created)
 =================================================================
-HTTP/1.1 404 Not Found
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+NGSILD-Tenant: t2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
-{
-  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
-  "title": "NonexistentTenant",
-  "detail": "tenant 't2' does not exist"
-}
+[
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    },
+    "geoDistance": 0
+  }
+]
 
 
 
@@ -302,6 +317,21 @@ Content-Length: REGEX(\d+)
 
 [
   {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    },
+    "geoDistance": 0
+  },
+  {
     "id": "urn:e3",
     "type": "City",
     "location": {
@@ -313,7 +343,8 @@ Content-Length: REGEX(\d+)
           41.39
         ]
       }
-    }
+    },
+    "geoDistance": REGEX([0-9.]+)
   }
 ]
 

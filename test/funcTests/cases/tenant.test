@@ -177,16 +177,19 @@ Content-Length: 48
 
 07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered
 ==============================================================================
-HTTP/1.1 404 Not Found
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 48
 
-{
-  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
-  "title": "NonexistentTenant",
-  "detail": "tenant 't1' does not exist"
-}
+[
+  {
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
 
 
 

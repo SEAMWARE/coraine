@@ -445,9 +445,42 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Content-Length: 528
 
-[]
+[
+  {
+    "id": "urn:entity:E1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 100
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  },
+  {
+    "id": "urn:entity:E3",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 75
+    },
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "active": {
+      "type": "Property",
+      "value": true
+    }
+  }
+]
 
 
 
