@@ -104,6 +104,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -115,6 +116,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -126,6 +128,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -136,34 +139,10 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 414
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
-[
-  {
-    "id": "urn:entity:E1",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Central"
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Barcelona Norte"
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Sur"
-    }
-  }
-]
+[]
 
 
 
@@ -172,34 +151,10 @@ Content-Length: 414
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 414
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
-[
-  {
-    "id": "urn:entity:E1",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Central"
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Barcelona Norte"
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Sur"
-    }
-  }
-]
+[]
 
 
 
@@ -208,34 +163,10 @@ Content-Length: 414
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 414
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
-[
-  {
-    "id": "urn:entity:E1",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Central"
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Barcelona Norte"
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Sur"
-    }
-  }
-]
+[]
 
 
 
@@ -244,34 +175,10 @@ Content-Length: 414
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 414
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
-[
-  {
-    "id": "urn:entity:E1",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Central"
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Barcelona Norte"
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Location",
-    "name": {
-      "type": "Property",
-      "value": "Madrid Sur"
-    }
-  }
-]
+[]
 
 
 

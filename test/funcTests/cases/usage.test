@@ -14,7 +14,7 @@ CLI usage output (-u with various plugin combinations)
 
 #
 # 01. Usage without any plugin (-db /dev/null)
-# 02. Usage with dummy plugin (no extra CLI args)
+# 02. Usage with swRamDB plugin (no extra CLI args)
 # 03. Usage with mongoc plugin (shows DB connection args)
 # 04. Usage with non-existent plugin (error + usage)
 #
@@ -26,9 +26,9 @@ echo
 echo
 
 
-echo "02. Usage with dummy plugin (no extra CLI args)"
-echo "================================================"
-$SW_BROKER -u -db ./plugins/dummy.so 2>&1
+echo "02. Usage with swRamDB plugin (no extra CLI args)"
+echo "=================================================="
+$SW_BROKER -u -db ./plugins/swRamDB.so 2>&1
 echo
 echo
 
@@ -55,28 +55,34 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--verbose/-v (verbose mode)]
                  [--debug/-d (debug mode)]
                  [--port/-p <TCP port to listen on>]
-                 [--database/-db <dummy|mongoc>]
+                 [--database/-db <swRamDB|mongoc>]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
                  [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                 [--userContext/-ctx <default user @context URL>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
 
 
-02. Usage with dummy plugin (no extra CLI args)
-================================================
+02. Usage with swRamDB plugin (no extra CLI args)
+==================================================
 Usage: swBroker  [--usage/-u (usage)]
                  [--Usage/-U (extended usage)]
                  [--verbose/-v (verbose mode)]
                  [--debug/-d (debug mode)]
                  [--port/-p <TCP port to listen on>]
-                 [--database/-db <dummy|mongoc>]
+                 [--database/-db <swRamDB|mongoc>]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
                  [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                 [--userContext/-ctx <default user @context URL>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
@@ -89,11 +95,14 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--verbose/-v (verbose mode)]
                  [--debug/-d (debug mode)]
                  [--port/-p <TCP port to listen on>]
-                 [--database/-db <dummy|mongoc>]
+                 [--database/-db <swRamDB|mongoc>]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
                  [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                 [--userContext/-ctx <default user @context URL>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Database (mongoc) plugin options:
@@ -110,17 +119,20 @@ Usage: swBroker  [--usage/-u (usage)]
 
 04. Usage with non-existent plugin (error + usage)
 ===================================================
-DB plugin 'dummy2' not found: /opt/seamware/plugins/db/currentState/dummy2.so
+DB plugin 'dummy2' (/opt/seamware/plugins/db/currentState/dummy2.so): not found
 Usage: swBroker  [--usage/-u (usage)]
                  [--Usage/-U (extended usage)]
                  [--verbose/-v (verbose mode)]
                  [--debug/-d (debug mode)]
                  [--port/-p <TCP port to listen on>]
-                 [--database/-db <dummy|mongoc>]
+                 [--database/-db <swRamDB|mongoc>]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
                  [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                 [--userContext/-ctx <default user @context URL>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins

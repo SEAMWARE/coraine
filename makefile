@@ -63,14 +63,14 @@ SYS_LIBS      = -lmicrohttpd -lssl -lcrypto -lpthread -ldl -lm
 # Plugin directories
 #
 PLUGIN_DIR     = plugins
-DUMMY_DIR      = src/plugins/currentState/dummy
+RAMDB_DIR      = src/plugins/currentState/swRamDB
 ADMIN_DIR      = src/plugins/api/admin
 
-DUMMY_SOURCES  = $(DUMMY_DIR)/dummyRegister.c $(DUMMY_DIR)/dummyInit.c $(DUMMY_DIR)/dummyClose.c \
-                 $(DUMMY_DIR)/dummyGlobals.c $(DUMMY_DIR)/dummyEntityCreate.c \
-                 $(DUMMY_DIR)/dummyEntityRetrieve.c $(DUMMY_DIR)/dummyEntityQuery.c \
-                 $(DUMMY_DIR)/dummyStore.c
-DUMMY_OBJS     = $(DUMMY_SOURCES:.c=.o)
+RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
+                 $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
+                 $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
+                 $(RAMDB_DIR)/ramdbStore.c
+RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 
 ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
                  $(ADMIN_DIR)/adminVersion.c $(ADMIN_DIR)/adminLog.c \
@@ -89,25 +89,28 @@ MONGOC_OBJS    = $(MONGOC_SOURCES:.c=.o)
 MONGOC_CFLAGS  = $(shell pkg-config --cflags mongoc2)
 MONGOC_LDFLAGS = $(shell pkg-config --libs mongoc2)
 
-PLUGIN_CFLAGS  = $(CFLAGS) -fPIC -Isrc/plugins
+PLUGIN_BASE    ?= $(CFLAGS)
+PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
 
 #
 # Targets
 #
-all: $(BINARY) $(PLUGIN_DIR)/dummy.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so
+all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so
+
+LDFLAGS   ?=
 
 $(BINARY): $(ALL_OBJS)
-	$(CC) -rdynamic -o $@ $(ALL_OBJS) -Wl,--whole-archive $(SW_LIBS) $(K_LIBS) -Wl,--no-whole-archive $(SYS_LIBS)
+	$(CC) -rdynamic $(LDFLAGS) -o $@ $(ALL_OBJS) -Wl,--whole-archive $(SW_LIBS) $(K_LIBS) -Wl,--no-whole-archive $(SYS_LIBS)
 
-$(PLUGIN_DIR)/dummy.so: $(DUMMY_OBJS)
+$(PLUGIN_DIR)/swRamDB.so: $(RAMDB_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(DUMMY_OBJS)
+	$(CC) -shared -o $@ $(RAMDB_OBJS)
 
 $(PLUGIN_DIR)/admin.so: $(ADMIN_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
 	$(CC) -shared -o $@ $(ADMIN_OBJS)
 
-$(DUMMY_DIR)/%.o: $(DUMMY_DIR)/%.c
+$(RAMDB_DIR)/%.o: $(RAMDB_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
 $(ADMIN_DIR)/%.o: $(ADMIN_DIR)/%.c
@@ -132,14 +135,33 @@ install: all
 	@mkdir -p $(INSTALL_PLUGIN)/api
 	cat $(BINARY)                  > $(PREFIX)/bin/$(BINARY)         && chmod +x $(PREFIX)/bin/$(BINARY)
 	cat $(PLUGIN_DIR)/mongoc.so    > $(INSTALL_PLUGIN)/db/currentState/mongoc.so
-	cat $(PLUGIN_DIR)/dummy.so     > $(INSTALL_PLUGIN)/db/currentState/dummy.so
+	cat $(PLUGIN_DIR)/swRamDB.so   > $(INSTALL_PLUGIN)/db/currentState/swRamDB.so
 	cat $(PLUGIN_DIR)/admin.so     > $(INSTALL_PLUGIN)/api/admin.so
 
 i:   install
+d:   clean
+	@$(MAKE) CFLAGS="-g -O0 -Wall -Wno-unused-function -fstack-protector-all $(DFLAGS) $(INCLUDE)"
+di:  d install
 ci:  clean all install
 
-clean:
-	rm -f $(ALL_OBJS) $(DUMMY_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(BINARY)
-	rm -rf $(PLUGIN_DIR)
+COV_DIR    = coverage
+COV_CFLAGS = -g -O0 --coverage -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker
 
-.PHONY: all clean install i ci
+coverage:
+	@$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="--coverage" PLUGIN_BASE="-O2 -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker"
+	@find . -name '*.gcda' -delete
+	@SW_BROKER=$(CURDIR)/$(BINARY) \
+	SW_BROKER_EXTRA_PARAMS="--database $(CURDIR)/$(PLUGIN_DIR)/swRamDB.so --pretty-print 2 --foreground" \
+	$(HOME)/git/swLibs/bin/swTest || true
+	@mkdir -p $(COV_DIR)
+	@gcovr --root $(CURDIR)/src --object-directory $(CURDIR) \
+	      --html-details $(COV_DIR)/index.html --html-title "swBroker Coverage"
+	@echo ""
+	@echo "Coverage report: file://$(CURDIR)/$(COV_DIR)/index.html"
+
+clean:
+	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(BINARY)
+	rm -rf $(PLUGIN_DIR) $(COV_DIR)
+	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true
+
+.PHONY: all clean install i ci coverage

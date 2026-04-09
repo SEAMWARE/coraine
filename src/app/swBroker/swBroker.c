@@ -54,16 +54,22 @@ bool           dbEnabled    = false;
 bool           localOnly    = false;
 bool           fg           = false;
 int            poolSize     = 6;
+char*          corsOrigin   = NULL;
+int            corsMaxAge   = 86400;
+char*          userContext  = NULL;
 
 static KArg kargV[] =
 {
-  { "--port",               "-p",      KaUShort, _vp &port,         KaOpt, _vp 1026,     _vp 1, _vp 65535, "TCP port to listen on" },
-  { "--database",           "-db",     KaString, _vp &dbName,       KaOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
-  { "--apiPlugins",         "-api",    KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
-  { "--pretty-print",       "-pp",     KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",    KaInt,    _vp &poolSize,     KaOpt, _vp 6,         _vp 1, _vp 200,  "MHD thread pool size" },
-  { "--localOnly",          "-local",  KaBool,   _vp &localOnly,    KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "local-only mode (no distributed operations)" },
-  { "--foreground",         "-fg",     KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
+  { "--port",               "-p",           KaUShort, _vp &port,         KaOpt, _vp 1026,     _vp 1, _vp 65535, "TCP port to listen on" },
+  { "--database",           "-db",          KaString, _vp &dbName,       KaOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
+  { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
+  { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
+  { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 6,         _vp 1, _vp 200,  "MHD thread pool size" },
+  { "--localOnly",          "-local",       KaBool,   _vp &localOnly,    KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "local-only mode (no distributed operations)" },
+  { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
+  { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
+  { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
+  { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   KARGS_END
 };
 
@@ -141,8 +147,10 @@ static bool pluginsLoad(int argC, char* argV[])
 
   if (dbEnabled)
   {
-    if (pluginLoadDb(dbPeek) != 0)
+    char errBuf[1024];
+    if (pluginLoadDb(dbPeek, errBuf, sizeof(errBuf)) != 0)
     {
+      fprintf(stderr, "%s\n", errBuf);
       startupError = true;
       dbEnabled = false;
     }
@@ -167,9 +175,10 @@ static bool pluginsLoad(int argC, char* argV[])
   //
   if (apiPeek != NULL)
   {
-    if (pluginLoadApi(apiPeek) != 0)
+    char errBuf[1024];
+    if (pluginLoadApi(apiPeek, errBuf, sizeof(errBuf)) != 0)
     {
-      fprintf(stderr, "Error: API plugin '%s' failed to load\n", apiPeek);
+      fprintf(stderr, "%s\n", errBuf);
       startupError = true;
     }
     else
@@ -254,7 +263,8 @@ int main(int argC, char* argV[])
     exit(1);
   }
 
-  ldLocalOnly = localOnly;
+  ldLocalOnly        = localOnly;
+  ldDefaultContextUrl = userContext;
 
   int r = ktInit("swBroker", NULL, true, NULL, NULL, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
@@ -279,6 +289,19 @@ int main(int argC, char* argV[])
 
   if (prettySpaces > 0)
     swRestSetPrettySpaces(prettySpaces);
+
+  if (corsOrigin != NULL)
+  {
+    const char* origin = (strcmp(corsOrigin, "__ALL") == 0) ? "*" : corsOrigin;
+
+    SwRestCorsConfig corsConf = {
+      .allowOrigin   = origin,
+      .allowHeaders  = "Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path",
+      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant",
+      .maxAge        = corsMaxAge
+    };
+    swRestCorsConfig(&corsConf);
+  }
 
   apiPluginsInit();
   tenantInit("sw");

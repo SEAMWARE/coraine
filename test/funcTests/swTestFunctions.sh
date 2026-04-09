@@ -2,7 +2,7 @@
 # swTestFunctions.sh - repo-specific test functions for swBroker
 #
 export SW_BROKER=/home/kz/git/swBroker/swBroker
-export SW_BROKER_EXTRA_PARAMS="${SW_BROKER_EXTRA_PARAMS:---database /home/kz/git/swBroker/plugins/dummy.so --pretty-print 2 --foreground}"
+export SW_BROKER_EXTRA_PARAMS="${SW_BROKER_EXTRA_PARAMS:---database /home/kz/git/swBroker/plugins/swRamDB.so --pretty-print 2 --foreground}"
 export SW_DB_NAME="${SW_DB_NAME:-sw}"
 
 # Override swBrokerStart: kargs uses --port (double dash), not -port

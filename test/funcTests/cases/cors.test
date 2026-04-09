@@ -1,0 +1,90 @@
+#
+# FILE            cors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+CORS headers (--corsOrigin __ALL)
+
+--INIT--
+export SW_BROKER_EXTRA_PARAMS="--database /home/kz/git/swBroker/plugins/swRamDB.so --pretty-print 2 --corsOrigin __ALL --foreground"
+swBrokerStart
+
+--RUN--
+
+#
+# 01. GET request - CORS headers present
+# 02. OPTIONS preflight - full CORS response
+# 03. OPTIONS on wildcard URL - CORS + Allow
+#
+
+echo "01. GET request - CORS headers present"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities
+echo
+echo
+
+
+echo "02. OPTIONS preflight - full CORS response"
+echo "==========================================="
+swCurl -X OPTIONS --url /ngsi-ld/v1/entities
+echo
+echo
+
+
+echo "03. OPTIONS on wildcard URL - CORS + Allow"
+echo "==========================================="
+swCurl -X OPTIONS --url /ngsi-ld/v1/entities/urn:any
+echo
+echo
+
+
+--EXPECT--
+01. GET request - CORS headers present
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
+Content-Length: 3
+
+[]
+
+
+
+02. OPTIONS preflight - full CORS response
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, POST, HEAD, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
+
+
+
+
+03. OPTIONS on wildcard URL - CORS + Allow
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, HEAD, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, HEAD, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
+
+
+
+
+--TEARDOWN--
+swBrokerStop

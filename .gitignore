@@ -14,3 +14,6 @@ plugins/
 *.teardown
 *.name
 *.stderr
+*.gcda
+*.gcno
+coverage/

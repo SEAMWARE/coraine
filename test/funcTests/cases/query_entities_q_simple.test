@@ -184,6 +184,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -195,6 +196,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -206,6 +208,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -216,7 +219,8 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 266
 
 [
   {
@@ -225,38 +229,6 @@ Content-Length: 792
     "speed": {
       "type": "Property",
       "value": 100
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 50
-    },
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "active": {
-      "type": "Property",
-      "value": false
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 75
     },
     "color": {
       "type": "Property",
@@ -276,7 +248,8 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 528
 
 [
   {
@@ -293,22 +266,6 @@ Content-Length: 792
     "active": {
       "type": "Property",
       "value": true
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 50
-    },
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "active": {
-      "type": "Property",
-      "value": false
     }
   },
   {
@@ -336,7 +293,8 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 528
 
 [
   {
@@ -353,22 +311,6 @@ Content-Length: 792
     "active": {
       "type": "Property",
       "value": true
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 50
-    },
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "active": {
-      "type": "Property",
-      "value": false
     }
   },
   {
@@ -396,25 +338,10 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 267
 
 [
-  {
-    "id": "urn:entity:E1",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 100
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  },
   {
     "id": "urn:entity:E2",
     "type": "Vehicle",
@@ -430,22 +357,6 @@ Content-Length: 792
       "type": "Property",
       "value": false
     }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 75
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
   }
 ]
 
@@ -456,25 +367,10 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 529
 
 [
-  {
-    "id": "urn:entity:E1",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 100
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  },
   {
     "id": "urn:entity:E2",
     "type": "Vehicle",
@@ -516,25 +412,10 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 529
 
 [
-  {
-    "id": "urn:entity:E1",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 100
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  },
   {
     "id": "urn:entity:E2",
     "type": "Vehicle",
@@ -576,7 +457,8 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 528
 
 [
   {
@@ -593,22 +475,6 @@ Content-Length: 792
     "active": {
       "type": "Property",
       "value": true
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 50
-    },
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "active": {
-      "type": "Property",
-      "value": false
     }
   },
   {
@@ -636,25 +502,10 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 267
 
 [
-  {
-    "id": "urn:entity:E1",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 100
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  },
   {
     "id": "urn:entity:E2",
     "type": "Vehicle",
@@ -669,22 +520,6 @@ Content-Length: 792
     "active": {
       "type": "Property",
       "value": false
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 75
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
     }
   }
 ]
@@ -696,7 +531,8 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 528
 
 [
   {
@@ -713,22 +549,6 @@ Content-Length: 792
     "active": {
       "type": "Property",
       "value": true
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 50
-    },
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "active": {
-      "type": "Property",
-      "value": false
     }
   },
   {
@@ -756,6 +576,7 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 792
 
 [
@@ -816,58 +637,10 @@ Content-Length: 792
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 792
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
-[
-  {
-    "id": "urn:entity:E1",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 100
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  },
-  {
-    "id": "urn:entity:E2",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 50
-    },
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "active": {
-      "type": "Property",
-      "value": false
-    }
-  },
-  {
-    "id": "urn:entity:E3",
-    "type": "Vehicle",
-    "speed": {
-      "type": "Property",
-      "value": 75
-    },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "active": {
-      "type": "Property",
-      "value": true
-    }
-  }
-]
+[]
 
 
 

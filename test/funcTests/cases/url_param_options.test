@@ -108,6 +108,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
@@ -118,6 +119,7 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 92
 
 [
@@ -136,6 +138,7 @@ Content-Length: 92
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 92
 
 [
@@ -154,6 +157,7 @@ Content-Length: 92
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 138
 
 [
@@ -176,6 +180,7 @@ Content-Length: 138
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 190
 
 [
@@ -200,7 +205,8 @@ Content-Length: 190
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 381
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -209,17 +215,17 @@ Content-Length: 381
     "speed": {
       "type": "Property",
       "value": 100,
-      "createdAt": REGEX([0-9]+),
-      "modifiedAt": REGEX([0-9]+)
+      "createdAt": REGEX(".*"),
+      "modifiedAt": REGEX(".*")
     },
     "color": {
       "type": "Property",
       "value": "red",
-      "createdAt": REGEX([0-9]+),
-      "modifiedAt": REGEX([0-9]+)
+      "createdAt": REGEX(".*"),
+      "modifiedAt": REGEX(".*")
     },
-    "createdAt": REGEX([0-9]+),
-    "modifiedAt": REGEX([0-9]+)
+    "createdAt": REGEX(".*"),
+    "modifiedAt": REGEX(".*")
   }
 ]
 
@@ -230,7 +236,8 @@ Content-Length: 381
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 153
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -238,8 +245,8 @@ Content-Length: 153
     "type": "Vehicle",
     "speed": 100,
     "color": "red",
-    "createdAt": REGEX([0-9]+),
-    "modifiedAt": REGEX([0-9]+)
+    "createdAt": REGEX(".*"),
+    "modifiedAt": REGEX(".*")
   }
 ]
 
@@ -250,6 +257,7 @@ Content-Length: 153
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 138
 
 [
@@ -272,6 +280,7 @@ Content-Length: 138
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 138
 
 [
