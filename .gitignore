@@ -5,7 +5,7 @@
 *~
 bin/
 lib/
-plugins/
+/plugins/
 *.out
 *.diff
 *.expect

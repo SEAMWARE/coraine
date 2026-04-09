@@ -1,0 +1,35 @@
+#ifndef MONGOC_MONGOCGLOBALS_H_
+#define MONGOC_MONGOCGLOBALS_H_
+
+//
+// FILE            mongocGlobals.h
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+#include "kargs/KArg.h"                              // KArg
+
+
+
+// -----------------------------------------------------------------------------
+//
+// DB connection variables (owned by the plugin)
+//
+extern char*           mongocDbHost;
+extern char*           mongocDbName;
+extern unsigned short  mongocDbPort;
+extern char*           mongocDbUser;
+extern char*           mongocDbPwd;
+extern char*           mongocDbURI;
+extern unsigned short  mongocDbTimeout;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocArgV - plugin-contributed CLI args
+//
+extern KArg mongocArgV[];
+
+#endif  // MONGOC_MONGOCGLOBALS_H_

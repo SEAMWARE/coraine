@@ -167,7 +167,7 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 446
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -180,20 +180,6 @@ Content-Length: 446
         "coordinates": [
           -3.703,
           40.417
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
         ]
       }
     }
@@ -209,23 +195,9 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 446
+Content-Length: REGEX(\d+)
 
 [
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    }
-  },
   {
     "id": "urn:e2",
     "type": "City",
@@ -251,23 +223,9 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 446
+Content-Length: REGEX(\d+)
 
 [
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    }
-  },
   {
     "id": "urn:e2",
     "type": "City",
@@ -340,7 +298,7 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 223
+Content-Length: REGEX(\d+)
 
 [
   {

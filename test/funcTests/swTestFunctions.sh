@@ -3,7 +3,7 @@
 #
 export SW_BROKER=/home/kz/git/swBroker/swBroker
 export SW_BROKER_EXTRA_PARAMS="${SW_BROKER_EXTRA_PARAMS:---database /home/kz/git/swBroker/plugins/swRamDB.so --pretty-print 2 --foreground}"
-export SW_DB_NAME="${SW_DB_NAME:-sw}"
+export SW_DB_NAME="${SW_DB_NAME:-swTest}"
 
 # Override swBrokerStart: kargs uses --port (double dash), not -port
 swBrokerStart() {
@@ -14,16 +14,24 @@ swBrokerStart() {
   swAwaitPort $port 5
 }
 
-# Override swDbDrop: drop the entities collection in MongoDB
+# swDbDrop: drop the entities collection in MongoDB
+# Usage: swDbDrop          - drops default tenant DB (e.g. "swTest")
+#        swDbDrop t1       - drops tenant DB (e.g. "swTest-t1")
+# For swRamDB this is a no-op (broker restart clears the store).
 swDbDrop() {
-  local db=${1:-$SW_DB_NAME}
+  local tenant="$1"
+  local db
+
+  if [ -z "$tenant" ]; then
+    db="$SW_DB_NAME"
+  else
+    db="${SW_DB_NAME}-${tenant}"
+  fi
 
   mongo --quiet --eval 'db.entities.drop()' "$db" > /dev/null 2>&1
 }
 
-# Override swDbInit: drop + recreate (for MongoDB, drop is enough)
+# swDbInit: drop + recreate (for MongoDB, drop is enough)
 swDbInit() {
-  local db=${1:-$SW_DB_NAME}
-
-  swDbDrop "$db"
+  swDbDrop "$1"
 }
