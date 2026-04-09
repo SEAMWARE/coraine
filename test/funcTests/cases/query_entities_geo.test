@@ -252,7 +252,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 666
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -267,7 +267,8 @@ Content-Length: 666
           40.417
         ]
       }
-    }
+    },
+    "geoDistance": 0
   },
   {
     "id": "urn:e2",
@@ -281,21 +282,8 @@ Content-Length: 666
           41.39
         ]
       }
-    }
-  },
-  {
-    "id": "urn:e3",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
-        ]
-      }
-    }
+    },
+    "geoDistance": REGEX([0-9.]+)
   }
 ]
 
@@ -307,7 +295,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 666
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -322,35 +310,8 @@ Content-Length: 666
           40.417
         ]
       }
-    }
-  },
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.154,
-          41.39
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e3",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
-        ]
-      }
-    }
+    },
+    "geoDistance": 0
   }
 ]
 
@@ -362,7 +323,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 666
+Content-Length: 445
 
 [
   {
@@ -389,20 +350,6 @@ Content-Length: 666
         "coordinates": [
           2.154,
           41.39
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e3",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
         ]
       }
     }
@@ -417,37 +364,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 666
+Content-Length: 224
 
 [
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.154,
-          41.39
-        ]
-      }
-    }
-  },
   {
     "id": "urn:e3",
     "type": "City",
@@ -472,37 +391,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 666
+Content-Length: 224
 
 [
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.154,
-          41.39
-        ]
-      }
-    }
-  },
   {
     "id": "urn:e3",
     "type": "City",
@@ -564,51 +455,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1365
+Content-Length: 702
 
 [
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.154,
-          41.39
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e3",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
-        ]
-      }
-    }
-  },
   {
     "id": "urn:e4",
     "type": "City",
@@ -678,7 +527,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1365
+Content-Length: 666
 
 [
   {
@@ -719,50 +568,6 @@ Content-Length: 1365
         "coordinates": [
           2.349,
           48.864
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e4",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          0,
-          0
-        ]
-      }
-    },
-    "operationArea": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Polygon",
-        "coordinates": [
-          [
-            [
-              -5,
-              35
-            ],
-            [
-              5,
-              35
-            ],
-            [
-              5,
-              44
-            ],
-            [
-              -5,
-              44
-            ],
-            [
-              -5,
-              35
-            ]
-          ]
         ]
       }
     }
@@ -777,51 +582,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1365
+Content-Length: 702
 
 [
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.154,
-          41.39
-        ]
-      }
-    }
-  },
-  {
-    "id": "urn:e3",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
-        ]
-      }
-    }
-  },
   {
     "id": "urn:e4",
     "type": "City",
@@ -888,7 +651,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 227
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -903,7 +666,8 @@ Content-Length: 227
           50
         ]
       }
-    }
+    },
+    "geoDistance": 0
   }
 ]
 

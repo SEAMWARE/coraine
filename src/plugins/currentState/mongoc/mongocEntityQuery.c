@@ -683,7 +683,9 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     if (filterP->qExpr != NULL)
       bsonAppendQFilter(&filter, filterP->qExpr);
 
-    if (filterP->geoRel != NULL)
+    // For georel=near, the $geoNear aggregation stage handles the geo filter.
+    // For other geo relations, add the filter to the find() query.
+    if (filterP->geoRel != NULL && filterP->geoRel->rel != LdGeoNear)
       bsonAppendGeoFilter(&filter, filterP);
   }
 
@@ -745,7 +747,167 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     return DB_OK;
   }
 
-  mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, &opts, NULL);
+  //
+  // For georel=near, use $geoNear aggregation pipeline to get distance.
+  // For all other queries, use find().
+  //
+  bool useGeoNear = (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear);
+
+  mongoc_cursor_t* cursorP;
+
+  if (useGeoNear)
+  {
+    //
+    // Build aggregation pipeline: $geoNear -> $match -> $sort -> $skip -> $limit
+    //
+    // $geoNear must be the first stage. It handles the geo filter and adds
+    // a "geoDistance" field (meters) to each document.
+    //
+    char fieldPath[1024];
+    snprintf(fieldPath, sizeof(fieldPath), "%s.@none.value", mongocEscapeDotsInKey(filterP->geoproperty));
+
+    bson_t pipeline;
+    bson_init(&pipeline);
+
+    bson_t stages;
+    bson_append_array_begin(&pipeline, "pipeline", 8, &stages);
+    int stageIx = 0;
+
+    // --- $geoNear stage ---
+    {
+      char key[16];
+      int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+
+      bson_t stageDoc;
+      bson_t geoNearDoc;
+
+      bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+      bson_append_document_begin(&stageDoc, "$geoNear", 8, &geoNearDoc);
+
+      // Build reference geometry inline
+      bson_t nearGeometry;
+      bson_init(&nearGeometry);
+      bson_append_utf8(&nearGeometry, "type", 4, filterP->geometry, -1);
+
+      const char* coordStr = filterP->coordinates;
+      while (*coordStr == ' ') coordStr++;
+      if (*coordStr == '[')
+        bsonAppendCoordArray(&nearGeometry, "coordinates", 11, coordStr);
+
+      bson_append_document(&geoNearDoc, "near", 4, &nearGeometry);
+      bson_destroy(&nearGeometry);
+
+      bson_append_utf8(&geoNearDoc, "distanceField", 13, "geoDistance", 11);
+      bson_append_utf8(&geoNearDoc, "key", 3, fieldPath, -1);
+      bson_append_bool(&geoNearDoc, "spherical", 9, true);
+
+      if (filterP->geoRel->maxDistance >= 0)
+        bson_append_double(&geoNearDoc, "maxDistance", 11, filterP->geoRel->maxDistance);
+      if (filterP->geoRel->minDistance >= 0)
+        bson_append_double(&geoNearDoc, "minDistance", 11, filterP->geoRel->minDistance);
+
+      bson_append_document_end(&stageDoc, &geoNearDoc);
+      bson_append_document_end(&stages, &stageDoc);
+    }
+
+    // --- $match stage (non-geo filters) ---
+    // The filter was built with the $near clause too, but $geoNear handles that.
+    // Rebuild a filter without the geo part for $match.
+    {
+      bson_t matchFilter;
+      bson_init(&matchFilter);
+
+      if (filterP->idV != NULL)
+        bsonInArray(&matchFilter, "_id", filterP->idV);
+      if (filterP->idPattern != NULL)
+      {
+        bson_t regexDoc;
+        bson_append_document_begin(&matchFilter, "_id", 3, &regexDoc);
+        bson_append_regex(&regexDoc, "$regex", 6, filterP->idPattern, "");
+        bson_append_document_end(&matchFilter, &regexDoc);
+      }
+      if (filterP->typeExpr != NULL && !filterP->typeExpr->isSimple)
+      {
+        bson_t orArray;
+        bson_append_array_begin(&matchFilter, "$or", 3, &orArray);
+        for (int gix = 0; gix < filterP->typeExpr->groupCount; gix++)
+        {
+          char key2[16];
+          int  keyLen2 = snprintf(key2, sizeof(key2), "%d", gix);
+          LdTypeGroup* grp = &filterP->typeExpr->groupV[gix];
+          bson_t orElem;
+          bson_append_document_begin(&orArray, key2, keyLen2, &orElem);
+          if (grp->count == 1)
+            bson_append_utf8(&orElem, "type", 4, grp->typeV[0], -1);
+          else
+          {
+            bson_t allDoc, allArray;
+            bson_append_document_begin(&orElem, "type", 4, &allDoc);
+            bson_append_array_begin(&allDoc, "$all", 4, &allArray);
+            for (int tix = 0; tix < grp->count; tix++)
+            {
+              char tkey[16];
+              int  tkeyLen = snprintf(tkey, sizeof(tkey), "%d", tix);
+              bson_append_utf8(&allArray, tkey, tkeyLen, grp->typeV[tix], -1);
+            }
+            bson_append_array_end(&allDoc, &allArray);
+            bson_append_document_end(&orElem, &allDoc);
+          }
+          bson_append_document_end(&orArray, &orElem);
+        }
+        bson_append_array_end(&matchFilter, &orArray);
+      }
+      else if (filterP->typeV != NULL)
+        bsonInArray(&matchFilter, "type", filterP->typeV);
+      if (filterP->scopeExpr != NULL)
+        bsonAppendScopeFilter(&matchFilter, filterP->scopeExpr);
+      if (filterP->qExpr != NULL)
+        bsonAppendQFilter(&matchFilter, filterP->qExpr);
+
+      // Only add $match if there are non-geo filters
+      if (!bson_empty(&matchFilter))
+      {
+        char key[16];
+        int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+        bson_t stageDoc;
+        bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+        bson_append_document(&stageDoc, "$match", 6, &matchFilter);
+        bson_append_document_end(&stages, &stageDoc);
+      }
+      bson_destroy(&matchFilter);
+    }
+
+    // --- $skip stage ---
+    if (filterP->offset > 0)
+    {
+      char key[16];
+      int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+      bson_t stageDoc;
+      bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+      BSON_APPEND_INT64(&stageDoc, "$skip", filterP->offset);
+      bson_append_document_end(&stages, &stageDoc);
+    }
+
+    // --- $limit stage ---
+    if (filterP->limit > 0)
+    {
+      char key[16];
+      int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+      bson_t stageDoc;
+      bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+      BSON_APPEND_INT64(&stageDoc, "$limit", filterP->limit);
+      bson_append_document_end(&stages, &stageDoc);
+    }
+
+    bson_append_array_end(&pipeline, &stages);
+
+    cursorP = mongoc_collection_aggregate(collP, MONGOC_QUERY_NONE, &pipeline, NULL, NULL);
+    bson_destroy(&pipeline);
+  }
+  else
+  {
+    cursorP = mongoc_collection_find_with_opts(collP, &filter, &opts, NULL);
+  }
 
   //
   // Build result array
