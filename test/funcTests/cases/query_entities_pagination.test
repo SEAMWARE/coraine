@@ -1,4 +1,5 @@
 #
+# REQUIRE_DB: mongoc
 # FILE            query_entities_pagination.test
 #
 # AUTHOR          Ken Zangelin

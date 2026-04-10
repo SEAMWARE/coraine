@@ -9,8 +9,7 @@
 CORS headers (--corsOrigin __ALL)
 
 --INIT--
-export SW_BROKER_EXTRA_PARAMS="--database /home/kz/git/swBroker/plugins/swRamDB.so --pretty-print 2 --corsOrigin __ALL --foreground"
-swBrokerStart
+swBrokerStart --corsOrigin __ALL
 
 --RUN--
 

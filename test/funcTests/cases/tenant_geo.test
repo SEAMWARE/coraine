@@ -1,4 +1,5 @@
 #
+# REQUIRE_DB: mongoc
 # FILE            tenant_geo.test
 #
 # AUTHOR          Ken Zangelin
@@ -10,8 +11,8 @@ Per-tenant geo-indexes with NGSILD-Tenant header
 
 --INIT--
 swDbDrop
-swDbDrop t1
-swDbDrop t2
+swDbDrop -tenant t1
+swDbDrop -tenant t2
 swBrokerStart
 
 --RUN--
@@ -353,5 +354,5 @@ Content-Length: REGEX(\d+)
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-swDbDrop t1
-swDbDrop t2
+swDbDrop -tenant t1
+swDbDrop -tenant t2

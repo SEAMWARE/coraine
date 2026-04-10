@@ -1,4 +1,5 @@
 #
+# REQUIRE_DB: mongoc
 # FILE            query_entities_q_regex.test
 #
 # AUTHOR          Ken Zangelin

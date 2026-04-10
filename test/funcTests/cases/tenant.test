@@ -1,4 +1,5 @@
 #
+# REQUIRE_DB: mongoc
 # FILE            tenant.test
 #
 # AUTHOR          Ken Zangelin
@@ -10,7 +11,7 @@ Multi-tenant support via NGSILD-Tenant header
 
 --INIT--
 swDbDrop
-swDbDrop t1
+swDbDrop -tenant t1
 swBrokerStart
 
 --RUN--
@@ -196,4 +197,4 @@ Content-Length: 48
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-swDbDrop t1
+swDbDrop -tenant t1

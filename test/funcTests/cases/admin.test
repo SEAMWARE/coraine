@@ -1,4 +1,5 @@
 #
+# REQUIRE_DB: ramdb
 # FILE            admin.test
 #
 # AUTHOR          Ken Zangelin
@@ -10,8 +11,7 @@ Admin API plugin endpoints
 
 --INIT--
 swDbDrop
-export SW_BROKER_EXTRA_PARAMS="--database /home/kz/git/swBroker/plugins/swRamDB.so --apiPlugins /home/kz/git/swBroker/plugins/admin.so --pretty-print 2 --foreground"
-swBrokerStart
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
 
 --RUN--
 
@@ -470,5 +470,5 @@ Content-Length: 79
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-swDbDrop t1
-swDbDrop t2
+swDbDrop -tenant t1
+swDbDrop -tenant t2
