@@ -69,7 +69,7 @@ ADMIN_DIR      = src/plugins/api/admin
 RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
                  $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
-                 $(RAMDB_DIR)/ramdbStore.c
+                 $(RAMDB_DIR)/ramdbStore.c $(RAMDB_DIR)/ramdbGeoMatch.c
 RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 
 ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
@@ -104,7 +104,7 @@ $(BINARY): $(ALL_OBJS)
 
 $(PLUGIN_DIR)/swRamDB.so: $(RAMDB_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(RAMDB_OBJS)
+	$(CC) -shared -o $@ $(RAMDB_OBJS) -lgeos_c -lm
 
 $(PLUGIN_DIR)/admin.so: $(ADMIN_OBJS)
 	@mkdir -p $(PLUGIN_DIR)

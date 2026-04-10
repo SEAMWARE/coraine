@@ -22,6 +22,7 @@
 
 #include "db/DbDriver.h"                              // DB_OK, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbEntities
+#include "currentState/swRamDB/ramdbGeoMatch.h"       // ramdbGeoMatch
 #include "currentState/swRamDB/ramdbEntityQuery.h"    // Own interface
 
 
@@ -477,6 +478,16 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
         continue;
     }
 
+    //
+    // Geo-query filter (GEOS)
+    //
+    double geoDistance = -1;
+    if (filterP != NULL && filterP->geoRel != NULL)
+    {
+      if (!ramdbGeoMatch(eP, filterP, &geoDistance))
+        continue;
+    }
+
     matched++;
 
     // Apply offset
@@ -491,6 +502,14 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       continue;
 
     KjNode* cloneP = kjClone(swRest.kjsonP, eP);
+
+    // Add geoDistance for near queries
+    if (geoDistance >= 0)
+    {
+      KjNode* distP = kjFloat(swRest.kjsonP, "geoDistance", geoDistance);
+      kjChildAdd(cloneP, distP);
+    }
+
     kjChildAdd(arrayP, cloneP);
     added++;
   }

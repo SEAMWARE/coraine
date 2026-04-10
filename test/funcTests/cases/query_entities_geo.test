@@ -1,5 +1,4 @@
 #
-# REQUIRE_DB: mongoc
 # FILE            query_entities_geo.test
 #
 # AUTHOR          Ken Zangelin
