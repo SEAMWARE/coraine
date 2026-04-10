@@ -26,11 +26,14 @@ swBrokerStart
 # 09. Verify GeoJSON is returned correctly (un-expansion check)
 # 10. Create entity E4 with custom geoproperty "operationArea" (Polygon)
 # 11. GET entities with geoproperty=operationArea, georel=intersects
-# 12. GET entities with georel=equals - should get 501 Not Implemented (MongoDB limitation)
+# 12. GET entities near Madrid, minDistance=400000, maxDistance=600000 - E2 only (ring between 400-600km)
 # 13. GET entities with georel=overlaps with polygon overlapping Iberia+France - should get E1, E2, E3
 # 14. GET entities with georel=contains, operationArea contains Point [0,40] - should get E4
 # 15. Create entity E5 with custom geoproperty "observationPoint" (Point)
 # 16. GET entities with geoproperty=observationPoint, georel=near - should get E5 (tests dynamic index)
+# 17. GET entities near Madrid, minDistance=100000 - should get E2 (not E1)
+# 18. GET entities near Madrid, minDistance=100000, maxDistance=600000 - ring: E2 only
+# 19. GET entities near Madrid, minDistance=600000 - should get E3 (Paris)
 #
 
 echo "01. Create entity E1 in Madrid"
@@ -163,9 +166,9 @@ echo
 echo
 
 
-echo "12. GET entities with georel=equals - should get 501 (MongoDB limitation)"
-echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=equals&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo "12. GET entities near Madrid, minDistance=400000, maxDistance=600000 - E2 only (tight ring)"
+echo "========================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D400000%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
@@ -205,6 +208,27 @@ echo
 echo "16. GET entities with geoproperty=observationPoint, georel=near - should get E5"
 echo "==============================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=Sensor&georel=near%3BmaxDistance%3D%3D100000&geometry=Point&coordinates=\[10.0,50.0\]&geoproperty=observationPoint'
+echo
+echo
+
+
+echo "17. GET entities near Madrid, minDistance=100000 - should get E2 (not E1, too close)"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D100000&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo
+echo
+
+
+echo "18. GET entities near Madrid, minDistance=100000, maxDistance=600000 - ring: E2 only"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D100000%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo
+echo
+
+
+echo "19. GET entities near Madrid, minDistance=600000 - should get E3 (Paris)"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
@@ -252,7 +276,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 504
 
 [
   {
@@ -295,7 +319,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 247
 
 [
   {
@@ -506,18 +530,31 @@ Content-Length: 702
 
 
 
-12. GET entities with georel=equals - should get 501 (MongoDB limitation)
-=========================================================================
-HTTP/1.1 501 Not Implemented
+12. GET entities near Madrid, minDistance=400000, maxDistance=600000 - E2 only (tight ring)
+=========================================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 176
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 260
 
-{
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-  "title": "Unsupported georel",
-  "detail": "georel 'equals' is not supported (MongoDB limitation)"
-}
+[
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
+  }
+]
 
 
 
@@ -651,7 +688,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 249
 
 [
   {
@@ -668,6 +705,195 @@ Content-Length: REGEX(\d+)
       }
     },
     "geoDistance": 0
+  }
+]
+
+
+
+17. GET entities near Madrid, minDistance=100000 - should get E2 (not E1, too close)
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1256
+
+[
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
+  },
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
+  },
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
+  }
+]
+
+
+
+18. GET entities near Madrid, minDistance=100000, maxDistance=600000 - ring: E2 only
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 260
+
+[
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
+  }
+]
+
+
+
+19. GET entities near Madrid, minDistance=600000 - should get E3 (Paris)
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 999
+
+[
+  {
+    "id": "urn:e3",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
+  },
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    },
+    "geoDistance": REGEX([0-9.]+)
   }
 ]
 
