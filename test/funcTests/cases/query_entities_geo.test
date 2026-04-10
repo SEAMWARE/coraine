@@ -34,6 +34,11 @@ swBrokerStart
 # 17. GET entities near Madrid, minDistance=100000 - should get E2 (not E1)
 # 18. GET entities near Madrid, minDistance=100000, maxDistance=600000 - ring: E2 only
 # 19. GET entities near Madrid, minDistance=600000 - should get E3 (Paris)
+# 20. Create entity E6 with LineString route (Madrid to Barcelona)
+# 21. Polygon-vs-Polygon: operationArea within larger polygon - should get E4
+# 22. Polygon-vs-Polygon: operationArea intersects partially overlapping polygon - should get E4
+# 23. LineString-vs-Polygon: route disjoint from faraway polygon - should get E6
+# 24. LineString intersects polygon covering Spain - should get E6
 #
 
 echo "01. Create entity E1 in Madrid"
@@ -229,6 +234,52 @@ echo
 echo "19. GET entities near Madrid, minDistance=600000 - should get E3 (Paris)"
 echo "======================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+echo
+echo
+
+
+echo "20. Create entity E6 with LineString route (Madrid to Barcelona)"
+echo "================================================================"
+payload='{
+  "id": "urn:e6",
+  "type": "Route",
+  "path": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "LineString",
+      "coordinates": [[-3.703, 40.417], [2.154, 41.390]]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "21. Polygon-vs-Polygon: operationArea within larger polygon - should get E4"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=within&geometry=Polygon&coordinates=\[\[\[-10,30\],\[10,30\],\[10,50\],\[-10,50\],\[-10,30\]\]\]&geoproperty=operationArea'
+echo
+echo
+
+
+echo "22. Polygon-vs-Polygon: operationArea intersects partially overlapping polygon"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Polygon&coordinates=\[\[\[0,38\],\[10,38\],\[10,48\],\[0,48\],\[0,38\]\]\]&geoproperty=operationArea'
+echo
+echo
+
+
+echo "23. LineString-vs-Polygon: route disjoint from faraway polygon - should get E6"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Route&georel=disjoint&geometry=Polygon&coordinates=\[\[\[50,50\],\[60,50\],\[60,60\],\[50,60\],\[50,50\]\]\]&geoproperty=path'
+echo
+echo
+
+
+echo "24. LineString intersects polygon covering Spain - should get E6"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Route&georel=intersects&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,45\],\[-10,45\],\[-10,35\]\]\]&geoproperty=path'
 echo
 echo
 
@@ -894,6 +945,198 @@ Content-Length: 999
       }
     },
     "geoDistance": REGEX([0-9.]+)
+  }
+]
+
+
+
+20. Create entity E6 with LineString route (Madrid to Barcelona)
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e6
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+21. Polygon-vs-Polygon: operationArea within larger polygon - should get E4
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 702
+
+[
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    }
+  }
+]
+
+
+
+22. Polygon-vs-Polygon: operationArea intersects partially overlapping polygon
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 702
+
+[
+  {
+    "id": "urn:e4",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    }
+  }
+]
+
+
+
+23. LineString-vs-Polygon: route disjoint from faraway polygon - should get E6
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 317
+
+[
+  {
+    "id": "urn:e6",
+    "type": "Route",
+    "path": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -3.703,
+            40.417
+          ],
+          [
+            2.154,
+            41.39
+          ]
+        ]
+      }
+    }
+  }
+]
+
+
+
+24. LineString intersects polygon covering Spain - should get E6
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 317
+
+[
+  {
+    "id": "urn:e6",
+    "type": "Route",
+    "path": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -3.703,
+            40.417
+          ],
+          [
+            2.154,
+            41.39
+          ]
+        ]
+      }
+    }
   }
 ]
 
