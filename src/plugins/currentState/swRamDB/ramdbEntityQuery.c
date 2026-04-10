@@ -487,7 +487,7 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     }
 
     // Apply limit (0 means no results wanted -- count-only mode)
-    if (limit > 0 && added >= limit)
+    if (limit == 0 || added >= limit)
       continue;
 
     KjNode* cloneP = kjClone(swRest.kjsonP, eP);
