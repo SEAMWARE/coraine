@@ -1,0 +1,81 @@
+#
+# FILE            options_request.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+OPTIONS requests - Allow header lists registered verbs
+
+--INIT--
+swBrokerStart
+
+--RUN--
+
+#
+# 01. OPTIONS /entities - GET + POST + HEAD + OPTIONS
+# 02. OPTIONS /entities/{id} - GET + HEAD + OPTIONS
+# 03. OPTIONS /nonexistent - 404
+#
+
+echo "01. OPTIONS /entities - GET + POST + HEAD + OPTIONS"
+echo "==================================================="
+swCurl -X OPTIONS --url /ngsi-ld/v1/entities
+echo
+echo
+
+
+echo "02. OPTIONS /entities/{id} - GET + HEAD + OPTIONS"
+echo "=================================================="
+swCurl -X OPTIONS --url /ngsi-ld/v1/entities/urn:any
+echo
+echo
+
+
+echo "03. OPTIONS /nonexistent - 404"
+echo "=============================="
+swCurl -X OPTIONS --url /nonexistent
+echo
+echo
+
+
+--EXPECT--
+01. OPTIONS /entities - GET + POST + HEAD + OPTIONS
+===================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, POST, HEAD, OPTIONS
+
+
+
+
+02. OPTIONS /entities/{id} - GET + HEAD + OPTIONS
+==================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, HEAD, OPTIONS
+
+
+
+
+03. OPTIONS /nonexistent - 404
+==============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "OPTIONS /nonexistent is not a recognized resource"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+
