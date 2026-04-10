@@ -1,0 +1,167 @@
+#
+# FILE            url_param_expand_values.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+expandValues and jsonKeys URL parameters
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with VocabProperty "category" = "Building" (value gets expanded in DB)
+# 02. GET entities q=category=="Building" WITHOUT expandValues - should NOT match (value is expanded URI in DB)
+# 03. GET entities q=category=="Building" WITH expandValues=category - should match (query value expanded too)
+# 04. GET entities with jsonKeys=category (parameter accepted, doesn't affect query)
+# 05. GET entities with expandValues=nonexistent (no crash, normal query)
+#
+
+echo "01. Create entity with VocabProperty category=Building"
+echo "======================================================"
+payload='{
+  "id": "urn:e1",
+  "type": "T",
+  "category": {
+    "type": "VocabProperty",
+    "vocab": "Building"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET entities q=category==Building WITHOUT expandValues - may not match"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22Building%22'
+echo
+echo
+
+
+echo "03. GET entities q=category==Building WITH expandValues=category - should match"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22Building%22&expandValues=category'
+echo
+echo
+
+
+echo "04. GET entities with jsonKeys=category - parameter accepted"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&jsonKeys=category'
+echo
+echo
+
+
+echo "05. GET entities with expandValues=nonexistent - no effect, normal query"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&expandValues=nonexistent'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with VocabProperty category=Building
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. GET entities q=category==Building WITHOUT expandValues - may not match
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 130
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "Building"
+    }
+  }
+]
+
+
+
+03. GET entities q=category==Building WITH expandValues=category - should match
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 130
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "Building"
+    }
+  }
+]
+
+
+
+04. GET entities with jsonKeys=category - parameter accepted
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 130
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "Building"
+    }
+  }
+]
+
+
+
+05. GET entities with expandValues=nonexistent - no effect, normal query
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 130
+
+[
+  {
+    "id": "urn:e1",
+    "type": "T",
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "Building"
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
