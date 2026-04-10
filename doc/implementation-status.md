@@ -21,7 +21,7 @@ Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins
 
 ### 1. POST /ngsi-ld/v1/entities — Create Entity
 
-**Status: Complete**
+**Status: Mostly complete (local)**
 
 | Feature | Status |
 |---------|--------|
@@ -36,9 +36,11 @@ Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins
 | Multi-attribute (datasetId) | Done |
 | System attributes (createdAt, modifiedAt) | Done |
 | Multi-tenancy (NGSILD-Tenant header) | Done |
-| 201 Created + Location header | Done |
+| 201 Created + Location + Link headers | Done |
 | 409 AlreadyExists | Done |
 | Error handling (missing id, missing type, bad payload, bad Content-Type) | Done |
+| scope (entity scope property) | Done |
+| Multi-entity-type (type as array) | Done |
 | Subscriptions / notifications on create | Not done |
 | Distributed operations (forwarding to registrations) | Not done |
 
@@ -46,7 +48,7 @@ Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_p
 
 ### 2. GET /ngsi-ld/v1/entities — Query Entities
 
-**Status: Mostly complete (local queries)**
+**Status: Mostly complete (local queries, no ordering/join/entityMap)**
 
 | Feature | Status |
 |---------|--------|
@@ -83,7 +85,7 @@ Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`, `g
 
 ### 3. GET /ngsi-ld/v1/entities/{entityId} — Retrieve Entity
 
-**Status: Basic implementation**
+**Status: Mostly complete (no join/entityMap, no type disambiguation)**
 
 | Feature | Status |
 |---------|--------|
