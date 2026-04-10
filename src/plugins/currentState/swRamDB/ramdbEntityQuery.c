@@ -6,6 +6,7 @@
 // Copyright 2026 Seamware
 //
 #include <regex.h>                                     // regcomp, regexec, regfree
+#include <stdlib.h>                                    // strtod
 #include <string.h>                                    // strcmp
 
 #include "kbase/kStringArrayLookup.h"                 // kStringArrayLookup
@@ -228,6 +229,16 @@ static bool matchTerm(KjNode* entityP, LdQTerm* term)
     }
 
   case LdQString:
+    if (term->op == LdQPattern || term->op == LdQNotPattern)
+    {
+      if (valueP->type != KjString) return false;
+      regex_t re;
+      if (regcomp(&re, term->value.s, REG_EXTENDED | REG_NOSUB) != 0)
+        return false;
+      bool m = (regexec(&re, valueP->value.s, 0, NULL, 0) == 0);
+      regfree(&re);
+      return (term->op == LdQPattern) ? m : !m;
+    }
     if (valueP->type != KjString) return false;
     {
       int cmp = strcmp(valueP->value.s, term->value.s);
@@ -311,7 +322,9 @@ static bool matchTerm(KjNode* entityP, LdQTerm* term)
     {
       if (term->value.list.itemType == LdQNumber && isNum)
       {
-        // list values stored as strings for now -- skip complex list handling
+        double listNum = strtod(term->value.list.values[i], NULL);
+        if (entityNum == listNum)
+          return (term->op == LdQEqual);
       }
       else if (term->value.list.itemType == LdQString && valueP->type == KjString)
       {

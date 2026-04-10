@@ -1,5 +1,4 @@
 #
-# REQUIRE_DB: mongoc
 # FILE            query_entities_q_compound.test
 #
 # AUTHOR          Ken Zangelin
