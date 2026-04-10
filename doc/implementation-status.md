@@ -1,7 +1,7 @@
 # swBroker Implementation Status
 
 Version: post-0.2.0
-Date: 2026-04-09
+Date: 2026-04-10
 
 ---
 
@@ -12,7 +12,7 @@ swBroker is a lightweight NGSI-LD Context Broker built in C on top of:
 - **sw-libs** (swRest, swJsonld, swNgsild, swPlugin)
 
 Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins`):
-- **DB plugins**: `swRamDB` (in-memory), `mongoc` (MongoDB via libmongoc)
+- **DB plugins**: `swRamDB` (in-memory, GEOS geo-filtering, per-tenant isolation), `mongoc` (MongoDB via libmongoc, $geoNear aggregation)
 - **API plugins**: `admin` (health, version, log, tenants, plugins)
 
 ---
@@ -42,7 +42,7 @@ Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins
 | Subscriptions / notifications on create | Not done |
 | Distributed operations (forwarding to registrations) | Not done |
 
-Functional tests: `create_entity*.test` (9 test files), `tenant.test`
+Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_persistence.test`
 
 ### 2. GET /ngsi-ld/v1/entities — Query Entities
 
@@ -67,17 +67,19 @@ Functional tests: `create_entity*.test` (9 test files), `tenant.test`
 | System attributes (sysAttrs) | Done |
 | Multi-tenancy | Done |
 | Error handling (incomplete geo params, limit=0 without count, pick+omit mutual exclusion) | Done |
+| GeoJSON response (Accept: application/geo+json) | Done |
+| geometryProperty (selects GeoProperty for GeoJSON geometry) | Done |
+| expandValues (expand q-filter values via @context) | Done (parsing + q-parser hook) |
+| jsonKeys (opaque values in q-filter) | Done (parsing, no-op — no type coercion yet) |
 | attrs (deprecated) | Not done |
-| expandValues, jsonKeys | Not done |
 | orderBy, orderFrom, orderGeometry, collation | Not done |
 | join, joinLevel, containedBy | Not done |
 | entityMap, entityMapLifetime, splitEntities | Not done |
 | local | Not done |
 | csf | Not done |
-| geometryProperty (GeoJSON entity representation) | Not done |
 | Distributed operations | Not done |
 
-Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`
+Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`, `geojson_response.test`, `url_param_expand_values.test`
 
 ### 3. GET /ngsi-ld/v1/entities/{entityId} — Retrieve Entity
 
@@ -91,15 +93,16 @@ Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`
 | pick / omit | Done |
 | datasetId filter | Done |
 | lang | Done |
+| GeoJSON response (Accept: application/geo+json) | Done |
+| geometryProperty | Done |
 | Multi-tenancy | Done |
 | 404 Not Found | Done |
 | type (entity type selection for disambiguation) | Not done |
 | join, joinLevel, containedBy | Not done |
 | entityMap, entityMapLifetime | Not done |
-| geometryProperty | Not done |
 | Distributed operations | Not done |
 
-Functional tests: `retrieve_entity_*.test` (5 test files)
+Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.test`
 
 ### 4. Admin API (plugin)
 
@@ -114,6 +117,9 @@ Functional tests: `retrieve_entity_*.test` (5 test files)
 ### 5. Other
 
 - CORS support (--corsOrigin, --corsMaxAge)
+- HEAD requests (auto-generated from GET handlers)
+- OPTIONS requests (Allow header with registered verbs)
+- GeoJSON response format (application/geo+json → Feature/FeatureCollection)
 - 404 for unknown paths
 - Usage/help (--usage)
 
@@ -194,8 +200,6 @@ Functional tests: `retrieve_entity_*.test` (5 test files)
 | orderBy / collation | Medium | 2-3 days |
 | join / joinLevel / containedBy | High | 5-7 days |
 | entityMap / entityMapLifetime | Medium | 2-3 days |
-| expandValues / jsonKeys | Low | 1 day |
-| geometryProperty (GeoJSON representation) | Low | 1 day |
 | local flag | Low | 0.5 days |
 
 ### Snapshot Functionality (5.16)
