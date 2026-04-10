@@ -1,0 +1,179 @@
+#
+# REQUIRE_DB: mongoc
+# FILE            tenant_geo_persistence.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Per-tenant geo-query persistence across broker restart
+
+--INIT--
+swDbDrop
+swDbDrop -tenant t1
+swDbDrop -tenant t2
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 in Madrid on tenant t1
+# 02. Create entity E2 in Paris on tenant t2
+# 03. Restart broker
+# 04. GET near Madrid on t1 - should still get E1 (index re-created)
+# 05. GET near Paris on t2 - should still get E2 (index re-created)
+#
+
+echo "01. Create entity E1 in Madrid on tenant t1"
+echo "==========================================="
+payload='{
+  "id": "urn:e1",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [-3.703, 40.417]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+echo "02. Create entity E2 in Paris on tenant t2"
+echo "=========================================="
+payload='{
+  "id": "urn:e2",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [2.349, 48.864]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+echo "03. Restart broker"
+echo "=================="
+swBrokerStop
+swBrokerStart
+echo
+echo
+
+
+echo "04. GET near Madrid on t1 - should still get E1 (index re-created)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+echo "05. GET near Paris on t2 - should still get E2 (index re-created)"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 in Madrid on tenant t1
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:e1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Create entity E2 in Paris on tenant t2
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Location: urn:e2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Restart broker
+==================
+
+
+04. GET near Madrid on t1 - should still get E1 (index re-created)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 247
+
+[
+  {
+    "id": "urn:e1",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    },
+    "geoDistance": 0
+  }
+]
+
+
+
+05. GET near Paris on t2 - should still get E2 (index re-created)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 246
+
+[
+  {
+    "id": "urn:e2",
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.349,
+          48.864
+        ]
+      }
+    },
+    "geoDistance": 0
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swDbDrop -tenant t1
+swDbDrop -tenant t2

@@ -1,5 +1,4 @@
 #
-# REQUIRE_DB: mongoc
 # FILE            tenant_geo.test
 #
 # AUTHOR          Ken Zangelin
@@ -7,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 --NAME--
-Per-tenant geo-indexes with NGSILD-Tenant header
+Per-tenant geo-queries with NGSILD-Tenant header
 
 --INIT--
 swDbDrop
@@ -23,11 +22,8 @@ swBrokerStart
 # 03. GET near Madrid on t1 - should get E1
 # 04. GET near Madrid on t2 - should get nothing (Paris is far)
 # 05. GET near Paris on t2 - should get E2
-# 06. Restart broker (tenant discovery + geo-index init per tenant)
-# 07. GET near Madrid on t1 - should still get E1 (index re-created)
-# 08. GET near Paris on t2 - should still get E2 (index re-created)
-# 09. Create entity E3 in Barcelona on t1 (runtime geo-index ensure, same field path as t2)
-# 10. GET near Madrid within 600 km on t1 - should get E1 and E3
+# 06. Create entity E3 in Barcelona on t1
+# 07. GET near Madrid within 600 km on t1 - should get E1 and E3
 #
 
 echo "01. Create entity E1 in Madrid on tenant t1"
@@ -87,29 +83,7 @@ echo
 echo
 
 
-echo "06. Restart broker"
-echo "=================="
-swBrokerStop
-swBrokerStart
-echo
-echo
-
-
-echo "07. GET near Madrid on t1 - should still get E1 (index re-created)"
-echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
-echo
-echo
-
-
-echo "08. GET near Paris on t2 - should still get E2 (index re-created)"
-echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
-echo
-echo
-
-
-echo "09. Create entity E3 in Barcelona on t1"
+echo "06. Create entity E3 in Barcelona on t1"
 echo "======================================="
 payload='{
   "id": "urn:e3",
@@ -127,7 +101,7 @@ echo
 echo
 
 
-echo "10. GET near Madrid within 600 km on t1 - should get E1 and E3"
+echo "07. GET near Madrid within 600 km on t1 - should get E1 and E3"
 echo "=============================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
 echo
@@ -168,7 +142,7 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 247
 
 [
   {
@@ -184,7 +158,7 @@ Content-Length: REGEX(\d+)
         ]
       }
     },
-    "geoDistance": 0
+    "geoDistance": REGEX([0-9.]+)
   }
 ]
 
@@ -210,7 +184,7 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 246
 
 [
   {
@@ -226,75 +200,13 @@ Content-Length: REGEX(\d+)
         ]
       }
     },
-    "geoDistance": 0
+    "geoDistance": REGEX([0-9.]+)
   }
 ]
 
 
 
-06. Restart broker
-==================
-
-
-07. GET near Madrid on t1 - should still get E1 (index re-created)
-==================================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-NGSILD-Tenant: t1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
-
-[
-  {
-    "id": "urn:e1",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          -3.703,
-          40.417
-        ]
-      }
-    },
-    "geoDistance": 0
-  }
-]
-
-
-
-08. GET near Paris on t2 - should still get E2 (index re-created)
-=================================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-NGSILD-Tenant: t2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
-
-[
-  {
-    "id": "urn:e2",
-    "type": "City",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "type": "Point",
-        "coordinates": [
-          2.349,
-          48.864
-        ]
-      }
-    },
-    "geoDistance": 0
-  }
-]
-
-
-
-09. Create entity E3 in Barcelona on t1
+06. Create entity E3 in Barcelona on t1
 =======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -307,14 +219,14 @@ Content-Length: 0
 
 
 
-10. GET near Madrid within 600 km on t1 - should get E1 and E3
+07. GET near Madrid within 600 km on t1 - should get E1 and E3
 ==============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 504
 
 [
   {
@@ -330,7 +242,7 @@ Content-Length: REGEX(\d+)
         ]
       }
     },
-    "geoDistance": 0
+    "geoDistance": REGEX([0-9.]+)
   },
   {
     "id": "urn:e3",

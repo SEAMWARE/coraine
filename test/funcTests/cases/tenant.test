@@ -1,5 +1,4 @@
 #
-# REQUIRE_DB: mongoc
 # FILE            tenant.test
 #
 # AUTHOR          Ken Zangelin
@@ -23,7 +22,6 @@ swBrokerStart
 # 04. GET /entities with NGSILD-Tenant: t1 - entity IS visible, response echoes tenant header
 # 05. POST /entities to default tenant - 201 Created
 # 06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1
-# 07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered, entity still there
 #
 
 echo "01. GET /entities with unknown tenant t1 - 404 NonexistentTenant"
@@ -73,15 +71,6 @@ echo
 
 echo "06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
-echo
-echo
-
-
-echo "07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered"
-echo "=============================================================================="
-swBrokerStop
-swBrokerStart
 swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
 echo
 echo
@@ -160,24 +149,6 @@ Content-Length: 0
 
 06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1
 ===========================================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-NGSILD-Tenant: t1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 48
-
-[
-  {
-    "id": "urn:E1",
-    "type": "T"
-  }
-]
-
-
-
-07. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered
-==============================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
