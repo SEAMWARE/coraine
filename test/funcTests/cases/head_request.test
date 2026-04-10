@@ -1,0 +1,101 @@
+#
+# FILE            head_request.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+HEAD requests (auto-generated from GET, no body, correct Content-Length)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity for HEAD tests
+# 02. HEAD /entities/{id} - 200, correct Content-Length, no body
+# 03. HEAD /entities?type=T - 200, correct Content-Length, no body
+# 04. HEAD /nonexistent - 404, no body
+#
+
+echo "01. Create entity for HEAD tests"
+echo "================================"
+payload='{
+  "id": "urn:head:E1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. HEAD /entities/{id} - 200, correct Content-Length, no body"
+echo "=============================================================="
+curl -s --head http://localhost:${SW_ROLE_PORT:-1026}/ngsi-ld/v1/entities/urn:head:E1 | tr -d '\r' | grep -v "^$"
+echo
+echo
+
+
+echo "03. HEAD /entities?type=T - 200, correct Content-Length, no body"
+echo "================================================================"
+curl -s --head "http://localhost:${SW_ROLE_PORT:-1026}/ngsi-ld/v1/entities?type=T" | tr -d '\r' | grep -v "^$"
+echo
+echo
+
+
+echo "04. HEAD /nonexistent - 404, no body"
+echo "===================================="
+curl -s --head http://localhost:${SW_ROLE_PORT:-1026}/nonexistent | tr -d '\r' | grep -v "^$"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity for HEAD tests
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:head:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. HEAD /entities/{id} - 200, correct Content-Length, no body
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+
+03. HEAD /entities?type=T - 200, correct Content-Length, no body
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+
+04. HEAD /nonexistent - 404, no body
+====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
