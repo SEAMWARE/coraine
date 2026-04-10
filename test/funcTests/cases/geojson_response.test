@@ -1,0 +1,394 @@
+#
+# FILE            geojson_response.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GeoJSON response format (Accept: application/geo+json)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 with location (Point)
+# 02. Create entity E2 with location and operationArea (Polygon)
+# 03. Create entity E3 without any GeoProperty
+# 04. GET entity E1 as GeoJSON Feature
+# 05. GET entities as GeoJSON FeatureCollection
+# 06. GET entity E2 with geometryProperty=operationArea
+# 07. GET entity E3 as GeoJSON (no location - geometry null)
+#
+
+echo "01. Create entity E1 with location"
+echo "==================================="
+payload='{
+  "id": "urn:e1",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": { "type": "Point", "coordinates": [-3.703, 40.417] }
+  },
+  "name": { "type": "Property", "value": "Madrid" }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create entity E2 with location and operationArea"
+echo "====================================================="
+payload='{
+  "id": "urn:e2",
+  "type": "City",
+  "location": {
+    "type": "GeoProperty",
+    "value": { "type": "Point", "coordinates": [2.154, 41.390] }
+  },
+  "operationArea": {
+    "type": "GeoProperty",
+    "value": { "type": "Polygon", "coordinates": [[[-5,35],[5,35],[5,44],[-5,44],[-5,35]]] }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create entity E3 without any GeoProperty"
+echo "============================================="
+payload='{ "id": "urn:e3", "type": "City", "name": { "type": "Property", "value": "NoGeo" } }'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET entity E1 as GeoJSON Feature"
+echo "====================================="
+swCurl --out geojson --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+echo "05. GET entities as GeoJSON FeatureCollection"
+echo "=============================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities?type=City'
+echo
+echo
+
+
+echo "06. GET entity E2 with geometryProperty=operationArea"
+echo "======================================================"
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:e2' --urlParams 'geometryProperty=operationArea'
+echo
+echo
+
+
+echo "07. GET entity E3 as GeoJSON (no location - geometry null)"
+echo "=========================================================="
+swCurl --out geojson --url /ngsi-ld/v1/entities/urn:e3
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 with location
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Create entity E2 with location and operationArea
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Create entity E3 without any GeoProperty
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+04. GET entity E1 as GeoJSON Feature
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 425
+
+{
+  "type": "Feature",
+  "id": "urn:e1",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -3.703,
+      40.417
+    ]
+  },
+  "properties": {
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      }
+    },
+    "name": {
+      "type": "Property",
+      "value": "Madrid"
+    }
+  }
+}
+
+
+
+05. GET entities as GeoJSON FeatureCollection
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1869
+
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "urn:e1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.703,
+          40.417
+        ]
+      },
+      "properties": {
+        "type": "City",
+        "location": {
+          "type": "GeoProperty",
+          "value": {
+            "type": "Point",
+            "coordinates": [
+              -3.703,
+              40.417
+            ]
+          }
+        },
+        "name": {
+          "type": "Property",
+          "value": "Madrid"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urn:e2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      },
+      "properties": {
+        "type": "City",
+        "location": {
+          "type": "GeoProperty",
+          "value": {
+            "type": "Point",
+            "coordinates": [
+              2.154,
+              41.39
+            ]
+          }
+        },
+        "operationArea": {
+          "type": "GeoProperty",
+          "value": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -5,
+                  35
+                ],
+                [
+                  5,
+                  35
+                ],
+                [
+                  5,
+                  44
+                ],
+                [
+                  -5,
+                  44
+                ],
+                [
+                  -5,
+                  35
+                ]
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urn:e3",
+      "geometry": null,
+      "properties": {
+        "type": "City",
+        "name": {
+          "type": "Property",
+          "value": "NoGeo"
+        }
+      }
+    }
+  ]
+}
+
+
+
+06. GET entity E2 with geometryProperty=operationArea
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1067
+
+{
+  "type": "Feature",
+  "id": "urn:e2",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -5,
+          35
+        ],
+        [
+          5,
+          35
+        ],
+        [
+          5,
+          44
+        ],
+        [
+          -5,
+          44
+        ],
+        [
+          -5,
+          35
+        ]
+      ]
+    ]
+  },
+  "properties": {
+    "type": "City",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          2.154,
+          41.39
+        ]
+      }
+    },
+    "operationArea": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -5,
+              35
+            ],
+            [
+              5,
+              35
+            ],
+            [
+              5,
+              44
+            ],
+            [
+              -5,
+              44
+            ],
+            [
+              -5,
+              35
+            ]
+          ]
+        ]
+      }
+    }
+  }
+}
+
+
+
+07. GET entity E3 as GeoJSON (no location - geometry null)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 174
+
+{
+  "type": "Feature",
+  "id": "urn:e3",
+  "geometry": null,
+  "properties": {
+    "type": "City",
+    "name": {
+      "type": "Property",
+      "value": "NoGeo"
+    }
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
