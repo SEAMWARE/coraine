@@ -26,12 +26,6 @@
 //
 bool getEntities(void)
 {
-  if (!dbEnabled)
-  {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "no database plugin loaded");
-    return true;
-  }
-
   //
   // Early exit if paramHook already set an error (e.g. invalid georel, geometry, coordinates)
   //

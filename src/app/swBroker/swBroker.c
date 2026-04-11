@@ -50,7 +50,6 @@ unsigned short port         = 1026;
 char*          dbName       = "mongoc";
 char*          apiNames     = NULL;
 unsigned int   prettySpaces = 0;
-bool           dbEnabled    = false;
 bool           localOnly    = false;
 bool           fg           = false;
 int            poolSize     = 6;
@@ -112,20 +111,6 @@ static void onSignal(int sigNo)
 // Called between kargsInit and kargsParse so that plugin-contributed args
 // are known before parsing.
 //
-static bool usageRequested(int argC, char* argV[])
-{
-  for (int i = 1; i < argC; i++)
-  {
-    if (strcmp(argV[i], "-u")  == 0 || strcmp(argV[i], "--usage") == 0 ||
-        strcmp(argV[i], "-U")  == 0 || strcmp(argV[i], "--Usage") == 0)
-      return true;
-  }
-
-  return false;
-}
-
-
-
 static bool pluginsLoad(int argC, char* argV[])
 {
   bool startupError = false;
@@ -141,18 +126,13 @@ static bool pluginsLoad(int argC, char* argV[])
 
   //
   // Load DB plugin (dlopen + dbRegister, no DB connection yet)
-  // /dev/null means "no plugin" -- useful for -u/-U without db args
   //
-  dbEnabled = (strcmp(dbPeek, "/dev/null") != 0);
-
-  if (dbEnabled)
   {
     char errBuf[1024];
     if (pluginLoadDb(dbPeek, errBuf, sizeof(errBuf)) != 0)
     {
       fprintf(stderr, "%s\n", errBuf);
       startupError = true;
-      dbEnabled = false;
     }
     else if (db.args != NULL)
     {
@@ -307,7 +287,7 @@ int main(int argC, char* argV[])
   tenantInit("sw");
   swRestSetPreServiceHook(tenantPreServiceHook);
 
-  if (dbEnabled && dbStart() != 0)
+  if (dbStart() != 0)
     KT_X(1, "dbStart failed");
 
   //

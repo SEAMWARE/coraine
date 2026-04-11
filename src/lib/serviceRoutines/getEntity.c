@@ -23,12 +23,6 @@
 //
 bool getEntity(void)
 {
-  if (!dbEnabled)
-  {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "no database plugin loaded");
-    return true;
-  }
-
   const char* entityId = swRest.in.wildcard[0];
 
   KjNode* entityP = NULL;
