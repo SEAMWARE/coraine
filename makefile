@@ -25,7 +25,8 @@ APP_SOURCES   = src/app/swBroker/swBroker.c           \
 
 SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/getEntity.c    \
-                src/lib/serviceRoutines/postEntities.c
+                src/lib/serviceRoutines/postEntities.c \
+                src/lib/serviceRoutines/deleteEntity.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
@@ -69,6 +70,7 @@ ADMIN_DIR      = src/plugins/api/admin
 RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
                  $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
+                 $(RAMDB_DIR)/ramdbEntityDelete.c \
                  $(RAMDB_DIR)/ramdbStore.c $(RAMDB_DIR)/ramdbGeoMatch.c
 RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 
@@ -81,6 +83,7 @@ MONGOC_DIR     = src/plugins/currentState/mongoc
 MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocInit.c $(MONGOC_DIR)/mongocClose.c \
                  $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityRetrieve.c \
+                 $(MONGOC_DIR)/mongocEntityDelete.c \
                  $(MONGOC_DIR)/mongocEntityQuery.c $(MONGOC_DIR)/mongocGeoIndex.c \
                  $(MONGOC_DIR)/mongocTenantSetup.c $(MONGOC_DIR)/mongocVersion.c \
                  $(MONGOC_DIR)/mongocKjTreeToBson.c $(MONGOC_DIR)/mongocBsonToKjTree.c \

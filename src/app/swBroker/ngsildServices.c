@@ -9,12 +9,13 @@
 #include <string.h>                              // memcpy
 
 #include "swRest/SwRestService.h"                // SwRestServiceSimplified, SwRestVerb
-#include "swRest/SwRestVerb.h"                   // SwVerbGet, SwVerbPost
-#include "swNgsild/ldParams.h"                   // LD_PARAMS_GET_ENTITIES, LD_PARAMS_GET_ENTITY, LD_PARAMS_POST_ENTITIES
+#include "swRest/SwRestVerb.h"                   // SwVerbGet, SwVerbPost, SwVerbDelete
+#include "swNgsild/ldParams.h"                   // LD_PARAMS_GET_ENTITIES, LD_PARAMS_GET_ENTITY, LD_PARAMS_POST_ENTITIES, LD_PARAMS_DELETE_ENTITY
 
 #include "serviceRoutines/getEntities.h"         // getEntities
 #include "serviceRoutines/getEntity.h"           // getEntity
 #include "serviceRoutines/postEntities.h"        // postEntities
+#include "serviceRoutines/deleteEntity.h"        // deleteEntity
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -28,9 +29,10 @@
 //
 SwRestServiceSimplified ngsildCoreServices[] =
 {
-  { SwVerbGet,  "/ngsi-ld/v1/entities",   getEntities, LD_PARAMS_GET_ENTITIES  },
-  { SwVerbGet,  "/ngsi-ld/v1/entities/*", getEntity,   LD_PARAMS_GET_ENTITY   },
-  { SwVerbPost, "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES }
+  { SwVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES   },
+  { SwVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY     },
+  { SwVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES  },
+  { SwVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY  }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

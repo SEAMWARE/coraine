@@ -1,0 +1,184 @@
+#
+# FILE            delete_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DELETE /entities/{id} - delete entity, 404 on non-existing, 404 after delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity urn:ngsi-ld:Vehicle:V1
+# 02. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 200 OK
+# 03. DELETE entity urn:ngsi-ld:Vehicle:V1 - 204 No Content
+# 04. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 404 Not Found (gone)
+# 05. DELETE entity urn:ngsi-ld:Vehicle:V1 again - 404 Not Found
+# 06. DELETE non-existing entity urn:doesnt:exist - 404 Not Found
+# 07. Query all entities - empty array
+#
+
+echo "01. Create entity urn:ngsi-ld:Vehicle:V1"
+echo "========================================"
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 200 OK"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "03. DELETE entity urn:ngsi-ld:Vehicle:V1 - 204 No Content"
+echo "========================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "04. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 404 Not Found (gone)"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "05. DELETE entity urn:ngsi-ld:Vehicle:V1 again - 404 Not Found"
+echo "=============================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "06. DELETE non-existing entity urn:doesnt:exist - 404 Not Found"
+echo "==============================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:doesnt:exist
+echo
+echo
+
+
+echo "07. Query all entities - empty array"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities
+echo
+echo
+
+
+--EXPECT--
+01. Create entity urn:ngsi-ld:Vehicle:V1
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 200 OK
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 116
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}
+
+
+
+03. DELETE entity urn:ngsi-ld:Vehicle:V1 - 204 No Content
+=========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 404 Not Found (gone)
+=================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found"
+}
+
+
+
+05. DELETE entity urn:ngsi-ld:Vehicle:V1 again - 404 Not Found
+==============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found"
+}
+
+
+
+06. DELETE non-existing entity urn:doesnt:exist - 404 Not Found
+===============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "entity 'urn:doesnt:exist' not found"
+}
+
+
+
+07. Query all entities - empty array
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
