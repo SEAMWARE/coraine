@@ -1,0 +1,334 @@
+#
+# FILE            patch_entity_url_params.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id} - format/lang/observedAt URL params
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Setup entity with three kinds of attribute:
+#   - Relationship (owner → urn:alice)
+#   - LanguageProperty (name → languageMap{en,fr})
+#   - Property with observedAt sub-attribute (temp → 20 @ 2026-01-01)
+#
+# 01. Create the entity
+# 02. PATCH owner with simplified scalar "urn:bob" — Relationship type preserved, object updated
+# 03. GET — verify owner.object == "urn:bob", type still Relationship
+# 04. PATCH name with simplified string "Hola" and ?lang=es — only languageMap.es added/updated, en+fr preserved
+# 05. GET — verify languageMap has en, fr, es
+# 06. PATCH temp with simplified scalar 25 and ?observedAt=2026-06-01T12:00:00Z — observedAt sub-attr updated from URL param
+# 07. GET with sysAttrs — verify temp.value=25 and temp.observedAt=2026-06-01...
+# 08. PATCH temp with simplified scalar 30 and no observedAt URL param — observedAt should stay (not reset)
+# 09. GET sysAttrs — temp.value=30, temp.observedAt still at 2026-06-01
+# 10. Simplified PATCH on LanguageProperty without lang URL param — 400 Missing lang
+#
+
+echo "01. Create entity with Relationship, LanguageProperty, and Property with observedAt"
+echo "==================================================================================="
+payload='{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:alice"
+  },
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Hello",
+      "fr": "Bonjour"
+    }
+  },
+  "temp": {
+    "type": "Property",
+    "value": 20,
+    "observedAt": "2026-01-01T00:00:00Z"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH owner with simplified URI — Relationship type must be preserved"
+echo "========================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"owner":"urn:bob"}'
+echo
+echo
+
+
+echo "03. GET — owner.object updated, type still Relationship"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+echo "04. PATCH name with lang=es — add Spanish entry, preserve en/fr"
+echo "==============================================================="
+swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?lang=es' --payload '{"name":"Hola"}'
+echo
+echo
+
+
+echo "05. GET — languageMap has en, fr, es"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+echo "06. PATCH temp with observedAt URL param — sub-attr updated from URL"
+echo "===================================================================="
+swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?observedAt=2026-06-01T12:00:00Z' --payload '{"temp":25}'
+echo
+echo
+
+
+echo "07. GET with sysAttrs — temp.value=25 and temp.observedAt=2026-06-01..."
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?options=sysAttrs'
+echo
+echo
+
+
+echo "08. PATCH temp with no observedAt URL param — stored observedAt is preserved"
+echo "============================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"temp":30}'
+echo
+echo
+
+
+echo "09. GET sysAttrs — temp.value=30, observedAt still 2026-06-01..."
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:e1?options=sysAttrs'
+echo
+echo
+
+
+echo "10. Simplified PATCH on LanguageProperty without lang URL param — 400"
+echo "====================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"name":"nope"}'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with Relationship, LanguageProperty, and Property with observedAt
+===================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. PATCH owner with simplified URI — Relationship type must be preserved
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET — owner.object updated, type still Relationship
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 324
+
+{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:bob"
+  },
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Hello",
+      "fr": "Bonjour"
+    }
+  },
+  "temp": {
+    "type": "Property",
+    "value": 20,
+    "observedAt": "2026-01-01T00:00:00Z"
+  }
+}
+
+
+
+04. PATCH name with lang=es — add Spanish entry, preserve en/fr
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET — languageMap has en, fr, es
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 344
+
+{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:bob"
+  },
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Hello",
+      "fr": "Bonjour",
+      "es": "Hola"
+    }
+  },
+  "temp": {
+    "type": "Property",
+    "value": 20,
+    "observedAt": "2026-01-01T00:00:00Z"
+  }
+}
+
+
+
+06. PATCH temp with observedAt URL param — sub-attr updated from URL
+====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. GET with sysAttrs — temp.value=25 and temp.observedAt=2026-06-01...
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(7[0-9]{2})
+
+{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:bob",
+    "createdAt": REGEX(.*),
+    "modifiedAt": REGEX(.*)
+  },
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Hello",
+      "fr": "Bonjour",
+      "es": "Hola"
+    },
+    "createdAt": REGEX(.*),
+    "modifiedAt": REGEX(.*)
+  },
+  "temp": {
+    "type": "Property",
+    "value": 25,
+    "observedAt": "2026-06-01T12:00:00Z",
+    "createdAt": REGEX(.*),
+    "modifiedAt": REGEX(.*)
+  },
+  "createdAt": REGEX(.*),
+  "modifiedAt": REGEX(.*)
+}
+
+
+
+08. PATCH temp with no observedAt URL param — stored observedAt is preserved
+============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+09. GET sysAttrs — temp.value=30, observedAt still 2026-06-01...
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(7[0-9]{2})
+
+{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:bob",
+    "createdAt": REGEX(.*),
+    "modifiedAt": REGEX(.*)
+  },
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "Hello",
+      "fr": "Bonjour",
+      "es": "Hola"
+    },
+    "createdAt": REGEX(.*),
+    "modifiedAt": REGEX(.*)
+  },
+  "temp": {
+    "type": "Property",
+    "value": 30,
+    "observedAt": "2026-06-01T12:00:00Z",
+    "createdAt": REGEX(.*),
+    "modifiedAt": REGEX(.*)
+  },
+  "createdAt": REGEX(.*),
+  "modifiedAt": REGEX(.*)
+}
+
+
+
+10. Simplified PATCH on LanguageProperty without lang URL param — 400
+=====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 233
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Missing lang",
+  "detail": "simplified value for LanguageProperty 'https://uri.etsi.org/ngsi-ld/default-context/name' requires the 'lang' URL parameter"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

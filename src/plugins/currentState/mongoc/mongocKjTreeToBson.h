@@ -21,4 +21,17 @@
 //
 extern void mongocKjTreeToBson(KjNode* treeP, bson_t* bsonP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocKjNodeAppend - append a single KjNode under an explicit bson key.
+//
+// Used by the Merge Entity driver to build surgical $set / $unset update
+// documents: for each changed attribute we append its wrapper subtree under
+// the attribute's stored name, without having to round-trip through the full
+// entity conversion. The key is escaped via mongocEscapeDotsInKey().
+//
+extern void mongocKjNodeAppend(bson_t* parentP, const char* key, KjNode* nodeP);
+
 #endif  // MONGOC_MONGOCKJTREETOBSON_H_

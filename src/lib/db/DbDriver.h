@@ -9,9 +9,13 @@
 // Copyright 2026 Seamware
 //
 
+#include <stdint.h>                                       // uint64_t
+
 #include "kalloc/KAlloc.h"                                // KAlloc
 #include "kargs/KArg.h"                                   // KArg
 #include "kjson/KjNode.h"                                 // KjNode
+
+#include "swNgsild/ldEntityMerge.h"                       // LdMergeReport
 
 #include "db/DbQueryFilter.h"                             // DbQueryFilter
 #include "db/Tenant.h"                                    // Tenant
@@ -39,6 +43,8 @@ typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
+typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode* fragmentDb,
+                                  uint64_t ts, LdMergeReport* reportP);
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
 typedef void (*DbVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
@@ -59,6 +65,7 @@ typedef struct DbDriver
   DbEntityRetrieveFunc    entityRetrieve;
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;
+  DbEntityMergeFunc       entityMerge;
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
 } DbDriver;

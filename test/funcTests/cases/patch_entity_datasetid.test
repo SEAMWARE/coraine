@@ -1,0 +1,185 @@
+#
+# FILE            patch_entity_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id} - Merge Entity with datasetId and simplified form
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with multi-instance speed (@none + urn:sensor:radar)
+# 02. PATCH with simplified form: "color": "red" — add a new attribute
+# 03. GET — verify color Property was synthesized
+# 04. PATCH default speed instance only (no datasetId in fragment → @none targeted)
+# 05. PATCH urn:sensor:radar instance (datasetId in fragment → that specific instance targeted)
+# 06. GET — default instance is 150, radar instance is 94, no instance touched the other
+#
+
+echo "01. Create entity with multi-instance speed"
+echo "==========================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V2",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 100},
+    {"type": "Property", "value": 98, "datasetId": "urn:sensor:radar"}
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH with simplified form: add color"
+echo "========================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload '{"color": "red"}'
+echo
+echo
+
+
+echo "03. GET - verify simplified color became a Property"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+echo
+echo
+
+
+echo "04. PATCH default speed (no datasetId) — value goes to 150"
+echo "=========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload '{"speed":{"value":150}}'
+echo
+echo
+
+
+echo "05. PATCH speed urn:sensor:radar — value goes to 94"
+echo "===================================================="
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 94,
+    "datasetId": "urn:sensor:radar"
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload "$payload"
+echo
+echo
+
+
+echo "06. GET - both instances reflect their respective new values"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with multi-instance speed
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. PATCH with simplified form: add color
+=========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET - verify simplified color became a Property
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 290
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V2",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 100
+    },
+    {
+      "type": "Property",
+      "value": 98,
+      "datasetId": "urn:sensor:radar"
+    }
+  ],
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}
+
+
+
+04. PATCH default speed (no datasetId) — value goes to 150
+==========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. PATCH speed urn:sensor:radar — value goes to 94
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET - both instances reflect their respective new values
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 290
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V2",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 150
+    },
+    {
+      "type": "Property",
+      "value": 94,
+      "datasetId": "urn:sensor:radar"
+    }
+  ],
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

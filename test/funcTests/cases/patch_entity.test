@@ -1,0 +1,228 @@
+#
+# FILE            patch_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id} - Merge Entity (§ 5.6.17)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create an entity with several attributes incl. a nested sub-attribute
+# 02. PATCH: modify speed.value, drop speed.accuracy sub-attr, add brand attr, delete color attr
+# 03. GET the merged entity — verify all four operations landed
+# 04. PATCH: extend type list (union), add sub-attribute under brand
+# 05. GET — verify type is now an array with both entries, brand has the sub-attr
+# 06. PATCH a non-existent entity — 404 Not Found
+# 07. PATCH with no payload — 400 Bad Request
+#
+
+echo "01. Create entity with speed (with accuracy sub-attr) and color"
+echo "==============================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "accuracy": {
+      "type": "Property",
+      "value": 0.9
+    }
+  },
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH: speed.value=120, drop accuracy sub-attr, add brand, delete color"
+echo "==========================================================================="
+payload='{
+  "speed": {
+    "value": 120,
+    "accuracy": "urn:ngsi-ld:null"
+  },
+  "brand": {
+    "type": "Property",
+    "value": "Honda"
+  },
+  "color": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "03. GET merged entity"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "04. PATCH: extend types, add brand.country sub-attribute"
+echo "========================================================"
+payload='{
+  "type": "Motorized",
+  "brand": {
+    "country": {
+      "type": "Property",
+      "value": "Japan"
+    }
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "05. GET with union type and nested sub-attribute"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "06. PATCH non-existent entity - 404"
+echo "==================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:DOES_NOT_EXIST --payload '{"speed":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "07. PATCH without payload - 400"
+echo "==============================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with speed (with accuracy sub-attr) and color
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. PATCH: speed.value=120, drop accuracy sub-attr, add brand, delete color
+===========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET merged entity
+=====================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 180
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 120
+  },
+  "brand": {
+    "type": "Property",
+    "value": "Honda"
+  }
+}
+
+
+
+04. PATCH: extend types, add brand.country sub-attribute
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET with union type and nested sub-attribute
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 280
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": [
+    "Vehicle",
+    "Motorized"
+  ],
+  "speed": {
+    "type": "Property",
+    "value": 120
+  },
+  "brand": {
+    "type": "Property",
+    "value": "Honda",
+    "country": {
+      "type": "Property",
+      "value": "Japan"
+    }
+  }
+}
+
+
+
+06. PATCH non-existent entity - 404
+===================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 162
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "detail": "entity 'urn:ngsi-ld:Vehicle:DOES_NOT_EXIST' not found"
+}
+
+
+
+07. PATCH without payload - 400
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 119
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Bad Request",
+  "detail": "no payload"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

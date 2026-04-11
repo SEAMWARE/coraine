@@ -1,0 +1,107 @@
+#
+# FILE            patch_entity_type_change.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id} - attribute type change is forbidden (§ 5.6.4.4)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with a Property named "owner"
+# 02. PATCH attempting to change owner to a Relationship — 400 BadRequestData
+# 03. GET — entity unchanged (owner still a Property)
+#
+
+echo "01. Create entity with Property 'owner'"
+echo "======================================="
+payload='{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Property",
+    "value": "Alice"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH trying to flip owner to Relationship — 400"
+echo "====================================================="
+payload='{
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:alice"
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload "$payload"
+echo
+echo
+
+
+echo "03. GET — owner unchanged (still Property with value 'Alice')"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with Property 'owner'
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:e1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. PATCH trying to flip owner to Relationship — 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Attribute Type Change",
+  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner' type from 'Property' to 'Relationship' in a Merge Entity operation"
+}
+
+
+
+03. GET — owner unchanged (still Property with value 'Alice')
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 99
+
+{
+  "id": "urn:e1",
+  "type": "E",
+  "owner": {
+    "type": "Property",
+    "value": "Alice"
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -105,3 +105,21 @@ void mongocKjTreeToBson(KjNode* treeP, bson_t* bsonP)
     kjNodeToBson(childP, bsonP, false, 0);
   }
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocKjNodeAppend -
+//
+// The node's own ->name is ignored: the caller passes the desired bson key.
+// The key is dot-escaped so that attribute IRIs with literal '.' survive the
+// round-trip. Used for Merge Entity's surgical $set/$unset updates.
+//
+void mongocKjNodeAppend(bson_t* parentP, const char* key, KjNode* nodeP)
+{
+  char* origName = nodeP->name;
+  nodeP->name = (char*) key;
+  kjNodeToBson(nodeP, parentP, false, 0);
+  nodeP->name = origName;
+}

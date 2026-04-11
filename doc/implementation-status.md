@@ -106,7 +106,65 @@ Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`, `g
 
 Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.test`
 
-### 4. Admin API (plugin)
+### 4. DELETE /ngsi-ld/v1/entities/{entityId} — Delete Entity
+
+**Status: Mostly complete (no type disambiguation, no distops)**
+
+| Feature | Status |
+|---------|--------|
+| Delete by entity ID | Done |
+| 204 No Content on success | Done |
+| 404 Not Found | Done |
+| Multi-tenancy | Done |
+| type (entity type selection for disambiguation) | Not done |
+| Subscriptions / notifications on delete | Not done |
+| Distributed operations | Not done |
+
+Functional tests: `delete_entity.test`
+
+### 5. PATCH /ngsi-ld/v1/entities/{entityId} — Merge Entity
+
+**Status: Mostly complete (local only, no type disambiguation, no 207)**
+
+Implements Merge Entity per § 5.6.17 using the merge-patch procedure of § 5.5.12
+(RFC 7396 adaptation with `"urn:ngsi-ld:null"` as the delete marker, since
+NGSI-LD forbids bare JSON null). Surgical semantics throughout: only what the
+fragment names is touched. swRamDB mutates the live stored tree in place.
+mongoc fetches the target, applies the merge in memory, and writes only the
+changed attributes as `$set` / `$unset` ops — a PATCH on one attribute of a
+2000-attribute entity writes only that attribute plus the entity-level
+modifiedAt (read is unavoidable because the merge needs target's existing
+attribute types and observedAt presence for correct behavior).
+
+| Feature | Status |
+|---------|--------|
+| Deep RFC 7396 merge into nested attribute values | Done |
+| Add new attribute | Done |
+| Delete attribute via `urn:ngsi-ld:null` | Done |
+| Delete sub-attribute via `urn:ngsi-ld:null` at any depth | Done |
+| Multi-datasetId: target default vs named instance | Done |
+| Type union (add new types to the type array) | Done |
+| Scope replacement | Done |
+| Cascading modifiedAt (entity → attribute → sub-attribute → ...) | Done |
+| createdAt preserved | Done |
+| Simplified fragment form (e.g. `"color": "red"`), target type preserved | Done |
+| `observedAt` URL param — injected into touched instances that previously had one | Done |
+| `lang` URL param — scalar value updates only `languageMap[<lang>]` on LanguageProperty | Done |
+| `format=simplified` URL param — accepted (merge already type-aware) | Done |
+| Attribute type change prohibited (§ 5.6.4.4) — BadRequest 400 | Done |
+| 404 Not Found | Done |
+| 400 Bad Request (no payload, bad JSON) | Done |
+| Multi-tenancy | Done |
+| mongoc surgical `$set`/`$unset` path (skips writing untouched attrs) | Done |
+| Per-change report for subscription matching (added / modified / deleted + preValue) | Done (produced, not yet consumed) |
+| `type` URL param (distops disambiguation) | Not done |
+| 207 Multi-Status response (distops forwarding) | Not done |
+| Subscriptions / notifications on merge | Not done |
+
+Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
+`patch_entity_url_params.test`, `patch_entity_type_change.test`
+
+### 6. Admin API (plugin)
 
 **Status: Complete**
 
@@ -116,7 +174,7 @@ Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.tes
 - GET /admin/tenants
 - GET /admin/plugins
 
-### 5. Other
+### 7. Other
 
 - CORS support (--corsOrigin, --corsMaxAge)
 - HEAD requests (auto-generated from GET handlers)
@@ -133,9 +191,7 @@ Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.tes
 
 | Endpoint | Spec Section | Complexity | Estimate |
 |----------|-------------|------------|----------|
-| DELETE /entities/{entityId} | 5.5.5 | Low | 1 day |
 | PUT /entities/{entityId} | 5.5.3 | Medium | 2 days |
-| PATCH /entities/{entityId} | 5.5.6 | Medium | 2-3 days |
 | POST /entities/{entityId}/attrs | 5.5.7 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs | 5.5.8 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs/{attrId} | 5.5.9 | Medium | 1-2 days |
@@ -239,15 +295,17 @@ standard NGSI-LD queries against the frozen snapshot data.
 
 ## DB Driver Interface
 
-Currently supports 3 operations:
+Currently supports 5 operations:
 - `entityCreate` — used by POST /entities
 - `entityRetrieve` — used by GET /entities/{id}
 - `entityQuery` — used by GET /entities
+- `entityDelete` — used by DELETE /entities/{id}
+- `entityMerge` — used by PATCH /entities/{id}; reuses `ldEntityMerge` in
+  swNgsild, fronted in each driver by a `*EntityMergeOne` helper so Batch
+  Merge (§ 5.6.20) can share the core
 
 New endpoints will require extending the `DbDriver` interface with:
-- `entityDelete`
 - `entityReplace` (PUT)
-- `entityMergePatch` (PATCH)
 - `entityAppendAttrs` (POST attrs)
 - `entityUpdateAttrs` (PATCH attrs)
 - `attrUpdate` (PATCH attr)
@@ -263,7 +321,7 @@ New endpoints will require extending the `DbDriver` interface with:
 
 | Category | Endpoints | Done | Remaining |
 |----------|-----------|------|-----------|
-| Entity CRUD | 8 | 3 | 5 |
+| Entity CRUD | 8 | 5 | 3 |
 | Batch Operations | 6 | 0 | 6 |
 | Subscriptions | 5 + engine | 0 | 5 + engine |
 | Registrations | 5 + distops | 0 | 5 + distops |
@@ -271,13 +329,13 @@ New endpoints will require extending the `DbDriver` interface with:
 | Temporal | ~8 | 0 | ~8 |
 | Snapshots | 7 + engine | 0 | 7 + engine |
 | @context hosting | 4 | 0 | 4 |
-| **Total** | **~47** | **3** | **~44** |
+| **Total** | **~47** | **5** | **~42** |
 
 ### Rough Estimates to Full NGSI-LD v1.9.1 Coverage
 
 | Phase | Scope | Estimate |
 |-------|-------|----------|
-| Entity CRUD (remaining 5 endpoints) | DELETE, PUT, PATCH entity + attr ops | ~2 weeks |
+| Entity CRUD (remaining 3 endpoints) | PUT entity + attr ops | ~1.5 weeks |
 | Batch operations | 6 batch endpoints | ~1.5 weeks |
 | Subscriptions + notifications | CRUD + notification engine + geo-fencing | ~3-4 weeks |
 | Registrations + distributed ops | CRUD + forwarding engine | ~3-4 weeks |

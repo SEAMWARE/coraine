@@ -17,6 +17,7 @@
 #include "currentState/swRamDB/ramdbEntityRetrieve.h" // ramdbEntityRetrieve
 #include "currentState/swRamDB/ramdbEntityQuery.h"    // ramdbEntityQuery
 #include "currentState/swRamDB/ramdbEntityDelete.h"   // ramdbEntityDelete
+#include "currentState/swRamDB/ramdbEntityMerge.h"    // ramdbEntityMerge
 
 
 
@@ -47,5 +48,6 @@ void dbRegister(DbDriver* driverP)
   driverP->entityRetrieve  = ramdbEntityRetrieve;
   driverP->entityQuery     = ramdbEntityQuery;
   driverP->entityDelete    = ramdbEntityDelete;
+  driverP->entityMerge     = ramdbEntityMerge;
   driverP->tenantSetup     = ramdbTenantSetup;
 }
