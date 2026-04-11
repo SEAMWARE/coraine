@@ -3,8 +3,8 @@
 *.so
 *.so.*
 *~
-bin/
-lib/
+/bin/
+/lib/
 /plugins/
 *.out
 *.diff
@@ -17,4 +17,4 @@ lib/
 *.gcda
 *.gcno
 coverage/
-swBroker
+/swBroker

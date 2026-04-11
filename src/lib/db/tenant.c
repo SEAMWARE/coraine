@@ -1,0 +1,220 @@
+//
+// FILE            tenant.c
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+#include <ctype.h>                                       // tolower
+#include <stdlib.h>                                      // malloc
+#include <string.h>                                      // strcmp, strncpy, snprintf
+
+#include "ktrace/kTrace.h"                               // KT_I
+#include "swRest/SwRestState.h"                          // swRest
+#include "swNgsild/SwNgsild.h"                           // swNgsild
+#include "swNgsild/ldError.h"                            // ldError
+#include "swNgsild/LdProblem.h"                          // LD_ERROR_NONEXISTENT_TENANT
+
+#include "db/DbDriver.h"                                // db
+#include "db/Tenant.h"                                   // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Module state
+//
+static char     dbPrefix[128];
+Tenant          tenant0;
+Tenant*         tenantList = NULL;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantInit -
+//
+void tenantInit(const char* prefix)
+{
+  strncpy(dbPrefix, prefix, sizeof(dbPrefix) - 1);
+  dbPrefix[sizeof(dbPrefix) - 1] = 0;
+
+  memset(&tenant0, 0, sizeof(Tenant));
+  tenant0.name[0]     = 0;
+  strncpy(tenant0.dbName, prefix, sizeof(tenant0.dbName) - 1);
+  tenant0.dbName[sizeof(tenant0.dbName) - 1] = 0;
+  tenant0.initialized = true;
+  tenant0.next        = NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantLookup - find a tenant by name
+//
+Tenant* tenantLookup(const char* name)
+{
+  if (name == NULL || name[0] == 0)
+    return &tenant0;
+
+  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+  {
+    if (strcasecmp(tP->name, name) == 0)
+      return tP;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantGetOrCreate - find or allocate a new tenant
+//
+Tenant* tenantGetOrCreate(const char* name)
+{
+  Tenant* tP = tenantLookup(name);
+
+  if (tP != NULL)
+    return tP;
+
+  tP = (Tenant*) malloc(sizeof(Tenant));
+  if (tP == NULL)
+    return NULL;
+
+  memset(tP, 0, sizeof(Tenant));
+
+  // Validate name length: must fit in name[] and dbName[] ("prefix-name")
+  int nameLen   = strlen(name);
+  int prefixLen = strlen(dbPrefix);
+
+  if (nameLen >= (int) sizeof(tP->name) || prefixLen + 1 + nameLen >= (int) sizeof(tP->dbName))
+  {
+    free(tP);
+    return NULL;
+  }
+
+  // Lowercase the name
+  for (int i = 0; i < nameLen; i++)
+    tP->name[i] = tolower(name[i]);
+  tP->name[nameLen] = 0;
+
+  // Build DB name: "prefix-tenantname"  (length already validated above)
+  strcpy(tP->dbName, dbPrefix);
+  strcat(tP->dbName, "-");
+  strcat(tP->dbName, tP->name);
+
+  tP->initialized = false;
+
+  // Prepend to linked list
+  tP->next   = tenantList;
+  tenantList = tP;
+
+  KT_I("tenant: created tenant '%s' (db: '%s')", tP->name, tP->dbName);
+
+  return tP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantFromRequest - resolve tenant from NGSILD-Tenant request header
+//
+Tenant* tenantFromRequest(bool autoCreate)
+{
+  //
+  // Search for NGSILD-Tenant header in the request
+  //
+  const char* tenantName = NULL;
+
+  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
+  {
+    if (strcasecmp(swRest.in.httpHeaderV[i].key, "NGSILD-Tenant") == 0)
+    {
+      tenantName = swRest.in.httpHeaderV[i].value;
+      break;
+    }
+  }
+
+  //
+  // No tenant header -- use default tenant
+  //
+  if (tenantName == NULL || tenantName[0] == 0)
+    return &tenant0;
+
+  //
+  // Look up existing tenant
+  //
+  Tenant* tP = tenantLookup(tenantName);
+
+  if (tP != NULL)
+  {
+    // Echo tenant header in response (NGSI-LD spec 6.3.14)
+    SwRestKeyValue* hV = swRest.out.headerV;
+    int ix = swRest.out.headerCount;
+    hV[ix].key   = "NGSILD-Tenant";
+    hV[ix].value = tP->name;
+    swRest.out.headerCount++;
+    return tP;
+  }
+
+  //
+  // Tenant not found -- auto-create for write operations, 404 for read operations
+  //
+  if (!autoCreate)
+  {
+    ldError(404, LD_ERROR_NONEXISTENT_TENANT, "NonexistentTenant", "tenant '%s' does not exist", tenantName);
+    return NULL;
+  }
+
+  //
+  // Auto-create: allocate tenant, set up DB (indexes), mark initialized
+  //
+  tP = tenantGetOrCreate(tenantName);
+  if (tP == NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "tenant name too long: '%s'", tenantName);
+    return NULL;
+  }
+
+  if (!tP->initialized && db.tenantSetup != NULL)
+  {
+    db.tenantSetup(tP);
+    tP->initialized = true;
+  }
+
+  // Echo tenant header in response
+  SwRestKeyValue* hV = swRest.out.headerV;
+  int ix = swRest.out.headerCount;
+  hV[ix].key   = "NGSILD-Tenant";
+  hV[ix].value = tP->name;
+  swRest.out.headerCount++;
+
+  return tP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantPreServiceHook - resolve tenant before every service routine
+//
+// Uses the HTTP verb to decide: POST/PATCH/DELETE auto-create, GET rejects unknown.
+// Stores the result in swNgsild.tenantP.
+// Returns true to continue to service routine, false to skip (error already set).
+//
+bool tenantPreServiceHook(void)
+{
+  bool autoCreate = (swRest.in.verb != SwVerbGet);
+
+  Tenant* tP = tenantFromRequest(autoCreate);
+
+  if (tP == NULL)
+    return false;
+
+  swNgsild.tenantP = tP;
+  return true;
+}
