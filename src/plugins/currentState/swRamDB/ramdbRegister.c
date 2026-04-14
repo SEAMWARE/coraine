@@ -7,7 +7,11 @@
 //
 #define PLUGIN_VERSION "0.2.0"
 
-#include "db/DbDriver.h"                              // DbDriver
+#include <string.h>                                    // memset
+
+#include "swNgsild/LdSubCache.h"                       // LdSubCacheItem
+#include "db/DbDriver.h"                               // DbDriver
+#include "db/DbQueryFilter.h"                          // DbQueryFilter
 
 #include "currentState/swRamDB/ramdbGlobals.h"        // ramdbArgV
 #include "currentState/swRamDB/ramdbInit.h"           // ramdbInit
@@ -18,6 +22,31 @@
 #include "currentState/swRamDB/ramdbEntityQuery.h"    // ramdbEntityQuery
 #include "currentState/swRamDB/ramdbEntityDelete.h"   // ramdbEntityDelete
 #include "currentState/swRamDB/ramdbEntityMerge.h"    // ramdbEntityMerge
+#include "currentState/swRamDB/ramdbSubscriptionCreate.h"    // ramdbSubscriptionCreate
+#include "currentState/swRamDB/ramdbSubscriptionRetrieve.h"  // ramdbSubscriptionRetrieve
+#include "currentState/swRamDB/ramdbSubscriptionQuery.h"     // ramdbSubscriptionQuery
+#include "currentState/swRamDB/ramdbSubscriptionUpdate.h"    // ramdbSubscriptionUpdate
+#include "currentState/swRamDB/ramdbSubscriptionDelete.h"    // ramdbSubscriptionDelete
+#include "currentState/swRamDB/ramdbGeoMatch.h"             // ramdbGeoMatch
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ramdbSubGeoMatch - callback adapter: LdSubCacheItem → DbQueryFilter for ramdbGeoMatch
+//
+static bool ramdbSubGeoMatch(KjNode* entityP, LdSubCacheItem* itemP)
+{
+  DbQueryFilter filter;
+
+  memset(&filter, 0, sizeof(filter));
+  filter.geoRel       = itemP->geoRel;
+  filter.geometry      = itemP->geoGeometry;
+  filter.coordinates   = itemP->geoCoordinates;
+  filter.geoproperty   = itemP->geoProperty;
+
+  return ramdbGeoMatch(entityP, &filter, NULL);
+}
 
 
 
@@ -49,5 +78,12 @@ void dbRegister(DbDriver* driverP)
   driverP->entityQuery     = ramdbEntityQuery;
   driverP->entityDelete    = ramdbEntityDelete;
   driverP->entityMerge     = ramdbEntityMerge;
+  driverP->subscriptionCreate   = ramdbSubscriptionCreate;
+  driverP->subscriptionRetrieve = ramdbSubscriptionRetrieve;
+  driverP->subscriptionQuery    = ramdbSubscriptionQuery;
+  driverP->subscriptionUpdate   = ramdbSubscriptionUpdate;
+  driverP->subscriptionDelete   = ramdbSubscriptionDelete;
+  driverP->subscriptionList     = ramdbSubscriptions;
   driverP->tenantSetup     = ramdbTenantSetup;
+  driverP->geoMatchFunc    = ramdbSubGeoMatch;
 }

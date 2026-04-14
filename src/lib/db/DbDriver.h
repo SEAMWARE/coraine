@@ -16,6 +16,7 @@
 #include "kjson/KjNode.h"                                 // KjNode
 
 #include "swNgsild/ldEntityMerge.h"                       // LdMergeReport
+#include "swNgsild/LdSubCache.h"                          // LdSubGeoMatchFunc
 
 #include "db/DbQueryFilter.h"                             // DbQueryFilter
 #include "db/Tenant.h"                                    // Tenant
@@ -45,6 +46,12 @@ typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNod
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode* fragmentDb,
                                   uint64_t ts, LdMergeReport* reportP);
+typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
+typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, KjNode** subPP);
+typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
+typedef int  (*DbSubscriptionUpdateFunc)(Tenant* tenantP, const char* subId, KjNode* fragmentP);
+typedef int  (*DbSubscriptionDeleteFunc)(Tenant* tenantP, const char* subId);
+typedef KjNode* (*DbSubscriptionListFunc)(Tenant* tenantP);
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
 typedef void (*DbVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
@@ -66,8 +73,15 @@ typedef struct DbDriver
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;
   DbEntityMergeFunc       entityMerge;
+  DbSubscriptionCreateFunc   subscriptionCreate;
+  DbSubscriptionRetrieveFunc subscriptionRetrieve;
+  DbSubscriptionQueryFunc    subscriptionQuery;
+  DbSubscriptionUpdateFunc   subscriptionUpdate;
+  DbSubscriptionDeleteFunc   subscriptionDelete;
+  DbSubscriptionListFunc     subscriptionList;
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
+  LdSubGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
 } DbDriver;
 
 

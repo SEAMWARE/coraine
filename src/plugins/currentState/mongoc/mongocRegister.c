@@ -6,7 +6,12 @@
 // Copyright 2026 Seamware
 //
 
-#include "db/DbDriver.h"                              // DbDriver
+#include <string.h>                                    // memset
+
+#include "swNgsild/LdSubCache.h"                       // LdSubCacheItem
+#include "db/DbDriver.h"                               // DbDriver
+#include "db/DbQueryFilter.h"                          // DbQueryFilter
+#include "shared/geoMatch.h"                           // geoMatch, geoMatchInit
 
 #include "currentState/mongoc/mongocGlobals.h"                      // mongocArgV
 #include "currentState/mongoc/mongocInit.h"                         // mongocInit
@@ -18,6 +23,30 @@
 #include "currentState/mongoc/mongocEntityMerge.h"                  // mongocEntityMerge
 #include "currentState/mongoc/mongocTenantSetup.h"                  // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                     // mongocVersionInfo
+#include "currentState/mongoc/mongocSubscriptionCreate.h"           // mongocSubscriptionCreate
+#include "currentState/mongoc/mongocSubscriptionRetrieve.h"         // mongocSubscriptionRetrieve
+#include "currentState/mongoc/mongocSubscriptionQuery.h"            // mongocSubscriptionQuery
+#include "currentState/mongoc/mongocSubscriptionUpdate.h"           // mongocSubscriptionUpdate
+#include "currentState/mongoc/mongocSubscriptionDelete.h"           // mongocSubscriptionDelete
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocSubGeoMatch - callback adapter for subscription geoQ matching
+//
+static bool mongocSubGeoMatch(KjNode* entityP, LdSubCacheItem* itemP)
+{
+  DbQueryFilter filter;
+
+  memset(&filter, 0, sizeof(filter));
+  filter.geoRel       = itemP->geoRel;
+  filter.geometry      = itemP->geoGeometry;
+  filter.coordinates   = itemP->geoCoordinates;
+  filter.geoproperty   = itemP->geoProperty;
+
+  return geoMatch(entityP, &filter, NULL);
+}
 
 
 
@@ -39,4 +68,11 @@ void dbRegister(DbDriver* driverP)
   driverP->entityMerge     = mongocEntityMerge;
   driverP->tenantSetup     = mongocTenantSetup;
   driverP->versionInfo     = mongocVersionInfo;
+
+  driverP->subscriptionCreate    = mongocSubscriptionCreate;
+  driverP->subscriptionRetrieve  = mongocSubscriptionRetrieve;
+  driverP->subscriptionQuery     = mongocSubscriptionQuery;
+  driverP->subscriptionUpdate    = mongocSubscriptionUpdate;
+  driverP->subscriptionDelete    = mongocSubscriptionDelete;
+  driverP->geoMatchFunc          = mongocSubGeoMatch;
 }

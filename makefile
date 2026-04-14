@@ -27,7 +27,12 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/getEntity.c    \
                 src/lib/serviceRoutines/postEntities.c \
                 src/lib/serviceRoutines/deleteEntity.c \
-                src/lib/serviceRoutines/patchEntity.c
+                src/lib/serviceRoutines/patchEntity.c  \
+                src/lib/serviceRoutines/postSubscriptions.c  \
+                src/lib/serviceRoutines/getSubscriptions.c   \
+                src/lib/serviceRoutines/getSubscription.c    \
+                src/lib/serviceRoutines/patchSubscription.c  \
+                src/lib/serviceRoutines/deleteSubscription.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
@@ -72,7 +77,11 @@ RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_D
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
                  $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
                  $(RAMDB_DIR)/ramdbEntityDelete.c $(RAMDB_DIR)/ramdbEntityMerge.c \
-                 $(RAMDB_DIR)/ramdbStore.c $(RAMDB_DIR)/ramdbGeoMatch.c
+                 $(RAMDB_DIR)/ramdbSubscriptionCreate.c $(RAMDB_DIR)/ramdbSubscriptionRetrieve.c \
+                 $(RAMDB_DIR)/ramdbSubscriptionQuery.c $(RAMDB_DIR)/ramdbSubscriptionUpdate.c \
+                 $(RAMDB_DIR)/ramdbSubscriptionDelete.c \
+                 $(RAMDB_DIR)/ramdbStore.c $(RAMDB_DIR)/ramdbGeoMatch.c \
+                 src/plugins/shared/geoMatch.c
 RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 
 ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
@@ -88,10 +97,29 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocEntityQuery.c $(MONGOC_DIR)/mongocGeoIndex.c \
                  $(MONGOC_DIR)/mongocTenantSetup.c $(MONGOC_DIR)/mongocVersion.c \
                  $(MONGOC_DIR)/mongocKjTreeToBson.c $(MONGOC_DIR)/mongocBsonToKjTree.c \
-                 $(MONGOC_DIR)/mongocDotEscape.c
+                 $(MONGOC_DIR)/mongocDotEscape.c \
+                 $(MONGOC_DIR)/mongocSubscriptionCreate.c $(MONGOC_DIR)/mongocSubscriptionRetrieve.c \
+                 $(MONGOC_DIR)/mongocSubscriptionQuery.c $(MONGOC_DIR)/mongocSubscriptionUpdate.c \
+                 $(MONGOC_DIR)/mongocSubscriptionDelete.c \
+                 src/plugins/shared/geoMatch.c
 MONGOC_OBJS    = $(MONGOC_SOURCES:.c=.o)
 MONGOC_CFLAGS  = $(shell pkg-config --cflags mongoc2)
 MONGOC_LDFLAGS = $(shell pkg-config --libs mongoc2)
+
+#
+# ftClient — test notification receiver
+#
+FTCLIENT_DIR     = test/funcTests/ftClient
+FTCLIENT_SOURCES = $(FTCLIENT_DIR)/ftClient.c
+FTCLIENT_OBJS    = $(FTCLIENT_SOURCES:.c=.o)
+FTCLIENT_BINARY  = $(FTCLIENT_DIR)/ftClient
+FTCLIENT_LIBS    = $(LIB_DIR)/swRest/libswRest.a \
+                   $(LIB_DIR)/kargs/libkargs.a \
+                   $(LIB_DIR)/kprom/libkprom.a \
+                   $(LIB_DIR)/ktrace/libktrace.a \
+                   $(LIB_DIR)/kjson/libkjson.a \
+                   $(LIB_DIR)/kalloc/libkalloc.a \
+                   $(LIB_DIR)/kbase/libkbase.a
 
 PLUGIN_BASE    ?= $(CFLAGS)
 PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
@@ -99,7 +127,7 @@ PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
 #
 # Targets
 #
-all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so
+all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(FTCLIENT_BINARY)
 
 LDFLAGS   ?=
 
@@ -122,10 +150,19 @@ $(ADMIN_DIR)/%.o: $(ADMIN_DIR)/%.c
 
 $(PLUGIN_DIR)/mongoc.so: $(MONGOC_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(MONGOC_OBJS) $(MONGOC_LDFLAGS)
+	$(CC) -shared -o $@ $(MONGOC_OBJS) $(MONGOC_LDFLAGS) -lgeos_c -lm
 
 $(MONGOC_DIR)/%.o: $(MONGOC_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) $(MONGOC_CFLAGS) -DMONGOC_PLUGIN_VERSION=\"0.1.0\" -c $< -o $@
+
+src/plugins/shared/%.o: src/plugins/shared/%.c
+	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
+
+$(FTCLIENT_BINARY): $(FTCLIENT_OBJS)
+	$(CC) -rdynamic $(LDFLAGS) -o $@ $(FTCLIENT_OBJS) -Wl,--whole-archive $(FTCLIENT_LIBS) -Wl,--no-whole-archive $(SYS_LIBS)
+
+$(FTCLIENT_DIR)/%.o: $(FTCLIENT_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -165,6 +202,7 @@ coverage:
 
 clean:
 	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(BINARY)
+	rm -f $(FTCLIENT_OBJS) $(FTCLIENT_BINARY)
 	rm -rf $(PLUGIN_DIR) $(COV_DIR)
 	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true
 
