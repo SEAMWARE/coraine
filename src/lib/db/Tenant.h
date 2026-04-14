@@ -22,6 +22,7 @@ typedef struct Tenant
   char            dbName[128];    // "prefix" or "prefix-tenantname"
   bool            initialized;    // true after DB setup (indexes created)
   void*           pluginData;     // opaque, owned by the DB plugin
+  void*           subCacheP;      // subscription cache (LdSubCache*), owned by broker
   struct Tenant*  next;           // linked list
 } Tenant;
 
@@ -76,5 +77,16 @@ extern Tenant* tenantFromRequest(bool autoCreate);
 // tenantPreServiceHook - swRest preServiceHook for tenant resolution
 //
 extern bool tenantPreServiceHook(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheReload - load subscriptions from DB into cache for all tenants
+//
+// Called once at startup after db.init(). For persistent DB plugins (mongoc),
+// this restores the subscription cache from the previous session.
+//
+extern void tenantSubCacheReload(void);
 
 #endif  // DB_TENANT_H_

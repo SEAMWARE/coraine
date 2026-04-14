@@ -10,7 +10,7 @@
 #include <stdlib.h>                               // _exit
 #include <unistd.h>                               // pause
 #include <signal.h>                               // signal, SIGINT, SIGTERM
-#include <string.h>                               // strcmp
+#include <string.h>                               // strcmp, memcpy
 #include <execinfo.h>                             // backtrace, backtrace_symbols
 
 #include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
@@ -18,6 +18,7 @@
 #include "kargs/kargs.h"                          // kargsInit, kargsParse, kargsPeek, KArg, KArgsStatus, kargsStatus, KARGS_END, kargsUsage
 #include "swPlugin/swPlugin.h"                    // swPluginSetBaseDir, swPluginBaseDir, swPluginArgUpdate
 #include "swRest/swRest.h"                        // swRestInit, swRestSetPrettySpaces, swRestSetPreServiceHook, swRestParamAdd
+#include "swRest/swRestClient.h"                  // swRestClientInit, SwRestClientRequest/Response
 #include "swJsonld/swJsonld.h"                    // swldInit, SWJSONLD_VERSION
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/SwNgsild.h"                    // swNgsild
@@ -31,6 +32,43 @@
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
 
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
+
+
+
+// -----------------------------------------------------------------------------
+//
+// contextDownload - SwldDownloadFunction callback for fetching remote @contexts
+//
+static char* contextDownload(const char* url, int* statusCodeP)
+{
+  SwRestClientRequest  req;
+  SwRestClientResponse resp;
+
+  swRestClientRequestInit(&req, SwVerbGet, url, NULL);
+  swRestClientRequestHeader(&req, "Accept", "application/ld+json, application/json");
+  swRestClientRequestTimeout(&req, 5000, 10000);
+
+  int r = swRestClientSend(&req, &resp);
+
+  if (r != SWC_OK || resp.statusCode != 200)
+  {
+    *statusCodeP = (resp.statusCode > 0) ? resp.statusCode : 500;
+    return NULL;
+  }
+
+  *statusCodeP = 200;
+
+  // Return a malloc'd copy of the body (swJsonld will free it)
+  if (resp.body != NULL && resp.bodyLen > 0)
+  {
+    char* copy = (char*) malloc(resp.bodyLen + 1);
+    memcpy(copy, resp.body, resp.bodyLen);
+    copy[resp.bodyLen] = 0;
+    return copy;
+  }
+
+  return NULL;
+}
 
 
 
@@ -256,12 +294,15 @@ int main(int argC, char* argV[])
   signal(SIGTERM, onSignal);
   signal(SIGSEGV, onCrash);
 
+  if (swRestClientInit(4, 60, "swBroker") != 0)
+    KT_X(1, "swRestClientInit failed");
+
   static KAlloc  contextAlloc;
   static char    contextBuffer[64 * 1024];
 
   kaBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 0, NULL, "jsonld-context");
 
-  if (swldInit(&contextAlloc, NULL, NULL) != 0)
+  if (swldInit(&contextAlloc, NULL, contextDownload) != 0)
     KT_X(1, "swldInit failed");
 
   if (ldInit() != 0)
@@ -289,6 +330,16 @@ int main(int argC, char* argV[])
 
   if (dbStart() != 0)
     KT_X(1, "dbStart failed");
+
+  //
+  // Load subscriptions from DB into cache.
+  // mongoc uses swRest.kalloc internally — set up a startup buffer for it.
+  // Cache items get cloned into persistent (malloc) storage, so this is short-lived.
+  //
+  static char startupKallocBuf[16384];
+  kaBufferInit(&swRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
+  tenantSubCacheReload();
+  kaBufferReset(&swRest.kalloc, false);
 
   //
   // Build combined service array (core + plugins) and start the REST server

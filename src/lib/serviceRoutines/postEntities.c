@@ -10,6 +10,7 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjClone.h"                           // kjClone
 #include "kjson/KjNode.h"                            // KjNode, KjString
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "swJsonld/swldInit.h"                       // swldCoreContext
@@ -18,7 +19,11 @@
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldSubscriptionNotify.h"           // ldSubscriptionNotify, LdNotifyEntityCreate
+
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
+#include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postEntities.h"            // Own interface
 
@@ -82,7 +87,8 @@ bool postEntities(void)
   //
   // Create entity in database
   //
-  int r = db.entityCreate((Tenant*) swNgsild.tenantP, idP->value.s, entityP);
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  int     r       = db.entityCreate(tenantP, idP->value.s, entityP);
 
   if (r == DB_ALREADY_EXISTS)
   {
@@ -95,6 +101,16 @@ bool postEntities(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error creating entity '%s'", idP->value.s);
     return true;
   }
+
+  //
+  // Subscription matching + notification.
+  // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
+  //
+  if (idP->name[0] == '_')
+    idP->name = "id";
+
+  if (tenantP->subCacheP != NULL)
+    ldSubscriptionNotify((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);
 
   //
   // 201 Created -- set Location and Link headers, no body

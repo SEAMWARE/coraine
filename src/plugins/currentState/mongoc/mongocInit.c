@@ -14,6 +14,7 @@
 #include "ktrace/kTrace.h"                               // KT_I, KT_E
 
 #include "db/Tenant.h"                               // tenantInit, tenantGetOrCreate, tenant0
+#include "shared/geoMatch.h"                                      // geoMatchInit
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexInit
 #include "currentState/mongoc/mongocGlobals.h"                    // mongocDbHost, mongocDbName, ...
 #include "currentState/mongoc/mongocTenantSetup.h"                // mongocTenantSetup
@@ -37,6 +38,7 @@ mongoc_client_pool_t*  poolP   = NULL;
 int mongocInit(void)
 {
   mongoc_init();
+  geoMatchInit();
 
   //
   // Build URI string

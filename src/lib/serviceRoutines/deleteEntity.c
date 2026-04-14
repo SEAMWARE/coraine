@@ -10,8 +10,11 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldSubscriptionNotify.h"           // ldSubscriptionNotify, LdNotifyEntityDelete
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/deleteEntity.h"            // Own interface
 
@@ -25,7 +28,16 @@ bool deleteEntity(void)
 {
   const char* entityId = swRest.in.wildcard[0];
 
-  int r = db.entityDelete((Tenant*) swNgsild.tenantP, entityId);
+  //
+  // Retrieve entity before deletion (needed for subscription notification payload)
+  //
+  KjNode* entityP = NULL;
+
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  if (tenantP->subCacheP != NULL)
+    db.entityRetrieve(tenantP, entityId, &entityP);
+
+  int r = db.entityDelete(tenantP, entityId);
 
   if (r == DB_NOT_FOUND)
   {
@@ -38,6 +50,12 @@ bool deleteEntity(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error deleting entity '%s'", entityId);
     return true;
   }
+
+  //
+  // Subscription matching + notification (entity was retrieved before deletion)
+  //
+  if (tenantP->subCacheP != NULL && entityP != NULL)
+    ldSubscriptionNotify((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityDelete, NULL);
 
   swRest.out.httpStatusCode = 204;
   return true;

@@ -13,8 +13,11 @@
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldSubscriptionNotify.h"           // ldSubscriptionNotify, LdNotifyEntityUpdate
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/patchEntity.h"             // Own interface
 
@@ -96,11 +99,20 @@ bool patchEntity(void)
   }
 
   //
-  // The report holds per-attribute change records (addedAttrs, modifiedAttrs,
-  // deletedAttrs, preValues) needed by the subscription matcher. Subscriptions
-  // are not wired yet — the matcher call will plug in here once they are.
+  // Subscription matching + notification.
+  // The entity in ramDB has been mutated in-place by ldEntityMerge, so we need
+  // to retrieve the current state for the notification payload.
   //
-  (void) report;
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  if (tenantP->subCacheP != NULL)
+  {
+    // Get the merged entity for the notification payload
+    KjNode* mergedEntity = NULL;
+    db.entityRetrieve(tenantP, entityId, &mergedEntity);
+
+    if (mergedEntity != NULL)
+      ldSubscriptionNotify((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
+  }
 
   swRest.out.httpStatusCode = 204;
   return true;

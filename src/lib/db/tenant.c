@@ -15,6 +15,10 @@
 #include "swNgsild/ldError.h"                            // ldError
 #include "swNgsild/LdProblem.h"                          // LD_ERROR_NONEXISTENT_TENANT
 
+#include "swNgsild/LdSubCache.h"                         // LdSubCache
+#include "swNgsild/ldSubCache.h"                         // ldSubCacheCreate, ldSubCacheItemAdd
+#include "kjson/kjLookup.h"                              // kjLookup
+
 #include "db/DbDriver.h"                                // db
 #include "db/Tenant.h"                                   // Own interface
 
@@ -44,6 +48,9 @@ void tenantInit(const char* prefix)
   strncpy(tenant0.dbName, prefix, sizeof(tenant0.dbName) - 1);
   tenant0.dbName[sizeof(tenant0.dbName) - 1] = 0;
   tenant0.initialized = true;
+  tenant0.subCacheP   = ldSubCacheCreate();
+  if (tenant0.subCacheP != NULL && db.geoMatchFunc != NULL)
+    ((LdSubCache*) tenant0.subCacheP)->geoMatchFunc = db.geoMatchFunc;
   tenant0.next        = NULL;
 }
 
@@ -107,6 +114,9 @@ Tenant* tenantGetOrCreate(const char* name)
   strcat(tP->dbName, tP->name);
 
   tP->initialized = false;
+  tP->subCacheP   = ldSubCacheCreate();
+  if (tP->subCacheP != NULL && db.geoMatchFunc != NULL)
+    ((LdSubCache*) tP->subCacheP)->geoMatchFunc = db.geoMatchFunc;
 
   // Prepend to linked list
   tP->next   = tenantList;
@@ -217,4 +227,48 @@ bool tenantPreServiceHook(void)
 
   swNgsild.tenantP = tP;
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheLoad - load subscriptions for a single tenant
+//
+static void tenantSubCacheLoad(Tenant* tP)
+{
+  if (tP->subCacheP == NULL || db.subscriptionQuery == NULL)
+    return;
+
+  KjNode* arrayP = NULL;
+  int     r      = db.subscriptionQuery(tP, 0, 0, &arrayP);
+
+  if (r != DB_OK || arrayP == NULL)
+    return;
+
+  int count = 0;
+  for (KjNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
+  {
+    ldSubCacheItemAdd((LdSubCache*) tP->subCacheP, subP, NULL);
+    count++;
+  }
+
+  if (count > 0)
+    KT_I("tenant '%s': loaded %d subscription(s) into cache", tP->name[0] ? tP->name : "(default)", count);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheReload -
+//
+void tenantSubCacheReload(void)
+{
+  // Default tenant
+  tenantSubCacheLoad(&tenant0);
+
+  // All other tenants
+  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+    tenantSubCacheLoad(tP);
 }
