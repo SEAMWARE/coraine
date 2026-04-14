@@ -1,0 +1,478 @@
+#
+# FILE            admin-mongoc.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Admin API plugin endpoints (mongoc)
+
+--INIT--
+swDbDrop
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+#
+# 01. GET /admin/health - liveness probe
+# 02. GET /admin/version - broker version info
+# 03. GET /admin/log - default log settings (all off)
+# 04. GET /admin/tenants - no tenants yet
+# 05. GET /admin/plugins - loaded plugins (mongoc + admin)
+# 06. PUT /admin/log?verbose=on - turn on verbose
+# 07. GET /admin/log - verbose is on
+# 08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels
+# 09. PATCH /admin/log?traceLevels=10,11 - add more trace levels
+# 10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels
+# 11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info
+# 12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info
+# 13. Create entity in tenant t1 - to populate tenant list
+# 14. Create entity in tenant t2 - to populate tenant list
+# 15. GET /admin/tenants - now shows t1 and t2
+# 16. PUT /admin/log?debug=on - turn on debug
+# 17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99
+# 18. GET /admin/log - all clean
+#
+
+echo "01. GET /admin/health - liveness probe"
+echo "======================================"
+swCurl --url /admin/health
+echo
+echo
+
+
+echo "02. GET /admin/version - broker version info"
+echo "============================================"
+swCurl --url /admin/version
+echo
+echo
+
+
+echo "03. GET /admin/log - default log settings (all off)"
+echo "==================================================="
+swCurl --url /admin/log
+echo
+echo
+
+
+echo "04. GET /admin/tenants - no tenants yet"
+echo "======================================="
+swCurl --url /admin/tenants
+echo
+echo
+
+
+echo "05. GET /admin/plugins - loaded plugins (mongoc + admin)"
+echo "========================================================"
+swCurl --url /admin/plugins
+echo
+echo
+
+
+echo "06. PUT /admin/log?verbose=on - turn on verbose"
+echo "==============================================="
+swCurl -X PUT --url '/admin/log?verbose=on'
+echo
+echo
+
+
+echo "07. GET /admin/log - verbose is on"
+echo "=================================="
+swCurl --url /admin/log
+echo
+echo
+
+
+echo "08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels"
+echo "=========================================================="
+swCurl -X POST --url '/admin/log?traceLevels=1,2,5-8'
+echo
+echo
+
+
+echo "09. PATCH /admin/log?traceLevels=10,11 - add more trace levels"
+echo "=============================================================="
+swCurl -X PATCH --url '/admin/log?traceLevels=10,11'
+echo
+echo
+
+
+echo "10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels"
+echo "================================================================"
+swCurl -X DELETE --url '/admin/log?traceLevels=5-8'
+echo
+echo
+
+
+echo "11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info"
+echo "=================================================================================="
+swCurl -X PUT --url '/admin/log?traceLevels=99&info=on'
+echo
+echo
+
+
+echo "12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info"
+echo "======================================================================"
+swCurl -X DELETE --url '/admin/log?verbose=off&info=off'
+echo
+echo
+
+
+echo "13. Create entity in tenant t1 - to populate tenant list"
+echo "========================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "14. Create entity in tenant t2 - to populate tenant list"
+echo "========================================================"
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "15. GET /admin/tenants - now shows t1 and t2"
+echo "============================================"
+swCurl --url /admin/tenants
+echo
+echo
+
+
+echo "16. PUT /admin/log?debug=on - turn on debug"
+echo "==========================================="
+swCurl -X PUT --url '/admin/log?debug=on'
+echo
+echo
+
+
+echo "17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99"
+echo "======================================================================================"
+swCurl -X DELETE --url '/admin/log?debug=off&traceLevels=99'
+echo
+echo
+
+
+echo "18. GET /admin/log - all clean"
+echo "=============================="
+swCurl --url /admin/log
+echo
+echo
+
+
+--EXPECT--
+01. GET /admin/health - liveness probe
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "status": "ok"
+}
+
+
+
+02. GET /admin/version - broker version info
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "Next File Descriptor": REGEX([0-9]+),
+  "kalloc": "0.10.1",
+  "kargs": "0.10.0",
+  "kbase": "0.10.0",
+  "kjson": "0.10.2",
+  "ktrace": "0.10.0",
+  "mongoc driver": "2.2.2",
+  "mongoc plugin": "0.1.0",
+  "mongodb server": "4.4.29",
+  "swBroker version": "unknown",
+  "swJsonld": "0.1.0",
+  "swNgsild": "post-0.2.0",
+  "swRest": "0.1.0"
+}
+
+
+
+03. GET /admin/log - default log settings (all off)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "",
+  "verbose": false
+}
+
+
+
+04. GET /admin/tenants - no tenants yet
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+05. GET /admin/plugins - loaded plugins (mongoc + admin)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "api": [
+    "admin"
+  ],
+  "db": "mongoc"
+}
+
+
+
+06. PUT /admin/log?verbose=on - turn on verbose
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "",
+  "verbose": true
+}
+
+
+
+07. GET /admin/log - verbose is on
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "",
+  "verbose": true
+}
+
+
+
+08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "1-2,5-8",
+  "verbose": true
+}
+
+
+
+09. PATCH /admin/log?traceLevels=10,11 - add more trace levels
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "1-2,5-8,10-11",
+  "verbose": true
+}
+
+
+
+10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "1-2,10-11",
+  "verbose": true
+}
+
+
+
+11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": true,
+  "traceLevels": "99",
+  "verbose": true
+}
+
+
+
+12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "99",
+  "verbose": false
+}
+
+
+
+13. Create entity in tenant t1 - to populate tenant list
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:E1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+14. Create entity in tenant t2 - to populate tenant list
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Location: urn:E2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+15. GET /admin/tenants - now shows t1 and t2
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "t2",
+  "t1"
+]
+
+
+
+16. PUT /admin/log?debug=on - turn on debug
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": true,
+  "info": false,
+  "traceLevels": "99",
+  "verbose": false
+}
+
+
+
+17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "",
+  "verbose": false
+}
+
+
+
+18. GET /admin/log - all clean
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "debug": false,
+  "info": false,
+  "traceLevels": "",
+  "verbose": false
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swDbDrop -tenant t1
+swDbDrop -tenant t2

@@ -1,13 +1,14 @@
 #
-# REQUIRE_DB: ramdb
-# FILE            admin.test
+# FILE            admin-ramdb.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_DB: ramdb
+#
 --NAME--
-Admin API plugin endpoints
+Admin API plugin endpoints (ramdb)
 
 --INIT--
 swDbDrop
@@ -20,7 +21,7 @@ swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
 # 02. GET /admin/version - broker version info
 # 03. GET /admin/log - default log settings (all off)
 # 04. GET /admin/tenants - no tenants yet
-# 05. GET /admin/plugins - loaded plugins (mongoc + admin)
+# 05. GET /admin/plugins - loaded plugins (swRamDB + admin)
 # 06. PUT /admin/log?verbose=on - turn on verbose
 # 07. GET /admin/log - verbose is on
 # 08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels
@@ -64,7 +65,7 @@ echo
 echo
 
 
-echo "05. GET /admin/plugins - loaded plugins (mongoc + admin)"
+echo "05. GET /admin/plugins - loaded plugins (swRamDB + admin)"
 echo "========================================================"
 swCurl --url /admin/plugins
 echo
@@ -239,7 +240,7 @@ Content-Length: REGEX(\d+)
 
 
 
-05. GET /admin/plugins - loaded plugins (mongoc + admin)
+05. GET /admin/plugins - loaded plugins (swRamDB + admin)
 ========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
