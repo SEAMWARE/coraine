@@ -205,8 +205,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -217,8 +217,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -229,8 +229,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E3
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -241,8 +241,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E4
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -252,17 +252,17 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 133
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Building",
     "name": {
       "type": "Property",
       "value": "Office"
-    }
+    },
+    "type": "Building"
   }
 ]
 
@@ -273,25 +273,25 @@ Content-Length: 133
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 261
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Building",
     "name": {
       "type": "Property",
       "value": "Office"
-    }
+    },
+    "type": "Building"
   },
   {
     "id": "urn:entity:E2",
-    "type": "House",
     "name": {
       "type": "Property",
       "value": "Cottage"
-    }
+    },
+    "type": "House"
   }
 ]
 
@@ -302,25 +302,25 @@ Content-Length: 261
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 261
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Building",
     "name": {
       "type": "Property",
       "value": "Office"
-    }
+    },
+    "type": "Building"
   },
   {
     "id": "urn:entity:E2",
-    "type": "House",
     "name": {
       "type": "Property",
       "value": "Cottage"
-    }
+    },
+    "type": "House"
   }
 ]
 
@@ -331,20 +331,20 @@ Content-Length: 261
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 163
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E3",
-    "type": [
-      "Home",
-      "Vehicle"
-    ],
     "name": {
       "type": "Property",
       "value": "Campervan"
-    }
+    },
+    "type": [
+      "Home",
+      "Vehicle"
+    ]
   }
 ]
 
@@ -355,28 +355,28 @@ Content-Length: 163
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 297
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E3",
-    "type": [
-      "Home",
-      "Vehicle"
-    ],
     "name": {
       "type": "Property",
       "value": "Campervan"
-    }
+    },
+    "type": [
+      "Home",
+      "Vehicle"
+    ]
   },
   {
     "id": "urn:entity:E4",
-    "type": "Motorhome",
     "name": {
       "type": "Property",
       "value": "Winnebago"
-    }
+    },
+    "type": "Motorhome"
   }
 ]
 
@@ -387,20 +387,20 @@ Content-Length: 297
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 163
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E3",
-    "type": [
-      "Home",
-      "Vehicle"
-    ],
     "name": {
       "type": "Property",
       "value": "Campervan"
-    }
+    },
+    "type": [
+      "Home",
+      "Vehicle"
+    ]
   }
 ]
 
@@ -411,8 +411,8 @@ Content-Length: 163
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -424,8 +424,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E5
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -435,8 +435,8 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -447,21 +447,21 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 177
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E5",
+    "name": {
+      "type": "Property",
+      "value": "Houseboat"
+    },
     "type": [
       "Home",
       "Vehicle",
       "Boat"
-    ],
-    "name": {
-      "type": "Property",
-      "value": "Houseboat"
-    }
+    ]
   }
 ]
 
@@ -472,33 +472,33 @@ Content-Length: 177
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 395
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Building",
     "name": {
       "type": "Property",
       "value": "Office"
-    }
+    },
+    "type": "Building"
   },
   {
     "id": "urn:entity:E2",
-    "type": "House",
     "name": {
       "type": "Property",
       "value": "Cottage"
-    }
+    },
+    "type": "House"
   },
   {
     "id": "urn:entity:E4",
-    "type": "Motorhome",
     "name": {
       "type": "Property",
       "value": "Winnebago"
-    }
+    },
+    "type": "Motorhome"
   }
 ]
 
@@ -509,40 +509,40 @@ Content-Length: 395
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 471
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E3",
-    "type": [
-      "Home",
-      "Vehicle"
-    ],
     "name": {
       "type": "Property",
       "value": "Campervan"
-    }
+    },
+    "type": [
+      "Home",
+      "Vehicle"
+    ]
   },
   {
     "id": "urn:entity:E4",
-    "type": "Motorhome",
     "name": {
       "type": "Property",
       "value": "Winnebago"
-    }
+    },
+    "type": "Motorhome"
   },
   {
     "id": "urn:entity:E5",
+    "name": {
+      "type": "Property",
+      "value": "Houseboat"
+    },
     "type": [
       "Home",
       "Vehicle",
       "Boat"
-    ],
-    "name": {
-      "type": "Property",
-      "value": "Houseboat"
-    }
+    ]
   }
 ]
 
@@ -553,32 +553,32 @@ Content-Length: 471
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 337
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E3",
-    "type": [
-      "Home",
-      "Vehicle"
-    ],
     "name": {
       "type": "Property",
       "value": "Campervan"
-    }
+    },
+    "type": [
+      "Home",
+      "Vehicle"
+    ]
   },
   {
     "id": "urn:entity:E5",
+    "name": {
+      "type": "Property",
+      "value": "Houseboat"
+    },
     "type": [
       "Home",
       "Vehicle",
       "Boat"
-    ],
-    "name": {
-      "type": "Property",
-      "value": "Houseboat"
-    }
+    ]
   }
 ]
 

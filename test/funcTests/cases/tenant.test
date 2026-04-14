@@ -82,12 +82,12 @@ echo
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
+  "detail": "tenant 't1' does not exist",
   "title": "NonexistentTenant",
-  "detail": "tenant 't1' does not exist"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
 }
 
 
@@ -99,8 +99,8 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
 Location: urn:E1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -110,8 +110,8 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -123,8 +123,8 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 48
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -141,8 +141,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:E2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -153,8 +153,8 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 48
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {

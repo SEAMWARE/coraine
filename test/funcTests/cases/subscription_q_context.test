@@ -1,0 +1,185 @@
+#
+# FILE            subscription_q_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Subscription q-filter with different @contexts for create and GET
+
+--INIT--
+swDbDrop
+contextServerStart
+swBrokerStart
+
+#
+# Context A: maps short names 'a' and 'b' to IRIs with problematic characters
+# Context B: maps the same IRIs to different short names 'a2' and 'b2'
+#
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "a": "https://example.org/speed.max",
+    "b": "https://example.org/temp-unit"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "a2": "https://example.org/speed.max",
+    "b2": "https://example.org/temp-unit"
+  }
+}'
+
+
+--RUN--
+
+#
+# 01. Create subscription with q=a>5;b<10, using context A (a->speed.max, b->temp-unit)
+# 02. GET subscription with context A — q should show a>5;b<10
+# 03. GET subscription with context B — q should show a2>5;b2<10
+# 04. GET subscription without user context — q should show URL-encoded IRIs
+#
+
+echo "01. Create subscription with q=a>5;b<10 using context A"
+echo "========================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Qctx",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": "a>5;b<10",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "02. GET subscription with context A — q should show a>5;b<10"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET subscription with context B — q should show a2>5;b2<10"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. GET subscription without user context — q should show URL-encoded IRIs"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription with q=a>5;b<10 using context A
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET subscription with context A — q should show a>5;b<10
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Qctx",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "q": "a>5;b<10",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+03. GET subscription with context B — q should show a2>5;b2<10
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Qctx",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "q": "a2>5;b2<10",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+04. GET subscription without user context — q should show URL-encoded IRIs
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Qctx",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "q": "https%3A%2F%2Fexample%2Eorg%2Fspeed%2Emax>5;https%3A%2F%2Fexample%2Eorg%2Ftemp-unit<10",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

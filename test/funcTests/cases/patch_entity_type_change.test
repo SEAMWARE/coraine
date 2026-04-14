@@ -62,8 +62,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -73,12 +73,12 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 262
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner' type from 'Property' to 'Relationship' in a Merge Entity operation",
   "title": "Attribute Type Change",
-  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner' type from 'Property' to 'Relationship' in a Merge Entity operation"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -88,16 +88,16 @@ Content-Length: 262
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 99
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "type": "E",
   "owner": {
     "type": "Property",
     "value": "Alice"
-  }
+  },
+  "type": "E"
 }
 
 

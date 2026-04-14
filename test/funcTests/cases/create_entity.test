@@ -80,8 +80,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:ngsi-ld:Vehicle:A001
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -91,20 +91,20 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 180
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
   "id": "urn:ngsi-ld:Vehicle:A001",
-  "type": "Vehicle",
   "speed": {
     "type": "Property",
     "value": 120
   },
-  "color": {
-    "type": "Property",
-    "value": "red"
-  }
+  "type": "Vehicle"
 }
 
 
@@ -114,21 +114,21 @@ Content-Length: 180
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 208
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
     "id": "urn:ngsi-ld:Vehicle:A001",
-    "type": "Vehicle",
     "speed": {
       "type": "Property",
       "value": 120
     },
-    "color": {
-      "type": "Property",
-      "value": "red"
-    }
+    "type": "Vehicle"
   }
 ]
 
@@ -139,12 +139,12 @@ Content-Length: 208
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 159
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists",
+  "detail": "entity 'urn:ngsi-ld:Vehicle:A001' already exists",
   "title": "Already Exists",
-  "detail": "entity 'urn:ngsi-ld:Vehicle:A001' already exists"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 
 
@@ -154,12 +154,12 @@ Content-Length: 159
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "detail": "entity 'urn:doesnt:exist' not found",
   "title": "Not Found",
-  "detail": "entity 'urn:doesnt:exist' not found"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

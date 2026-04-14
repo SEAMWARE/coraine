@@ -1,0 +1,281 @@
+#
+# FILE            subscription_notif_format.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Subscription notification format — normalized, simplified, concise
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with Property, Relationship, GeoProperty
+# 02. Create subscription S1 — default (normalized)
+# 03. Create subscription S2 — format=simplified
+# 04. Create subscription S3 — format=concise
+# 05. Create matching entity — triggers all 3 subscriptions
+# 06. Dump ftClient — 3 notifications with different formats
+#
+
+echo "01. Create subscription S1 — normalized (default)"
+echo "==================================================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create subscription S2 — simplified"
+echo "=========================================="
+payload='{
+  "id": "urn:S2",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "format": "simplified",
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. Create subscription S3 — concise"
+echo "======================================="
+payload='{
+  "id": "urn:S3",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "format": "concise",
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. Create entity with Property + Relationship + GeoProperty"
+echo "=============================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 120
+  },
+  "ownedBy": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:Person:Bob"
+  },
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [-3.703, 40.417]
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Dump ftClient — 3 notifications (normalized, simplified, concise)"
+echo "======================================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription S1 — normalized (default)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create subscription S2 — simplified
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Create subscription S3 — concise
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Create entity with Property + Relationship + GeoProperty
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+05. Dump ftClient — 3 notifications (normalized, simplified, concise)
+======================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "location": {
+            "type": "GeoProperty",
+            "value": {
+              "coordinates": [
+                -3.703,
+                40.417
+              ],
+              "type": "Point"
+            }
+          },
+          "ownedBy": {
+            "object": "urn:ngsi-ld:Person:Bob",
+            "type": "Relationship"
+          },
+          "speed": {
+            "type": "Property",
+            "value": 120
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "location": {
+            "coordinates": [
+              -3.703,
+              40.417
+            ],
+            "type": "Point"
+          },
+          "ownedBy": "urn:ngsi-ld:Person:Bob",
+          "speed": 120,
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S2",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "location": {
+            "type": "GeoProperty",
+            "value": {
+              "coordinates": [
+                -3.703,
+                40.417
+              ],
+              "type": "Point"
+            }
+          },
+          "ownedBy": {
+            "object": "urn:ngsi-ld:Person:Bob"
+          },
+          "speed": 120,
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S3",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

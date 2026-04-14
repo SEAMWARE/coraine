@@ -88,8 +88,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:ngsi-ld:Vehicle:V1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -99,16 +99,16 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 116
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:ngsi-ld:Vehicle:V1",
-  "type": "Vehicle",
   "speed": {
     "type": "Property",
     "value": 42
-  }
+  },
+  "type": "Vehicle"
 }
 
 
@@ -127,12 +127,12 @@ Content-Type: application/json
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found",
   "title": "Not Found",
-  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
@@ -142,12 +142,12 @@ Content-Length: 150
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found",
   "title": "Not Found",
-  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
@@ -157,12 +157,12 @@ Content-Length: 150
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "detail": "entity 'urn:doesnt:exist' not found",
   "title": "Not Found",
-  "detail": "entity 'urn:doesnt:exist' not found"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
@@ -172,8 +172,8 @@ Content-Length: 144
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 

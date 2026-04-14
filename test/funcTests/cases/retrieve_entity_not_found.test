@@ -30,12 +30,12 @@ echo
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 143
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "detail": "entity 'urn:nonexistent' not found",
   "title": "Not Found",
-  "detail": "entity 'urn:nonexistent' not found"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

@@ -239,8 +239,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -251,8 +251,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -263,8 +263,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E3
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -275,8 +275,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E4
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -287,8 +287,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:entity:E5
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -298,18 +298,18 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 179
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   }
 ]
 
@@ -320,27 +320,27 @@ Content-Length: 179
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 351
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E2",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueSur",
     "name": {
       "type": "Property",
       "value": "Parque Sur"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
   }
 ]
 
@@ -351,8 +351,8 @@ Content-Length: 351
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -363,27 +363,27 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 350
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E3",
-    "type": "District",
-    "scope": "/Madrid/Districts/Centro",
     "name": {
       "type": "Property",
       "value": "Centro"
-    }
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
   }
 ]
 
@@ -394,21 +394,21 @@ Content-Length: 350
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 205
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   }
 ]
 
@@ -419,48 +419,48 @@ Content-Length: 205
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 724
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E2",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueSur",
     "name": {
       "type": "Property",
       "value": "Parque Sur"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E3",
-    "type": "District",
-    "scope": "/Madrid/Districts/Centro",
     "name": {
       "type": "Property",
       "value": "Centro"
-    }
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
   },
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   }
 ]
 
@@ -471,56 +471,56 @@ Content-Length: 724
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 860
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E2",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueSur",
     "name": {
       "type": "Property",
       "value": "Parque Sur"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E3",
-    "type": "District",
-    "scope": "/Madrid/Districts/Centro",
     "name": {
       "type": "Property",
       "value": "Centro"
-    }
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
   },
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   },
   {
     "id": "urn:entity:E5",
-    "type": "Building",
     "name": {
       "type": "Property",
       "value": "Headquarters"
-    }
+    },
+    "type": "Building"
   }
 ]
 
@@ -531,48 +531,48 @@ Content-Length: 860
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 724
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E2",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueSur",
     "name": {
       "type": "Property",
       "value": "Parque Sur"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E3",
-    "type": "District",
-    "scope": "/Madrid/Districts/Centro",
     "name": {
       "type": "Property",
       "value": "Centro"
-    }
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
   },
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   }
 ]
 
@@ -583,21 +583,21 @@ Content-Length: 724
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 205
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   }
 ]
 
@@ -608,8 +608,8 @@ Content-Length: 205
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -620,8 +620,8 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -632,27 +632,27 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 350
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E3",
-    "type": "District",
-    "scope": "/Madrid/Districts/Centro",
     "name": {
       "type": "Property",
       "value": "Centro"
-    }
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
   }
 ]
 
@@ -663,30 +663,30 @@ Content-Length: 350
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 381
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E1",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueNorte",
     "name": {
       "type": "Property",
       "value": "Parque Norte"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   }
 ]
 
@@ -697,30 +697,30 @@ Content-Length: 381
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 377
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E2",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueSur",
     "name": {
       "type": "Property",
       "value": "Parque Sur"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E4",
-    "type": "Office",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
     "scope": [
       "/Madrid/Districts",
       "/CompanyA"
     ],
-    "name": {
-      "type": "Property",
-      "value": "Branch Office"
-    }
+    "type": "Office"
   }
 ]
 
@@ -731,8 +731,8 @@ Content-Length: 377
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -743,27 +743,27 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 346
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:entity:E2",
-    "type": "Park",
-    "scope": "/Madrid/Gardens/ParqueSur",
     "name": {
       "type": "Property",
       "value": "Parque Sur"
-    }
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
   },
   {
     "id": "urn:entity:E3",
-    "type": "District",
-    "scope": "/Madrid/Districts/Centro",
     "name": {
       "type": "Property",
       "value": "Centro"
-    }
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
   }
 ]
 

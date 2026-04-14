@@ -1104,12 +1104,12 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 148
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity payload must be a JSON object",
   "title": "Invalid Entity",
-  "detail": "Entity payload must be a JSON object"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1119,12 +1119,12 @@ Content-Length: 148
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 119
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "no payload",
   "title": "Bad Request",
-  "detail": "no payload"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1134,12 +1134,12 @@ Content-Length: 119
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 156
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'id' is mandatory for CreateEntity",
   "title": "Missing Entity Id",
-  "detail": "Entity 'id' is mandatory for CreateEntity"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1149,12 +1149,12 @@ Content-Length: 156
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 143
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'id' must be a string",
   "title": "Invalid Entity Id",
-  "detail": "Entity 'id' must be a string"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1164,12 +1164,12 @@ Content-Length: 143
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 128
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: ''",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: ''"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1179,12 +1179,12 @@ Content-Length: 128
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 137
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: 'not-a-uri'",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: 'not-a-uri'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1194,12 +1194,12 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 132
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: 'urn:'",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: 'urn:'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1209,12 +1209,12 @@ Content-Length: 132
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 141
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: 'urn:has space'",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: 'urn:has space'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1224,12 +1224,12 @@ Content-Length: 141
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 142
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Duplicate 'id' / '@id' in entity",
   "title": "Duplicate Id",
-  "detail": "Duplicate 'id' / '@id' in entity"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1239,12 +1239,12 @@ Content-Length: 142
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 142
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Duplicate 'id' / '@id' in entity",
   "title": "Duplicate Id",
-  "detail": "Duplicate 'id' / '@id' in entity"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1254,12 +1254,12 @@ Content-Length: 142
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 160
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'type' is mandatory for CreateEntity",
   "title": "Missing Entity Type",
-  "detail": "Entity 'type' is mandatory for CreateEntity"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1269,12 +1269,12 @@ Content-Length: 160
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 167
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'type' must be a string or array of strings",
   "title": "Invalid Entity Type",
-  "detail": "Entity 'type' must be a string or array of strings"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1284,12 +1284,12 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 148
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Duplicate 'type' / '@type' in entity",
   "title": "Duplicate Type",
-  "detail": "Duplicate 'type' / '@type' in entity"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1299,12 +1299,12 @@ Content-Length: 148
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 148
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Duplicate 'type' / '@type' in entity",
   "title": "Duplicate Type",
-  "detail": "Duplicate 'type' / '@type' in entity"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1314,12 +1314,12 @@ Content-Length: 148
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 162
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'scope' must be a string or array of strings",
   "title": "Invalid Scope",
-  "detail": "Entity 'scope' must be a string or array of strings"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1330,8 +1330,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:dup
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -1341,12 +1341,12 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 142
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists",
+  "detail": "entity 'urn:dup' already exists",
   "title": "Already Exists",
-  "detail": "entity 'urn:dup' already exists"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 
 
@@ -1356,12 +1356,12 @@ Content-Length: 142
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 240
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'https://uri.etsi.org/ngsi-ld/hasValue'",
   "title": "Missing Value",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'https://uri.etsi.org/ngsi-ld/hasValue'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1371,12 +1371,12 @@ Content-Length: 240
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 218
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)",
   "title": "Conflicting Value Keys",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1386,12 +1386,12 @@ Content-Length: 218
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 212
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string",
   "title": "Invalid Relationship",
-  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1401,12 +1401,12 @@ Content-Length: 212
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 128
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: ''",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: ''"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1416,12 +1416,12 @@ Content-Length: 128
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 137
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: 'not-a-uri'",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: 'not-a-uri'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1431,12 +1431,12 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 209
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' must be a string",
   "title": "Invalid observedAt",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' must be a string"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1446,12 +1446,12 @@ Content-Length: 209
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 229
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: ''",
   "title": "Invalid observedAt",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: ''"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1461,12 +1461,12 @@ Content-Length: 229
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 239
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'",
   "title": "Invalid observedAt",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1476,12 +1476,12 @@ Content-Length: 239
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 205
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'unitCode' must be a string",
   "title": "Invalid unitCode",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'unitCode' must be a string"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1491,12 +1491,12 @@ Content-Length: 205
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 211
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'datasetId' must be a URI string",
   "title": "Invalid datasetId",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'datasetId' must be a URI string"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1506,12 +1506,12 @@ Content-Length: 211
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 128
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: ''",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: ''"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1521,12 +1521,12 @@ Content-Length: 128
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 137
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: 'not-a-uri'",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: 'not-a-uri'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1536,12 +1536,12 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 218
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)",
   "title": "Conflicting Value Keys",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1551,12 +1551,12 @@ Content-Length: 218
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 216
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/rel' has 2 value keys (only one allowed)",
   "title": "Conflicting Value Keys",
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/rel' has 2 value keys (only one allowed)"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1566,12 +1566,12 @@ Content-Length: 216
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 216
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' must not be an empty array",
   "title": "Invalid Multi-Attribute",
-  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' must not be an empty array"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1582,8 +1582,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e33
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -1593,12 +1593,12 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 237
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': only one instance without datasetId allowed",
   "title": "Duplicate Default Instance",
-  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': only one instance without datasetId allowed"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1608,12 +1608,12 @@ Content-Length: 237
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 216
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'",
   "title": "Duplicate datasetId",
-  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1623,12 +1623,12 @@ Content-Length: 216
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 144
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON value must be an object",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON value must be an object"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1638,12 +1638,12 @@ Content-Length: 144
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 152
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON must have a 'type' string field",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON must have a 'type' string field"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1653,12 +1653,12 @@ Content-Length: 152
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 152
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON must have a 'type' string field",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON must have a 'type' string field"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1668,12 +1668,12 @@ Content-Length: 152
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 158
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON must have a 'coordinates' array field",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON must have a 'coordinates' array field"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1683,12 +1683,12 @@ Content-Length: 158
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Hexagon'",
   "title": "Invalid GeoJSON",
-  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Hexagon'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1698,12 +1698,12 @@ Content-Length: 198
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 173
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1713,12 +1713,12 @@ Content-Length: 173
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 173
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1728,12 +1728,12 @@ Content-Length: 173
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 147
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON longitude must be a number",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON longitude must be a number"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1743,12 +1743,12 @@ Content-Length: 147
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 146
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON latitude must be a number",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON latitude must be a number"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1758,12 +1758,12 @@ Content-Length: 146
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 159
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON longitude must be in range [-180, 180]",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON longitude must be in range [-180, 180]"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1773,12 +1773,12 @@ Content-Length: 159
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 159
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON longitude must be in range [-180, 180]",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON longitude must be in range [-180, 180]"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1788,12 +1788,12 @@ Content-Length: 159
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 156
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON latitude must be in range [-90, 90]",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON latitude must be in range [-90, 90]"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1803,12 +1803,12 @@ Content-Length: 156
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 156
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON latitude must be in range [-90, 90]",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON latitude must be in range [-90, 90]"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1818,12 +1818,12 @@ Content-Length: 156
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 162
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON LineString must have at least 2 positions",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON LineString must have at least 2 positions"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1833,12 +1833,12 @@ Content-Length: 162
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 146
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON position must be an array",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON position must be an array"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1848,12 +1848,12 @@ Content-Length: 146
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 164
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON polygon ring must have at least 4 positions",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON polygon ring must have at least 4 positions"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1863,12 +1863,12 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 173
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON polygon ring must be closed (first == last position)",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON polygon ring must be closed (first == last position)"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1878,12 +1878,12 @@ Content-Length: 173
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "GeoJSON polygon ring must be an array",
   "title": "Invalid GeoJSON",
-  "detail": "GeoJSON polygon ring must be an array"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1893,12 +1893,12 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 157
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "'languageMap' must be a JSON object",
   "title": "Invalid LanguageProperty",
-  "detail": "'languageMap' must be a JSON object"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1908,12 +1908,12 @@ Content-Length: 157
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 233
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "languageMap values must be strings or arrays of strings (key 'https://uri.etsi.org/ngsi-ld/default-context/en')",
   "title": "Invalid LanguageProperty",
-  "detail": "languageMap values must be strings or arrays of strings (key 'https://uri.etsi.org/ngsi-ld/default-context/en')"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1923,12 +1923,12 @@ Content-Length: 233
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 234
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "VocabProperty 'https://uri.etsi.org/ngsi-ld/default-context/category': 'vocab' must be a string or array of strings",
   "title": "Invalid VocabProperty",
-  "detail": "VocabProperty 'https://uri.etsi.org/ngsi-ld/default-context/category': 'vocab' must be a string or array of strings"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1938,12 +1938,12 @@ Content-Length: 234
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 212
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "ListProperty 'https://uri.etsi.org/ngsi-ld/default-context/tags': 'valueList' must be an array",
   "title": "Invalid ListProperty",
-  "detail": "ListProperty 'https://uri.etsi.org/ngsi-ld/default-context/tags': 'valueList' must be an array"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1953,12 +1953,12 @@ Content-Length: 212
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 155
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "'objectList' must be a JSON array",
   "title": "Invalid ListRelationship",
-  "detail": "'objectList' must be a JSON array"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1968,12 +1968,12 @@ Content-Length: 155
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 160
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "'objectList' items must be URI strings",
   "title": "Invalid ListRelationship",
-  "detail": "'objectList' items must be URI strings"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1983,12 +1983,12 @@ Content-Length: 160
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 137
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Not a valid URI: 'not-a-uri'",
   "title": "Invalid URI",
-  "detail": "Not a valid URI: 'not-a-uri'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -1999,8 +1999,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e61
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -2010,12 +2010,12 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "@context is mandatory for Content-Type application/ld+json",
   "title": "Missing @context",
-  "detail": "@context is mandatory for Content-Type application/ld+json"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -2025,12 +2025,12 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 179
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "@context in body not allowed for Content-Type application/json",
   "title": "Unexpected @context",
-  "detail": "@context in body not allowed for Content-Type application/json"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -2040,12 +2040,12 @@ Content-Length: 179
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 192
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "both @context in body and Link header not allowed with application/ld+json",
   "title": "Conflicting @context",
-  "detail": "both @context in body and Link header not allowed with application/ld+json"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -2056,8 +2056,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e65
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -2067,12 +2067,12 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 154
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'type' array must not be empty",
   "title": "Invalid Entity Type",
-  "detail": "Entity 'type' array must not be empty"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -2082,12 +2082,12 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 161
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Entity 'type' array elements must be strings",
   "title": "Invalid Entity Type",
-  "detail": "Entity 'type' array elements must be strings"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -2098,8 +2098,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e68
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 

@@ -1,0 +1,346 @@
+#
+# FILE            subscription_isactive_toggle.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Subscription isActive toggle via PATCH — pause/resume notifications
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create active subscription
+# 02. Create entity — should trigger notification
+# 03. Dump ftClient — 1 notification
+# 04. Reset ftClient
+# 05. PATCH subscription: isActive=false (pause)
+# 06. Retrieve subscription — status should be "paused"
+# 07. Create another entity — should NOT trigger (paused)
+# 08. Dump ftClient — empty
+# 09. PATCH subscription: isActive=true (resume)
+# 10. Retrieve subscription — status should be "active"
+# 11. Create third entity — should trigger
+# 12. Dump ftClient — 1 notification
+#
+
+echo "01. Create active subscription"
+echo "================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Toggle",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create entity — should trigger"
+echo "===================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 100}
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Dump ftClient — 1 notification"
+echo "===================================="
+ftClientDump
+echo
+echo
+
+
+echo "04. Reset ftClient"
+echo "==================="
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "05. PATCH subscription: isActive=false"
+echo "========================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle \
+  --payload '{"isActive": false}'
+echo
+echo
+
+
+echo "06. Retrieve subscription — status=paused"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
+echo
+echo
+
+
+echo "07. Create entity — should NOT trigger (paused)"
+echo "================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V2",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 200}
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. Dump ftClient — empty"
+echo "=========================="
+ftClientDump
+echo
+echo
+
+
+echo "09. PATCH subscription: isActive=true"
+echo "======================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle \
+  --payload '{"isActive": true}'
+echo
+echo
+
+
+echo "10. Retrieve subscription — status=active"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
+echo
+echo
+
+
+echo "11. Create entity — should trigger"
+echo "===================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V3",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 300}
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "12. Dump ftClient — 1 notification"
+echo "===================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create active subscription
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create entity — should trigger
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Dump ftClient — 1 notification
+====================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:ngsi-ld:Vehicle:V1",
+          "speed": {
+            "type": "Property",
+            "value": 100
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:Subscription:Toggle",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. Reset ftClient
+===================
+done
+
+
+05. PATCH subscription: isActive=false
+========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Retrieve subscription — status=paused
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Toggle",
+  "isActive": false,
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "status": "paused",
+  "type": "Subscription"
+}
+
+
+
+07. Create entity — should NOT trigger (paused)
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+08. Dump ftClient — empty
+==========================
+[]
+
+09. PATCH subscription: isActive=true
+=======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+10. Retrieve subscription — status=active
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Toggle",
+  "isActive": true,
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+11. Create entity — should trigger
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+12. Dump ftClient — 1 notification
+====================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:ngsi-ld:Vehicle:V3",
+          "speed": {
+            "type": "Property",
+            "value": 300
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:Subscription:Toggle",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

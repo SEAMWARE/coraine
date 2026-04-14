@@ -66,16 +66,15 @@ Allow: GET, DELETE, PATCH, HEAD, OPTIONS
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 158
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "detail": "OPTIONS /nonexistent is not a recognized resource",
   "title": "Not Found",
-  "detail": "OPTIONS /nonexistent is not a recognized resource"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
 
 --TEARDOWN--
 swBrokerStop
-

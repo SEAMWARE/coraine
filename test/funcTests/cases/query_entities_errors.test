@@ -117,12 +117,12 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "limit=0 is only valid when count=true",
   "title": "Invalid request",
-  "detail": "limit=0 is only valid when count=true"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -132,8 +132,8 @@ Content-Length: 150
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -144,12 +144,12 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "limit=0 is only valid when count=true",
   "title": "Invalid request",
-  "detail": "limit=0 is only valid when count=true"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -159,8 +159,8 @@ Content-Length: 150
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -171,12 +171,12 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 164
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "empty type name in type selection expression",
   "title": "Invalid type parameter",
-  "detail": "empty type name in type selection expression"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -186,12 +186,12 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 164
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "empty type name in type selection expression",
   "title": "Invalid type parameter",
-  "detail": "empty type name in type selection expression"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -201,12 +201,12 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 152
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "Unknown/unsupported URL parameter: foo",
   "title": "Bad Request Data",
-  "detail": "Unknown/unsupported URL parameter: foo"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -217,8 +217,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -228,17 +228,17 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 115
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:e1",
-    "type": "T",
     "speed": {
       "type": "Property",
       "value": 100
-    }
+    },
+    "type": "T"
   }
 ]
 

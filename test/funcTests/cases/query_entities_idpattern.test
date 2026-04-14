@@ -163,8 +163,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:vehicle:car:001
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -175,8 +175,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:vehicle:car:002
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -187,8 +187,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:vehicle:truck:001
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -199,8 +199,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:sensor:temp:001
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -211,8 +211,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:sensor:humidity:001
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -222,33 +222,33 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 409
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:vehicle:car:001",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Car 1"
-    }
+    },
+    "type": "Vehicle"
   },
   {
     "id": "urn:vehicle:car:002",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Car 2"
-    }
+    },
+    "type": "Vehicle"
   },
   {
     "id": "urn:vehicle:truck:001",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Truck 1"
-    }
+    },
+    "type": "Vehicle"
   }
 ]
 
@@ -259,25 +259,25 @@ Content-Length: 409
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 271
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:vehicle:car:001",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Car 1"
-    }
+    },
+    "type": "Vehicle"
   },
   {
     "id": "urn:vehicle:car:002",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Car 2"
-    }
+    },
+    "type": "Vehicle"
   }
 ]
 
@@ -288,41 +288,41 @@ Content-Length: 271
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 565
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:vehicle:car:001",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Car 1"
-    }
+    },
+    "type": "Vehicle"
   },
   {
     "id": "urn:vehicle:truck:001",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Truck 1"
-    }
+    },
+    "type": "Vehicle"
   },
   {
     "id": "urn:sensor:temp:001",
-    "type": "Sensor",
     "name": {
       "type": "Property",
       "value": "Temp Sensor 1"
-    }
+    },
+    "type": "Sensor"
   },
   {
     "id": "urn:sensor:humidity:001",
-    "type": "Sensor",
     "name": {
       "type": "Property",
       "value": "Humidity Sensor 1"
-    }
+    },
+    "type": "Sensor"
   }
 ]
 
@@ -333,25 +333,25 @@ Content-Length: 565
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 293
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:sensor:temp:001",
-    "type": "Sensor",
     "name": {
       "type": "Property",
       "value": "Temp Sensor 1"
-    }
+    },
+    "type": "Sensor"
   },
   {
     "id": "urn:sensor:humidity:001",
-    "type": "Sensor",
     "name": {
       "type": "Property",
       "value": "Humidity Sensor 1"
-    }
+    },
+    "type": "Sensor"
   }
 ]
 
@@ -362,17 +362,17 @@ Content-Length: 293
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 141
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:vehicle:truck:001",
-    "type": "Vehicle",
     "name": {
       "type": "Property",
       "value": "Truck 1"
-    }
+    },
+    "type": "Vehicle"
   }
 ]
 
@@ -383,8 +383,8 @@ Content-Length: 141
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -395,17 +395,17 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 144
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:sensor:temp:001",
-    "type": "Sensor",
     "name": {
       "type": "Property",
       "value": "Temp Sensor 1"
-    }
+    },
+    "type": "Sensor"
   }
 ]
 

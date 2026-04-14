@@ -1,0 +1,659 @@
+#
+# FILE            subscription_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Subscription creation and patch error handling
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Missing type — 400
+# 02. Wrong type value — 400
+# 03. Missing entities and watchedAttributes — 400
+# 04. Missing notification — 400
+# 05. Empty entities array — 400
+# 06. entities item without type/id/idPattern — 400
+# 07. entities[].type not a string — 400
+# 08. watchedAttributes not an array — 400
+# 09. watchedAttributes items not strings — 400
+# 10. timeInterval + watchedAttributes conflict — 400
+# 11. throttling not a number — 400
+# 12. isActive not a boolean — 400
+# 13. notification.endpoint.uri missing — 400
+# 14. notification empty object — 400
+# 15. expiresAt not valid ISO 8601 — 400
+# 16. q not a string — 400
+# 17. geoQ missing geometry — 400
+# 18. geoQ invalid geometry value — 400
+# 19. Duplicate entities field — 400
+# 20. status is read-only — 400
+# 21. PATCH with id — 400
+# 22. PATCH with type — 400
+# 23. Valid creation — 201 (sanity check)
+#
+
+echo "01. Missing type — 400"
+echo "======================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "02. Wrong type value — 400"
+echo "==========================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Entity",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "03. Missing entities and watchedAttributes — 400"
+echo "=================================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "04. Missing notification — 400"
+echo "================================"
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}]
+}'
+echo
+echo
+
+
+echo "05. Empty entities array — 400"
+echo "================================"
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "06. entities item without type/id/idPattern — 400"
+echo "==================================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "07. entities[].type not a string — 400"
+echo "========================================"
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": 123}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "08. watchedAttributes not an array — 400"
+echo "=========================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "watchedAttributes": "speed",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "09. watchedAttributes items not strings — 400"
+echo "==============================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "watchedAttributes": [123, true],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "10. timeInterval + watchedAttributes conflict — 400"
+echo "====================================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "watchedAttributes": ["speed"],
+  "timeInterval": 60,
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "11. throttling not a number — 400"
+echo "==================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "throttling": "fast",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "12. isActive not a boolean — 400"
+echo "=================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "isActive": "yes",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "13. notification.endpoint.uri missing — 400"
+echo "============================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {}}
+}'
+echo
+echo
+
+
+echo "14. notification empty object — 400"
+echo "====================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {}
+}'
+echo
+echo
+
+
+echo "15. expiresAt not valid ISO 8601 — 400"
+echo "========================================"
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "expiresAt": "tomorrow",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "16. q not a string — 400"
+echo "=========================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": 42,
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "17. geoQ missing geometry — 400"
+echo "================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "geoQ": {"coordinates": "[-3.7, 40.4]", "georel": "near;maxDistance==1000"},
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "18. geoQ invalid geometry value — 400"
+echo "======================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "geoQ": {"geometry": "Hexagon", "coordinates": "[-3.7, 40.4]", "georel": "near;maxDistance==1000"},
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "19. Duplicate entities field — 400"
+echo "===================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "entities": [{"type": "Bike"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "20. status is read-only — 400"
+echo "==============================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "status": "active",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+echo "21. PATCH with id — 400"
+echo "========================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:Err",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload '{
+  "id": "urn:ngsi-ld:Subscription:Other"
+}'
+echo
+echo
+
+
+echo "22. PATCH with type — 400"
+echo "==========================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload '{
+  "type": "Subscription"
+}'
+echo
+echo
+
+
+echo "23. Valid creation — 201 (sanity check)"
+echo "========================================="
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:OK",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+echo
+echo
+
+
+--EXPECT--
+01. Missing type — 400
+=======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Subscription 'type' is mandatory for create",
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Wrong type value — 400
+===========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Subscription 'type' must be 'Subscription'",
+  "title": "Invalid Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Missing entities and watchedAttributes — 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Subscription must have 'entities' or 'watchedAttributes'",
+  "title": "Missing Filter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Missing notification — 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Subscription 'notification' is mandatory for create",
+  "title": "Missing Notification",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Empty entities array — 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'entities' must not be empty",
+  "title": "Empty Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. entities item without type/id/idPattern — 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'entities' item must have at least 'type', 'id', or 'idPattern'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. entities[].type not a string — 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'entities[].type' must be a string",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. watchedAttributes not an array — 400
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'watchedAttributes' must be an array",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. watchedAttributes items not strings — 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'watchedAttributes' items must be strings",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. timeInterval + watchedAttributes conflict — 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'timeInterval' and 'watchedAttributes' are mutually exclusive",
+  "title": "Incompatible Fields",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. throttling not a number — 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'throttling' must be a number",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. isActive not a boolean — 400
+==================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'isActive' must be a boolean",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. notification.endpoint.uri missing — 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification.endpoint' must not be empty",
+  "title": "Empty Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. notification empty object — 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification' must not be empty",
+  "title": "Empty Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. expiresAt not valid ISO 8601 — 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'expiresAt' is not a valid ISO 8601 DateTime",
+  "title": "Invalid DateTime",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. q not a string — 400
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'q' must be a string",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+17. geoQ missing geometry — 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'geoQ' requires 'geometry', 'coordinates', and 'georel' — missing 'geometry'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. geoQ invalid geometry value — 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'geoQ.geometry' has invalid value 'Hexagon'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. Duplicate entities field — 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entities",
+  "title": "Duplicated field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+20. status is read-only — 400
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'status' is read-only and cannot be set",
+  "title": "Read-Only Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+21. PATCH with id — 400
+=========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'id' cannot be modified",
+  "title": "Read-Only Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+22. PATCH with type — 400
+===========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'type' cannot be modified",
+  "title": "Read-Only Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+23. Valid creation — 201 (sanity check)
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:OK
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

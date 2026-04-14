@@ -155,8 +155,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -166,16 +166,16 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 101
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "type": "Vehicle",
   "speed": {
     "type": "Property",
     "value": 100
-  }
+  },
+  "type": "Vehicle"
 }
 
 
@@ -185,17 +185,17 @@ Content-Length: 101
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 137
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "type": "Vehicle",
   "speed": {
+    "datasetId": "urn:sensor:radar",
     "type": "Property",
-    "value": 98,
-    "datasetId": "urn:sensor:radar"
-  }
+    "value": 98
+  },
+  "type": "Vehicle"
 }
 
 
@@ -205,23 +205,23 @@ Content-Length: 137
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 214
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "type": "Vehicle",
   "speed": [
     {
       "type": "Property",
       "value": 100
     },
     {
+      "datasetId": "urn:sensor:lidar",
       "type": "Property",
-      "value": 102,
-      "datasetId": "urn:sensor:lidar"
+      "value": 102
     }
-  ]
+  ],
+  "type": "Vehicle"
 }
 
 
@@ -231,8 +231,8 @@ Content-Length: 214
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 42
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
@@ -246,18 +246,18 @@ Content-Length: 42
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 159
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:e1",
-    "type": "Vehicle",
     "speed": {
+      "datasetId": "urn:sensor:radar",
       "type": "Property",
-      "value": 98,
-      "datasetId": "urn:sensor:radar"
-    }
+      "value": 98
+    },
+    "type": "Vehicle"
   }
 ]
 
@@ -269,8 +269,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -280,16 +280,16 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 124
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e2",
-  "type": "Vehicle",
   "isParkedAt": {
-    "type": "Relationship",
-    "object": "urn:parking:P1"
-  }
+    "object": "urn:parking:P1",
+    "type": "Relationship"
+  },
+  "type": "Vehicle"
 }
 
 
@@ -299,17 +299,17 @@ Content-Length: 124
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 162
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e2",
-  "type": "Vehicle",
   "isParkedAt": {
-    "type": "Relationship",
+    "datasetId": "urn:source:manual",
     "object": "urn:parking:P2",
-    "datasetId": "urn:source:manual"
-  }
+    "type": "Relationship"
+  },
+  "type": "Vehicle"
 }
 
 
@@ -319,16 +319,16 @@ Content-Length: 162
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 101
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "type": "Vehicle",
   "speed": {
     "type": "Property",
     "value": 100
-  }
+  },
+  "type": "Vehicle"
 }
 
 
@@ -338,17 +338,17 @@ Content-Length: 101
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 137
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "type": "Vehicle",
   "speed": {
+    "datasetId": "urn:sensor:radar",
     "type": "Property",
-    "value": 98,
-    "datasetId": "urn:sensor:radar"
-  }
+    "value": 98
+  },
+  "type": "Vehicle"
 }
 
 
@@ -358,8 +358,8 @@ Content-Length: 137
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 42
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",

@@ -1,0 +1,378 @@
+#
+# FILE            subscription_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Subscription CRUD - create, retrieve, query, update, delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create subscription with explicit id
+# 02. Retrieve subscription by id
+# 03. Create second subscription (auto-generated id)
+# 04. Query all subscriptions - two subscriptions
+# 05. Update subscription - change throttling
+# 06. Retrieve updated subscription
+# 07. Delete first subscription - 204
+# 08. Query all subscriptions - only second subscription
+# 09. Delete non-existing subscription - 404
+# 10. Retrieve deleted subscription - 404
+# 11. Create subscription with same id as S1 (deleted) - 201
+# 12. Create duplicate of still-existing auto-gen sub - impossible to test without knowing id
+#
+
+echo "01. Create subscription with explicit id"
+echo "========================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  },
+  "throttling": 5
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve subscription by id"
+echo "================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "03. Create second subscription with isActive=false"
+echo "==================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S2",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "Temperature"
+    }
+  ],
+  "watchedAttributes": ["temperature"],
+  "isActive": false,
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify2"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. Query all subscriptions - two subscriptions"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "05. Update subscription - change throttling"
+echo "============================================="
+payload='{
+  "throttling": 10
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload "$payload"
+echo
+echo
+
+
+echo "06. Retrieve updated subscription"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "07. Delete first subscription - 204"
+echo "===================================="
+swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "08. Query all subscriptions - only second subscription"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "09. Delete non-existing subscription - 404"
+echo "============================================"
+swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:doesnt:exist
+echo
+echo
+
+
+echo "10. Retrieve deleted subscription - 404"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "11. Attempt to create duplicate subscription S2 - 409"
+echo "======================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S2",
+  "type": "Subscription",
+  "entities": [{"type": "X"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/x"}}
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription with explicit id
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Retrieve subscription by id
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  },
+  "status": "active",
+  "throttling": 5,
+  "type": "Subscription"
+}
+
+
+
+03. Create second subscription with isActive=false
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Query all subscriptions - two subscriptions
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:S1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/notify"
+      }
+    },
+    "status": "active",
+    "throttling": 5,
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "type": "Temperature"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:S2",
+    "isActive": false,
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/notify2"
+      }
+    },
+    "status": "paused",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "temperature"
+    ]
+  }
+]
+
+
+
+05. Update subscription - change throttling
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Retrieve updated subscription
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  },
+  "status": "active",
+  "throttling": 10,
+  "type": "Subscription"
+}
+
+
+
+07. Delete first subscription - 204
+====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. Query all subscriptions - only second subscription
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Temperature"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:S2",
+    "isActive": false,
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/notify2"
+      }
+    },
+    "status": "paused",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "temperature"
+    ]
+  }
+]
+
+
+
+09. Delete non-existing subscription - 404
+============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "subscription 'urn:doesnt:exist' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. Retrieve deleted subscription - 404
+========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "subscription 'urn:ngsi-ld:Subscription:S1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. Attempt to create duplicate subscription S2 - 409
+======================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "subscription 'urn:ngsi-ld:Subscription:S2' already exists",
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

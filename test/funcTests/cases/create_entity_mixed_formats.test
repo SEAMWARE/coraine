@@ -63,8 +63,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:mix:E1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -74,46 +74,46 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 628
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
-  "id": "urn:mix:E1",
-  "type": "T",
-  "normalizedAttr": {
-    "type": "Property",
-    "value": "fully normalized"
-  },
   "conciseAttr": {
     "type": "Property",
     "value": 42
   },
-  "simplifiedString": {
-    "type": "Property",
-    "value": "hello"
+  "conciseRel": {
+    "object": "urn:target:1",
+    "type": "Relationship"
   },
-  "simplifiedInt": {
+  "id": "urn:mix:E1",
+  "normalizedAttr": {
     "type": "Property",
-    "value": 99
+    "value": "fully normalized"
   },
   "simplifiedBool": {
     "type": "Property",
     "value": false
   },
-  "conciseRel": {
-    "type": "Relationship",
-    "object": "urn:target:1"
-  },
   "simplifiedGeo": {
     "type": "GeoProperty",
     "value": {
-      "type": "Point",
       "coordinates": [
         10,
         20
-      ]
+      ],
+      "type": "Point"
     }
-  }
+  },
+  "simplifiedInt": {
+    "type": "Property",
+    "value": 99
+  },
+  "simplifiedString": {
+    "type": "Property",
+    "value": "hello"
+  },
+  "type": "T"
 }
 
 

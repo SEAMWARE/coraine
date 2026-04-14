@@ -1,0 +1,175 @@
+#
+# FILE            subscription_mongoc_persist.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+--NAME--
+Subscription persistence — survives broker restart (mongoc)
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create subscription
+# 02. Stop and restart broker (subscription should reload from MongoDB)
+# 03. Create matching entity — should trigger notification (sub reloaded from DB)
+# 04. Dump ftClient — 1 notification
+# 05. Retrieve subscription — should still exist with correct data
+#
+
+echo "01. Create subscription"
+echo "========================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Persist",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Restart broker"
+echo "===================="
+swBrokerStop
+swBrokerStart
+echo "restarted"
+echo
+echo
+
+
+echo "03. Create matching entity — should trigger notification"
+echo "=========================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 120}
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Dump ftClient — 1 notification"
+echo "===================================="
+ftClientDump
+echo
+echo
+
+
+echo "05. Retrieve subscription — should exist"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Persist
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription
+========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Persist
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Restart broker
+====================
+restarted
+
+
+03. Create matching entity — should trigger notification
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Dump ftClient — 1 notification
+====================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:ngsi-ld:Vehicle:V1",
+          "speed": {
+            "type": "Property",
+            "value": 120
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:Subscription:Persist",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. Retrieve subscription — should exist
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Persist",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    },
+    "lastNotification": REGEX(".*"),
+    "lastSuccess": REGEX(".*"),
+    "timesSent": 1
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

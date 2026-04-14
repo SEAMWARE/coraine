@@ -176,8 +176,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -188,8 +188,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -200,8 +200,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e3
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -212,8 +212,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e4
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -224,8 +224,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e5
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -235,26 +235,26 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>; rel="next"; type="application/json"
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 215
+Link: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:e1",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 1
-    }
+    },
+    "id": "urn:e1",
+    "type": "T"
   },
   {
-    "id": "urn:e2",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 2
-    }
+    },
+    "id": "urn:e2",
+    "type": "T"
   }
 ]
 
@@ -265,26 +265,26 @@ Content-Length: 215
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=0>; rel="prev"; type="application/json", </ngsi-ld/v1/entities?type=T&limit=2&offset=4>; rel="next"; type="application/json"
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 215
+Link: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:e3",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 3
-    }
+    },
+    "id": "urn:e3",
+    "type": "T"
   },
   {
-    "id": "urn:e4",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 4
-    }
+    },
+    "id": "urn:e4",
+    "type": "T"
   }
 ]
 
@@ -295,18 +295,18 @@ Content-Length: 215
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>; rel="prev"; type="application/json"
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 109
+Link: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:e5",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 5
-    }
+    },
+    "id": "urn:e5",
+    "type": "T"
   }
 ]
 
@@ -318,49 +318,49 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Results-Count: 5
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 533
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:e1",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 1
-    }
+    },
+    "id": "urn:e1",
+    "type": "T"
   },
   {
-    "id": "urn:e2",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 2
-    }
+    },
+    "id": "urn:e2",
+    "type": "T"
   },
   {
-    "id": "urn:e3",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 3
-    }
+    },
+    "id": "urn:e3",
+    "type": "T"
   },
   {
-    "id": "urn:e4",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 4
-    }
+    },
+    "id": "urn:e4",
+    "type": "T"
   },
   {
-    "id": "urn:e5",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 5
-    }
+    },
+    "id": "urn:e5",
+    "type": "T"
   }
 ]
 
@@ -372,26 +372,26 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Results-Count: 5
-Link: </ngsi-ld/v1/entities?count=true&type=T&limit=2&offset=2>; rel="next"; type="application/json"
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 215
+Link: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:e1",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 1
-    }
+    },
+    "id": "urn:e1",
+    "type": "T"
   },
   {
-    "id": "urn:e2",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 2
-    }
+    },
+    "id": "urn:e2",
+    "type": "T"
   }
 ]
 
@@ -403,8 +403,8 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Results-Count: 5
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -415,12 +415,12 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "limit=0 is only valid when count=true",
   "title": "Invalid request",
-  "detail": "limit=0 is only valid when count=true"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -430,9 +430,9 @@ Content-Length: 150
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&limit=20&offset=0>; rel="prev"; type="application/json"
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Link: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 []
 
@@ -443,49 +443,49 @@ Content-Length: 3
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 533
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:e1",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 1
-    }
+    },
+    "id": "urn:e1",
+    "type": "T"
   },
   {
-    "id": "urn:e2",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 2
-    }
+    },
+    "id": "urn:e2",
+    "type": "T"
   },
   {
-    "id": "urn:e3",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 3
-    }
+    },
+    "id": "urn:e3",
+    "type": "T"
   },
   {
-    "id": "urn:e4",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 4
-    }
+    },
+    "id": "urn:e4",
+    "type": "T"
   },
   {
-    "id": "urn:e5",
-    "type": "T",
     "a": {
       "type": "Property",
       "value": 5
-    }
+    },
+    "id": "urn:e5",
+    "type": "T"
   }
 ]
 

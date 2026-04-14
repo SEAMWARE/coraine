@@ -198,12 +198,12 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 136
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "georel value is empty",
   "title": "Invalid geo-query",
-  "detail": "georel value is empty"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -213,12 +213,12 @@ Content-Length: 136
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 137
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "unknown georel: 'NEAR'",
   "title": "Invalid geo-query",
-  "detail": "unknown georel: 'NEAR'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -228,12 +228,12 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 136
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "unknown georel: 'foo'",
   "title": "Invalid geo-query",
-  "detail": "unknown georel: 'foo'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -243,12 +243,12 @@ Content-Length: 136
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 164
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "georel 'near' requires maxDistance or minDistance",
   "title": "Invalid geo-query",
-  "detail": "georel 'near' requires maxDistance or minDistance"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -258,12 +258,12 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 150
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "unknown georel modifier: 'foo==100'",
   "title": "Invalid geo-query",
-  "detail": "unknown georel modifier: 'foo==100'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -273,12 +273,12 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 157
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "unknown georel modifier: 'maxDistance=100'",
   "title": "Invalid geo-query",
-  "detail": "unknown georel modifier: 'maxDistance=100'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -288,12 +288,12 @@ Content-Length: 157
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 147
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "invalid distance value in georel",
   "title": "Invalid geo-query",
-  "detail": "invalid distance value in georel"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -303,12 +303,12 @@ Content-Length: 147
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 154
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "distance must not be negative in georel",
   "title": "Invalid geo-query",
-  "detail": "distance must not be negative in georel"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -318,12 +318,12 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "maxDistance/minDistance only valid with georel 'near'",
   "title": "Invalid geo-query",
-  "detail": "maxDistance/minDistance only valid with georel 'near'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -333,12 +333,12 @@ Content-Length: 168
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 138
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "geometry value is empty",
   "title": "Invalid geo-query",
-  "detail": "geometry value is empty"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -348,12 +348,12 @@ Content-Length: 138
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 149
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "unsupported geometry type: 'Piont'",
   "title": "Invalid geo-query",
-  "detail": "unsupported geometry type: 'Piont'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -363,12 +363,12 @@ Content-Length: 149
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 149
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "unsupported geometry type: 'point'",
   "title": "Invalid geo-query",
-  "detail": "unsupported geometry type: 'point'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -378,12 +378,12 @@ Content-Length: 149
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 141
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "coordinates value is empty",
   "title": "Invalid geo-query",
-  "detail": "coordinates value is empty"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -393,12 +393,12 @@ Content-Length: 141
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 147
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "coordinates must be a JSON array",
   "title": "Invalid geo-query",
-  "detail": "coordinates must be a JSON array"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -408,12 +408,12 @@ Content-Length: 147
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 166
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "incomplete geo-query: missing geometry, coordinates",
   "title": "Invalid geo-query",
-  "detail": "incomplete geo-query: missing geometry, coordinates"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -423,12 +423,12 @@ Content-Length: 166
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 164
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "incomplete geo-query: missing georel, coordinates",
   "title": "Invalid geo-query",
-  "detail": "incomplete geo-query: missing georel, coordinates"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -438,12 +438,12 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 161
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "incomplete geo-query: missing georel, geometry",
   "title": "Invalid geo-query",
-  "detail": "incomplete geo-query: missing georel, geometry"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -453,12 +453,12 @@ Content-Length: 161
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 156
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "incomplete geo-query: missing coordinates",
   "title": "Invalid geo-query",
-  "detail": "incomplete geo-query: missing coordinates"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -468,12 +468,12 @@ Content-Length: 156
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 153
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "incomplete geo-query: missing geometry",
   "title": "Invalid geo-query",
-  "detail": "incomplete geo-query: missing geometry"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -483,12 +483,12 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "incomplete geo-query: missing georel",
   "title": "Invalid geo-query",
-  "detail": "incomplete geo-query: missing georel"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
@@ -498,12 +498,12 @@ Content-Length: 151
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: REGEX(\d+)
 
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "detail": "geoproperty without georel, geometry, and coordinates",
   "title": "Invalid geo-query",
-  "detail": "geoproperty without georel, geometry, and coordinates"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 

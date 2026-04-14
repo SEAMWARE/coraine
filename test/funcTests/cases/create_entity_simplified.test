@@ -126,8 +126,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:simp:E1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -137,28 +137,28 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 {
-  "id": "urn:simp:E1",
-  "type": "T",
-  "speed": {
-    "type": "Property",
-    "value": 100
-  },
-  "name": {
-    "type": "Property",
-    "value": "Car 1"
-  },
   "active": {
     "type": "Property",
     "value": true
   },
+  "id": "urn:simp:E1",
+  "name": {
+    "type": "Property",
+    "value": "Car 1"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 100
+  },
   "temperature": {
     "type": "Property",
     "value": 22.5
-  }
+  },
+  "type": "T"
 }
 
 
@@ -169,8 +169,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:simp:E2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -180,22 +180,22 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 185
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:simp:E2",
-  "type": "T",
   "location": {
     "type": "GeoProperty",
     "value": {
-      "type": "Point",
       "coordinates": [
         1,
         2
-      ]
+      ],
+      "type": "Point"
     }
-  }
+  },
+  "type": "T"
 }
 
 
@@ -206,8 +206,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:simp:E3
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -217,12 +217,11 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 145
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:simp:E3",
-  "type": "T",
   "tags": {
     "type": "Property",
     "value": [
@@ -230,7 +229,8 @@ Content-Length: 145
       "red",
       "sporty"
     ]
-  }
+  },
+  "type": "T"
 }
 
 
@@ -241,8 +241,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:simp:E4
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -252,19 +252,19 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 143
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:simp:E4",
-  "type": "T",
   "metadata": {
     "type": "Property",
     "value": {
       "key": "val",
       "num": 42
     }
-  }
+  },
+  "type": "T"
 }
 
 

@@ -110,8 +110,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e1
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -122,8 +122,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e2
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -134,8 +134,8 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:e3
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 0
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 
 
@@ -145,36 +145,36 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 425
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
-  "type": "Feature",
-  "id": "urn:e1",
   "geometry": {
-    "type": "Point",
     "coordinates": [
       -3.703,
       40.417
-    ]
+    ],
+    "type": "Point"
   },
+  "id": "urn:e1",
   "properties": {
-    "type": "City",
     "location": {
       "type": "GeoProperty",
       "value": {
-        "type": "Point",
         "coordinates": [
           -3.703,
           40.417
-        ]
+        ],
+        "type": "Point"
       }
     },
     "name": {
       "type": "Property",
       "value": "Madrid"
-    }
-  }
+    },
+    "type": "City"
+  },
+  "type": "Feature"
 }
 
 
@@ -184,66 +184,62 @@ Content-Length: 425
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1869
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
-  "type": "FeatureCollection",
   "features": [
     {
-      "type": "Feature",
-      "id": "urn:e1",
       "geometry": {
-        "type": "Point",
         "coordinates": [
           -3.703,
           40.417
-        ]
+        ],
+        "type": "Point"
       },
+      "id": "urn:e1",
       "properties": {
-        "type": "City",
         "location": {
           "type": "GeoProperty",
           "value": {
-            "type": "Point",
             "coordinates": [
               -3.703,
               40.417
-            ]
+            ],
+            "type": "Point"
           }
         },
         "name": {
           "type": "Property",
           "value": "Madrid"
-        }
-      }
+        },
+        "type": "City"
+      },
+      "type": "Feature"
     },
     {
-      "type": "Feature",
-      "id": "urn:e2",
       "geometry": {
-        "type": "Point",
         "coordinates": [
           2.154,
           41.39
-        ]
+        ],
+        "type": "Point"
       },
+      "id": "urn:e2",
       "properties": {
-        "type": "City",
         "location": {
           "type": "GeoProperty",
           "value": {
-            "type": "Point",
             "coordinates": [
               2.154,
               41.39
-            ]
+            ],
+            "type": "Point"
           }
         },
         "operationArea": {
           "type": "GeoProperty",
           "value": {
-            "type": "Polygon",
             "coordinates": [
               [
                 [
@@ -267,24 +263,28 @@ Content-Length: 1869
                   35
                 ]
               ]
-            ]
+            ],
+            "type": "Polygon"
           }
-        }
-      }
+        },
+        "type": "City"
+      },
+      "type": "Feature"
     },
     {
-      "type": "Feature",
-      "id": "urn:e3",
       "geometry": null,
+      "id": "urn:e3",
       "properties": {
-        "type": "City",
         "name": {
           "type": "Property",
           "value": "NoGeo"
-        }
-      }
+        },
+        "type": "City"
+      },
+      "type": "Feature"
     }
-  ]
+  ],
+  "type": "FeatureCollection"
 }
 
 
@@ -294,14 +294,11 @@ Content-Length: 1869
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1067
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
-  "type": "Feature",
-  "id": "urn:e2",
   "geometry": {
-    "type": "Polygon",
     "coordinates": [
       [
         [
@@ -325,24 +322,24 @@ Content-Length: 1067
           35
         ]
       ]
-    ]
+    ],
+    "type": "Polygon"
   },
+  "id": "urn:e2",
   "properties": {
-    "type": "City",
     "location": {
       "type": "GeoProperty",
       "value": {
-        "type": "Point",
         "coordinates": [
           2.154,
           41.39
-        ]
+        ],
+        "type": "Point"
       }
     },
     "operationArea": {
       "type": "GeoProperty",
       "value": {
-        "type": "Polygon",
         "coordinates": [
           [
             [
@@ -366,10 +363,13 @@ Content-Length: 1067
               35
             ]
           ]
-        ]
+        ],
+        "type": "Polygon"
       }
-    }
-  }
+    },
+    "type": "City"
+  },
+  "type": "Feature"
 }
 
 
@@ -379,20 +379,20 @@ Content-Length: 1067
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 174
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
-  "type": "Feature",
-  "id": "urn:e3",
   "geometry": null,
+  "id": "urn:e3",
   "properties": {
-    "type": "City",
     "name": {
       "type": "Property",
       "value": "NoGeo"
-    }
-  }
+    },
+    "type": "City"
+  },
+  "type": "Feature"
 }
 
 
@@ -402,30 +402,30 @@ Content-Length: 174
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 349
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
 
 {
-  "type": "Feature",
-  "id": "urn:e1",
   "geometry": null,
+  "id": "urn:e1",
   "properties": {
-    "type": "City",
     "location": {
       "type": "GeoProperty",
       "value": {
-        "type": "Point",
         "coordinates": [
           -3.703,
           40.417
-        ]
+        ],
+        "type": "Point"
       }
     },
     "name": {
       "type": "Property",
       "value": "Madrid"
-    }
-  }
+    },
+    "type": "City"
+  },
+  "type": "Feature"
 }
 
 

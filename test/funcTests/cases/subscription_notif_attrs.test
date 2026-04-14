@@ -1,0 +1,250 @@
+#
+# FILE            subscription_notif_attrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Subscription notification.attributes filtering
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create subscription with notification.attributes=["speed"]
+# 02. Create entity with speed + color — notification should only contain speed
+# 03. Dump ftClient — verify notification has speed but NOT color
+# 04. Reset ftClient
+# 05. Create subscription with no attributes filter
+# 06. Create another entity — notification should contain all attributes
+# 07. Dump ftClient — verify all attributes present
+#
+
+echo "01. Create subscription with notification.attributes=[speed]"
+echo "=============================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:AttrsFilter",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "attributes": ["speed"],
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create entity with speed + color"
+echo "======================================"
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 120
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Dump ftClient — speed present, color absent"
+echo "================================================="
+ftClientDump
+echo
+echo
+
+
+echo "04. Reset ftClient"
+echo "==================="
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "05. Create subscription with no attributes filter"
+echo "==================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:NoFilter",
+  "type": "Subscription",
+  "entities": [{"type": "Car"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "06. Create entity with speed + color (type Car)"
+echo "================================================="
+payload='{
+  "id": "urn:ngsi-ld:Car:C1",
+  "type": "Car",
+  "speed": {
+    "type": "Property",
+    "value": 80
+  },
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Dump ftClient — all attributes present"
+echo "============================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription with notification.attributes=[speed]
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:AttrsFilter
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create entity with speed + color
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Dump ftClient — speed present, color absent
+=================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:ngsi-ld:Vehicle:V1",
+          "speed": {
+            "type": "Property",
+            "value": 120
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:Subscription:AttrsFilter",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. Reset ftClient
+===================
+done
+
+
+05. Create subscription with no attributes filter
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:NoFilter
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+06. Create entity with speed + color (type Car)
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Car:C1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+07. Dump ftClient — all attributes present
+============================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "color": {
+            "type": "Property",
+            "value": "blue"
+          },
+          "id": "urn:ngsi-ld:Car:C1",
+          "speed": {
+            "type": "Property",
+            "value": 80
+          },
+          "type": "Car"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:Subscription:NoFilter",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

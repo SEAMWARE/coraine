@@ -74,8 +74,8 @@ swBrokerStart() {
 
   # TRoE DB plugin (future)
   case "$SW_TROE_DB_TYPE" in
-    NONE)   ;;  # compiled-in default
-    *)      echo "swBrokerStart: unknown -troeDb type: $SW_TROE_DB_TYPE"; return 1 ;;
+    NONE|"") ;;  # compiled-in default or unset
+    *)       echo "swBrokerStart: unknown -troeDb type: $SW_TROE_DB_TYPE"; return 1 ;;
   esac
 
   # Append test-specific extra params
@@ -85,7 +85,7 @@ swBrokerStart() {
 
   $cmd > /dev/null 2>&1 &
   echo $! > "$SW_ROLE_PID_FILE"
-  swAwaitPort $SW_ROLE_PORT 5
+  swAwaitPort $SW_ROLE_PORT 10
 }
 
 
@@ -137,7 +137,7 @@ swDbDrop() {
       if [ -n "$tenant" ]; then
         db="${db}-${tenant}"
       fi
-      mongo --quiet --eval 'db.entities.drop()' "$db" > /dev/null 2>&1
+      mongo --quiet --eval 'db.entities.drop(); db.subscriptions.drop()' "$db" > /dev/null 2>&1
       ;;
     ramdb|NONE)
       # No-op: broker restart clears the RAM store
@@ -148,4 +148,120 @@ swDbDrop() {
 # swDbInit: drop + recreate
 swDbInit() {
   swDbDrop "$@"
+}
+
+
+# -----------------------------------------------------------------------------
+#
+# ftClient - notification receiver for subscription tests
+#
+FT_CLIENT=$SW_BROKER_DIR/test/funcTests/ftClient/ftClient
+FT_CLIENT_PORT=7701
+FT_CLIENT_PID_FILE=/tmp/ftClient.pid
+
+
+# ftClientStart [extra-params...]
+#
+# Usage:  ftClientStart
+#         ftClientStart --port 7702
+#
+ftClientStart() {
+  ftClientStop 2>/dev/null
+
+  local port=$FT_CLIENT_PORT
+  local -a extraParams
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      FT_CLIENT_PORT="$port"
+      shift
+    else
+      extraParams+=("$1")
+    fi
+    shift
+  done
+
+  $FT_CLIENT --port $port ${extraParams[*]} > /dev/null 2>&1 &
+  echo $! > "$FT_CLIENT_PID_FILE"
+  swAwaitPort $port 5
+}
+
+
+# ftClientStop
+#
+ftClientStop() {
+  if [ -f "$FT_CLIENT_PID_FILE" ]; then
+    local pid=$(cat "$FT_CLIENT_PID_FILE")
+    kill $pid 2>/dev/null
+    sleep 0.1
+    kill -0 $pid 2>/dev/null && kill -9 $pid 2>/dev/null
+    \rm -f "$FT_CLIENT_PID_FILE"
+  fi
+}
+
+
+# ftClientDump - retrieve accumulated notifications
+#
+ftClientDump() {
+  local raw
+  raw=$(curl -s http://localhost:$FT_CLIENT_PORT/dump)
+
+  if [ -n "$KJSON" ] && [ -n "$raw" ] && [ "$raw" != "[]" ]; then
+    echo "$raw" | $KJSON -sort | head -c -1
+  else
+    echo -n "$raw"
+  fi
+}
+
+
+# ftClientReset - clear accumulated notifications
+#
+ftClientReset() {
+  curl -s -X DELETE http://localhost:$FT_CLIENT_PORT/dump > /dev/null
+}
+
+
+# -----------------------------------------------------------------------------
+#
+# Context Server (wistefan/context-server on port 7080)
+#
+CONTEXT_SERVER_PORT=7080
+
+
+# contextServerStart - ensure the Docker context server is running
+#
+contextServerStart() {
+  local dockerExec=$(which docker 2>/dev/null)
+  if [ -z "$dockerExec" ]; then
+    echo "contextServerStart: docker not found"
+    return 1
+  fi
+
+  local running=$(docker ps --filter name=context-server -q 2>/dev/null)
+  if [ -z "$running" ]; then
+    docker run --rm -d --name context-server -p $CONTEXT_SERVER_PORT:8080 -e MEMORY_ENABLED=true wistefan/context-server > /dev/null 2>&1
+    sleep 3  # context server is slow to start
+  fi
+}
+
+
+# contextServerStop - stop the Docker context server
+#
+contextServerStop() {
+  docker kill context-server > /dev/null 2>&1
+}
+
+
+# contextServerPush - push a JSON-LD context to the context server
+#
+# Usage: contextServerPush <url-path> '<json-ld-context>'
+#
+contextServerPush() {
+  local urlPath="$1"
+  local payload="$2"
+
+  curl -s -X POST "http://localhost:$CONTEXT_SERVER_PORT$urlPath" \
+    -H 'Content-Type: application/ld+json' \
+    -d "$payload" > /dev/null
 }
