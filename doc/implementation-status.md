@@ -1,7 +1,7 @@
 # swBroker Implementation Status
 
 Version: post-0.2.0
-Date: 2026-04-10
+Date: 2026-04-16
 
 ---
 
@@ -164,7 +164,45 @@ attribute types and observedAt presence for correct behavior).
 Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
 `patch_entity_url_params.test`, `patch_entity_type_change.test`
 
-### 6. Admin API (plugin)
+### 6. PUT /ngsi-ld/v1/entities/{entityId} — Replace Entity
+
+**Status: Mostly complete (local only, no type disambiguation, no distops)**
+
+Implements Replace Entity per § 5.6.16 using the procedure of § 5.5.12.
+Atomic replace at the driver level: swRamDB detaches the old tree and
+grafts a clone of the new one in place; mongoc uses
+`mongoc_collection_find_and_modify_with_opts` so the find/replace/return-old
+is a single server-side operation. The service routine pre-retrieves the
+existing entity to enforce the "type shall not change" guard before the
+replace — multi-type entities are compared as sets.
+
+| Feature | Status |
+|---------|--------|
+| Full-entity replacement (attrs not in body are removed) | Done |
+| Atomic driver primitive (`entityReplace`) | Done |
+| Type-change guard (scalar and multi-type) | Done |
+| Body id / URL id consistency check | Done |
+| Content-Type validation (415 on non-JSON) | Done |
+| 204 No Content on success | Done |
+| 404 Not Found | Done |
+| 400 on missing id / missing type / bad payload / id mismatch / type change | Done |
+| Multi-tenancy | Done |
+| Full shared-validator coverage (duplicate keys, bad URIs, conflicting value keys, GeoProperty errors, multi-attr datasetId, observedAt, unitCode, ...) | Done |
+| Subscriptions / notifications on replace | Done (deferred notify, LdNotifyEntityUpdate) |
+| `type` URL param (distops disambiguation) | Not done |
+| Distributed operations | Not done |
+
+Functional tests: `entity_replace.test` (8 cases — happy path + PUT-specific
+errors), `entity_replace_errors.test` (17 cases — one per validator class).
+
+### 7. Subscriptions (POST / GET / PATCH / DELETE) + notifications
+
+**Status: Done.** CRUD, in-memory matcher (q, geoQ, scopeQ, entity selector
+with id/idPattern/type), throttling, expiration, status recomputation,
+notification format (normalized/concise/simplified), counters, and mongoc
+persistence/retrieval. 70+ dedicated functests.
+
+### 8. Admin API (plugin)
 
 **Status: Complete**
 
@@ -174,7 +212,7 @@ Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
 - GET /admin/tenants
 - GET /admin/plugins
 
-### 7. Other
+### 9. Other
 
 - CORS support (--corsOrigin, --corsMaxAge)
 - HEAD requests (auto-generated from GET handlers)
@@ -191,7 +229,6 @@ Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
 
 | Endpoint | Spec Section | Complexity | Estimate |
 |----------|-------------|------------|----------|
-| PUT /entities/{entityId} | 5.5.3 | Medium | 2 days |
 | POST /entities/{entityId}/attrs | 5.5.7 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs | 5.5.8 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs/{attrId} | 5.5.9 | Medium | 1-2 days |
@@ -211,15 +248,13 @@ Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
 
 ### Subscription Operations
 
-| Endpoint | Spec Section | Complexity | Estimate |
-|----------|-------------|------------|----------|
-| POST /subscriptions | 5.8.1 | High | 5-7 days |
-| GET /subscriptions | 5.8.4 | Low | 1 day |
-| GET /subscriptions/{id} | 5.8.3 | Low | 0.5 days |
-| PATCH /subscriptions/{id} | 5.8.2 | Medium | 2-3 days |
-| DELETE /subscriptions/{id} | 5.8.5 | Low | 0.5 days |
-| Notification engine (HTTP/MQTT) | 5.10 | High | 5-7 days |
-| Geo-fencing (in-memory matching) | 5.10 | High | 3-5 days |
+**All CRUD + notification engine done** (see section 7 above). MQTT
+notification transport and distributed-subscription forwarding remain.
+
+| Missing piece | Spec Section | Complexity | Estimate |
+|---------------|-------------|------------|----------|
+| MQTT notification transport | 5.10 | Medium | 2-3 days |
+| Distributed subscription forwarding | 5.11 | High | 3-5 days |
 
 ### Registration / Distributed Operations
 
@@ -295,23 +330,31 @@ standard NGSI-LD queries against the frozen snapshot data.
 
 ## DB Driver Interface
 
-Currently supports 5 operations:
-- `entityCreate` — used by POST /entities
-- `entityRetrieve` — used by GET /entities/{id}
-- `entityQuery` — used by GET /entities
-- `entityDelete` — used by DELETE /entities/{id}
-- `entityMerge` — used by PATCH /entities/{id}; reuses `ldEntityMerge` in
+Currently supports:
+
+Entity operations:
+- `entityCreate` — POST /entities
+- `entityRetrieve` — GET /entities/{id}
+- `entityQuery` — GET /entities
+- `entityDelete` — DELETE /entities/{id}
+- `entityMerge` — PATCH /entities/{id}; reuses `ldEntityMerge` in
   swNgsild, fronted in each driver by a `*EntityMergeOne` helper so Batch
   Merge (§ 5.6.20) can share the core
+- `entityReplace` — PUT /entities/{id}; atomic via in-place swap (ramdb)
+  or `find_and_modify` (mongoc); returns the pre-image for notifications
+
+Subscription operations:
+- `subscriptionCreate`, `subscriptionRetrieve`, `subscriptionQuery`,
+  `subscriptionUpdate`, `subscriptionDelete`, `subscriptionList`
+
+Plus: `tenantSetup`, `geoMatchFunc`, `versionInfo`, `init`, `close`.
 
 New endpoints will require extending the `DbDriver` interface with:
-- `entityReplace` (PUT)
 - `entityAppendAttrs` (POST attrs)
 - `entityUpdateAttrs` (PATCH attrs)
 - `attrUpdate` (PATCH attr)
 - `attrDelete` (DELETE attr)
 - `attrReplace` (PUT attr)
-- Subscription CRUD
 - Registration CRUD
 - Temporal CRUD (if supported)
 
@@ -321,15 +364,15 @@ New endpoints will require extending the `DbDriver` interface with:
 
 | Category | Endpoints | Done | Remaining |
 |----------|-----------|------|-----------|
-| Entity CRUD | 8 | 5 | 3 |
+| Entity CRUD | 8 | 6 | 2 |
 | Batch Operations | 6 | 0 | 6 |
-| Subscriptions | 5 + engine | 0 | 5 + engine |
+| Subscriptions | 5 + engine | 5 + engine | MQTT, distops |
 | Registrations | 5 + distops | 0 | 5 + distops |
 | Types/Attributes | 4 | 0 | 4 |
 | Temporal | ~8 | 0 | ~8 |
 | Snapshots | 7 + engine | 0 | 7 + engine |
 | @context hosting | 4 | 0 | 4 |
-| **Total** | **~47** | **5** | **~42** |
+| **Total** | **~47** | **11 + sub engine** | **~36** |
 
 ### Rough Estimates to Full NGSI-LD v1.9.1 Coverage
 

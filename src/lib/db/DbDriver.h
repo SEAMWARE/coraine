@@ -46,6 +46,8 @@ typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNod
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode* fragmentDb,
                                   uint64_t ts, LdMergeReport* reportP);
+typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
+                                    KjNode* newEntityP, KjNode** oldEntityPP);
 typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
 typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, KjNode** subPP);
 typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
@@ -73,6 +75,7 @@ typedef struct DbDriver
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;
   DbEntityMergeFunc       entityMerge;
+  DbEntityReplaceFunc     entityReplace;
   DbSubscriptionCreateFunc   subscriptionCreate;
   DbSubscriptionRetrieveFunc subscriptionRetrieve;
   DbSubscriptionQueryFunc    subscriptionQuery;

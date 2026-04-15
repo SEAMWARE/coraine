@@ -21,6 +21,7 @@
 #include "currentState/mongoc/mongocEntityQuery.h"                  // mongocEntityQuery
 #include "currentState/mongoc/mongocEntityDelete.h"                 // mongocEntityDelete
 #include "currentState/mongoc/mongocEntityMerge.h"                  // mongocEntityMerge
+#include "currentState/mongoc/mongocEntityReplace.h"                // mongocEntityReplace
 #include "currentState/mongoc/mongocTenantSetup.h"                  // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                     // mongocVersionInfo
 #include "currentState/mongoc/mongocSubscriptionCreate.h"           // mongocSubscriptionCreate
@@ -66,6 +67,7 @@ void dbRegister(DbDriver* driverP)
   driverP->entityQuery     = mongocEntityQuery;
   driverP->entityDelete    = mongocEntityDelete;
   driverP->entityMerge     = mongocEntityMerge;
+  driverP->entityReplace   = mongocEntityReplace;
   driverP->tenantSetup     = mongocTenantSetup;
   driverP->versionInfo     = mongocVersionInfo;
 

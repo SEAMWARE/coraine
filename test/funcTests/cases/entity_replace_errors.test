@@ -1,0 +1,512 @@
+#
+# FILE            entity_replace_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Payload-validation errors on PUT /entities/{id}. The validator
+# (ldCheckEntity / ldCheckAttribute) is shared with POST and PATCH, so this
+# test isn't about re-proving every validation rule — it's a regression
+# guard that the validator is actually reached through the PUT path.
+# Covers one representative case per validator class.
+#
+--NAME--
+PUT /entities/{id} - payload validation errors
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Payload not a JSON object (array)
+# 02. Empty JSON object {}
+# 03. id not a string
+# 04. id not a valid URI
+# 05. Duplicate id field
+# 06. type not a string
+# 07. Duplicate type field
+# 08. scope not a string or array
+# 09. Property missing value
+# 10. Property with conflicting value keys (value + object)
+# 11. Relationship object not a URI string
+# 12. observedAt not a valid ISO 8601 DateTime
+# 13. unitCode not a string
+# 14. datasetId not a valid URI
+# 15. GeoProperty value not an object
+# 16. GeoProperty missing coordinates
+# 17. Multi-attribute duplicate datasetId
+#
+
+echo "01. Payload not a JSON object (array)"
+echo "====================================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '[1, 2, 3]'
+echo
+echo
+
+
+echo "02. Empty JSON object"
+echo "====================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{}'
+echo
+echo
+
+
+echo "03. id not a string"
+echo "==================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{"id":14,"type":"T"}'
+echo
+echo
+
+
+echo "04. id not a valid URI"
+echo "======================"
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{"id":"not-a-uri","type":"T"}'
+echo
+echo
+
+
+echo "05. Duplicate id field"
+echo "======================"
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "id": "urn:ngsi-ld:Vehicle:V2",
+  "type": "Vehicle"
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "06. type not a string"
+echo "====================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": 42
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "07. Duplicate type field"
+echo "========================"
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "type": "Motorcycle"
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "08. scope not a string or array"
+echo "==============================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "scope": 42
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "09. Property missing value"
+echo "=========================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property" }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "10. Property with conflicting value keys"
+echo "========================================"
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "object": "urn:bad"
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "11. Relationship object not a URI string"
+echo "========================================"
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "rel": {
+    "type": "Relationship",
+    "object": 42
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "12. observedAt not a valid ISO 8601"
+echo "==================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "observedAt": "not-a-date"
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "13. unitCode not a string"
+echo "========================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "unitCode": 42
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "14. datasetId not a valid URI"
+echo "============================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100,
+    "datasetId": "not-a-uri"
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "15. GeoProperty value not an object"
+echo "==================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "location": {
+    "type": "GeoProperty",
+    "value": "not an object"
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "16. GeoProperty missing coordinates"
+echo "==================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "location": {
+    "type": "GeoProperty",
+    "value": { "type": "Point" }
+  }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "17. Multi-attribute duplicate datasetId"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": [
+    { "type": "Property", "value": 100, "datasetId": "urn:ds1" },
+    { "type": "Property", "value": 200, "datasetId": "urn:ds1" }
+  ]
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Payload not a JSON object (array)
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity payload must be a JSON object",
+  "title": "Invalid Entity",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Empty JSON object
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'id' is mandatory for ReplaceEntity",
+  "title": "Missing Entity Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. id not a string
+===================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'id' must be a string",
+  "title": "Invalid Entity Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. id not a valid URI
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Not a valid URI: 'not-a-uri'",
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Duplicate id field
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Duplicate 'id' / '@id' in entity",
+  "title": "Duplicate Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. type not a string
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'type' must be a string or array of strings",
+  "title": "Invalid Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Duplicate type field
+========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Duplicate 'type' / '@type' in entity",
+  "title": "Duplicate Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. scope not a string or array
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'scope' must be a string or array of strings",
+  "title": "Invalid Scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Property missing value
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'https://uri.etsi.org/ngsi-ld/hasValue'",
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Property with conflicting value keys
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)",
+  "title": "Conflicting Value Keys",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. Relationship object not a URI string
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string",
+  "title": "Invalid Relationship",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. observedAt not a valid ISO 8601
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'",
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. unitCode not a string
+=========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'unitCode' must be a string",
+  "title": "Invalid unitCode",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. datasetId not a valid URI
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Not a valid URI: 'not-a-uri'",
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. GeoProperty value not an object
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "GeoJSON value must be an object",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. GeoProperty missing coordinates
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+17. Multi-attribute duplicate datasetId
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'",
+  "title": "Duplicate datasetId",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -28,6 +28,7 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postEntities.c \
                 src/lib/serviceRoutines/deleteEntity.c \
                 src/lib/serviceRoutines/patchEntity.c  \
+                src/lib/serviceRoutines/replaceEntity.c  \
                 src/lib/serviceRoutines/postSubscriptions.c  \
                 src/lib/serviceRoutines/getSubscriptions.c   \
                 src/lib/serviceRoutines/getSubscription.c    \
@@ -77,6 +78,7 @@ RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_D
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
                  $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
                  $(RAMDB_DIR)/ramdbEntityDelete.c $(RAMDB_DIR)/ramdbEntityMerge.c \
+                 $(RAMDB_DIR)/ramdbEntityReplace.c \
                  $(RAMDB_DIR)/ramdbSubscriptionCreate.c $(RAMDB_DIR)/ramdbSubscriptionRetrieve.c \
                  $(RAMDB_DIR)/ramdbSubscriptionQuery.c $(RAMDB_DIR)/ramdbSubscriptionUpdate.c \
                  $(RAMDB_DIR)/ramdbSubscriptionDelete.c \
@@ -94,6 +96,7 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocInit.c $(MONGOC_DIR)/mongocClose.c \
                  $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityRetrieve.c \
                  $(MONGOC_DIR)/mongocEntityDelete.c $(MONGOC_DIR)/mongocEntityMerge.c \
+                 $(MONGOC_DIR)/mongocEntityReplace.c \
                  $(MONGOC_DIR)/mongocEntityQuery.c $(MONGOC_DIR)/mongocGeoIndex.c \
                  $(MONGOC_DIR)/mongocTenantSetup.c $(MONGOC_DIR)/mongocVersion.c \
                  $(MONGOC_DIR)/mongocKjTreeToBson.c $(MONGOC_DIR)/mongocBsonToKjTree.c \

@@ -1,0 +1,289 @@
+#
+# FILE            entity_replace.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PUT /entities/{id} - Replace Entity (§ 5.6.16)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create the initial entity (full Vehicle, 3 attrs)
+# 02. PUT full replacement — all attrs change; type stays 'Vehicle'
+# 03. GET — verify the payload is exactly the replacement (no stale attrs left)
+# 04. PUT without id in body — 400 (spec § 5.5.12: id and type mandatory)
+# 05. PUT with body id that doesn't match the URL — 400
+# 06. PUT with a different type — 400 (type shall not change)
+# 07. PUT on a non-existent entity — 404
+# 08. PUT with no payload — 400
+# 09. PUT with missing type in body — 400
+# 10. PUT with unsupported Content-Type (text/plain) — 415
+#
+
+echo "01. Create initial entity"
+echo "========================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 100 },
+  "color": { "type": "Property", "value": "blue" },
+  "accuracy": { "type": "Property", "value": 0.9 }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PUT full replacement — different attrs, same type"
+echo "====================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "brand": { "type": "Property", "value": "Honda" },
+  "fuelLevel": { "type": "Property", "value": 75 }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "03. GET — verify old attrs are gone, new ones in place"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "04. PUT without id in body — 400"
+echo "================================"
+payload='{
+  "type": "Vehicle",
+  "model": { "type": "Property", "value": "Civic" }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "05. PUT with mismatched body id — 400"
+echo "====================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:OTHER",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 1 }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "06. PUT with different type — 400"
+echo "================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Motorcycle",
+  "speed": { "type": "Property", "value": 1 }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "07. PUT non-existent entity — 404"
+echo "================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:DOES_NOT_EXIST",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 1 }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:DOES_NOT_EXIST --payload "$payload"
+echo
+echo
+
+
+echo "08. PUT without payload — 400"
+echo "============================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "09. PUT with missing type in body — 400"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "brand": { "type": "Property", "value": "Honda" }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+echo
+echo
+
+
+echo "10. PUT with unsupported Content-Type — 415"
+echo "==========================================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 \
+       --in text --payload "not json"
+echo
+echo
+
+
+--EXPECT--
+01. Create initial entity
+=========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. PUT full replacement — different attrs, same type
+=====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET — verify old attrs are gone, new ones in place
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Honda"
+  },
+  "fuelLevel": {
+    "type": "Property",
+    "value": 75
+  },
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle"
+}
+
+
+
+04. PUT without id in body — 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'id' is mandatory for ReplaceEntity",
+  "title": "Missing Entity Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PUT with mismatched body id — 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity id in payload ('urn:ngsi-ld:Vehicle:OTHER') does not match URL ('urn:ngsi-ld:Vehicle:V1')",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PUT with different type — 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity type cannot be changed on Replace",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. PUT non-existent entity — 404
+=================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:ngsi-ld:Vehicle:DOES_NOT_EXIST' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. PUT without payload — 400
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "no payload",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. PUT with missing type in body — 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'type' is mandatory for ReplaceEntity",
+  "title": "Missing Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. PUT with unsupported Content-Type — 415
+===========================================
+HTTP/1.1 415 Unsupported Media Type
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "supported Content-Types: application/json, application/ld+json",
+  "title": "Unsupported Media Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
