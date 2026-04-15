@@ -11,7 +11,8 @@
 #include "swRest/SwRestState.h"                      // swRest
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // ldSubscriptionNotify, LdNotifyEntityDelete
+#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
+#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -55,7 +56,7 @@ bool deleteEntity(void)
   // Subscription matching + notification (entity was retrieved before deletion)
   //
   if (tenantP->subCacheP != NULL && entityP != NULL)
-    ldSubscriptionNotify((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityDelete, NULL);
+    ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityDelete, NULL);
 
   swRest.out.httpStatusCode = 204;
   return true;

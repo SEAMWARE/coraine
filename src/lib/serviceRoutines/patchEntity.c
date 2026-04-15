@@ -14,7 +14,8 @@
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // ldSubscriptionNotify, LdNotifyEntityUpdate
+#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
+#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -111,7 +112,7 @@ bool patchEntity(void)
     db.entityRetrieve(tenantP, entityId, &mergedEntity);
 
     if (mergedEntity != NULL)
-      ldSubscriptionNotify((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
+      ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
   }
 
   swRest.out.httpStatusCode = 204;

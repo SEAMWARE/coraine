@@ -21,6 +21,7 @@
 #include "swRest/swRestClient.h"                  // swRestClientInit, SwRestClientRequest/Response
 #include "swJsonld/swJsonld.h"                    // swldInit, SWJSONLD_VERSION
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
+#include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "swNgsild/SwNgsild.h"                    // swNgsild
 
 #include "db/DbDriver.h"                          // db
@@ -327,6 +328,7 @@ int main(int argC, char* argV[])
   apiPluginsInit();
   tenantInit("sw");
   swRestSetPreServiceHook(tenantPreServiceHook);
+  swRestSetPostResponseHook(ldNotifyDispatchPending);
 
   if (dbStart() != 0)
     KT_X(1, "dbStart failed");

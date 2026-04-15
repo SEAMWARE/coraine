@@ -20,7 +20,8 @@
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // ldSubscriptionNotify, LdNotifyEntityCreate
+#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
+#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -110,7 +111,7 @@ bool postEntities(void)
     idP->name = "id";
 
   if (tenantP->subCacheP != NULL)
-    ldSubscriptionNotify((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);
+    ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);
 
   //
   // 201 Created -- set Location and Link headers, no body
