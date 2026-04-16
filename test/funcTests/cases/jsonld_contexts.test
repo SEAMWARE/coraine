@@ -1,0 +1,228 @@
+#
+# FILE            jsonld_contexts.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET /jsonldContexts and /jsonldContexts/{id} (§ 5.13.4, 5.13.5)
+
+--INIT--
+swDbDrop
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxT '{
+  "@context": {
+    "speed": "https://example.org/Vehicle.speed",
+    "Vehicle": "https://example.org/Vehicle"
+  }
+}'
+
+--RUN--
+
+#
+# 01. GET /jsonldContexts — core context is pre-loaded at broker init
+# 02. POST an entity with Link header → broker downloads & caches the ref'd context
+# 03. GET /jsonldContexts — lists both core and the just-downloaded context
+# 04. GET /jsonldContexts?details=true — each entry carries id/kind/url/createdAt/lastUsage
+# 05. GET /jsonldContexts?kind=ImplicitlyCreated — same set (both are implicit)
+# 06. GET /jsonldContexts?kind=Hosted — empty array (no hosted contexts yet)
+# 07. GET /jsonldContexts/{ctxT-url} — returns the raw body, Content-Type application/ld+json
+# 08. GET /jsonldContexts/http://nope — 404
+#
+
+echo "01. GET /jsonldContexts (before any POST — core only)"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "02. POST entity referencing http://localhost:7080/jsonldContexts/ctxT"
+echo "===================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 100 }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxT>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET /jsonldContexts (lists core + ctxT)"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "04. GET /jsonldContexts?details=true"
+echo "===================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true"
+echo
+echo
+
+
+echo "05. GET /jsonldContexts?kind=ImplicitlyCreated"
+echo "=============================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=ImplicitlyCreated"
+echo
+echo
+
+
+echo "06. GET /jsonldContexts?kind=Hosted (empty)"
+echo "==========================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+echo
+echo
+
+
+echo "07. GET /jsonldContexts/{ctxT-url} — returns body"
+echo "================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxT"
+echo
+echo
+
+
+echo "08. GET /jsonldContexts/unknown-url — 404"
+echo "========================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://nope.example/ctx.jsonld"
+echo
+echo
+
+
+--EXPECT--
+01. GET /jsonldContexts (before any POST — core only)
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+02. POST entity referencing http://localhost:7080/jsonldContexts/ctxT
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. GET /jsonldContexts (lists core + ctxT)
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "http://localhost:7080/jsonldContexts/ctxT",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+04. GET /jsonldContexts?details=true
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "createdAt": REGEX(\d+),
+    "id": "http://localhost:7080/jsonldContexts/ctxT",
+    "kind": "ImplicitlyCreated",
+    "lastUsage": REGEX(\d+),
+    "url": "http://localhost:7080/jsonldContexts/ctxT"
+  },
+  {
+    "createdAt": REGEX(\d+),
+    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "kind": "ImplicitlyCreated",
+    "lastUsage": REGEX(\d+),
+    "url": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  }
+]
+
+
+
+05. GET /jsonldContexts?kind=ImplicitlyCreated
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "http://localhost:7080/jsonldContexts/ctxT",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+06. GET /jsonldContexts?kind=Hosted (empty)
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+07. GET /jsonldContexts/{ctxT-url} — returns body
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": {
+    "Vehicle": "https://example.org/Vehicle",
+    "speed": "https://example.org/Vehicle.speed"
+  }
+}
+
+
+
+08. GET /jsonldContexts/unknown-url — 404
+=========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "JSON-LD context 'http://nope.example/ctx.jsonld' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop

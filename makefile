@@ -33,7 +33,9 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/getSubscriptions.c   \
                 src/lib/serviceRoutines/getSubscription.c    \
                 src/lib/serviceRoutines/patchSubscription.c  \
-                src/lib/serviceRoutines/deleteSubscription.c
+                src/lib/serviceRoutines/deleteSubscription.c \
+                src/lib/serviceRoutines/getJsonldContexts.c  \
+                src/lib/serviceRoutines/getJsonldContext.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
