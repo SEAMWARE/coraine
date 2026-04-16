@@ -27,6 +27,11 @@
 #include "serviceRoutines/getJsonldContext.h"    // getJsonldContext
 #include "serviceRoutines/postJsonldContexts.h"  // postJsonldContexts
 #include "serviceRoutines/deleteJsonldContext.h" // deleteJsonldContext
+#include "serviceRoutines/postCsourceRegistration.h"   // postCsourceRegistration
+#include "serviceRoutines/getCsourceRegistrations.h"   // getCsourceRegistrations
+#include "serviceRoutines/getCsourceRegistration.h"    // getCsourceRegistration
+#include "serviceRoutines/patchCsourceRegistration.h"  // patchCsourceRegistration
+#include "serviceRoutines/deleteCsourceRegistration.h" // deleteCsourceRegistration
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -56,7 +61,13 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS },
   { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT  },
   { SwVerbPost,   "/ngsi-ld/v1/jsonldContexts",   postJsonldContexts,  LD_PARAMS_POST_JSONLD_CONTEXTS  },
-  { SwVerbDelete, "/ngsi-ld/v1/jsonldContexts/**", deleteJsonldContext, LD_PARAMS_DELETE_JSONLD_CONTEXT }
+  { SwVerbDelete, "/ngsi-ld/v1/jsonldContexts/**", deleteJsonldContext, LD_PARAMS_DELETE_JSONLD_CONTEXT },
+
+  { SwVerbPost,   "/ngsi-ld/v1/csourceRegistrations",   postCsourceRegistration,   LD_PARAMS_POST_CSOURCE_REGISTRATIONS },
+  { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations",   getCsourceRegistrations,   LD_PARAMS_GET_CSOURCE_REGISTRATIONS  },
+  { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", getCsourceRegistration,    LD_PARAMS_GET_CSOURCE_REGISTRATION   },
+  { SwVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", patchCsourceRegistration,  LD_PARAMS_PATCH_CSOURCE_REGISTRATION },
+  { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

@@ -68,3 +68,16 @@ KjNode* ramdbSubscriptions(Tenant* tenantP)
 
   return kjLookup(store, "subscriptions");
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ramdbRegistrations - return the "registrations" array for a tenant
+//
+KjNode* ramdbRegistrations(Tenant* tenantP)
+{
+  KjNode* store = ramdbTenantStore(tenantP);
+
+  return kjLookup(store, "registrations");
+}

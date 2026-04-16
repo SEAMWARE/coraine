@@ -30,6 +30,11 @@
 #include "currentState/mongoc/mongocSubscriptionQuery.h"            // mongocSubscriptionQuery
 #include "currentState/mongoc/mongocSubscriptionUpdate.h"           // mongocSubscriptionUpdate
 #include "currentState/mongoc/mongocSubscriptionDelete.h"           // mongocSubscriptionDelete
+#include "currentState/mongoc/mongocRegistrationCreate.h"           // mongocRegistrationCreate
+#include "currentState/mongoc/mongocRegistrationRetrieve.h"         // mongocRegistrationRetrieve
+#include "currentState/mongoc/mongocRegistrationQuery.h"            // mongocRegistrationQuery
+#include "currentState/mongoc/mongocRegistrationUpdate.h"           // mongocRegistrationUpdate
+#include "currentState/mongoc/mongocRegistrationDelete.h"           // mongocRegistrationDelete
 
 
 
@@ -78,6 +83,12 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionUpdate    = mongocSubscriptionUpdate;
   driverP->subscriptionDelete    = mongocSubscriptionDelete;
   driverP->geoMatchFunc          = mongocSubGeoMatch;
+
+  driverP->registrationCreate    = mongocRegistrationCreate;
+  driverP->registrationRetrieve  = mongocRegistrationRetrieve;
+  driverP->registrationQuery     = mongocRegistrationQuery;
+  driverP->registrationUpdate    = mongocRegistrationUpdate;
+  driverP->registrationDelete    = mongocRegistrationDelete;
 
   driverP->contextSave           = mongocContextSave;
   driverP->contextDelete         = mongocContextDelete;

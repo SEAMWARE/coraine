@@ -41,4 +41,12 @@ extern KjNode* ramdbEntities(Tenant* tenantP);
 //
 extern KjNode* ramdbSubscriptions(Tenant* tenantP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// ramdbRegistrations - return the "registrations" array for a tenant
+//
+extern KjNode* ramdbRegistrations(Tenant* tenantP);
+
 #endif  // SWRAMDB_RAMDBSTORE_H_

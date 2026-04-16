@@ -28,6 +28,11 @@
 #include "currentState/swRamDB/ramdbSubscriptionQuery.h"     // ramdbSubscriptionQuery
 #include "currentState/swRamDB/ramdbSubscriptionUpdate.h"    // ramdbSubscriptionUpdate
 #include "currentState/swRamDB/ramdbSubscriptionDelete.h"    // ramdbSubscriptionDelete
+#include "currentState/swRamDB/ramdbRegistrationCreate.h"    // ramdbRegistrationCreate
+#include "currentState/swRamDB/ramdbRegistrationRetrieve.h"  // ramdbRegistrationRetrieve
+#include "currentState/swRamDB/ramdbRegistrationQuery.h"     // ramdbRegistrationQuery
+#include "currentState/swRamDB/ramdbRegistrationUpdate.h"    // ramdbRegistrationUpdate
+#include "currentState/swRamDB/ramdbRegistrationDelete.h"    // ramdbRegistrationDelete
 #include "currentState/swRamDB/ramdbGeoMatch.h"             // ramdbGeoMatch
 
 
@@ -86,6 +91,12 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionUpdate   = ramdbSubscriptionUpdate;
   driverP->subscriptionDelete   = ramdbSubscriptionDelete;
   driverP->subscriptionList     = ramdbSubscriptions;
+  driverP->registrationCreate   = ramdbRegistrationCreate;
+  driverP->registrationRetrieve = ramdbRegistrationRetrieve;
+  driverP->registrationQuery    = ramdbRegistrationQuery;
+  driverP->registrationUpdate   = ramdbRegistrationUpdate;
+  driverP->registrationDelete   = ramdbRegistrationDelete;
+  driverP->registrationList     = ramdbRegistrations;
   driverP->tenantSetup     = ramdbTenantSetup;
   driverP->geoMatchFunc    = ramdbSubGeoMatch;
 }

@@ -415,6 +415,7 @@ int main(int argC, char* argV[])
   static char startupKallocBuf[16384];
   kaBufferInit(&swRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
   tenantSubCacheReload();
+  tenantRegCacheReload();
   contextCacheReload();
   kaBufferReset(&swRest.kalloc, false);
 

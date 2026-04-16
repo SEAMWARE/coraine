@@ -17,6 +17,8 @@
 
 #include "swNgsild/LdSubCache.h"                         // LdSubCache
 #include "swNgsild/ldSubCache.h"                         // ldSubCacheCreate, ldSubCacheItemAdd
+#include "swNgsild/LdRegCache.h"                         // LdRegCache
+#include "swNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
 #include "kjson/kjLookup.h"                              // kjLookup
 
 #include "db/DbDriver.h"                                // db
@@ -51,6 +53,7 @@ void tenantInit(const char* prefix)
   tenant0.subCacheP   = ldSubCacheCreate();
   if (tenant0.subCacheP != NULL && db.geoMatchFunc != NULL)
     ((LdSubCache*) tenant0.subCacheP)->geoMatchFunc = db.geoMatchFunc;
+  tenant0.regCacheP   = ldRegCacheCreate();
   tenant0.next        = NULL;
 }
 
@@ -117,6 +120,7 @@ Tenant* tenantGetOrCreate(const char* name)
   tP->subCacheP   = ldSubCacheCreate();
   if (tP->subCacheP != NULL && db.geoMatchFunc != NULL)
     ((LdSubCache*) tP->subCacheP)->geoMatchFunc = db.geoMatchFunc;
+  tP->regCacheP   = ldRegCacheCreate();
 
   // Prepend to linked list
   tP->next   = tenantList;
@@ -271,4 +275,46 @@ void tenantSubCacheReload(void)
   // All other tenants
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
     tenantSubCacheLoad(tP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantRegCacheLoad - load registrations for a single tenant
+//
+static void tenantRegCacheLoad(Tenant* tP)
+{
+  if (tP->regCacheP == NULL || db.registrationQuery == NULL)
+    return;
+
+  KjNode* arrayP = NULL;
+  int     r      = db.registrationQuery(tP, 0, 0, &arrayP);
+
+  if (r != DB_OK || arrayP == NULL)
+    return;
+
+  int count = 0;
+  for (KjNode* regP = arrayP->value.firstChildP; regP != NULL; regP = regP->next)
+  {
+    ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP);
+    count++;
+  }
+
+  if (count > 0)
+    KT_I("tenant '%s': loaded %d registration(s) into cache", tP->name[0] ? tP->name : "(default)", count);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantRegCacheReload -
+//
+void tenantRegCacheReload(void)
+{
+  tenantRegCacheLoad(&tenant0);
+
+  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+    tenantRegCacheLoad(tP);
 }

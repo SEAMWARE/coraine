@@ -78,6 +78,12 @@ typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, 
 typedef int  (*DbSubscriptionUpdateFunc)(Tenant* tenantP, const char* subId, KjNode* fragmentP);
 typedef int  (*DbSubscriptionDeleteFunc)(Tenant* tenantP, const char* subId);
 typedef KjNode* (*DbSubscriptionListFunc)(Tenant* tenantP);
+typedef int  (*DbRegistrationCreateFunc)(Tenant* tenantP, const char* regId, KjNode* regP);
+typedef int  (*DbRegistrationRetrieveFunc)(Tenant* tenantP, const char* regId, KjNode** regPP);
+typedef int  (*DbRegistrationQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
+typedef int  (*DbRegistrationUpdateFunc)(Tenant* tenantP, const char* regId, KjNode* fragmentP);
+typedef int  (*DbRegistrationDeleteFunc)(Tenant* tenantP, const char* regId);
+typedef KjNode* (*DbRegistrationListFunc)(Tenant* tenantP);
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
 typedef void (*DbVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
@@ -106,6 +112,12 @@ typedef struct DbDriver
   DbSubscriptionUpdateFunc   subscriptionUpdate;
   DbSubscriptionDeleteFunc   subscriptionDelete;
   DbSubscriptionListFunc     subscriptionList;
+  DbRegistrationCreateFunc   registrationCreate;
+  DbRegistrationRetrieveFunc registrationRetrieve;
+  DbRegistrationQueryFunc    registrationQuery;
+  DbRegistrationUpdateFunc   registrationUpdate;
+  DbRegistrationDeleteFunc   registrationDelete;
+  DbRegistrationListFunc     registrationList;
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
   LdSubGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications

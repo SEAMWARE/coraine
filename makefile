@@ -37,7 +37,12 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/getJsonldContexts.c  \
                 src/lib/serviceRoutines/getJsonldContext.c   \
                 src/lib/serviceRoutines/postJsonldContexts.c \
-                src/lib/serviceRoutines/deleteJsonldContext.c
+                src/lib/serviceRoutines/deleteJsonldContext.c \
+                src/lib/serviceRoutines/postCsourceRegistration.c   \
+                src/lib/serviceRoutines/getCsourceRegistrations.c   \
+                src/lib/serviceRoutines/getCsourceRegistration.c    \
+                src/lib/serviceRoutines/patchCsourceRegistration.c  \
+                src/lib/serviceRoutines/deleteCsourceRegistration.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
@@ -86,6 +91,9 @@ RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_D
                  $(RAMDB_DIR)/ramdbSubscriptionCreate.c $(RAMDB_DIR)/ramdbSubscriptionRetrieve.c \
                  $(RAMDB_DIR)/ramdbSubscriptionQuery.c $(RAMDB_DIR)/ramdbSubscriptionUpdate.c \
                  $(RAMDB_DIR)/ramdbSubscriptionDelete.c \
+                 $(RAMDB_DIR)/ramdbRegistrationCreate.c $(RAMDB_DIR)/ramdbRegistrationRetrieve.c \
+                 $(RAMDB_DIR)/ramdbRegistrationQuery.c $(RAMDB_DIR)/ramdbRegistrationUpdate.c \
+                 $(RAMDB_DIR)/ramdbRegistrationDelete.c \
                  $(RAMDB_DIR)/ramdbStore.c $(RAMDB_DIR)/ramdbGeoMatch.c \
                  src/plugins/shared/geoMatch.c
 RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
@@ -108,6 +116,9 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocSubscriptionCreate.c $(MONGOC_DIR)/mongocSubscriptionRetrieve.c \
                  $(MONGOC_DIR)/mongocSubscriptionQuery.c $(MONGOC_DIR)/mongocSubscriptionUpdate.c \
                  $(MONGOC_DIR)/mongocSubscriptionDelete.c \
+                 $(MONGOC_DIR)/mongocRegistrationCreate.c $(MONGOC_DIR)/mongocRegistrationRetrieve.c \
+                 $(MONGOC_DIR)/mongocRegistrationQuery.c $(MONGOC_DIR)/mongocRegistrationUpdate.c \
+                 $(MONGOC_DIR)/mongocRegistrationDelete.c \
                  $(MONGOC_DIR)/mongocContext.c \
                  src/plugins/shared/geoMatch.c
 MONGOC_OBJS    = $(MONGOC_SOURCES:.c=.o)
