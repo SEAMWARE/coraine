@@ -202,7 +202,40 @@ with id/idPattern/type), throttling, expiration, status recomputation,
 notification format (normalized/concise/simplified), counters, and mongoc
 persistence/retrieval. 70+ dedicated functests.
 
-### 8. Admin API (plugin)
+### 8. JSON-LD Context Hosting (§ 5.13)
+
+**Status: Done.** All four endpoints, all three context kinds, persistence,
+and concurrent-download dedup.
+
+| Endpoint | Spec | What works |
+|----------|------|------------|
+| GET /jsonldContexts | 5.13.5 | List with `details`, `kind` filter, `limit`/`offset`/`count` headers |
+| GET /jsonldContexts/{id} | 5.13.4 | Returns the raw JSON-LD body, `Content-Type: application/ld+json` |
+| POST /jsonldContexts | 5.13.2 | Body is `{"@context": ...}` (Hosted, object or array) or `{"url": ...}` (Cached). Implicit→Cached upgrade per § 5.13.2.5 |
+| DELETE /jsonldContexts/{id} | 5.13.3 | Plain delete or `?reload=true` (Cached only — re-downloads, refreshes the stored body, rolls back to old entry on download failure) |
+
+| Aspect | Notes |
+|--------|-------|
+| Persistence (mongoc) | Hosted + Cached survive restart; reserved DB `swBroker` (rejected as a tenant `-dbName`); reload-on-startup repopulates the cache. Implicit is intentionally not persisted |
+| Persistence (ramdb) | None — by design |
+| Concurrent-download dedup | `swldCacheDownloadingAdd/Remove/Check` serialises a single download per URL; concurrent waiters poll the cache (3s timeout) |
+| Hosted id | Broker-minted `urn:ngsi-ld:Context:<counter>-<epochSeconds>` |
+| Hosted body shapes | Object form fully supported; array form via `swldContextFromTree` (each URL element is downloaded as Implicit and side-cached, inline objects too) |
+| Errors | 415 wrong Content-Type, 400 missing/invalid body, 400 reload-on-non-Cached, 404 unknown id, 503 download failure (`LdContextNotAvailable`), 501 plugin without persistence (Phase B fallback) |
+| Concurrency model | `pthread_mutex_t` on the cache (lookup/insert/remove/snapshot). DB ops use the standard mongoc client pool — no shared collection handle, so no second-tier sem needed |
+
+Functional tests: `jsonld_contexts.test`, `jsonld_contexts_crud.test`,
+`jsonld_contexts_post_array.test`, `jsonld_contexts_reload.test`,
+`jsonld_contexts_mongoc_persist.test` (REQUIRE_DB:mongoc).
+
+Known residuals (non-blocking):
+- LRU eviction can drop a Hosted/Cached entry before next request; lazy
+  reload-from-DB-on-cache-miss would close that.
+- Download-failure waiters poll until 3s timeout instead of being
+  signalled on failure.
+- No OPTIONS/HEAD/CORS coverage tests on the new routes.
+
+### 9. Admin API (plugin)
 
 **Status: Complete**
 
@@ -212,7 +245,7 @@ persistence/retrieval. 70+ dedicated functests.
 - GET /admin/tenants
 - GET /admin/plugins
 
-### 9. Other
+### 10. Other
 
 - CORS support (--corsOrigin, --corsMaxAge)
 - HEAD requests (auto-generated from GET handlers)
@@ -319,12 +352,7 @@ standard NGSI-LD queries against the frozen snapshot data.
 
 ### @context Hosting
 
-| Endpoint | Spec Section | Complexity | Estimate |
-|----------|-------------|------------|----------|
-| GET /jsonldContexts | 5.13 | Low | 1 day |
-| POST /jsonldContexts | 5.13 | Low | 1 day |
-| GET /jsonldContexts/{id} | 5.13 | Low | 0.5 days |
-| DELETE /jsonldContexts/{id} | 5.13 | Low | 0.5 days |
+(Done — moved up to the implemented sections.)
 
 ---
 
@@ -371,8 +399,8 @@ New endpoints will require extending the `DbDriver` interface with:
 | Types/Attributes | 4 | 0 | 4 |
 | Temporal | ~8 | 0 | ~8 |
 | Snapshots | 7 + engine | 0 | 7 + engine |
-| @context hosting | 4 | 0 | 4 |
-| **Total** | **~47** | **11 + sub engine** | **~36** |
+| @context hosting | 4 | 4 + persistence | 0 |
+| **Total** | **~47** | **15 + sub engine + ctx persistence** | **~32** |
 
 ### Rough Estimates to Full NGSI-LD v1.9.1 Coverage
 
@@ -386,7 +414,6 @@ New endpoints will require extending the `DbDriver` interface with:
 | Temporal | Full temporal API | ~4-6 weeks |
 | Snapshots | CRUD + async query engine + notifications | ~2-3 weeks |
 | Missing query features | orderBy, join, entityMap, etc. | ~2-3 weeks |
-| @context hosting | 4 endpoints | ~0.5 weeks |
 | **Total** | | **~5-6 months** |
 
 Note: Estimates assume a single developer, include functional tests for each
