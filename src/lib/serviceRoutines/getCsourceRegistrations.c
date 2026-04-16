@@ -8,12 +8,14 @@
 // GET /ngsi-ld/v1/csourceRegistrations  (NGSI-LD § 5.10.2 / § 6.8.3.2)
 //
 // First-cut behaviour: list all registrations for the tenant, paginated
-// via limit/offset. The full discovery filter (type / attrs / q / geoQ /
-// scopeQ / csf / temporal / id / idPattern) is delegated to a future
-// matcher pass — for now URL params are parsed and accepted but the
-// matching itself is not yet wired up.
+// via limit/offset/count. The Discovery filter (type / id / idPattern /
+// attrs / q / geoQ family / scopeQ / csf) is intentionally NOT
+// implemented — see project_csr_discovery_deferred memory. Any of those
+// filter params present on the request gets a 501 Not Implemented so
+// clients don't silently receive unfiltered results.
 //
 #include <stddef.h>                                  // NULL
+#include <string.h>                                  // strcmp
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
@@ -27,10 +29,38 @@
 
 // -----------------------------------------------------------------------------
 //
+// paramSupported - true for the URL params we actually honor on this route
+//
+static bool paramSupported(const char* key)
+{
+  if (key == NULL)                       return true;  // ignore malformed
+  if (strcmp(key, "limit")     == 0)     return true;
+  if (strcmp(key, "offset")    == 0)     return true;
+  if (strcmp(key, "count")     == 0)     return true;
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getCsourceRegistrations -
 //
 bool getCsourceRegistrations(void)
 {
+  // 501 if any Discovery filter URL param is supplied (§ 5.10.2 not implemented)
+  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  {
+    const char* key = swRest.in.uriParamV[i].key;
+    if (paramSupported(key) == false)
+    {
+      ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+              "Context Source Registration discovery filter '%s' is not implemented; only limit/offset/count are honored",
+              key);
+      return true;
+    }
+  }
+
   if (db.registrationQuery == NULL)
   {
     ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented", "registration CRUD not supported by this DB plugin");

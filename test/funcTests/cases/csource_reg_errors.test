@@ -577,6 +577,27 @@ echo
 echo
 
 
+echo "50. GET with discovery filter type=Vehicle - 501"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
+echo
+echo
+
+
+echo "51. GET with discovery filter q=foo==1 - 501"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?q=foo==1'
+echo
+echo
+
+
+echo "52. GET with limit only - 200"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?limit=5'
+echo
+echo
+
+
 --EXPECT--
 01. POST without payload - 400
 ==============================
@@ -1292,6 +1313,68 @@ Content-Length: REGEX(\d+)
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
+
+
+
+50. GET with discovery filter type=Vehicle - 501
+================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Context Source Registration discovery filter 'type' is not implemented; only limit/offset/count are honored",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+51. GET with discovery filter q=foo==1 - 501
+============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Context Source Registration discovery filter 'q' is not implemented; only limit/offset/count are honored",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+52. GET with limit only - 200
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "endpoint": "http://x",
+    "id": "urn:ngsi-ld:CSR:Aux1",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "X"
+          }
+        ]
+      }
+    ],
+    "mode": "auxiliary",
+    "operations": [
+      "retrieveEntity",
+      "queryEntity"
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
 
 
 
