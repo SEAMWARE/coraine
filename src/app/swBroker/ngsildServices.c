@@ -25,6 +25,8 @@
 #include "serviceRoutines/deleteSubscription.h"  // deleteSubscription
 #include "serviceRoutines/getJsonldContexts.h"   // getJsonldContexts
 #include "serviceRoutines/getJsonldContext.h"    // getJsonldContext
+#include "serviceRoutines/postJsonldContexts.h"  // postJsonldContexts
+#include "serviceRoutines/deleteJsonldContext.h" // deleteJsonldContext
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -52,7 +54,9 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbDelete, "/ngsi-ld/v1/subscriptions/*", deleteSubscription,  LD_PARAMS_DELETE_SUBSCRIPTION  },
 
   { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS },
-  { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT  }
+  { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT  },
+  { SwVerbPost,   "/ngsi-ld/v1/jsonldContexts",   postJsonldContexts,  LD_PARAMS_POST_JSONLD_CONTEXTS  },
+  { SwVerbDelete, "/ngsi-ld/v1/jsonldContexts/**", deleteJsonldContext, LD_PARAMS_DELETE_JSONLD_CONTEXT }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

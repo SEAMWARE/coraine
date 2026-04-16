@@ -1,0 +1,212 @@
+//
+// FILE            postJsonldContexts.c
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+// POST /ngsi-ld/v1/jsonldContexts — Add JSON-LD Context.
+// NGSI-LD v1.9.1 § 5.13.2.
+//
+// Two body forms (§ 5.13.2.2):
+//   Hosted:  { "@context": { ... } }              → stored verbatim
+//   Cached:  { "url": "http://example/ctx.jsonld" } → broker downloads
+//
+// On success: 201 Created + Location: /ngsi-ld/v1/jsonldContexts/{contextId}.
+// For Cached, the context id equals the downloaded URL. For Hosted, the
+// broker mints a fresh urn:ngsi-ld:Context: id.
+//
+
+#include <stddef.h>                                   // NULL
+#include <string.h>                                   // strlen, strcpy, strcat
+
+#include "swRest/SwRestState.h"                       // swRest
+#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "kjson/kjLookup.h"                           // kjLookup
+#include "kjson/KjNode.h"                             // KjNode
+#include "kjson/kjRenderSize.h"                       // kjFastRenderSize
+#include "kjson/kjRender.h"                           // kjFastRender
+#include "swJsonld/SwldContext.h"                     // SwldContext, SwldContextKind
+#include "swJsonld/SwldContextCache.h"                // SwldContextCache
+#include "swJsonld/swldCache.h"                       // swldCacheLookup, swldCacheInsert
+#include "swJsonld/swldContextParse.h"                // swldContextFromObject
+#include "swJsonld/swldDownload.h"                    // swldContextFromUrl
+#include "swJsonld/swldIdGen.h"                       // swldIdGenerate
+#include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
+
+#include "serviceRoutines/postJsonldContexts.h"       // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// swldCacheGet - internal accessor in swJsonld/swldInit.c
+//
+extern SwldContextCache* swldCacheGet(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// postJsonldContexts -
+//
+bool postJsonldContexts(void)
+{
+  KjNode* bodyP = swRest.in.requestTree;
+
+  //
+  // Content-Type / payload checks
+  //
+  if (swRest.in.payload != NULL && bodyP == NULL)
+  {
+    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
+            "supported Content-Types: application/json, application/ld+json");
+    return true;
+  }
+
+  if (bodyP == NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
+    return true;
+  }
+
+  if (bodyP->type != KjObject)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "payload must be a JSON object");
+    return true;
+  }
+
+  //
+  // Dispatch on body shape: @context ⇒ Hosted, url ⇒ Cached.
+  //
+  KjNode* atContextP = kjLookup(bodyP, "@context");
+  KjNode* urlP       = kjLookup(bodyP, "url");
+
+  SwldContextCache* cacheP   = swldCacheGet();
+  KAlloc*           storeP   = cacheP->kaP;
+  const char*       location = NULL;
+
+  if (atContextP != NULL)
+  {
+    //
+    // HOSTED — body is a full JSON-LD Context document. Store it verbatim
+    // and parse the inner @context into the name/value hash tables.
+    //
+    if (atContextP->type != KjObject && atContextP->type != KjArray)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Context",
+              "'@context' must be a JSON object or array");
+      return true;
+    }
+
+    SwldContext* contextP = NULL;
+
+    if (atContextP->type == KjObject)
+      contextP = swldContextFromObject(atContextP, storeP, NULL);
+    else
+      // Array form not supported for Hosted inline in this phase —
+      // keeps the implementation narrow. Can be relaxed later.
+      contextP = NULL;
+
+    if (contextP == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Context",
+              "unable to parse JSON-LD context");
+      return true;
+    }
+
+    //
+    // Assign broker-minted id and preserve the raw body for later GETs.
+    //
+    char* id = swldIdGenerate(storeP);
+    if (id == NULL)
+    {
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "id generation failed");
+      return true;
+    }
+    contextP->id   = id;
+    contextP->kind = SwldKindHosted;
+
+    int   bodyLen = kjFastRenderSize(bodyP) + 1;
+    char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
+    if (bodyBuf != NULL)
+    {
+      kjFastRender(bodyP, bodyBuf);
+      contextP->body = bodyBuf;
+    }
+
+    swldCacheInsert(contextP);
+
+    location = id;
+  }
+  else if (urlP != NULL)
+  {
+    //
+    // CACHED — broker downloads the URL and caches.
+    //
+    if (urlP->type != KjString || urlP->value.s[0] == '\0')
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "'url' must be a non-empty string");
+      return true;
+    }
+
+    const char* url = urlP->value.s;
+
+    //
+    // If already in cache (as Implicit): upgrade to Cached per § 5.13.2.5.
+    // Otherwise download. Either way, location = url.
+    //
+    SwldContext* existingP = swldCacheLookup(url);
+
+    if (existingP == NULL)
+    {
+      existingP = swldContextFromUrl(url, storeP);
+
+      if (existingP == NULL)
+      {
+        ldError(503, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
+                "unable to retrieve @context from '%s'", url);
+        return true;
+      }
+    }
+
+    // Upgrade kind to Cached (idempotent if already Cached/Hosted).
+    if (existingP->kind == SwldKindImplicit)
+      existingP->kind = SwldKindCached;
+
+    location = url;
+  }
+  else
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+            "payload must contain either '@context' (Hosted) or 'url' (Cached)");
+    return true;
+  }
+
+  //
+  // 201 Created + Location
+  //
+  swRest.out.httpStatusCode = 201;
+
+  //
+  // Build "/ngsi-ld/v1/jsonldContexts/<id>" in the request arena.
+  //
+  static const char prefix[] = "/ngsi-ld/v1/jsonldContexts/";
+  int   locLen = sizeof(prefix) - 1 + strlen(location) + 1;
+  char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
+  if (locBuf != NULL)
+  {
+    strcpy(locBuf, prefix);
+    strcat(locBuf, location);
+
+    SwRestKeyValue* hV = swRest.out.headerV;
+    int             ix = swRest.out.headerCount;
+    hV[ix].key   = "Location";
+    hV[ix].value = locBuf;
+    swRest.out.headerCount++;
+  }
+
+  return true;
+}
