@@ -1,0 +1,147 @@
+#
+# FILE            jsonld_contexts_reload.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Verifies that DELETE ?reload=true on a Cached context actually re-downloads
+# from the URL — i.e. when the upstream body changes, the broker's stored
+# body changes too. The broader CRUD test only confirms the entry survives;
+# this one checks the *body refreshes*.
+#
+--NAME--
+DELETE /jsonldContexts/{id}?reload=true actually refreshes the body
+
+--INIT--
+swDbDrop
+contextServerStart
+swBrokerStart
+
+# Initial body: v1
+contextServerPush /jsonldContexts/ctxR '{
+  "@context": {
+    "v": "v1"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST Cached for ctxR — broker downloads v1
+# 02. GET the stored body — confirm v1 is what's cached
+# 03. Replace ctxR upstream with v2 (DELETE then POST on context-server)
+# 04. GET stored body — broker still has v1 (no auto-refresh)
+# 05. DELETE ?reload=true — 204
+# 06. GET stored body — broker now has v2
+#
+
+echo "01. POST Cached for ctxR (broker downloads v1)"
+echo "=============================================="
+swCurl -X POST --url /ngsi-ld/v1/jsonldContexts \
+  --payload '{"url":"http://localhost:7080/jsonldContexts/ctxR"}' | head -1
+echo
+echo
+
+
+echo "02. GET stored body — should be v1"
+echo "=================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
+echo
+echo
+
+
+# Replace upstream out-of-band — context-server returns its first body on
+# repeated POSTs, so use the DELETE+POST helper.
+contextServerReplace /jsonldContexts/ctxR '{
+  "@context": {
+    "v": "v2"
+  }
+}'
+
+
+echo "03. GET stored body — broker still has v1 (no auto-refresh)"
+echo "==========================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
+echo
+echo
+
+
+echo "04. DELETE ?reload=true"
+echo "======================="
+swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?reload=true"
+echo
+echo
+
+
+echo "05. GET stored body — should now be v2"
+echo "======================================"
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
+echo
+echo
+
+
+--EXPECT--
+01. POST Cached for ctxR (broker downloads v1)
+==============================================
+HTTP/1.1 201 Created
+
+
+02. GET stored body — should be v1
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": {
+    "v": "v1"
+  }
+}
+
+
+
+03. GET stored body — broker still has v1 (no auto-refresh)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": {
+    "v": "v1"
+  }
+}
+
+
+
+04. DELETE ?reload=true
+=======================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET stored body — should now be v2
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": {
+    "v": "v2"
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop

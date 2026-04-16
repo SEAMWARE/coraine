@@ -265,3 +265,17 @@ contextServerPush() {
     -H 'Content-Type: application/ld+json' \
     -d "$payload" > /dev/null
 }
+
+
+# contextServerReplace - DELETE then POST so the context body can be updated.
+# wistefan/context-server returns the original on a plain re-POST.
+#
+contextServerReplace() {
+  local urlPath="$1"
+  local payload="$2"
+
+  curl -s -X DELETE "http://localhost:$CONTEXT_SERVER_PORT$urlPath" > /dev/null
+  curl -s -X POST "http://localhost:$CONTEXT_SERVER_PORT$urlPath" \
+    -H 'Content-Type: application/ld+json' \
+    -d "$payload" > /dev/null
+}
