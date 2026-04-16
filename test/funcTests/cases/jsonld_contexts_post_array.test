@@ -1,0 +1,157 @@
+#
+# FILE            jsonld_contexts_post_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# POST /jsonldContexts with an array @context body — the common shape in
+# real-world deployments where one bundle pulls in multiple base contexts
+# plus inline overrides. Each URL element is downloaded as Implicit.
+#
+--NAME--
+POST /jsonldContexts with array @context (Hosted)
+
+--INIT--
+swDbDrop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/childA '{
+  "@context": {
+    "a": "https://example.org/a"
+  }
+}'
+
+contextServerPush /jsonldContexts/childB '{
+  "@context": {
+    "b": "https://example.org/b"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST Hosted with array: 2 URL refs + 1 inline object
+# 02. LIST Hosted — the wrapper
+# 03. LIST Implicit — both child URLs got downloaded as Implicit
+# 04. GET the hosted body — returns the original array body
+# 05. POST Hosted with empty @context array — 201 (degenerate but legal)
+#
+
+echo "01. POST Hosted (array)"
+echo "======================="
+swCurl -X POST --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload '{
+  "@context": [
+    "http://localhost:7080/jsonldContexts/childA",
+    "http://localhost:7080/jsonldContexts/childB",
+    {
+      "local": "https://example.org/local"
+    }
+  ]
+}'
+echo
+echo
+
+
+echo "02. LIST Hosted"
+echo "==============="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+echo
+echo
+
+
+echo "03. LIST Implicit (child URLs downloaded)"
+echo "========================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=ImplicitlyCreated"
+echo
+echo
+
+
+echo "04. GET hosted body — array preserved"
+echo "====================================="
+hostedId=$(swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted" | grep -oE 'urn:ngsi-ld:Context:[0-9]+-[0-9]+' | head -1)
+swCurl --url "/ngsi-ld/v1/jsonldContexts/${hostedId}"
+echo
+echo
+
+
+echo "05. POST Hosted with empty array"
+echo "================================"
+swCurl -X POST --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload '{"@context":[]}' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. POST Hosted (array)
+=======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: REGEX(/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:.*)
+Content-Length: 0
+
+
+
+
+02. LIST Hosted
+===============
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  REGEX("urn:ngsi-ld:Context:.*")
+]
+
+
+
+03. LIST Implicit (child URLs downloaded)
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "http://localhost:7080/jsonldContexts/childB",
+  "http://localhost:7080/jsonldContexts/childA",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+04. GET hosted body — array preserved
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": [
+    "http://localhost:7080/jsonldContexts/childA",
+    "http://localhost:7080/jsonldContexts/childB",
+    {
+      "local": "https://example.org/local"
+    }
+  ]
+}
+
+
+
+05. POST Hosted with empty array
+================================
+HTTP/1.1 201 Created
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop

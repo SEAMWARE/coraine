@@ -10,6 +10,7 @@ GET /jsonldContexts and /jsonldContexts/{id} (§ 5.13.4, 5.13.5)
 
 --INIT--
 swDbDrop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
 contextServerStart
 swBrokerStart
 

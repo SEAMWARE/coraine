@@ -10,6 +10,7 @@ POST / DELETE /jsonldContexts (§ 5.13.2, 5.13.3)
 
 --INIT--
 swDbDrop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
 contextServerStart
 swBrokerStart
 
@@ -337,4 +338,5 @@ Content-Length: REGEX(\d+)
 --TEARDOWN--
 swBrokerStop
 contextServerStop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
 swDbDrop

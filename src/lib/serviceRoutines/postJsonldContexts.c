@@ -30,7 +30,7 @@
 #include "swJsonld/SwldContext.h"                     // SwldContext, SwldContextKind
 #include "swJsonld/SwldContextCache.h"                // SwldContextCache
 #include "swJsonld/swldCache.h"                       // swldCacheLookup, swldCacheInsert
-#include "swJsonld/swldContextParse.h"                // swldContextFromObject
+#include "swJsonld/swldContextParse.h"                // swldContextFromObject, swldContextFromTree
 #include "swJsonld/swldDownload.h"                    // swldContextFromUrl
 #include "swJsonld/swldIdGen.h"                       // swldIdGenerate
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
@@ -107,9 +107,12 @@ bool postJsonldContexts(void)
     if (atContextP->type == KjObject)
       contextP = swldContextFromObject(atContextP, storeP, NULL);
     else
-      // Array form not supported for Hosted inline in this phase —
-      // keeps the implementation narrow. Can be relaxed later.
-      contextP = NULL;
+      //
+      // Array form. Each element is a URL string (downloaded as Implicit
+      // and referenced) or an inline object. swldContextFromTree builds
+      // a wrapper SwldContext with isArray=true and contextV[] populated.
+      //
+      contextP = swldContextFromTree(atContextP, storeP);
 
     if (contextP == NULL)
     {
