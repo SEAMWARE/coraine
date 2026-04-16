@@ -1359,7 +1359,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'https://uri.etsi.org/ngsi-ld/hasValue'",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'value'",
   "title": "Missing Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
