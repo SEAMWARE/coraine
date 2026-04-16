@@ -26,6 +26,8 @@
 #include "swJsonld/swldDownload.h"                     // swldContextFromUrl
 #include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
 
+#include "db/DbDriver.h"                               // db, DB_CONTEXT_KIND_*
+
 #include "serviceRoutines/deleteJsonldContext.h"       // Own interface
 
 
@@ -111,6 +113,12 @@ bool deleteJsonldContext(void)
 
     fresh->kind = SwldKindCached;
 
+    //
+    // Refresh the persisted body — reload changes the document.
+    //
+    if (db.contextSave != NULL && fresh->body != NULL && fresh->url != NULL)
+      db.contextSave(fresh->url, fresh->url, DB_CONTEXT_KIND_CACHED, fresh->body);
+
     swRest.out.httpStatusCode = 204;
     return true;
   }
@@ -118,7 +126,18 @@ bool deleteJsonldContext(void)
   //
   // Plain delete.
   //
+  SwldContextKind removedKind = existingP->kind;
   swldCacheRemove(contextId);
+
+  //
+  // Persisted contexts (Hosted, Cached) need to be removed from the DB too.
+  // Implicit contexts were never persisted — skip the call.
+  //
+  if (db.contextDelete != NULL &&
+      (removedKind == SwldKindHosted || removedKind == SwldKindCached))
+  {
+    db.contextDelete(contextId);
+  }
 
   swRest.out.httpStatusCode = 204;
   return true;

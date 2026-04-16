@@ -35,6 +35,8 @@
 #include "swJsonld/swldIdGen.h"                       // swldIdGenerate
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
 
+#include "db/DbDriver.h"                              // db, DB_CONTEXT_KIND_*
+
 #include "serviceRoutines/postJsonldContexts.h"       // Own interface
 
 
@@ -138,6 +140,12 @@ bool postJsonldContexts(void)
 
     swldCacheInsert(contextP);
 
+    //
+    // Persist (only mongoc plugin implements this; ramdb leaves it NULL).
+    //
+    if (db.contextSave != NULL && contextP->body != NULL)
+      db.contextSave(id, NULL, DB_CONTEXT_KIND_HOSTED, contextP->body);
+
     location = id;
   }
   else if (urlP != NULL)
@@ -175,6 +183,12 @@ bool postJsonldContexts(void)
     // Upgrade kind to Cached (idempotent if already Cached/Hosted).
     if (existingP->kind == SwldKindImplicit)
       existingP->kind = SwldKindCached;
+
+    //
+    // Persist. body was captured at download time (or by an earlier POST).
+    //
+    if (db.contextSave != NULL && existingP->body != NULL)
+      db.contextSave(url, url, DB_CONTEXT_KIND_CACHED, existingP->body);
 
     location = url;
   }

@@ -40,6 +40,29 @@
 //
 typedef int  (*DbInitFunc)(void);
 typedef void (*DbCloseFunc)(void);
+
+//
+// JSON-LD context persistence (NGSI-LD § 5.13 Context Hosting).
+//
+// Context rows are stored in a fixed, reserved database (e.g. "swBroker")
+// independent of any tenant. Only Hosted and Cached contexts are persisted —
+// Implicit contexts are recreated on demand by request-time downloads.
+//
+#define DB_CONTEXT_KIND_CACHED  1
+#define DB_CONTEXT_KIND_HOSTED  2
+
+typedef struct DbContextRow
+{
+  char*  id;     // canonical identifier (URL for Cached, urn:ngsi-ld:Context: for Hosted)
+  char*  url;    // download URL (NULL for Hosted)
+  int    kind;   // DB_CONTEXT_KIND_*
+  char*  body;   // raw JSON body (the @context document)
+} DbContextRow;
+
+typedef int (*DbContextSaveFunc)(const char* id, const char* url, int kind, const char* body);
+typedef int (*DbContextDeleteFunc)(const char* id);
+typedef int (*DbContextListFunc)(KAlloc* allocP, DbContextRow** rowsPP, int* countP);
+
 typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode* entityP);
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
@@ -85,6 +108,12 @@ typedef struct DbDriver
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
   LdSubGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
+
+  // JSON-LD context persistence — optional; NULL means no persistence
+  // (e.g. ramdb). The reserved DB name ("swBroker") is used internally.
+  DbContextSaveFunc       contextSave;
+  DbContextDeleteFunc     contextDelete;
+  DbContextListFunc       contextList;
 } DbDriver;
 
 

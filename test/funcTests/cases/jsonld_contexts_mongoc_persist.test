@@ -1,0 +1,160 @@
+#
+# FILE            jsonld_contexts_mongoc_persist.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+--NAME--
+JSON-LD context persistence — survives broker restart (mongoc)
+
+--INIT--
+swDbDrop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxP '{
+  "@context": {
+    "Vehicle": "https://example.org/Vehicle"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST Hosted — captures the assigned id
+# 02. POST Cached
+# 03. LIST before restart — both kinds present
+# 04. swBrokerStop / swBrokerStart
+# 05. LIST after restart — both still there (loaded from DB)
+# 06. DELETE the Hosted one
+# 07. swBrokerStop / swBrokerStart
+# 08. LIST after restart — only Cached remains
+#
+
+echo "01. POST Hosted"
+echo "==============="
+hostedOut=$(swCurl -X POST --url /ngsi-ld/v1/jsonldContexts --in jsonld \
+  --payload '{"@context":{"speed":"https://example.org/speed"}}')
+hostedId=$(echo "$hostedOut" | awk -F '/jsonldContexts/' '/^Location:/ {print $2}' | tr -d '\r')
+echo "$hostedOut" | head -1
+echo
+echo
+
+
+echo "02. POST Cached"
+echo "==============="
+swCurl -X POST --url /ngsi-ld/v1/jsonldContexts \
+  --payload '{"url":"http://localhost:7080/jsonldContexts/ctxP"}' | head -1
+echo
+echo
+
+
+echo "03. LIST before restart"
+echo "======================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(id|kind)":' | sort
+echo
+echo
+
+
+echo "04. Restart broker"
+echo "=================="
+swBrokerStop
+swBrokerStart
+echo "restarted"
+echo
+echo
+
+
+echo "05. LIST after restart (both still there)"
+echo "========================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(id|kind)":' | sort
+echo
+echo
+
+
+echo "06. DELETE the Hosted one"
+echo "========================="
+swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/${hostedId}" | head -1
+echo
+echo
+
+
+echo "07. Restart broker again"
+echo "========================"
+swBrokerStop
+swBrokerStart
+echo "restarted"
+echo
+echo
+
+
+echo "08. LIST after restart (Hosted gone, Cached survives)"
+echo "====================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(id|kind)":' | sort
+echo
+echo
+
+
+
+--EXPECT--
+01. POST Hosted
+===============
+HTTP/1.1 201 Created
+
+
+02. POST Cached
+===============
+HTTP/1.1 201 Created
+
+
+03. LIST before restart
+=======================
+    "id": "http://localhost:7080/jsonldContexts/ctxP",
+    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "id": REGEX("urn:ngsi-ld:Context:.*"),
+    "kind": "Cached",
+    "kind": "Hosted",
+    "kind": "ImplicitlyCreated",
+
+
+04. Restart broker
+==================
+restarted
+
+
+05. LIST after restart (both still there)
+=========================================
+    "id": "http://localhost:7080/jsonldContexts/ctxP",
+    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "id": REGEX("urn:ngsi-ld:Context:.*"),
+    "kind": "Cached",
+    "kind": "Hosted",
+    "kind": "ImplicitlyCreated",
+
+
+06. DELETE the Hosted one
+=========================
+HTTP/1.1 204 No Content
+
+
+07. Restart broker again
+========================
+restarted
+
+
+08. LIST after restart (Hosted gone, Cached survives)
+=====================================================
+    "id": "http://localhost:7080/jsonldContexts/ctxP",
+    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "kind": "Cached",
+    "kind": "ImplicitlyCreated",
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop

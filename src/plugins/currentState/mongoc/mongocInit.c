@@ -7,7 +7,7 @@
 //
 
 #include <stdio.h>                                   // snprintf
-#include <string.h>                                  // strdup, strlen, strncmp
+#include <string.h>                                  // strdup, strlen, strncmp, strcmp
 
 #include <mongoc/mongoc.h>                           // mongoc_init, mongoc_client_pool_new, ...
 
@@ -37,6 +37,17 @@ mongoc_client_pool_t*  poolP   = NULL;
 //
 int mongocInit(void)
 {
+  //
+  // The "swBroker" database is reserved for JSON-LD context persistence
+  // (NGSI-LD § 5.13 Context Hosting). Rejecting it as a tenant DB name
+  // prevents silent collisions with the context store.
+  //
+  if (mongocDbName != NULL && strcmp(mongocDbName, "swBroker") == 0)
+  {
+    KT_E("mongoc: '%s' is a reserved database name (used for JSON-LD context persistence); pick another -dbName", mongocDbName);
+    return -1;
+  }
+
   mongoc_init();
   geoMatchInit();
 

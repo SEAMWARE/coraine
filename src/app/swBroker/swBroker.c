@@ -20,6 +20,16 @@
 #include "swRest/swRest.h"                        // swRestInit, swRestSetPrettySpaces, swRestSetPreServiceHook, swRestParamAdd
 #include "swRest/swRestClient.h"                  // swRestClientInit, SwRestClientRequest/Response
 #include "swJsonld/swJsonld.h"                    // swldInit, SWJSONLD_VERSION
+#include "swJsonld/SwldContext.h"                 // SwldContext, SwldContextKind
+#include "swJsonld/SwldContextCache.h"            // SwldContextCache
+#include "swJsonld/swldCache.h"                   // swldCacheInsert
+#include "swJsonld/swldContextParse.h"            // swldContextFromObject
+
+#include "kjson/kjson.h"                          // Kjson
+#include "kjson/kjBufferCreate.h"                 // kjBufferCreate
+#include "kjson/kjParse.h"                        // kjParse
+#include "kjson/kjLookup.h"                       // kjLookup
+#include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "swNgsild/SwNgsild.h"                    // swNgsild
@@ -69,6 +79,70 @@ static char* contextDownload(const char* url, int* statusCodeP)
   }
 
   return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// swldCacheGet - internal accessor in swJsonld/swldInit.c (cache allocator)
+//
+extern SwldContextCache* swldCacheGet(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// contextCacheReload - re-populate the JSON-LD cache from the persisted
+// "swBroker" database. Called once at startup, after dbStart().
+//
+static void contextCacheReload(void)
+{
+  if (db.contextList == NULL)
+    return;
+
+  KAlloc* storeP = swldCacheGet()->kaP;
+
+  DbContextRow* rows  = NULL;
+  int           count = 0;
+
+  if (db.contextList(storeP, &rows, &count) != DB_OK)
+    return;
+
+  for (int i = 0; i < count; i++)
+  {
+    DbContextRow* r = &rows[i];
+
+    if (r->id == NULL || r->body == NULL)
+      continue;
+
+    //
+    // Parse the body (a stand-alone JSON-LD context document) into a tree
+    // and pull out @context. We use the cache allocator so the resulting
+    // SwldContext outlives this call.
+    //
+    char*  bodyForParse = kaStrdup(storeP, r->body);  // kjParse is destructive
+    Kjson  kjson;
+    Kjson* kjsonP = kjBufferCreate(&kjson, storeP);
+
+    KjNode* treeP = kjParse(kjsonP, bodyForParse);
+    if (treeP == NULL)
+      continue;
+
+    KjNode* atContextP = kjLookup(treeP, "@context");
+    if (atContextP == NULL || atContextP->type != KjObject)
+      continue;
+
+    SwldContext* contextP = swldContextFromObject(atContextP, storeP, r->url);
+    if (contextP == NULL)
+      continue;
+
+    contextP->id   = kaStrdup(storeP, r->id);
+    contextP->body = kaStrdup(storeP, r->body);
+    contextP->kind = (r->kind == DB_CONTEXT_KIND_HOSTED) ? SwldKindHosted : SwldKindCached;
+
+    swldCacheInsert(contextP);
+  }
 }
 
 
@@ -341,6 +415,7 @@ int main(int argC, char* argV[])
   static char startupKallocBuf[16384];
   kaBufferInit(&swRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
   tenantSubCacheReload();
+  contextCacheReload();
   kaBufferReset(&swRest.kalloc, false);
 
   //

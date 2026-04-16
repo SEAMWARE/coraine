@@ -22,6 +22,7 @@
 #include "currentState/mongoc/mongocEntityDelete.h"                 // mongocEntityDelete
 #include "currentState/mongoc/mongocEntityMerge.h"                  // mongocEntityMerge
 #include "currentState/mongoc/mongocEntityReplace.h"                // mongocEntityReplace
+#include "currentState/mongoc/mongocContext.h"                      // mongocContext*
 #include "currentState/mongoc/mongocTenantSetup.h"                  // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                     // mongocVersionInfo
 #include "currentState/mongoc/mongocSubscriptionCreate.h"           // mongocSubscriptionCreate
@@ -77,4 +78,8 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionUpdate    = mongocSubscriptionUpdate;
   driverP->subscriptionDelete    = mongocSubscriptionDelete;
   driverP->geoMatchFunc          = mongocSubGeoMatch;
+
+  driverP->contextSave           = mongocContextSave;
+  driverP->contextDelete         = mongocContextDelete;
+  driverP->contextList           = mongocContextList;
 }
