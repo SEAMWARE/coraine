@@ -1,0 +1,228 @@
+#
+# FILE            csource_reg_mongoc_persist.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+#
+# Verify that registrations persist across broker restarts (mongoc DB)
+# and that the in-memory cache is rehydrated correctly at startup.
+#
+--NAME--
+Context Source Registration persistence + cache rehydrate (mongoc)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create R1 + R2
+# 02. Restart broker
+# 03. Query - both visible (loaded from DB)
+# 04. Retrieve R1 - intact
+# 05. Delete R2
+# 06. Restart, query - only R1
+#
+
+echo "01. Create R1"
+echo "============="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://csr.example/r1",
+  "information": [{"entities": [{"type": "Vehicle"}]}]
+}'
+echo
+echo
+
+
+echo "02. Create R2"
+echo "============="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:CSR:R2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://csr.example/r2",
+  "information": [{"entities": [{"type": "Building"}]}]
+}'
+echo
+echo
+
+
+echo "03. Restart broker"
+echo "=================="
+swBrokerStop
+swBrokerStart
+echo "restarted"
+echo
+echo
+
+
+echo "04. Query after restart - both visible"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations
+echo
+echo
+
+
+echo "05. Retrieve R1 after restart"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+echo
+echo
+
+
+echo "06. Delete R2"
+echo "============="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R2
+echo
+echo
+
+
+echo "07. Restart again, query - only R1 remains"
+echo "=========================================="
+swBrokerStop
+swBrokerStart
+swCurl --url /ngsi-ld/v1/csourceRegistrations
+echo
+echo
+
+
+--EXPECT--
+01. Create R1
+=============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create R2
+=============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Restart broker
+==================
+restarted
+
+
+04. Query after restart - both visible
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "endpoint": "http://csr.example/r1",
+    "id": "urn:ngsi-ld:CSR:R1",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://csr.example/r2",
+    "id": "urn:ngsi-ld:CSR:R2",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Building"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+05. Retrieve R1 after restart
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "endpoint": "http://csr.example/r1",
+  "id": "urn:ngsi-ld:CSR:R1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+06. Delete R2
+=============
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. Restart again, query - only R1 remains
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "endpoint": "http://csr.example/r1",
+    "id": "urn:ngsi-ld:CSR:R1",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,344 @@
+#
+# FILE            csource_reg_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Context Source Registration CRUD - create, retrieve, query, update, delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create registration with explicit id
+# 02. Retrieve registration by id
+# 03. Create second registration (auto-generated id)
+# 04. Query all registrations - two
+# 05. Update registration - change description
+# 06. Retrieve updated registration
+# 07. Delete first registration - 204
+# 08. Query all registrations - only second
+# 09. Delete non-existing registration - 404
+# 10. Retrieve deleted registration - 404
+# 11. Recreate first registration - 201
+# 12. Attempt to create duplicate - 409
+#
+
+echo "01. Create registration with explicit id"
+echo "========================================"
+payload='{
+  "id": "urn:ngsi-ld:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://csource.example.com",
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}]
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve registration by id"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+echo
+echo
+
+
+echo "03. Create second registration (auto-id), with mode + description"
+echo "================================================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://other.example.com",
+  "mode": "exclusive",
+  "description": "Vehicle data source",
+  "information": [
+    {
+      "entities": [{"type": "Building"}],
+      "propertyNames": ["temperature", "humidity"]
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. Query all registrations - two"
+echo "================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations
+echo
+echo
+
+
+echo "05. Update R1 - add description"
+echo "==============================="
+payload='{
+  "description": "Updated R1 description"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 --payload "$payload"
+echo
+echo
+
+
+echo "06. Retrieve updated R1"
+echo "======================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+echo
+echo
+
+
+echo "07. Delete R1 - 204"
+echo "==================="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+echo
+echo
+
+
+echo "08. Delete non-existing - 404"
+echo "============================="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:doesnt:exist
+echo
+echo
+
+
+echo "09. Retrieve deleted R1 - 404"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+echo
+echo
+
+
+echo "10. Recreate R1 - 201"
+echo "====================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://csource.example.com",
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}]
+    }
+  ]
+}'
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "11. Attempt duplicate R1 - 409"
+echo "=============================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create registration with explicit id
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Retrieve registration by id
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "endpoint": "http://csource.example.com",
+  "id": "urn:ngsi-ld:CSR:R1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+03. Create second registration (auto-id), with mode + description
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: REGEX(/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Query all registrations - two
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "endpoint": "http://csource.example.com",
+    "id": "urn:ngsi-ld:CSR:R1",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "description": "Vehicle data source",
+    "endpoint": "http://other.example.com",
+    "id": REGEX("urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+"),
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Building"
+          }
+        ],
+        "propertyNames": [
+          "temperature",
+          "humidity"
+        ]
+      }
+    ],
+    "mode": "exclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+05. Update R1 - add description
+===============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Retrieve updated R1
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "description": "Updated R1 description",
+  "endpoint": "http://csource.example.com",
+  "id": "urn:ngsi-ld:CSR:R1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+07. Delete R1 - 204
+===================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. Delete non-existing - 404
+=============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration 'urn:doesnt:exist' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. Retrieve deleted R1 - 404
+=============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration 'urn:ngsi-ld:CSR:R1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. Recreate R1 - 201
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+11. Attempt duplicate R1 - 409
+==============================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration 'urn:ngsi-ld:CSR:R1' already exists",
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

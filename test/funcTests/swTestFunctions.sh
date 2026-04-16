@@ -137,7 +137,7 @@ swDbDrop() {
       if [ -n "$tenant" ]; then
         db="${db}-${tenant}"
       fi
-      mongo --quiet --eval 'db.entities.drop(); db.subscriptions.drop()' "$db" > /dev/null 2>&1
+      mongo --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop()' "$db" > /dev/null 2>&1
       ;;
     ramdb|NONE)
       # No-op: broker restart clears the RAM store
