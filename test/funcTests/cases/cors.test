@@ -40,6 +40,20 @@ echo
 echo
 
 
+echo "04. OPTIONS /jsonldContexts - GET + POST"
+echo "========================================"
+swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "05. OPTIONS /jsonldContexts/{id} - GET + DELETE"
+echo "==============================================="
+swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
+echo
+echo
+
+
 --EXPECT--
 01. GET request - CORS headers present
 ======================================
@@ -78,6 +92,36 @@ Content-Type: application/json
 Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
+
+
+
+
+04. OPTIONS /jsonldContexts - GET + POST
+========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, POST, HEAD, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
+
+
+
+
+05. OPTIONS /jsonldContexts/{id} - GET + DELETE
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, DELETE, HEAD, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant

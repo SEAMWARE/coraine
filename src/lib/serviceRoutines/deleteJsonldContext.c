@@ -73,12 +73,47 @@ bool deleteJsonldContext(void)
   }
 
   SwldContext* existingP = swldCacheLookup(contextId);
+  SwldContext  synth;     // used iff cache miss + DB hit; stack-local lives
+                          // until function return, which is past all uses.
 
   if (existingP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-            "JSON-LD context '%s' not found", contextId);
-    return true;
+    //
+    // Cache miss. The entry may still be persisted (LRU-evicted Hosted /
+    // Cached). Probe the DB — a plain delete on an evicted row is just a
+    // DB delete; for reload we need a SwldContext-shaped handle so the
+    // reload branch below can read url+kind off it.
+    //
+    DbContextRow row = { NULL, NULL, 0, NULL };
+    if (db.contextGet == NULL || db.contextGet(contextId, &swRest.kalloc, &row) != DB_OK)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+              "JSON-LD context '%s' not found", contextId);
+      return true;
+    }
+
+    if (!reload)
+    {
+      if (db.contextDelete != NULL)
+        db.contextDelete(contextId);
+
+      swRest.out.httpStatusCode = 204;
+      return true;
+    }
+
+    // reload on an evicted entry — only Cached is reloadable.
+    if (row.kind != DB_CONTEXT_KIND_CACHED)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "reload is only valid for Cached contexts");
+      return true;
+    }
+
+    synth.url  = row.url;
+    synth.id   = row.id;
+    synth.kind = SwldKindCached;
+    synth.body = row.body;
+    existingP  = &synth;
   }
 
   if (reload)

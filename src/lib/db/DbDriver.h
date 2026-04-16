@@ -62,6 +62,7 @@ typedef struct DbContextRow
 typedef int (*DbContextSaveFunc)(const char* id, const char* url, int kind, const char* body);
 typedef int (*DbContextDeleteFunc)(const char* id);
 typedef int (*DbContextListFunc)(KAlloc* allocP, DbContextRow** rowsPP, int* countP);
+typedef int (*DbContextGetFunc)(const char* id, KAlloc* allocP, DbContextRow* rowOut);
 
 typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode* entityP);
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
@@ -114,6 +115,7 @@ typedef struct DbDriver
   DbContextSaveFunc       contextSave;
   DbContextDeleteFunc     contextDelete;
   DbContextListFunc       contextList;
+  DbContextGetFunc        contextGet;
 } DbDriver;
 
 

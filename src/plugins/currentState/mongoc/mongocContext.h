@@ -39,4 +39,16 @@ extern int mongocContextDelete(const char* id);
 //
 extern int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocContextGet - fetch a single context row by id.
+//
+//   DB_OK         — row populated in *rowOut
+//   DB_NOT_FOUND  — no row with that id
+//   DB_ERR        — driver/server error
+//
+extern int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut);
+
 #endif

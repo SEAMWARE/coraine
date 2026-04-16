@@ -82,4 +82,5 @@ void dbRegister(DbDriver* driverP)
   driverP->contextSave           = mongocContextSave;
   driverP->contextDelete         = mongocContextDelete;
   driverP->contextList           = mongocContextList;
+  driverP->contextGet            = mongocContextGet;
 }

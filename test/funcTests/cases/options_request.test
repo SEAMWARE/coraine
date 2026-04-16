@@ -33,7 +33,21 @@ echo
 echo
 
 
-echo "03. OPTIONS /nonexistent - 404"
+echo "03. OPTIONS /jsonldContexts - GET + POST"
+echo "========================================"
+swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "04. OPTIONS /jsonldContexts/{id} - GET + DELETE"
+echo "==============================================="
+swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
+echo
+echo
+
+
+echo "05. OPTIONS /nonexistent - 404"
 echo "=============================="
 swCurl -X OPTIONS --url /nonexistent
 echo
@@ -61,7 +75,27 @@ Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 
 
 
-03. OPTIONS /nonexistent - 404
+03. OPTIONS /jsonldContexts - GET + POST
+========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, POST, HEAD, OPTIONS
+
+
+
+
+04. OPTIONS /jsonldContexts/{id} - GET + DELETE
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, DELETE, HEAD, OPTIONS
+
+
+
+
+05. OPTIONS /nonexistent - 404
 ==============================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)

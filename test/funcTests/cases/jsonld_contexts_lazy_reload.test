@@ -1,0 +1,131 @@
+#
+# FILE            jsonld_contexts_lazy_reload.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+#
+# Lazy-reload from the persisted "swBroker" DB on cache miss.
+#
+# Inserting a row directly into mongo bypasses the broker entirely. A
+# subsequent GET /jsonldContexts/{id} must hit the cache, miss, fall
+# through to db.contextGet, reconstruct, and return the body. Same for
+# DELETE — the row should be removable even if the broker has never
+# loaded it into the cache.
+#
+--NAME--
+GET / DELETE /jsonldContexts after LRU eviction (lazy reload)
+
+--INIT--
+swDbDrop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swBrokerStart
+
+# Insert two Hosted contexts directly — broker is unaware of them until
+# a request triggers a cache miss + DB fallback. Use a heredoc'd JS file
+# to dodge nested-quote escaping issues.
+cat > /tmp/lazyReloadInsert.js <<'JSEOF'
+db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-1", kind: 2,
+                       body: '{"@context":{"hello":"https://example.org/hello"}}'});
+db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-2", kind: 2,
+                       body: '{"@context":{"world":"https://example.org/world"}}'});
+JSEOF
+mongo --quiet swBroker /tmp/lazyReloadInsert.js
+mongo --quiet --eval 'print("inserted: " + db.contexts.count())' swBroker
+
+--RUN--
+
+#
+# 01. GET the never-cached id — lazy-reload from DB returns the body
+# 02. List Hosted — entry is now in the cache
+# 03. DELETE another never-cached id — works even with cold cache
+# 04. List Hosted (after DELETE) — only the first remains
+#
+
+echo "01. GET never-cached id — lazy reload"
+echo "====================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:lazy-1"
+echo
+echo
+
+
+echo "02. List Hosted — lazy-1 is now warmed"
+echo "======================================"
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+echo
+echo
+
+
+echo "03. DELETE never-cached id (cold cache)"
+echo "======================================="
+swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:lazy-2"
+echo
+echo
+
+
+echo "04. List Hosted — only lazy-1 remains"
+echo "====================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+echo
+echo
+
+
+--EXPECT--
+01. GET never-cached id — lazy reload
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": {
+    "hello": "https://example.org/hello"
+  }
+}
+
+
+
+02. List Hosted — lazy-1 is now warmed
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "urn:ngsi-ld:Context:lazy-1"
+]
+
+
+
+03. DELETE never-cached id (cold cache)
+=======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. List Hosted — only lazy-1 remains
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  "urn:ngsi-ld:Context:lazy-1"
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop

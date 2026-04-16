@@ -128,6 +128,71 @@ int mongocContextDelete(const char* id)
 
 // -----------------------------------------------------------------------------
 //
+// mongocContextGet -
+//
+int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut)
+{
+  if (id == NULL || rowOut == NULL || poolP == NULL)
+    return DB_ERR;
+
+  rowOut->id   = NULL;
+  rowOut->url  = NULL;
+  rowOut->kind = 0;
+  rowOut->body = NULL;
+
+  mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
+  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, CONTEXT_DB_NAME, CONTEXT_COLLECTION);
+
+  bson_t filter;
+  bson_init(&filter);
+  BSON_APPEND_UTF8(&filter, "_id", id);
+
+  mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, NULL, NULL);
+
+  int           result = DB_NOT_FOUND;
+  const bson_t* doc    = NULL;
+
+  if (mongoc_cursor_next(cursorP, &doc))
+  {
+    bson_iter_t it;
+    if (bson_iter_init(&it, doc))
+    {
+      while (bson_iter_next(&it))
+      {
+        const char* k = bson_iter_key(&it);
+
+        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->id   = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->url  = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT32(&it))  rowOut->kind = bson_iter_int32(&it);
+        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT64(&it))  rowOut->kind = (int) bson_iter_int64(&it);
+        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_DOUBLE(&it)) rowOut->kind = (int) bson_iter_double(&it);
+        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->body = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+      }
+    }
+    result = DB_OK;
+  }
+  else
+  {
+    bson_error_t cerr;
+    if (mongoc_cursor_error(cursorP, &cerr))
+    {
+      KT_E("mongoc: contextGet cursor error: %s", cerr.message);
+      result = DB_ERR;
+    }
+  }
+
+  mongoc_cursor_destroy(cursorP);
+  bson_destroy(&filter);
+  mongoc_collection_destroy(collP);
+  mongoc_client_pool_push(poolP, clientP);
+
+  return result;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocContextList -
 //
 int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
@@ -203,10 +268,12 @@ int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
       {
         const char* k = bson_iter_key(&it);
 
-        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))     r->id   = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
-        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))     r->url  = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
-        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT32(&it))    r->kind = bson_iter_int32(&it);
-        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))     r->body = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->id   = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->url  = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT32(&it))   r->kind = bson_iter_int32(&it);
+        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT64(&it))   r->kind = (int) bson_iter_int64(&it);
+        else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_DOUBLE(&it))  r->kind = (int) bson_iter_double(&it);
+        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->body = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
       }
     }
 
