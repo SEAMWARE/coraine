@@ -1,0 +1,299 @@
+#
+# FILE            csource-reg-creation-conflicts.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - CSR creation-time conflict checks (NGSI-LD § 5.9.2)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+#
+# 01. Seed local entity V1 with attr 'speed'
+# 02. POST exclusive reg for V1+speed → 409 (collides with local entity)
+# 03. POST exclusive reg for V1+color  → 201 (different attr)
+# 04. POST exclusive reg for V1+color  again → 409 (overlaps with R3)
+# 05. POST redirect reg for V1+color   → 409 (overlaps with exclusive R3)
+# 06. POST exclusive reg for V2+speed  → 201 (different entity, no local V2)
+# 07. POST inclusive reg for V3+humidity → 201 (no conflict checks for inclusive)
+# 08. POST exclusive reg for V3+humidity → 409 (now blocked by inclusive R7)
+# 09. POST inclusive reg for V1+speed → 201 (inclusive coexists with everything)
+# 10. POST auxiliary reg for V1+speed → 201 (auxiliary always accepted)
+#
+
+echo "01. Seed local entity V1 with attr 'speed'"
+echo "=========================================="
+swCurl -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. exclusive reg for V1+speed -> 409 (local entity collision)"
+echo "=============================================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R2",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "exclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
+  }'
+echo
+echo
+
+
+echo "03. exclusive reg for V1+color -> 201"
+echo "====================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R3",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "exclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"]}]
+  }'
+echo
+echo
+
+
+echo "04. second exclusive for V1+color -> 409 (overlaps R3)"
+echo "======================================================"
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R4",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "exclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"]}]
+  }'
+echo
+echo
+
+
+echo "05. redirect for V1+color -> 409 (overlaps exclusive R3)"
+echo "========================================================"
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R5",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "redirect",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"]}]
+  }'
+echo
+echo
+
+
+echo "06. exclusive for V2+speed -> 201 (different entity)"
+echo "===================================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R6",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "exclusive",
+    "information": [{"entities": [{"id": "urn:V2", "type": "Vehicle"}], "propertyNames": ["speed"]}]
+  }'
+echo
+echo
+
+
+echo "07. inclusive for V3+humidity -> 201"
+echo "===================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R7",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "inclusive",
+    "information": [{"entities": [{"id": "urn:V3", "type": "Vehicle"}], "propertyNames": ["humidity"]}]
+  }'
+echo
+echo
+
+
+echo "08. exclusive for V3+humidity -> 409 (blocked by inclusive R7)"
+echo "=============================================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R8",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "exclusive",
+    "information": [{"entities": [{"id": "urn:V3", "type": "Vehicle"}], "propertyNames": ["humidity"]}]
+  }'
+echo
+echo
+
+
+echo "09. inclusive for V1+speed -> 201 (inclusive has no creation-time conflict)"
+echo "==========================================================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R9",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "inclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
+  }'
+echo
+echo
+
+
+echo "10. auxiliary for V1+speed -> 201 (always accepted)"
+echo "==================================================="
+swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R10",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://x",
+    "mode": "auxiliary",
+    "operations": ["retrieveEntity"],
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
+  }'
+echo
+echo
+
+
+--EXPECT--
+01. Seed local entity V1 with attr 'speed'
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. exclusive reg for V1+speed -> 409 (local entity collision)
+==============================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration overlaps with locally-stored entity 'urn:V1'",
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+03. exclusive reg for V1+color -> 201
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. second exclusive for V1+color -> 409 (overlaps R3)
+======================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration overlaps with existing registration 'urn:CSR:R3' on entity 'urn:V1'",
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+05. redirect for V1+color -> 409 (overlaps exclusive R3)
+========================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration overlaps with existing registration 'urn:CSR:R3' on entity 'urn:V1'",
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+06. exclusive for V2+speed -> 201 (different entity)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R6
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. inclusive for V3+humidity -> 201
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R7
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. exclusive for V3+humidity -> 409 (blocked by inclusive R7)
+==============================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration overlaps with existing registration 'urn:CSR:R7' on entity 'urn:V3'",
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+09. inclusive for V1+speed -> 201 (inclusive has no creation-time conflict)
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R9
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+10. auxiliary for V1+speed -> 201 (always accepted)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R10
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

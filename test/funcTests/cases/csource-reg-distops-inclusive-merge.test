@@ -1,0 +1,351 @@
+#
+# FILE            csource-reg-distops-inclusive-merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - inclusive multi-source merge per § 4.5.5.3
+
+--INIT--
+swDbDrop -role CB
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart -role CB
+swBrokerStart -role CP1
+swBrokerStart -role CP2
+
+--RUN--
+#
+# Phase D - § 4.5.5.3 multi-source attribute conflict resolution.
+#
+# Three brokers (CB + CP1 + CP2) each carry their own copy of the same
+# attribute on the same entity. CB has inclusive registrations pointing
+# at CP1 and CP2, so a GET on CB has three candidate instances per
+# (attr, datasetId) - local + CP1 + CP2 - and must pick per § 4.5.5.3:
+#   1. drop expired
+#   2. if any non-expired has observedAt -> newest observedAt wins
+#   3. else -> newest modifiedAt wins
+#
+
+CB_PORT=1026
+CP1_PORT=1027
+CP2_PORT=1028
+
+
+echo "01. Setup - inclusive regs CB->CP1 and CB->CP2 (V1)"
+echo "==================================================="
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:CP1",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://localhost:1027/ngsi-ld/v1",
+    "mode": "inclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
+  }'
+echo
+echo
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:CP2",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://localhost:1028/ngsi-ld/v1",
+    "mode": "inclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
+  }'
+echo
+echo
+
+
+echo "A. All three sources have observedAt -> newest observedAt wins"
+echo "=============================================================="
+# CB:  observedAt 2026-01-01  value 10  (oldest observedAt)
+# CP1: observedAt 2026-02-01  value 20
+# CP2: observedAt 2026-03-01  value 30  (newest observedAt - should win)
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}}'
+echo
+echo
+swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":20,"observedAt":"2026-02-01T00:00:00Z"}}'
+echo
+echo
+swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-03-01T00:00:00Z"}}'
+echo
+echo
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "B. Only CP1 has observedAt (old); others rely on modifiedAt -> CP1 wins"
+echo "======================================================================="
+# Wipe state then re-seed without observedAt on CB / CP2
+swCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+# CP2 first  (oldest modifiedAt), CB second, CP1 last with old observedAt
+swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}'
+echo
+echo
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}}'
+echo
+echo
+swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200,"observedAt":"2020-01-01T00:00:00Z"}}'
+echo
+echo
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "C. None has observedAt -> newest modifiedAt wins (CB-local, last write)"
+echo "======================================================================="
+# Reset, then CP2 -> CP1 -> CB in that order so CB has the newest modifiedAt
+swCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3000}}'
+echo
+echo
+swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2000}}'
+echo
+echo
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1000}}'
+echo
+echo
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Setup - inclusive regs CB->CP1 and CB->CP2 (V1)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+A. All three sources have observedAt -> newest observedAt wins
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": 30,
+  "type": "Vehicle"
+}
+
+
+
+B. Only CP1 has observedAt (old); others rely on modifiedAt -> CP1 wins
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": 200,
+  "type": "Vehicle"
+}
+
+
+
+C. None has observedAt -> newest modifiedAt wins (CB-local, last write)
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": 1000,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop -role CB
+swBrokerStop -role CP1
+swBrokerStop -role CP2
+swDbDrop -role CB
+swDbDrop -role CP1
+swDbDrop -role CP2

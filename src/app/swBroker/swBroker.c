@@ -32,7 +32,7 @@
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
-#include "swNgsild/SwNgsild.h"                    // swNgsild
+#include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
 
 #include "db/DbDriver.h"                          // db
 #include "db/dbInit.h"                            // dbStart
@@ -41,6 +41,8 @@
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
+
+#include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
 
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
 
@@ -169,6 +171,7 @@ int            poolSize     = 6;
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          userContext  = NULL;
+char*          csourceAlias = NULL;
 
 static KArg kargV[] =
 {
@@ -181,6 +184,7 @@ static KArg kargV[] =
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
+  { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   KARGS_END
 };
@@ -359,6 +363,25 @@ int main(int argC, char* argV[])
   ldLocalOnly        = localOnly;
   ldDefaultContextUrl = userContext;
 
+  //
+  // contextSourceAlias base for Via headers (NGSI-LD § 5.7.5).
+  // Default: "<argv0-basename>:<port>" — RFC 7230 pseudonym is 1*VCHAR,
+  // no hostname requirement, so the executable name is sufficient and
+  // sidesteps the multi-IP host-naming problem.
+  //
+  if (csourceAlias == NULL)
+  {
+    const char* basename = argV[0];
+    for (const char* p = argV[0]; *p != 0; p++)
+      if (*p == '/') basename = p + 1;
+
+    static char defaultAlias[128];
+    snprintf(defaultAlias, sizeof(defaultAlias), "%s:%u", basename, (unsigned) port);
+    ldCsourceAliasBase = defaultAlias;
+  }
+  else
+    ldCsourceAliasBase = csourceAlias;
+
   int r = ktInit("swBroker", NULL, true, NULL, NULL, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
     KT_X(1, "ktInit failed");
@@ -382,6 +405,8 @@ int main(int argC, char* argV[])
 
   if (ldInit() != 0)
     KT_X(1, "ldInit failed");
+
+  forwardingHttpRegister();
 
   if (prettySpaces > 0)
     swRestSetPrettySpaces(prettySpaces);

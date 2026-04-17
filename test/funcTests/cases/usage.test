@@ -55,6 +55,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
                  [--userContext/-ctx <default user @context URL>]
+                 [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
@@ -75,6 +76,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
                  [--userContext/-ctx <default user @context URL>]
+                 [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Database (mongoc) plugin options:
@@ -105,6 +107,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
                  [--userContext/-ctx <default user @context URL>]
+                 [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins

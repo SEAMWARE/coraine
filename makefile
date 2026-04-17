@@ -50,7 +50,9 @@ DB_SOURCES    = src/lib/db/dbInit.c                    \
 
 PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
 
-ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(PLUGIN_SOURCES)
+FWD_SOURCES   = src/lib/forwarding/forwardingHttp.c
+
+ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES)
 ALL_OBJS      = $(ALL_SOURCES:.c=.o)
 
 #

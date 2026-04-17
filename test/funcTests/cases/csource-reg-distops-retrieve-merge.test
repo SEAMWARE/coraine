@@ -1,0 +1,289 @@
+#
+# FILE            csource-reg-distops-retrieve-merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - retrieveEntity merges local non-registered attrs with single-exclusive forward
+
+--INIT--
+swDbDrop -role CB
+swDbDrop -role CP1
+swBrokerStart -role CB
+swBrokerStart -role CP1
+
+--RUN--
+#
+# Slice 1.5: a single exclusive registration covers some attrs while local
+# holds others. The retrieveEntity result must be the union (with the
+# exclusive's attrs sourced from upstream).
+#
+# 01. Seed CP1 with V1 (speed only — the registered attribute)
+# 02. Seed CB with local V1 carrying ONLY non-registered attrs (color, model)
+# 03. Register CP1 as exclusive on CB for V1's "speed"
+# 04. GET V1 on CB → merged: id+type+color+model from CB + speed from CP1
+# 05. ?local=true on CB → only local attrs (color, model)
+# 06. GET V1 on CP1 → upstream-only view (speed)
+# 07. Local V1 carries a stale "speed" too → exclusive strips it from the
+#     merged response (defensive, since spec § 4.3.6.3 forbids holding it)
+# 08. Upstream returns 404 → fall back to the local non-registered attrs
+#
+
+CB_PORT=1026
+CP1_PORT=1027
+
+
+echo "01. Seed CP1 with V1 (speed=42)"
+echo "==============================="
+swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. Seed CB with local V1 (color, model)"
+echo "========================================"
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+  --payload '{
+    "id":"urn:V1",
+    "type":"Vehicle",
+    "color":{"type":"Property","value":"red"},
+    "model":{"type":"Property","value":"X1"}
+  }'
+echo
+echo
+
+
+echo "03. Register CP1 as exclusive on CB for V1's speed"
+echo "=================================================="
+swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
+  --payload '{
+    "id": "urn:CSR:R1",
+    "type": "ContextSourceRegistration",
+    "endpoint": "http://localhost:1027/ngsi-ld/v1",
+    "mode": "exclusive",
+    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
+  }'
+echo
+echo
+
+
+echo "04. GET V1 on CB -> merged (color+model local, speed from CP1)"
+echo "=============================================================="
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "05. GET V1 on CB ?local=true -> local only (no speed)"
+echo "====================================================="
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+echo "06. GET V1 on CP1 -> upstream view (speed only)"
+echo "==============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "07. Local V1 also has a stale speed -> stripped from merged response"
+echo "===================================================================="
+swCurl --port $CB_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+  --payload '{"speed":{"type":"Property","value":99}}'
+echo
+echo
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "08. Wipe upstream V1 -> upstream 404 -> CB falls back to local non-registered"
+echo "============================================================================="
+swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1 (speed=42)
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed CB with local V1 (color, model)
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Register CP1 as exclusive on CB for V1's speed
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. GET V1 on CB -> merged (color+model local, speed from CP1)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "model": {
+    "type": "Property",
+    "value": "X1"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. GET V1 on CB ?local=true -> local only (no speed)
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "model": {
+    "type": "Property",
+    "value": "X1"
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. GET V1 on CP1 -> upstream view (speed only)
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+07. Local V1 also has a stale speed -> stripped from merged response
+====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "model": {
+    "type": "Property",
+    "value": "X1"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+08. Wipe upstream V1 -> upstream 404 -> CB falls back to local non-registered
+=============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "model": {
+    "type": "Property",
+    "value": "X1"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop -role CB
+swBrokerStop -role CP1
+swDbDrop -role CB
+swDbDrop -role CP1
