@@ -40,17 +40,18 @@
 
 // -----------------------------------------------------------------------------
 //
-// mongocSubGeoMatch - callback adapter for subscription geoQ matching
+// mongocGeoMatchCb - generic geo match callback
 //
-static bool mongocSubGeoMatch(KjNode* entityP, LdSubCacheItem* itemP)
+static bool mongocGeoMatchCb(KjNode* entityP, LdGeoRel* geoRel, const char* geometry,
+                              const char* coordinates, const char* geoproperty)
 {
   DbQueryFilter filter;
 
   memset(&filter, 0, sizeof(filter));
-  filter.geoRel       = itemP->geoRel;
-  filter.geometry      = itemP->geoGeometry;
-  filter.coordinates   = itemP->geoCoordinates;
-  filter.geoproperty   = itemP->geoProperty;
+  filter.geoRel       = geoRel;
+  filter.geometry      = (char*) geometry;
+  filter.coordinates   = (char*) coordinates;
+  filter.geoproperty   = (char*) geoproperty;
 
   return geoMatch(entityP, &filter, NULL);
 }
@@ -82,7 +83,7 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionQuery     = mongocSubscriptionQuery;
   driverP->subscriptionUpdate    = mongocSubscriptionUpdate;
   driverP->subscriptionDelete    = mongocSubscriptionDelete;
-  driverP->geoMatchFunc          = mongocSubGeoMatch;
+  driverP->geoMatchFunc          = mongocGeoMatchCb;
 
   driverP->registrationCreate    = mongocRegistrationCreate;
   driverP->registrationRetrieve  = mongocRegistrationRetrieve;

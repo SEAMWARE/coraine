@@ -16,7 +16,7 @@
 #include "kjson/KjNode.h"                                 // KjNode
 
 #include "swNgsild/ldEntityMerge.h"                       // LdMergeReport
-#include "swNgsild/LdSubCache.h"                          // LdSubGeoMatchFunc
+#include "swNgsild/LdSubCache.h"                          // LdGeoMatchFunc
 
 #include "db/DbQueryFilter.h"                             // DbQueryFilter
 #include "db/Tenant.h"                                    // Tenant
@@ -120,7 +120,7 @@ typedef struct DbDriver
   DbRegistrationListFunc     registrationList;
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
-  LdSubGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
+  LdGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
 
   // JSON-LD context persistence — optional; NULL means no persistence
   // (e.g. ramdb). The reserved DB name ("swBroker") is used internally.

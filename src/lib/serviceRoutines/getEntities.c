@@ -483,12 +483,13 @@ bool getEntities(void)
             keep = false;
         }
 
-        // geoQ: use the registered geoMatch function (GEOS-based)
-        if (keep && swNgsild.geoRel != NULL && tP != NULL && tP->subCacheP != NULL)
+        // geoQ: use the DB driver's registered geo match callback
+        if (keep && swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
         {
-          // geoQ post-filter requires the same geo matching as subscriptions.
-          // For now, skip — geoQ post-assembly is complex (needs the geo
-          // match function from the DB plugin). Will be added when needed.
+          if (!db.geoMatchFunc(entityP, swNgsild.geoRel, swNgsild.geometry,
+                               swNgsild.coordinates,
+                               swNgsild.geoproperty ? swNgsild.geoproperty : "location"))
+            keep = false;
         }
 
         if (!keep)
