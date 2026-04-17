@@ -13,6 +13,7 @@
 #include "swJsonld/swldExpand.h"                     // swldExpand
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, SwNgsild, swNgsild, ldPaginationTrim, ldPaginationLinkHeader, ldPickOmit
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
+#include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 
 #include "db/DbDriver.h"                             // db, DB_OK
 
@@ -99,6 +100,12 @@ bool getEntities(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying entities");
     return true;
   }
+
+  //
+  // Sort by orderBy before pagination (§ 4.23)
+  //
+  if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
+    ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount);
 
   //
   // Add NGSILD-Results-Count header if count was requested

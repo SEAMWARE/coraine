@@ -1,0 +1,276 @@
+#
+# FILE            query_entities_orderby.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Query Entities with orderBy (§ 4.23)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Seed 4 vehicles with different speed + name values
+# 02. orderBy=speed → ascending by speed value
+# 03. orderBy=speed;desc → descending by speed
+# 04. orderBy=name,speed → alphabetical by name, then by speed for ties
+# 05. orderBy on missing attr → entities without the attr sort last
+#
+
+
+echo "01. Seed 4 vehicles"
+echo "==================="
+for v in \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80},"name":{"type":"Property","value":"Charlie"}}' \
+  '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120},"name":{"type":"Property","value":"Alice"}}' \
+  '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50},"name":{"type":"Property","value":"Alice"}}' \
+  '{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":90},"name":{"type":"Property","value":"Bob"}}'; do
+  swCurl --url /ngsi-ld/v1/entities --payload "$v"
+  echo
+done
+echo
+
+
+echo "02. orderBy=speed → ascending"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=speed;desc → descending"
+echo "===================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed;desc&options=keyValues'
+echo
+echo
+
+
+echo "04. orderBy=name,speed → name asc, then speed asc for ties"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name,speed&options=keyValues'
+echo
+echo
+
+
+echo "05. orderBy on missing attr → missing sorts last"
+echo "================================================="
+# Add one vehicle without 'name'
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":999}}'
+echo
+echo
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 4 vehicles
+===================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V4
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. orderBy=speed → ascending
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V3",
+    "name": "Alice",
+    "speed": 50,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V1",
+    "name": "Charlie",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "name": "Bob",
+    "speed": 90,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "name": "Alice",
+    "speed": 120,
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. orderBy=speed;desc → descending
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V2",
+    "name": "Alice",
+    "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "name": "Bob",
+    "speed": 90,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V1",
+    "name": "Charlie",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "name": "Alice",
+    "speed": 50,
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. orderBy=name,speed → name asc, then speed asc for ties
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V3",
+    "name": "Alice",
+    "speed": 50,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "name": "Alice",
+    "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "name": "Bob",
+    "speed": 90,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V1",
+    "name": "Charlie",
+    "speed": 80,
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. orderBy on missing attr → missing sorts last
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V5
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V2",
+    "name": "Alice",
+    "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "name": "Alice",
+    "speed": 50,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "name": "Bob",
+    "speed": 90,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V1",
+    "name": "Charlie",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": 999,
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
