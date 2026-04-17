@@ -32,9 +32,12 @@
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
+#include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
+#include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
 
-#include "db/DbDriver.h"                          // db
+#include "db/DbDriver.h"                          // db, DB_OK
+#include "db/DbQueryFilter.h"                     // DbQueryFilter
 #include "db/dbInit.h"                            // dbStart
 #include "db/dbClose.h"                           // dbClose
 #include "db/Tenant.h"                            // tenantPreServiceHook
@@ -334,6 +337,53 @@ static void apiPluginsInit(void)
 
 // -----------------------------------------------------------------------------
 //
+// pernotQueryCallback - query entities for a periodic notification subscription
+//
+// Called by the pernot loop thread. Builds a DbQueryFilter from the
+// pernot item's entity selectors and calls db.entityQuery.
+//
+static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* allocP)
+{
+  if (db.entityQuery == NULL)
+    return NULL;
+
+  // Build a minimal filter from the pernot item's entity selectors
+  DbQueryFilter filter = {0};
+
+  // Extract type from the first entity selector (simplified — full selector
+  // support would need to union all types across all selectors)
+  if (itemP->entitySelectors != NULL && itemP->entitySelectors->type != NULL)
+  {
+    static __thread char* typeVBuf[2];
+    typeVBuf[0] = itemP->entitySelectors->type;
+    typeVBuf[1] = NULL;
+    filter.typeV = typeVBuf;
+  }
+
+  // Extract id if specific
+  if (itemP->entitySelectors != NULL && itemP->entitySelectors->id != NULL)
+  {
+    static __thread char* idVBuf[2];
+    idVBuf[0] = itemP->entitySelectors->id;
+    idVBuf[1] = NULL;
+    filter.idV = idVBuf;
+  }
+
+  filter.qExpr     = itemP->qExpr;
+  filter.scopeExpr = itemP->scopeExpr;
+  filter.geoRel    = itemP->geoRel;
+  filter.limit     = 20;
+
+  KjNode* arrayP = NULL;
+  int r = db.entityQuery((Tenant*) tenantP, &filter, &arrayP);
+
+  return (r == DB_OK) ? arrayP : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // main -
 //
 int main(int argC, char* argV[])
@@ -443,6 +493,10 @@ int main(int argC, char* argV[])
   tenantRegCacheReload();
   contextCacheReload();
   kaBufferReset(&swRest.kalloc, false);
+
+  // Start pernot loop (periodic notification background thread)
+  if (tenant0.pernotCacheP != NULL)
+    ldPernotLoopStart((LdPernotCache*) tenant0.pernotCacheP, pernotQueryCallback);
 
   //
   // Build combined service array (core + plugins) and start the REST server

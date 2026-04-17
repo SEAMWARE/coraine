@@ -24,6 +24,7 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd
+#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
 #include "swNgsild/ldQParse.h"                       // ldQParse
 #include "swNgsild/ldQRender.h"                      // ldQRender
 
@@ -205,8 +206,19 @@ bool postSubscriptions(void)
   if (idP->name[0] == '_')
     idP->name = "id";
 
-  if (tenantP->subCacheP != NULL)
-    ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, subP, qExprForCache);
+  KjNode* timeIntervalP = kjLookup(subP, "timeInterval");
+  bool isPernot = (timeIntervalP != NULL && (timeIntervalP->type == KjInt || timeIntervalP->type == KjFloat));
+
+  if (isPernot)
+  {
+    if (tenantP->pernotCacheP != NULL)
+      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, qExprForCache, tenantP);
+  }
+  else
+  {
+    if (tenantP->subCacheP != NULL)
+      ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, subP, qExprForCache);
+  }
 
   //
   // 201 Created -- set Location and Link headers, no body

@@ -18,6 +18,8 @@
 
 #include "swNgsild/LdSubCache.h"                         // LdSubCache
 #include "swNgsild/ldSubCache.h"                         // ldSubCacheCreate, ldSubCacheItemAdd
+#include "swNgsild/LdPernotCache.h"                      // LdPernotCache
+#include "swNgsild/ldPernotCache.h"                      // ldPernotCacheCreate
 #include "swNgsild/LdRegCache.h"                         // LdRegCache
 #include "swNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
 #include "kjson/kjLookup.h"                              // kjLookup
@@ -51,10 +53,11 @@ void tenantInit(const char* prefix)
   strncpy(tenant0.dbName, prefix, sizeof(tenant0.dbName) - 1);
   tenant0.dbName[sizeof(tenant0.dbName) - 1] = 0;
   tenant0.initialized = true;
-  tenant0.subCacheP   = ldSubCacheCreate();
+  tenant0.subCacheP    = ldSubCacheCreate();
   if (tenant0.subCacheP != NULL && db.geoMatchFunc != NULL)
     ((LdSubCache*) tenant0.subCacheP)->geoMatchFunc = db.geoMatchFunc;
-  tenant0.regCacheP   = ldRegCacheCreate();
+  tenant0.pernotCacheP = ldPernotCacheCreate();
+  tenant0.regCacheP    = ldRegCacheCreate();
   tenant0.next        = NULL;
 }
 
@@ -118,10 +121,11 @@ Tenant* tenantGetOrCreate(const char* name)
   strcat(tP->dbName, tP->name);
 
   tP->initialized = false;
-  tP->subCacheP   = ldSubCacheCreate();
+  tP->subCacheP    = ldSubCacheCreate();
   if (tP->subCacheP != NULL && db.geoMatchFunc != NULL)
     ((LdSubCache*) tP->subCacheP)->geoMatchFunc = db.geoMatchFunc;
-  tP->regCacheP   = ldRegCacheCreate();
+  tP->pernotCacheP = ldPernotCacheCreate();
+  tP->regCacheP    = ldRegCacheCreate();
 
   // Prepend to linked list
   tP->next   = tenantList;

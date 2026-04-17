@@ -23,6 +23,7 @@ typedef struct Tenant
   bool            initialized;    // true after DB setup (indexes created)
   void*           pluginData;     // opaque, owned by the DB plugin
   void*           subCacheP;      // subscription cache (LdSubCache*), owned by broker
+  void*           pernotCacheP;   // periodic notification cache (LdPernotCache*), owned by broker
   void*           regCacheP;      // registration cache (LdRegCache*), owned by broker
   struct Tenant*  next;           // linked list
 } Tenant;
