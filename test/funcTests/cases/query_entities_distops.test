@@ -134,6 +134,39 @@ echo
 echo
 
 
+echo "11. Exclusive reg: CB→CP1 for Sensor → query Sensor returns CP1's data"
+echo "======================================================================="
+swBrokerStart -role CP2
+sleep 1
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":25}}'
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"'"$CP1"'/ngsi-ld/v1","mode":"exclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+echo
+swCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
+echo
+echo
+
+
+echo "12. Redirect reg: CB→CP2 for Camera → query returns CP2's data"
+echo "==============================================================="
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:C1","type":"Camera","res":{"type":"Property","value":"4K"}}'
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Redir","type":"ContextSourceRegistration","endpoint":"'"$CP2"'/ngsi-ld/v1","mode":"redirect","information":[{"entities":[{"type":"Camera"}]}]}'
+echo
+swCurl --url "/ngsi-ld/v1/entities?type=Camera&options=keyValues"
+echo
+echo
+
+
+echo "13. Auxiliary reg: CB→CP2 for Vehicle → V5 supplemented (already in result from inclusive)"
+echo "=========================================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Aux","type":"ContextSourceRegistration","endpoint":"'"$CP2"'/ngsi-ld/v1","mode":"auxiliary","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed" | grep -c '"id"'
+echo
+echo
+
+
 --EXPECT--
 01. Seed entities
 =================
@@ -442,6 +475,92 @@ Content-Length: 318
   }
 ]
 
+
+
+11. Exclusive reg: CB→CP1 for Sensor → query Sensor returns CP1's data
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 69
+
+[
+  {
+    "id": "urn:S1",
+    "temp": 25,
+    "type": "Sensor"
+  }
+]
+
+
+
+12. Redirect reg: CB→CP2 for Camera → query returns CP2's data
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:C1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Redir
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 70
+
+[
+  {
+    "id": "urn:C1",
+    "res": "4K",
+    "type": "Camera"
+  }
+]
+
+
+
+13. Auxiliary reg: CB→CP2 for Vehicle → V5 supplemented (already in result from inclusive)
+==========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Aux
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+4
 
 
 --TEARDOWN--

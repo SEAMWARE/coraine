@@ -250,64 +250,69 @@ bool getEntities(void)
     LdRegCacheItem**  matchV = NULL;
     int               matchN = 0;
 
-    // Match inclusive registrations (no-split: each entity fully at one source)
+    // Match all four CSR modes (no-split: each entity fully at one source,
+    // so the merge logic is the same — forward + dedup by entity ID).
+    // Processing order per § 4.3.6: exclusive → redirect → inclusive → auxiliary.
+    //
     if (tP != NULL && tP->regCacheP != NULL)
-      matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          NULL, swNgsild.typeV,
-                                          LdRegModeInclusive, &matchV);
-
-    if (matchN > 0)
     {
-      const char* qs = buildQueryString();
+      LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
+      const char* qs = NULL;
 
-      for (int i = 0; i < matchN; i++)
+      for (int m = 0; m < 4; m++)
       {
-        KjNode* remoteArray = forwardQueryToCSR(matchV[i], qs);
-        if (remoteArray == NULL || remoteArray->type != KjArray)
+        matchV = NULL;
+        matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
+                                            NULL, swNgsild.typeV,
+                                            modes[m], &matchV);
+        if (matchN == 0)
           continue;
 
-        // Merge remote entities into local result array
-        // For no-split mode: just append (no attr-level merge needed —
-        // each entity is fully at one source). Deduplicate by ID.
-        for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
+        if (qs == NULL)
+          qs = buildQueryString();
+
+        for (int i = 0; i < matchN; i++)
         {
-          KjNode* nextRemote = remoteEntity->next;
-
-          KjNode* remoteIdP = kjLookup(remoteEntity, "id");
-          if (remoteIdP == NULL || remoteIdP->type != KjString)
-          {
-            remoteEntity = nextRemote;
+          KjNode* remoteArray = forwardQueryToCSR(matchV[i], qs);
+          if (remoteArray == NULL || remoteArray->type != KjArray)
             continue;
-          }
 
-          // Check for duplicate (entity already in local results)
-          bool duplicate = false;
-          for (KjNode* localEntity = arrayP->value.firstChildP; localEntity != NULL; localEntity = localEntity->next)
+          for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
           {
-            KjNode* localIdP = kjLookup(localEntity, "id");
-            if (localIdP != NULL && localIdP->type == KjString && strcmp(localIdP->value.s, remoteIdP->value.s) == 0)
+            KjNode* nextRemote = remoteEntity->next;
+
+            KjNode* remoteIdP = kjLookup(remoteEntity, "id");
+            if (remoteIdP == NULL || remoteIdP->type != KjString)
             {
-              duplicate = true;
-              break;
+              remoteEntity = nextRemote;
+              continue;
             }
-          }
 
-          if (!duplicate)
-          {
-            remoteEntity->next = NULL;
-            // Remote entities arrive in compacted API format. Expand attr
-            // names to match local storage (which uses expanded IRIs for
-            // non-core terms). Then wrap to storage format.
-            swldExpandTree(remoteEntity, &swRest.kalloc);
-            apiAttrToStorageWrap(remoteEntity);
-            kjChildAdd(arrayP, remoteEntity);
-          }
+            bool duplicate = false;
+            for (KjNode* existingP = arrayP->value.firstChildP; existingP != NULL; existingP = existingP->next)
+            {
+              KjNode* existIdP = kjLookup(existingP, "id");
+              if (existIdP != NULL && existIdP->type == KjString && strcmp(existIdP->value.s, remoteIdP->value.s) == 0)
+              {
+                duplicate = true;
+                break;
+              }
+            }
 
-          remoteEntity = nextRemote;
+            if (!duplicate)
+            {
+              remoteEntity->next = NULL;
+              swldExpandTree(remoteEntity, &swRest.kalloc);
+              apiAttrToStorageWrap(remoteEntity);
+              kjChildAdd(arrayP, remoteEntity);
+            }
+
+            remoteEntity = nextRemote;
+          }
         }
-      }
 
-      free(matchV);
+        free(matchV);
+      }
     }
   }
 
