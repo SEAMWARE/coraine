@@ -646,18 +646,18 @@ bool getEntity(void)
     int               inclN     = 0;
     int               auxN      = 0;
 
-    const char* entityType = swNgsild.type;   // expanded in preServiceHook
+    char** entityTypeV = swNgsild.typeV;   // expanded in preServiceHook; NULL = no filter
 
     if (tP != NULL && tP->regCacheP != NULL)
     {
       exclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, entityType,
+                                          entityId, entityTypeV,
                                           LdRegModeExclusive, &exclV);
       redirN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, entityType,
+                                          entityId, entityTypeV,
                                           LdRegModeRedirect, &redirV);
       inclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, entityType,
+                                          entityId, entityTypeV,
                                           LdRegModeInclusive, &inclV);
       auxN   = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
                                           entityId, NULL,
