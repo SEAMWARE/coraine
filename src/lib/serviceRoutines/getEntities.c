@@ -503,21 +503,53 @@ bool getEntities(void)
               }
               else if (splitMode)
               {
-                // Split mode: merge remote attrs into existing entity
-                // (add attrs not already present — simple overlay)
-                for (KjNode* attrP = remoteEntity->value.firstChildP; attrP != NULL; )
+                // Split mode: merge remote attrs into existing entity per
+                // § 4.5.5.3 — instance-level conflict resolution per
+                // (attrName, datasetId). Both trees are in storage format.
+                for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
                 {
-                  KjNode* nextAttr = attrP->next;
-                  if (attrP->name != NULL &&
-                      strcmp(attrP->name, "id") != 0 &&
-                      strcmp(attrP->name, "type") != 0 &&
-                      attrP->name[0] != '@' &&
-                      kjLookup(existingP, attrP->name) == NULL)
+                  KjNode* nextSrcAttr = srcAttrP->next;
+
+                  if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
+                      strcmp(srcAttrP->name, "id") == 0 ||
+                      strcmp(srcAttrP->name, "type") == 0 ||
+                      srcAttrP->type != KjObject)
                   {
-                    attrP->next = NULL;
-                    kjChildAdd(existingP, attrP);
+                    srcAttrP = nextSrcAttr;
+                    continue;
                   }
-                  attrP = nextAttr;
+
+                  KjNode* destAttrP = kjLookup(existingP, srcAttrP->name);
+
+                  if (destAttrP == NULL)
+                  {
+                    // Attr not in dest — move whole wrapper
+                    srcAttrP->next = NULL;
+                    kjChildAdd(existingP, srcAttrP);
+                  }
+                  else
+                  {
+                    // Attr exists — merge per dsKey instance
+                    for (KjNode* srcInstP = srcAttrP->value.firstChildP; srcInstP != NULL; )
+                    {
+                      KjNode* nextSrcInst = srcInstP->next;
+                      KjNode* destInstP = kjLookup(destAttrP, srcInstP->name);
+
+                      if (destInstP == NULL)
+                      {
+                        // dsKey not in dest — add
+                        srcInstP->next = NULL;
+                        kjChildAdd(destAttrP, srcInstP);
+                      }
+                      // else: both have this dsKey — keep dest's (first wins
+                      // without timestamps; full § 4.5.5.3 would compare
+                      // observedAt/modifiedAt here)
+
+                      srcInstP = nextSrcInst;
+                    }
+                  }
+
+                  srcAttrP = nextSrcAttr;
                 }
               }
               // else: no-split mode, duplicate — skip
