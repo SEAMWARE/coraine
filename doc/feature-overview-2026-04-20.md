@@ -12,7 +12,7 @@ Spec target: **ETSI GS CIM 009 v1.9.1**.
 |-----------|----------|--------|
 | Create Entity | POST /entities | Done — local |
 | Retrieve Entity | GET /entities/{id} | Done — local + full distops (all 4 modes) |
-| Query Entities | GET /entities | Done — local |
+| Query Entities | GET /entities | Done — local + distributed (no-split mode) |
 | Delete Entity | DELETE /entities/{id} | Done — local |
 | Merge Entity | PATCH /entities/{id} | Done — local |
 | Replace Entity | PUT /entities/{id} | Done — local |
@@ -146,7 +146,8 @@ binary path a significant multiplier.
 | Attribute-level CRUD (4 endpoints) | 1 week |
 | Batch operations (6 endpoints) | 1.5 weeks |
 | MQTT notifications | 1 week |
-| DistOps for query + write operations | 2–3 weeks |
+| DistOps for write operations | 1–2 weeks |
+| DistOps queryEntities: split-entities mode | 1 week |
 | Type/attribute discovery (4 endpoints) | 1 week |
 | Temporal API | 4–6 weeks |
 | Snapshots (§ 5.16) | 2–3 weeks |

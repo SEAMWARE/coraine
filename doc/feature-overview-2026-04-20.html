@@ -248,7 +248,7 @@
   <tr><th>Operation</th><th>Endpoint</th><th>Status</th></tr>
   <tr><td>Create Entity</td><td><code>POST /entities</code></td><td class="status-done">Done &mdash; local</td></tr>
   <tr><td>Retrieve Entity</td><td><code>GET /entities/{id}</code></td><td class="status-done">Done &mdash; local + full distops (all 4 modes)</td></tr>
-  <tr><td>Query Entities</td><td><code>GET /entities</code></td><td class="status-done">Done &mdash; local</td></tr>
+  <tr><td>Query Entities</td><td><code>GET /entities</code></td><td class="status-done">Done &mdash; local + distributed (no-split)</td></tr>
   <tr><td>Delete Entity</td><td><code>DELETE /entities/{id}</code></td><td class="status-done">Done &mdash; local</td></tr>
   <tr><td>Merge Entity</td><td><code>PATCH /entities/{id}</code></td><td class="status-done">Done &mdash; local</td></tr>
   <tr><td>Replace Entity</td><td><code>PUT /entities/{id}</code></td><td class="status-done">Done &mdash; local</td></tr>
@@ -420,7 +420,8 @@ mongoc persistence, concurrent-download dedup.</p>
   <tr><td>Attribute-level CRUD (4 endpoints)</td><td style="text-align:right;">1 week</td></tr>
   <tr><td>Batch operations (6 endpoints)</td><td style="text-align:right;">1.5 weeks</td></tr>
   <tr><td>MQTT notifications</td><td style="text-align:right;">1 week</td></tr>
-  <tr><td>DistOps for query + write operations</td><td style="text-align:right;">2&ndash;3 weeks</td></tr>
+  <tr><td>DistOps for write operations</td><td style="text-align:right;">1&ndash;2 weeks</td></tr>
+  <tr><td>DistOps queryEntities: split-entities mode</td><td style="text-align:right;">1 week</td></tr>
   <tr><td>Type / attribute discovery (4 endpoints)</td><td style="text-align:right;">1 week</td></tr>
   <tr><td>Temporal API</td><td style="text-align:right;">4&ndash;6 weeks</td></tr>
   <tr><td>Snapshots (&#167; 5.16)</td><td style="text-align:right;">2&ndash;3 weeks</td></tr>
