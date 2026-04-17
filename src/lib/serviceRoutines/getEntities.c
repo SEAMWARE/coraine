@@ -387,6 +387,47 @@ bool getEntities(void)
     ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount);
 
   //
+  // Entity map: if entityMap=true, freeze the sorted entity IDs into a map
+  // for consistent pagination. The map is stored per-tenant and its location
+  // is returned via the NGSILD-EntityMap response header.
+  //
+  if (swNgsild.entityMap)
+  {
+    Tenant* tP = (Tenant*) swNgsild.tenantP;
+
+    if (tP != NULL && tP->entityMapStoreP != NULL)
+    {
+      // Purge expired maps first
+      ldEntityMapPurgeExpired((LdEntityMapStore*) tP->entityMapStoreP);
+
+      // Default lifetime: 5 minutes
+      LdEntityMap* mapP = ldEntityMapCreate((LdEntityMapStore*) tP->entityMapStoreP,
+                                             5ULL * 60 * 1000000000ULL, tP);
+
+      // Walk the sorted array, add each entity ID to the map
+      for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+      {
+        KjNode* idP = kjLookup(entityP, "id");
+        if (idP != NULL && idP->type == KjString)
+        {
+          const char* src = "@none";  // TODO: track actual source per entity
+          ldEntityMapAddEntry(mapP, idP->value.s, &src, 1);
+        }
+      }
+
+      // Add NGSILD-EntityMap header with the map's URL
+      char* mapUrl = (char*) kaAlloc(&swRest.kalloc, 128);
+      snprintf(mapUrl, 128, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
+
+      SwRestKeyValue* hV = swRest.out.headerV;
+      int ix = swRest.out.headerCount;
+      hV[ix].key   = "NGSILD-EntityMap";
+      hV[ix].value = mapUrl;
+      swRest.out.headerCount++;
+    }
+  }
+
+  //
   // Add NGSILD-Results-Count header if count was requested
   //
   if (swNgsild.count)

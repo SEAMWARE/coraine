@@ -167,6 +167,13 @@ echo
 echo
 
 
+echo "14. entityMap=true → response includes NGSILD-EntityMap header"
+echo "=============================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues" | grep -c 'NGSILD-EntityMap'
+echo
+echo
+
+
 --EXPECT--
 01. Seed entities
 =================
@@ -561,6 +568,11 @@ Content-Length: 0
 
 
 4
+
+
+14. entityMap=true → response includes NGSILD-EntityMap header
+==============================================================
+1
 
 
 --TEARDOWN--
