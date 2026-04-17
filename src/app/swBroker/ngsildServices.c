@@ -32,6 +32,8 @@
 #include "serviceRoutines/getCsourceRegistration.h"    // getCsourceRegistration
 #include "serviceRoutines/patchCsourceRegistration.h"  // patchCsourceRegistration
 #include "serviceRoutines/deleteCsourceRegistration.h" // deleteCsourceRegistration
+#include "serviceRoutines/getEntityMap.h"              // getEntityMap
+#include "serviceRoutines/deleteEntityMap.h"           // deleteEntityMap
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -67,7 +69,11 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations",   getCsourceRegistrations,   LD_PARAMS_GET_CSOURCE_REGISTRATIONS  },
   { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", getCsourceRegistration,    LD_PARAMS_GET_CSOURCE_REGISTRATION   },
   { SwVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", patchCsourceRegistration,  LD_PARAMS_PATCH_CSOURCE_REGISTRATION },
-  { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION }
+  { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION },
+
+  // EntityMap CRUD (§ 5.14)
+  { SwVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0 },
+  { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0 }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);
