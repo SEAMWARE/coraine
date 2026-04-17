@@ -289,6 +289,7 @@ bool getEntities(void)
           DbQueryFilter splitFilter = {0};
           splitFilter.idV       = filter.idV;
           splitFilter.idPattern = filter.idPattern;
+          splitFilter.limit     = 1000000;  // effectively unlimited
           // No type, q, geoQ, scopeQ — applied post-assembly
           arrayP = NULL;
           db.entityQuery((Tenant*) swNgsild.tenantP, &splitFilter, &arrayP);
