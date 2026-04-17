@@ -12,6 +12,8 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove
+#include "swNgsild/LdPernotCache.h"                  // LdPernotCache
+#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemRemove
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -54,6 +56,8 @@ bool deleteSubscription(void)
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
   if (tenantP->subCacheP != NULL)
     ldSubCacheItemRemove((LdSubCache*) tenantP->subCacheP, subId);
+  if (tenantP->pernotCacheP != NULL)
+    ldPernotCacheItemRemove((LdPernotCache*) tenantP->pernotCacheP, subId);
 
   swRest.out.httpStatusCode = 204;
   return true;

@@ -12,6 +12,8 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
+#include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
+#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 
@@ -59,9 +61,17 @@ bool getSubscription(void)
   LdSubCacheItem* cacheItem = (tenantP->subCacheP != NULL)
     ? ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId)
     : NULL;
-  LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr : NULL;
+  LdPernotItem* pernotItem = (tenantP->pernotCacheP != NULL)
+    ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId)
+    : NULL;
+  LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr :
+                    (pernotItem != NULL) ? pernotItem->qExpr : NULL;
   ldSubscriptionCompactQ(subP, qExpr, swNgsild.contextP, &swRest.kalloc);
-  ldSubscriptionCountersInject(subP, cacheItem);
+
+  if (cacheItem != NULL)
+    ldSubscriptionCountersInject(subP, cacheItem);
+  else if (pernotItem != NULL)
+    ldPernotCountersInject(subP, pernotItem);
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = subP;

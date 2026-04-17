@@ -17,6 +17,8 @@
 #include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "swNgsild/LdOp.h"                           // LdOpUpdateSubscription
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "swNgsild/LdPernotCache.h"                  // LdPernotCache
+#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
 
@@ -80,6 +82,31 @@ bool patchSubscription(void)
   }
 
   //
+  // Can't switch between periodic (timeInterval) and normal (watchedAttributes)
+  //
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  KjNode* tiInFragment = kjLookup(fragment, "timeInterval");
+  KjNode* waInFragment = kjLookup(fragment, LD_VOCAB_WATCHED_ATTRS);
+  KjNode* thInFragment = kjLookup(fragment, LD_VOCAB_THROTTLING);
+
+  bool existingIsPernot = (tenantP->pernotCacheP != NULL &&
+                           ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) != NULL);
+
+  if (tiInFragment != NULL && !existingIsPernot)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+            "cannot add 'timeInterval' to a non-periodic subscription");
+    return true;
+  }
+  if (existingIsPernot && (waInFragment != NULL || thInFragment != NULL))
+  {
+    const char* field = (waInFragment != NULL) ? "watchedAttributes" : "throttling";
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+            "cannot add '%s' to a periodic (timeInterval) subscription", field);
+    return true;
+  }
+
+  //
   // Update subscription in database (JSON Merge Patch)
   //
   if (db.subscriptionUpdate == NULL)
@@ -106,7 +133,6 @@ bool patchSubscription(void)
   // Update subscription cache: remove old entry, re-add from DB
   // (re-add retrieves the merged subscription and re-parses all fields)
   //
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
   if (tenantP->subCacheP != NULL)
   {
     ldSubCacheItemRemove((LdSubCache*) tenantP->subCacheP, subId);

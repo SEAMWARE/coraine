@@ -251,7 +251,7 @@ bool tenantPreServiceHook(void)
 //
 static void tenantSubCacheLoad(Tenant* tP)
 {
-  if (tP->subCacheP == NULL || db.subscriptionQuery == NULL)
+  if (db.subscriptionQuery == NULL)
     return;
 
   KjNode* arrayP = NULL;
@@ -260,15 +260,29 @@ static void tenantSubCacheLoad(Tenant* tP)
   if (r != DB_OK || arrayP == NULL)
     return;
 
-  int count = 0;
+  int normalCount = 0;
+  int pernotCount = 0;
+
   for (KjNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
   {
-    ldSubCacheItemAdd((LdSubCache*) tP->subCacheP, subP, NULL);
-    count++;
+    KjNode* tiP = kjLookup(subP, "timeInterval");
+    bool isPernot = (tiP != NULL && (tiP->type == KjInt || tiP->type == KjFloat));
+
+    if (isPernot && tP->pernotCacheP != NULL)
+    {
+      ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, NULL, tP);
+      pernotCount++;
+    }
+    else if (!isPernot && tP->subCacheP != NULL)
+    {
+      ldSubCacheItemAdd((LdSubCache*) tP->subCacheP, subP, NULL);
+      normalCount++;
+    }
   }
 
-  if (count > 0)
-    KT_I("tenant '%s': loaded %d subscription(s) into cache", tP->name[0] ? tP->name : "(default)", count);
+  if (normalCount + pernotCount > 0)
+    KT_I("tenant '%s': loaded %d subscription(s) + %d pernot into cache",
+         tP->name[0] ? tP->name : "(default)", normalCount, pernotCount);
 }
 
 
