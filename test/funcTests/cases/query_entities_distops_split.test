@@ -65,6 +65,20 @@ echo
 echo
 
 
+echo "05. q-filter post-assembly: speed>100 → only V2 (V1 has speed=80)"
+echo "=================================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E100&options=keyValues"
+echo
+echo
+
+
+echo "06. q-filter on remote attr: color==red → only V1 (color from CP1)"
+echo "==================================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22&options=keyValues"
+echo
+echo
+
+
 --EXPECT--
 01. Seed split entity V1 across CB + CP1
 =========================================
@@ -149,6 +163,43 @@ Content-Length: 140
   {
     "id": "urn:V2",
     "speed": 120,
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. q-filter post-assembly: speed>100 → only V2 (V1 has speed=80)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 72
+
+[
+  {
+    "id": "urn:V2",
+    "speed": 120,
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. q-filter on remote attr: color==red → only V1 (color from CP1)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 91
+
+[
+  {
+    "color": "red",
+    "id": "urn:V1",
+    "speed": 80,
     "type": "Vehicle"
   }
 ]

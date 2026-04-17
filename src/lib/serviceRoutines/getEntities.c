@@ -24,6 +24,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
+#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
@@ -459,22 +460,36 @@ bool getEntities(void)
         KjNode* nextP = entityP->next;
         bool keep = true;
 
-        // Type filter
-        if (swNgsild.typeV != NULL)
+        // Type filter (using type expression for full selector support)
+        if (keep && swNgsild.typeExpr != NULL)
         {
           KjNode* typeP = kjLookup(entityP, "type");
-          if (typeP == NULL)
+          if (!ldEntityMatchType(typeP, swNgsild.typeExpr))
             keep = false;
-          else if (typeP->type == KjString)
-          {
-            bool typeMatch = false;
-            for (int t = 0; swNgsild.typeV[t] != NULL; t++)
-              if (strcmp(typeP->value.s, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
-            keep = typeMatch;
-          }
         }
 
-        // TODO: q-filter, geoQ, scopeQ post-assembly
+        // q-filter
+        if (keep && swNgsild.qExpr != NULL)
+        {
+          if (!ldEntityMatchQ(entityP, swNgsild.qExpr))
+            keep = false;
+        }
+
+        // scopeQ filter
+        if (keep && swNgsild.scopeExpr != NULL)
+        {
+          KjNode* scopeP = kjLookup(entityP, "scope");
+          if (!ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
+            keep = false;
+        }
+
+        // geoQ: use the registered geoMatch function (GEOS-based)
+        if (keep && swNgsild.geoRel != NULL && tP != NULL && tP->subCacheP != NULL)
+        {
+          // geoQ post-filter requires the same geo matching as subscriptions.
+          // For now, skip — geoQ post-assembly is complex (needs the geo
+          // match function from the DB plugin). Will be added when needed.
+        }
 
         if (!keep)
           kjChildRemove(arrayP, entityP);
