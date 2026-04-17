@@ -81,7 +81,7 @@ Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_p
 | entityMap, entityMapLifetime, splitEntities | Not done |
 | local | Done |
 | csf | Not done |
-| Distributed operations | Done (no-split mode: forward + merge + dedup) |
+| Distributed operations | Done (no-split, all 4 modes, per-RegistrationInfo dispatch, 13-case functest) |
 
 Functional tests: `query_entities_*.test` (22 test files incl. distops + orderBy), `tenant_geo.test`, `geojson_response.test`, `url_param_expand_values.test`
 

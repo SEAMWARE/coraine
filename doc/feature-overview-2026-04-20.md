@@ -12,7 +12,7 @@ Spec target: **ETSI GS CIM 009 v1.9.1**.
 |-----------|----------|--------|
 | Create Entity | POST /entities | Done — local |
 | Retrieve Entity | GET /entities/{id} | Done — local + full distops (all 4 modes) |
-| Query Entities | GET /entities | Done — local + distributed (no-split mode) |
+| Query Entities | GET /entities | Done — local + distributed (no-split, all 4 modes, per-RegistrationInfo) |
 | Delete Entity | DELETE /entities/{id} | Done — local |
 | Merge Entity | PATCH /entities/{id} | Done — local |
 | Replace Entity | PUT /entities/{id} | Done — local |
