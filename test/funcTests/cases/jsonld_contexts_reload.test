@@ -15,7 +15,7 @@ DELETE /jsonldContexts/{id}?reload=true actually refreshes the body
 
 --INIT--
 swDbDrop
-mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop -db swBroker
 contextServerStart
 swBrokerStart
 
@@ -145,5 +145,5 @@ Content-Length: REGEX(\d+)
 --TEARDOWN--
 swBrokerStop
 contextServerStop
-mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop -db swBroker
 swDbDrop

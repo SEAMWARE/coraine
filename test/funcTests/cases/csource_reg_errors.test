@@ -44,322 +44,479 @@ echo
 
 echo "02. POST array (not object) - 400"
 echo "================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '[]'
+payload='[]'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. POST missing type - 400"
 echo "==========================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. POST wrong type value - 400"
 echo "==============================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "Subscription",
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "05. POST missing endpoint - 400"
 echo "==============================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "06. POST endpoint not a URI - 400"
 echo "================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "not-a-uri",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "07. POST missing information - 400"
 echo "=================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x"
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "08. POST information empty array - 400"
 echo "======================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": []
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "09. POST information element with no entities/propertyNames/relationshipNames - 400"
 echo "==================================================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "10. POST entities without type - 400"
 echo "===================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
-  "information": [{"entities": [{"id": "urn:x"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:x"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "11. POST mode invalid value - 400"
 echo "================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "mode": "magic",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "12. POST expiresAt in the past - 400"
 echo "===================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "expiresAt": "2020-01-01T00:00:00Z",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "13. POST expiresAt malformed - 400"
 echo "=================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "expiresAt": "not-a-date",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "14. POST auxiliary mode with disallowed operations - 400"
 echo "========================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "mode": "auxiliary",
   "operations": ["createEntity"],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "15. POST auxiliary mode with allowed operations - 201"
 echo "====================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "id": "urn:ngsi-ld:CSR:Aux1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "mode": "auxiliary",
   "operations": ["retrieveEntity", "queryEntity"],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "16. POST contextSourceInfo with bad accept value - 400"
 echo "======================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "contextSourceInfo": [{"key": "accept", "value": "text/html"}],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "17. PATCH non-existing registration - 404"
 echo "========================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:doesnt:exist --payload '{
+payload='{
   "description": "hi"
 }'
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:doesnt:exist --payload "$payload"
 echo
 echo
 
 
 echo "18. POST id not a string - 400"
 echo "=============================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "id": 42,
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "19. POST type not a string - 400"
 echo "================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": 42,
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "20. POST type empty string - 400"
 echo "================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "",
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "21. POST id empty string - 400"
 echo "=============================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "id": "",
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "22. POST id not a URI - 400"
 echo "==========================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "id": "no-colon-here",
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "23. POST information not an array - 400"
 echo "======================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": "not-an-array"
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "24. POST information item not an object - 400"
 echo "=============================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": ["string-not-object"]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "25. POST entities not an array - 400"
 echo "===================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": {}}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "26. POST entities empty array - 400"
 echo "==================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": []}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "27. POST entities item not an object - 400"
 echo "=========================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": ["str"]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "28. POST entities[].id not a string - 400"
 echo "========================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": [{"type": "X", "id": 42}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "29. POST entities[].id not a URI - 400"
 echo "======================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": [{"type": "X", "id": "no-colon"}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "30. POST entities[].idPattern not a string - 400"
 echo "================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": [{"type": "X", "idPattern": 42}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -374,205 +531,279 @@ echo
 
 echo "32. POST entities[].type not a string or array - 400"
 echo "===================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": [{"type": 42}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "33. POST entities[].type empty array - 400"
 echo "=========================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": [{"type": []}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "34. POST entities[].type array item not a string - 400"
 echo "======================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"entities": [{"type": [42]}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "35. POST propertyNames not an array - 400"
 echo "========================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"propertyNames": "speed"}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "36. POST propertyNames empty array - 400"
 echo "========================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"propertyNames": []}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "37. POST propertyNames item not a string - 400"
 echo "=============================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"propertyNames": [42]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "38. POST propertyNames item empty string - 400"
 echo "=============================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"propertyNames": [""]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "39. POST relationshipNames not an array - 400"
 echo "============================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"relationshipNames": "owner"}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "40. POST relationshipNames empty array - 400"
 echo "============================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"relationshipNames": []}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "41. POST relationshipNames item not a string - 400"
 echo "=================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"relationshipNames": [42]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "42. POST relationshipNames item empty string - 400"
 echo "=================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "information": [{"relationshipNames": [""]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "43. POST expiresAt not a string - 400"
 echo "====================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "expiresAt": 42,
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "44. POST mode not a string - 400"
 echo "================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "mode": 42,
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "45. POST contextSourceInfo not an array - 400"
 echo "============================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "contextSourceInfo": {"k": "v"},
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "46. POST contextSourceInfo item not an object - 400"
 echo "==================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "contextSourceInfo": ["str"],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "47. POST contextSourceInfo missing key - 400"
 echo "============================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "contextSourceInfo": [{"value": "v"}],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "48. POST contextSourceInfo missing value - 400"
 echo "=============================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "contextSourceInfo": [{"key": "k"}],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "49. POST contextSourceInfo bad contentType value - 400"
 echo "======================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "type": "ContextSourceRegistration",
   "endpoint": "http://x",
   "contextSourceInfo": [{"key": "contentType", "value": "text/plain"}],
-  "information": [{"entities": [{"type": "X"}]}]
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 

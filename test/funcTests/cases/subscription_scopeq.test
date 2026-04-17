@@ -37,7 +37,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -53,7 +53,7 @@ payload='{
     "value": "Parque Norte"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -84,7 +84,7 @@ payload='{
     "value": "Centro"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

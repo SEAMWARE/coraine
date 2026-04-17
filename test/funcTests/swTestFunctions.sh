@@ -3,6 +3,7 @@
 #
 export SW_BROKER=/home/kz/git/swBroker/swBroker
 export SW_DB_NAME="${SW_DB_NAME:-swTest}"
+SW_MONGO_PORT=${SW_MONGO_PORT:-27018}
 
 SW_BROKER_DIR=$(dirname $SW_BROKER)
 
@@ -21,6 +22,13 @@ SW_ROLES="
    CP4       1030   /tmp/swBroker_CP4.pid     swTest_cp4
    CP5       1031   /tmp/swBroker_CP5.pid     swTest_cp5
 "
+
+CB_PORT=1026
+CP1_PORT=1027
+CP2_PORT=1028
+CP3_PORT=1029
+CP4_PORT=1030
+CP5_PORT=1031
 
 # swRoleLookup - resolve role to port/pidFile/dbPrefix
 # Sets: SW_ROLE_PORT, SW_ROLE_PID_FILE, SW_ROLE_DB_PREFIX
@@ -66,7 +74,7 @@ swBrokerStart() {
 
   # Current-state DB plugin
   case "$SW_DB_TYPE" in
-    mongoc) cmd="$cmd --database $SW_BROKER_DIR/plugins/mongoc.so --dbName $SW_ROLE_DB_PREFIX" ;;
+    mongoc) cmd="$cmd --database $SW_BROKER_DIR/plugins/mongoc.so --dbName $SW_ROLE_DB_PREFIX --dbPort $SW_MONGO_PORT" ;;
     ramdb)  cmd="$cmd --database $SW_BROKER_DIR/plugins/swRamDB.so" ;;
     NONE)   ;;  # compiled-in default
     *)      echo "swBrokerStart: unknown -db type: $SW_DB_TYPE"; return 1 ;;
@@ -112,32 +120,38 @@ swBrokerStop() {
 
 # -----------------------------------------------------------------------------
 #
-# swDbDrop [-role <role>] [-tenant <tenant>]
+# swDbDrop [-role <role>] [-tenant <tenant>] [-db <dbName>]
 #
-# Usage:  swDbDrop
-#         swDbDrop -tenant t1
-#         swDbDrop -role CP1 -tenant t1
+# Usage:  swDbDrop                    # drop collections in CB's default db
+#         swDbDrop -tenant t1         # drop collections in CB's tenant db
+#         swDbDrop -role CP1          # drop collections in CP1's db
+#         swDbDrop -db swBroker       # drop the entire "swBroker" database
 #
 swDbDrop() {
   local role="CB"
   local tenant=""
+  local explicitDb=""
 
   while [ $# -gt 0 ]; do
     if   [ "$1" == "-role" ];   then role="$2"; shift
     elif [ "$1" == "-tenant" ]; then tenant="$2"; shift
+    elif [ "$1" == "-db" ];     then explicitDb="$2"; shift
     fi
     shift
   done
 
-  swRoleLookup "$role" || return 1
-
   case "$SW_DB_TYPE" in
     mongoc)
-      local db="$SW_ROLE_DB_PREFIX"
-      if [ -n "$tenant" ]; then
-        db="${db}-${tenant}"
+      if [ -n "$explicitDb" ]; then
+        mongosh --port $SW_MONGO_PORT --quiet --eval 'db.dropDatabase()' "$explicitDb" > /dev/null 2>&1
+      else
+        swRoleLookup "$role" || return 1
+        local db="$SW_ROLE_DB_PREFIX"
+        if [ -n "$tenant" ]; then
+          db="${db}-${tenant}"
+        fi
+        mongosh --port $SW_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop()' "$db" > /dev/null 2>&1
       fi
-      mongo --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop()' "$db" > /dev/null 2>&1
       ;;
     ramdb|NONE)
       # No-op: broker restart clears the RAM store

@@ -39,7 +39,7 @@ payload='{
   },
   "notificationTrigger": ["entityCreated", "entityUpdated", "entityDeleted"]
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -52,7 +52,7 @@ payload='{
   "speed": {"type": "Property", "value": 100},
   "color": {"type": "Property", "value": "red"}
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -67,8 +67,8 @@ echo
 
 echo "04. PATCH entity — change speed"
 echo "================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 \
-  --payload '{"speed": {"type": "Property", "value": 200}}'
+payload='{"speed": {"type": "Property", "value": 200}}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 

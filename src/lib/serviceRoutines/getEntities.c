@@ -121,24 +121,35 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
 
 // -----------------------------------------------------------------------------
 //
-// buildQueryString - reconstruct the query string from parsed URL params
+// buildQueryString - build the forwarded query string for broker-to-broker comm
 //
-// For no-split mode, we forward the full query. This builds the query
-// string from swNgsild state (type, q, georel, etc.)
+// Reconstructs from raw URL params but strips options (keyValues/concise/
+// simplified) and format — broker-to-broker always uses normalized format.
+// Also strips local, entityMap, orderBy, collation (those are local concerns).
 //
 static const char* buildQueryString(void)
 {
-  // Reconstruct from the original raw URL params — simpler than rebuilding
-  // from parsed state. swRest.in stores the raw URI params.
   char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
   int pos = 0;
 
   for (int i = 0; i < swRest.in.uriParamCount; i++)
   {
-    if (i > 0) qs[pos++] = '&';
-    int kLen = strlen(swRest.in.uriParamV[i].key);
+    const char* key = swRest.in.uriParamV[i].key;
+
+    // Skip params that are local-only or affect output format
+    if (strcmp(key, "options")   == 0) continue;
+    if (strcmp(key, "format")    == 0) continue;
+    if (strcmp(key, "local")     == 0) continue;
+    if (strcmp(key, "orderBy")   == 0) continue;
+    if (strcmp(key, "collation") == 0) continue;
+    if (strcmp(key, "entityMap") == 0) continue;
+    if (strcmp(key, "pick")      == 0) continue;
+    if (strcmp(key, "omit")      == 0) continue;
+
+    if (pos > 0) qs[pos++] = '&';
+    int kLen = strlen(key);
     int vLen = strlen(swRest.in.uriParamV[i].value);
-    strcpy(qs + pos, swRest.in.uriParamV[i].key);
+    strcpy(qs + pos, key);
     pos += kLen;
     qs[pos++] = '=';
     strcpy(qs + pos, swRest.in.uriParamV[i].value);
@@ -284,6 +295,9 @@ bool getEntities(void)
           if (!duplicate)
           {
             remoteEntity->next = NULL;
+            // Remote entities arrive in compacted API format. Expand attr
+            // names to match local storage (which uses expanded IRIs for
+            // non-core terms). Then wrap to storage format.
             swldExpandTree(remoteEntity, &swRest.kalloc);
             apiAttrToStorageWrap(remoteEntity);
             kjChildAdd(arrayP, remoteEntity);

@@ -36,7 +36,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -54,7 +54,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -72,7 +72,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -98,7 +98,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

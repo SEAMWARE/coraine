@@ -5,82 +5,138 @@
 #
 # Copyright 2026 Seamware
 #
-# Distributed queryEntities: CB queries local + forwards to CP1.
+# Distributed queryEntities — comprehensive coverage.
 # No-split mode: each entity fully at one source.
 #
 --NAME--
-Distributed queryEntities (no-split mode)
+Distributed queryEntities (comprehensive, no-split mode)
 
 --INIT--
 swDbDrop
 swDbDrop -role CP1
+swDbDrop -role CP2
 swBrokerStart
 swBrokerStart -role CP1
+swBrokerStart -role CP2
 
 --RUN--
 
 #
-# 01. Seed CB with V1 (local) and CP1 with V2 (remote)
-# 02. Register CB→CP1 (inclusive, type=Vehicle)
-# 03. GET /entities?type=Vehicle on CB → both V1 + V2
-# 04. GET /entities?type=Vehicle&local=true → only V1
-# 05. GET /entities?type=Vehicle&options=keyValues on CB → V1 + V2 simplified
+# Setup:
+#   CB:  V1 (speed=80, color=red), V3 (speed=30)
+#   CP1: V2 (speed=120), V4 (speed=200, color=blue)
+#   CP2: V5 (speed=50)
+#
+# Registrations on CB:
+#   R1: inclusive, CB→CP1, type=Vehicle
+#   R2: inclusive, CB→CP2, type=Vehicle
+#
+# Tests:
+#   01. Seed entities on all three brokers
+#   02. Register CB→CP1 and CB→CP2 (inclusive)
+#   03. Basic merge: GET type=Vehicle → all 5 (ordered by speed)
+#   04. local=true → only V1+V3
+#   05. q filter forwarded: q=speed>100 → V2+V4
+#   06. orderBy=speed;desc on merged
+#   07. Pagination: limit=2 with orderBy
+#   08. pick=speed on merged
+#   09. Deduplication: same entity ID on CB and CP1
+#   10. CP2 down → graceful fallback
 #
 
 CB="http://localhost:${CB_PORT}"
 CP1="http://localhost:${CP1_PORT}"
+CP2="http://localhost:${CP2_PORT}"
 
-echo "01. Seed CB with V1, CP1 with V2"
+
+echo "01. Seed entities"
+echo "================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80},"color":{"type":"Property","value":"red"}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}}'
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":200},"color":{"type":"Property","value":"blue"}}'
+echo
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 and CB→CP2 (inclusive)"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'/ngsi-ld/v1","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'/ngsi-ld/v1","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. Basic merge: all 5 vehicles ordered by speed"
+echo "================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed"
+echo
+echo
+
+
+echo "04. local=true → only CB entities"
+echo "=================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&local=true&options=keyValues&orderBy=speed"
+echo
+echo
+
+
+echo "05. q filter forwarded: speed>100"
+echo "=================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E100&options=keyValues&orderBy=speed"
+echo
+echo
+
+
+echo "06. orderBy=speed;desc on merged"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
-  "id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}
-}'
-echo
-echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
-  "id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}
-}'
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed;desc"
 echo
 echo
 
 
-echo "02. Register CB→CP1 (inclusive, type=Vehicle)"
-echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
-  "id":"urn:CSR:CP1",
-  "type":"ContextSourceRegistration",
-  "endpoint":"'"$CP1"'/ngsi-ld/v1",
-  "mode":"inclusive",
-  "information":[{"entities":[{"type":"Vehicle"}]}]
-}'
+echo "07. Pagination: limit=2 with orderBy"
+echo "====================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed&limit=2"
 echo
 echo
 
 
-echo "03. GET /entities?type=Vehicle → V1 + V2 (merged from CB + CP1)"
-echo "================================================================"
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues"
+echo "08. pick=speed on merged"
+echo "========================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&pick=speed&orderBy=speed"
 echo
 echo
 
 
-echo "04. GET /entities?type=Vehicle&local=true → V1 only"
-echo "==================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&local=true&options=keyValues"
+echo "09. Dedup: create V1 on CP1 too → still only 5 entities"
+echo "========================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":999}}'
+echo
+echo "Entity count:"
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues" | grep -c '"id"'
 echo
 echo
 
 
-echo "05. GET /entities?type=Vehicle on CP1 directly → V2 only"
-echo "========================================================="
-swCurl --port $CP1_PORT --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues"
+echo "10. CP2 down → graceful fallback (CB+CP1 only)"
+echo "================================================"
+swBrokerStop -role CP2
+sleep 1
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed"
 echo
 echo
 
 
 --EXPECT--
-01. Seed CB with V1, CP1 with V2
-=================================
+01. Seed entities
+=================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
@@ -88,6 +144,14 @@ Location: urn:V1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
 
 
 
@@ -100,9 +164,27 @@ Content-Length: 0
 
 
 
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V4
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
 
-02. Register CB→CP1 (inclusive, type=Vehicle)
-==============================================
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V5
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 and CB→CP2 (inclusive)
+===========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
@@ -112,16 +194,187 @@ Content-Length: 0
 
 
 
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
 
-03. GET /entities?type=Vehicle → V1 + V2 (merged from CB + CP1)
-================================================================
+
+
+
+03. Basic merge: all 5 vehicles ordered by speed
+=================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 140
+Content-Length: 386
 
 [
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": 50,
+    "type": "Vehicle"
+  },
+  {
+    "color": "red",
+    "id": "urn:V1",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "color": "blue",
+    "id": "urn:V4",
+    "speed": 200,
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. local=true → only CB entities
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 159
+
+[
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  },
+  {
+    "color": "red",
+    "id": "urn:V1",
+    "speed": 80,
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. q filter forwarded: speed>100
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+[
+  {
+    "id": "urn:V2",
+    "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "color": "blue",
+    "id": "urn:V4",
+    "speed": 200,
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. orderBy=speed;desc on merged
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 386
+
+[
+  {
+    "color": "blue",
+    "id": "urn:V4",
+    "speed": 200,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "color": "red",
+    "id": "urn:V1",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": 50,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Pagination: limit=2 with orderBy
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed&limit=2&offset=2>; rel="next"; type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 139
+
+[
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": 50,
+    "type": "Vehicle"
+  }
+]
+
+
+
+08. pick=speed on merged
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 345
+
+[
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": 50,
+    "type": "Vehicle"
+  },
   {
     "id": "urn:V1",
     "speed": 80,
@@ -131,41 +384,60 @@ Content-Length: 140
     "id": "urn:V2",
     "speed": 120,
     "type": "Vehicle"
-  }
-]
-
-
-
-04. GET /entities?type=Vehicle&local=true → V1 only
-===================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 71
-
-[
+  },
   {
-    "id": "urn:V1",
-    "speed": 80,
+    "id": "urn:V4",
+    "speed": 200,
     "type": "Vehicle"
   }
 ]
 
 
 
-05. GET /entities?type=Vehicle on CP1 directly → V2 only
-=========================================================
+09. Dedup: create V1 on CP1 too → still only 5 entities
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+Entity count:
+5
+
+
+10. CP2 down → graceful fallback (CB+CP1 only)
+================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 72
+Content-Length: 318
 
 [
   {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  },
+  {
+    "color": "red",
+    "id": "urn:V1",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
     "id": "urn:V2",
     "speed": 120,
+    "type": "Vehicle"
+  },
+  {
+    "color": "blue",
+    "id": "urn:V4",
+    "speed": 200,
     "type": "Vehicle"
   }
 ]
@@ -175,5 +447,7 @@ Content-Length: 72
 --TEARDOWN--
 swBrokerStop
 swBrokerStop -role CP1
+swBrokerStop -role CP2 2>/dev/null
 swDbDrop
 swDbDrop -role CP1
+swDbDrop -role CP2

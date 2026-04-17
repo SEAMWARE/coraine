@@ -54,7 +54,7 @@ payload='{
     "observedAt": "2026-01-01T00:00:00Z"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

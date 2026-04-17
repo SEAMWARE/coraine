@@ -39,7 +39,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
 echo
 echo
 
@@ -57,7 +57,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
 echo
 echo
 
@@ -96,7 +96,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
 echo
 echo
 

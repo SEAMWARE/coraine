@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swBroker — Feature Overview (April 20, 2026)</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 170%; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem 1rem;
+  }
+  .container { max-width: 1800px; margin: 0 auto; }
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+    color: #fff;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1.05rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+  }
+  h2 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 2.2rem 0 1rem;
+    letter-spacing: -0.01em;
+  }
+  p, li { color: var(--text); font-size: 0.95rem; }
+  p { margin-bottom: 0.8rem; }
+  ul { padding-left: 1.5rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.3rem; }
+  strong { color: #fff; }
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--accent);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8rem 0 1.5rem;
+    font-size: 0.9rem;
+  }
+  th {
+    padding: 0.6rem 0.8rem;
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: left;
+  }
+  .perf-table th:not(:first-child) {
+    text-align: right;
+  }
+  td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  tr:hover td { background: rgba(56, 189, 248, 0.04); }
+
+  .status-done {
+    color: var(--green);
+    font-weight: 600;
+  }
+  .status-partial {
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .status-no {
+    color: var(--muted);
+  }
+
+  .perf-table td:not(:first-child) {
+    text-align: right;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.88rem;
+  }
+  .perf-table .winner {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+    margin: 1rem 0;
+  }
+  .card h3 {
+    font-size: 1rem;
+    color: #fff;
+    margin-bottom: 0.5rem;
+  }
+
+  .takeaway {
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin: 1rem 0;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.15em 0.55em;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .tag-done { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+  .tag-partial { background: rgba(251, 191, 36, 0.15); color: var(--amber); }
+  .tag-501 { background: rgba(248, 113, 113, 0.12); color: var(--red); }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  .not-yet li { color: var(--muted); }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 1.6rem; }
+    table { font-size: 0.82rem; }
+    td, th { padding: 0.4rem 0.5rem; }
+  }
+  .controls {
+    position: fixed;
+    top: 0.4rem;
+    right: 0.4rem;
+    display: flex;
+    gap: 0.2rem;
+    align-items: center;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s;
+    padding: 0.25rem;
+  }
+  .controls:hover, .controls.visible { opacity: 1; }
+  .ctrl-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 1.28rem;
+    height: 1.28rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.44rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, border-color 0.2s;
+    user-select: none;
+  }
+  .ctrl-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .ctrl-btn:active { background: var(--border); }
+  .zoom-label {
+    color: var(--muted);
+    font-size: 0.32rem;
+    display: flex;
+    align-items: center;
+    padding: 0 0.15rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    min-width: 1.6rem;
+    justify-content: center;
+  }
+  .ctrl-sep {
+    border-left: 1px solid var(--border);
+    height: 1rem;
+    margin: 0 0.1rem;
+  }
+</style>
+</head>
+<body>
+<div class="controls" id="controls">
+  <button class="ctrl-btn" onclick="zoom(-10)" title="Zoom out">&minus;</button>
+  <span class="zoom-label" id="zoomLabel">170%</span>
+  <button class="ctrl-btn" onclick="zoom(10)" title="Zoom in">+</button>
+  <div class="ctrl-sep"></div>
+  <button class="ctrl-btn" onclick="navSection(-1)" title="Previous section">&#x25B2;</button>
+  <button class="ctrl-btn" onclick="navSection(1)" title="Next section">&#x25BC;</button>
+  <button class="ctrl-btn" onclick="window.scrollBy({top:150,behavior:'smooth'})" title="Scroll down a bit">&#x25BE;</button>
+  <div class="ctrl-sep"></div>
+  <button class="ctrl-btn" onclick="if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen();" title="Toggle fullscreen">&#x26F6;</button>
+</div>
+<script>
+  let z = 170;
+  function zoom(d) {
+    z = Math.max(80, Math.min(300, z + d));
+    document.documentElement.style.fontSize = z + '%';
+    document.getElementById('zoomLabel').textContent = z + '%';
+  }
+
+  const sections = [];
+  let curSection = 0;
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('h1[id], h2[id]').forEach(el => sections.push(el));
+  });
+
+  function navSection(dir) {
+    if (sections.length === 0) return;
+    curSection = Math.max(0, Math.min(sections.length - 1, curSection + dir));
+    sections[curSection].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+</script>
+<div class="container">
+
+<h1 id="top">swBroker <span style="font-weight:400; font-size:0.6em; color:var(--muted);">as of April 20, 2026</span></h1>
+<p class="subtitle">
+  Lightweight NGSI-LD Context Broker in C. Plugin architecture for DB
+  (swRamDB in-memory, mongoc/MongoDB) and API extensions.<br>
+  Spec target: <strong>ETSI GS CIM 009 v1.9.1</strong>
+</p>
+
+<!-- ─── Entity CRUD ─── -->
+<h2 id="crud">Entity CRUD</h2>
+<table>
+  <tr><th>Operation</th><th>Endpoint</th><th>Status</th></tr>
+  <tr><td>Create Entity</td><td><code>POST /entities</code></td><td class="status-done">Done &mdash; local</td></tr>
+  <tr><td>Retrieve Entity</td><td><code>GET /entities/{id}</code></td><td class="status-done">Done &mdash; local + full distops (all 4 modes)</td></tr>
+  <tr><td>Query Entities</td><td><code>GET /entities</code></td><td class="status-done">Done &mdash; local</td></tr>
+  <tr><td>Delete Entity</td><td><code>DELETE /entities/{id}</code></td><td class="status-done">Done &mdash; local</td></tr>
+  <tr><td>Merge Entity</td><td><code>PATCH /entities/{id}</code></td><td class="status-done">Done &mdash; local</td></tr>
+  <tr><td>Replace Entity</td><td><code>PUT /entities/{id}</code></td><td class="status-done">Done &mdash; local</td></tr>
+</table>
+<ul>
+  <li>All 9 attribute types (incl. TemporalProperty)</li>
+  <li>Sub-attributes at arbitrary depth</li>
+  <li>Multi-entity-type (type as array)</li>
+  <li>Multi-attribute (datasetId)</li>
+  <li>Scope (entity scope property, scopeQ filtering)</li>
+  <li>Three input/output formats: normalized, concise, simplified</li>
+</ul>
+
+<!-- ─── Query Features ─── -->
+<h2 id="query">Query Features</h2>
+<table>
+  <tr><th>Feature</th><th>Status</th></tr>
+  <tr><td>q filter (full query language)</td><td class="status-done">Done</td></tr>
+  <tr><td>scopeQ filter</td><td class="status-done">Done</td></tr>
+  <tr><td>Geo-query (georel, geometry, coordinates, geoproperty)</td><td class="status-done">Done</td></tr>
+  <tr><td>pick / omit (attribute projection)</td><td class="status-done">Done</td></tr>
+  <tr><td>datasetId filter</td><td class="status-done">Done</td></tr>
+  <tr><td>lang (LanguageProperty reduction)</td><td class="status-done">Done</td></tr>
+  <tr><td>Pagination (limit, offset, count, Link headers)</td><td class="status-done">Done</td></tr>
+  <tr><td>Output: normalized, concise, simplified</td><td class="status-done">Done</td></tr>
+  <tr><td>GeoJSON (<code>application/geo+json</code>)</td><td class="status-done">Done</td></tr>
+  <tr><td>sysAttrs (createdAt / modifiedAt)</td><td class="status-done">Done</td></tr>
+  <tr><td>expandValues, scope</td><td class="status-done">Done</td></tr>
+  <tr><td>orderBy (multi-key, asc/desc, missing-sorts-last)</td><td class="status-done">Done</td></tr>
+  <tr><td>collation (BCP47 locale-aware string sort)</td><td class="status-done">Done</td></tr>
+  <tr><td>join, entityMap</td><td class="status-partial">Not yet</td></tr>
+</table>
+
+<!-- ─── Multi-Tenancy ─── -->
+<h2 id="tenancy">Multi-Tenancy</h2>
+<p>Full support via <code>NGSILD-Tenant</code> header. Per-tenant DB isolation,
+per-tenant subscription and registration caches.</p>
+
+<!-- ─── Subscriptions ─── -->
+<h2 id="subs">Subscriptions</h2>
+<div class="card">
+  <h3><span class="tag tag-done">DONE</span> Full CRUD + Real-Time Notification Engine</h3>
+  <p>Matching on entity selector (id, idPattern, type), q-filter, geoQ (GEOS), scopeQ.
+  Throttling, expiration, format (normalized / concise / simplified), counters,
+  mongoc persistence. datasetId instance filtering. Periodic notifications
+  (timeInterval) via separate pernot cache + background loop. <strong>80+ functional tests.</strong></p>
+</div>
+
+<!-- ─── Registrations + DistOps ─── -->
+<h2 id="distops">Context Source Registrations + Distributed Operations</h2>
+<table>
+  <tr><th>Feature</th><th>Status</th></tr>
+  <tr><td>CSR CRUD (POST / GET / PATCH / DELETE)</td><td class="status-done">Done</td></tr>
+  <tr><td>Creation-time conflict checks (&#167; 5.9.2)</td><td class="status-done">Done</td></tr>
+  <tr><td>Forwarding plugin architecture (HTTP default, extensible)</td><td class="status-done">Done</td></tr>
+  <tr><td>Exclusive mode &mdash; single authoritative upstream</td><td class="status-done">Done</td></tr>
+  <tr><td>Redirect mode &mdash; strip local, multiple sources, merge per &#167; 4.5.5.3</td><td class="status-done">Done</td></tr>
+  <tr><td>Inclusive mode &mdash; multi-source merge per &#167; 4.5.5.3</td><td class="status-done">Done</td></tr>
+  <tr><td>Auxiliary mode &mdash; fill gaps only, never overrides</td><td class="status-done">Done</td></tr>
+  <tr><td>Registration-constrained forwarding (<code>pick=</code> from reg attrs)</td><td class="status-done">Done</td></tr>
+  <tr><td><code>?type=</code> disambiguation on forward</td><td class="status-done">Done</td></tr>
+  <tr><td>Via header + tenant-scoped loop detection</td><td class="status-done">Done</td></tr>
+  <tr><td><code>?local=true</code> to bypass forwarding</td><td class="status-done">Done</td></tr>
+  <tr><td>Per-RegistrationInfo dispatch (respects info[] coverage areas)</td><td class="status-done">Done</td></tr>
+  <tr><td>Discovery filter (&#167; 5.10.2)</td><td><span class="tag tag-501">501</span></td></tr>
+</table>
+
+<!-- ─── JSON-LD ─── -->
+<h2 id="jsonld">JSON-LD Context Handling</h2>
+<p>Core context v1.9 built in.
+User <code>@context</code> via Link header or inline payload.
+Context hosting (&#167; 5.13): all four CRUD endpoints, three context kinds,
+mongoc persistence, concurrent-download dedup.</p>
+
+<!-- ─── Admin ─── -->
+<h2 id="admin">Admin API</h2>
+<p>Health, version, log control, tenant listing, plugin listing.</p>
+
+<hr>
+
+<!-- ─── Performance ─── -->
+<h2 id="perf">Performance &mdash; swBroker vs Orion-LD</h2>
+<p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">
+  Measured 2026-04-15 &middot; 20-core laptop &middot;
+  <code>wrk -t4 -c50 -d5s</code> &middot; median of 3 runs &middot;
+  5-attr Vehicle entity (~600 B) &middot; GET returns 20 entities/page
+</p>
+
+<table class="perf-table">
+  <tr>
+    <th>Scenario</th>
+    <th>sw ramdb</th>
+    <th>sw mongoc</th>
+    <th>Orion-LD</th>
+  </tr>
+  <tr>
+    <td>CREATE</td>
+    <td class="winner">73 k</td>
+    <td class="winner">35 k</td>
+    <td>20 k</td>
+  </tr>
+  <tr>
+    <td>PATCH</td>
+    <td class="winner">289 k</td>
+    <td>30 k</td>
+    <td>123 k</td>
+  </tr>
+  <tr>
+    <td>GET (ent/s)</td>
+    <td class="winner">7.5 M</td>
+    <td>745 k</td>
+    <td>1.2 M</td>
+  </tr>
+  <tr>
+    <td>DELETE</td>
+    <td class="winner">355 k</td>
+    <td>16 k</td>
+    <td>56 k</td>
+  </tr>
+  <tr>
+    <td>NOTIFY (rps)</td>
+    <td>4.6 k</td>
+    <td>5.1 k</td>
+    <td class="winner">17.3 k</td>
+  </tr>
+</table>
+
+<div class="takeaway">
+  <p><strong>In-memory (ramdb):</strong> 3.5&ndash;6&times; faster than Orion-LD on CREATE / GET / DELETE</p>
+  <p><strong>GET throughput:</strong> 7.5 M entities/s (ramdb) vs 1.2 M (Orion-LD)</p>
+  <p><strong>MongoDB:</strong> CREATE on par or ahead; PATCH/DELETE behind Orion-LD's heavily optimized mongoc path (no batch pipeline yet)</p>
+  <p><strong>NOTIFY:</strong> gap under investigation</p>
+</div>
+
+<div class="card" style="margin-top:1.5rem;">
+  <h3>Projected: binary forwarding protocol for distributed ops</h3>
+  <p>The forwarding plugin architecture is designed for a future binary
+  transport (<code>swBin://</code>) between trusted broker instances.
+  HTTP forwarding pays per hop: JSON render + HTTP framing + JSON parse +
+  @context expand/compact &mdash; twice (request + response). A binary
+  protocol eliminates all four layers and transmits the in-memory entity
+  tree directly.</p>
+  <p>Estimated improvement for the <strong>forwarding path</strong>: <strong>3&ndash;5&times;</strong>
+  compared to HTTP-based forwarding (as used by Orion-LD today).
+  End-to-end improvement for a distributed retrieveEntity depends on
+  the ratio of forwarding cost to local DB + merge cost, but for
+  multi-hop or multi-source queries the forwarding overhead dominates
+  &mdash; making the binary path a significant multiplier.</p>
+</div>
+
+<hr>
+
+<!-- ─── Not Yet ─── -->
+<h2 id="todo">Not Yet Implemented</h2>
+<ul class="not-yet">
+  <li>Attribute-level CRUD (POST / PATCH / DELETE / PUT individual attrs)</li>
+  <li>Batch operations (entityOperations/*)</li>
+  <li>Type / attribute discovery (GET /types, /attributes)</li>
+  <li>Temporal API (TRoE)</li>
+  <li>Snapshots (&#167; 5.16)</li>
+  <li>MQTT notification transport</li>
+  <li>join / joinLevel (linked entity graph traversal)</li>
+  <li>DistOps for query + write operations</li>
+</ul>
+
+<h3 style="color:var(--text); margin-top:1.5rem;">Estimated path to full NGSI-LD v1.9.1 conformance</h3>
+<table>
+  <tr><th>Remaining area</th><th style="text-align:right;">Estimate</th></tr>
+  <tr><td>Attribute-level CRUD (4 endpoints)</td><td style="text-align:right;">1 week</td></tr>
+  <tr><td>Batch operations (6 endpoints)</td><td style="text-align:right;">1.5 weeks</td></tr>
+  <tr><td>MQTT notifications</td><td style="text-align:right;">1 week</td></tr>
+  <tr><td>DistOps for query + write operations</td><td style="text-align:right;">2&ndash;3 weeks</td></tr>
+  <tr><td>Type / attribute discovery (4 endpoints)</td><td style="text-align:right;">1 week</td></tr>
+  <tr><td>Temporal API</td><td style="text-align:right;">4&ndash;6 weeks</td></tr>
+  <tr><td>Snapshots (&#167; 5.16)</td><td style="text-align:right;">2&ndash;3 weeks</td></tr>
+  <tr><td>join / joinLevel</td><td style="text-align:right;">1 week</td></tr>
+  <tr><td>ETSI conformance test alignment</td><td style="text-align:right;">2&ndash;3 weeks</td></tr>
+  <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>~3.5 months</strong></td></tr>
+</table>
+<p style="color:var(--muted); font-size:0.85rem;">
+  Single-developer estimate including functional tests per feature.
+  Temporal API and ETSI conformance alignment are the largest blocks.
+</p>
+
+</div>
+</body>
+</html>

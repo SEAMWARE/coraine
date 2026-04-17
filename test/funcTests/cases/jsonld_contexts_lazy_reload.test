@@ -20,7 +20,7 @@ GET / DELETE /jsonldContexts after LRU eviction (lazy reload)
 
 --INIT--
 swDbDrop
-mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop -db swBroker
 swBrokerStart
 
 # Insert two Hosted contexts directly — broker is unaware of them until
@@ -32,8 +32,8 @@ db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-1", kind: 2,
 db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-2", kind: 2,
                        body: '{"@context":{"world":"https://example.org/world"}}'});
 JSEOF
-mongo --quiet swBroker /tmp/lazyReloadInsert.js
-mongo --quiet --eval 'print("inserted: " + db.contexts.count())' swBroker
+mongosh --port $SW_MONGO_PORT --quiet swBroker /tmp/lazyReloadInsert.js
+mongosh --port $SW_MONGO_PORT --quiet --eval 'print("inserted: " + db.contexts.countDocuments())' swBroker
 
 --RUN--
 
@@ -127,5 +127,5 @@ Content-Length: REGEX(\d+)
 
 --TEARDOWN--
 swBrokerStop
-mongo --quiet --eval 'db.dropDatabase()' swBroker > /dev/null 2>&1
+swDbDrop -db swBroker
 swDbDrop

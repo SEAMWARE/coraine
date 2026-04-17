@@ -41,7 +41,7 @@ payload='{
     }
   ]
 }'
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -67,7 +67,7 @@ payload='{
     }
   ]
 }'
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -129,14 +129,14 @@ payload='{
     }
   ]
 }'
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "11. Attempt duplicate R1 - 409"
 echo "=============================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 

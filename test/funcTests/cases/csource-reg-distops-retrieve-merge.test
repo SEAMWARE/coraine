@@ -9,77 +9,100 @@
 DistOps - retrieveEntity merges local non-registered attrs with single-exclusive forward
 
 --INIT--
-swDbDrop -role CB
+swDbDrop
 swDbDrop -role CP1
-swBrokerStart -role CB
+swBrokerStart
 swBrokerStart -role CP1
 
 --RUN--
+
 #
 # Slice 1.5: a single exclusive registration covers some attrs while local
 # holds others. The retrieveEntity result must be the union (with the
 # exclusive's attrs sourced from upstream).
 #
-# 01. Seed CP1 with V1 (speed only — the registered attribute)
+# 01. Seed CP1 with V1 (speed only - the registered attribute)
 # 02. Seed CB with local V1 carrying ONLY non-registered attrs (color, model)
 # 03. Register CP1 as exclusive on CB for V1's "speed"
-# 04. GET V1 on CB → merged: id+type+color+model from CB + speed from CP1
-# 05. ?local=true on CB → only local attrs (color, model)
-# 06. GET V1 on CP1 → upstream-only view (speed)
-# 07. Local V1 carries a stale "speed" too → exclusive strips it from the
-#     merged response (defensive, since spec § 4.3.6.3 forbids holding it)
-# 08. Upstream returns 404 → fall back to the local non-registered attrs
+# 04. GET V1 on CB -> merged: color+model from CB, speed from CP1
+# 05. GET V1 on CB ?local=true -> local only (no speed)
+# 06. GET V1 on CP1 -> upstream view (speed only)
+# 07. PATCH local V1 to add a stale "speed"
+# 08. GET V1 on CB -> merged, stale local speed stripped (exclusive wins)
+# 09. DELETE V1 on CP1
+# 10. GET V1 on CB -> upstream 404, falls back to local non-registered attrs
 #
-
-CB_PORT=1026
-CP1_PORT=1027
-
 
 echo "01. Seed CP1 with V1 (speed=42)"
 echo "==============================="
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Seed CB with local V1 (color, model)"
 echo "========================================"
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{
-    "id":"urn:V1",
-    "type":"Vehicle",
-    "color":{"type":"Property","value":"red"},
-    "model":{"type":"Property","value":"X1"}
-  }'
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "model": {
+    "type": "Property",
+    "value": "X1"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. Register CP1 as exclusive on CB for V1's speed"
 echo "=================================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R1",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://localhost:1027/ngsi-ld/v1",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "speed"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. GET V1 on CB -> merged (color+model local, speed from CP1)"
 echo "=============================================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+swCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "05. GET V1 on CB ?local=true -> local only (no speed)"
 echo "====================================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
 echo
 
@@ -91,23 +114,36 @@ echo
 echo
 
 
-echo "07. Local V1 also has a stale speed -> stripped from merged response"
-echo "===================================================================="
-swCurl --port $CB_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
-  --payload '{"speed":{"type":"Property","value":99}}'
-echo
-echo
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo "07. PATCH local V1 to add a stale speed"
+echo "========================================="
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 99
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
 
-echo "08. Wipe upstream V1 -> upstream 404 -> CB falls back to local non-registered"
-echo "============================================================================="
+echo "08. GET V1 on CB -> merged, stale local speed stripped (exclusive wins)"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "09. DELETE V1 on CP1"
+echo "====================="
 swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+
+
+echo "10. GET V1 on CB -> upstream 404, falls back to local non-registered attrs"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -218,8 +254,8 @@ Content-Length: REGEX(\d+)
 
 
 
-07. Local V1 also has a stale speed -> stripped from merged response
-====================================================================
+07. PATCH local V1 to add a stale speed
+=========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -227,6 +263,8 @@ Content-Type: application/json
 
 
 
+08. GET V1 on CB -> merged, stale local speed stripped (exclusive wins)
+========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -252,8 +290,8 @@ Content-Length: REGEX(\d+)
 
 
 
-08. Wipe upstream V1 -> upstream 404 -> CB falls back to local non-registered
-=============================================================================
+09. DELETE V1 on CP1
+=====================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -261,6 +299,8 @@ Content-Type: application/json
 
 
 
+10. GET V1 on CB -> upstream 404, falls back to local non-registered attrs
+===========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -283,7 +323,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop -role CB
+swBrokerStop
 swBrokerStop -role CP1
-swDbDrop -role CB
+swDbDrop
 swDbDrop -role CP1

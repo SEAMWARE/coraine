@@ -42,7 +42,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -54,7 +54,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 100}
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -76,8 +76,8 @@ echo
 
 echo "05. PATCH subscription: isActive=false"
 echo "========================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle \
-  --payload '{"isActive": false}'
+payload='{"isActive": false}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle --payload "$payload"
 echo
 echo
 
@@ -96,7 +96,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 200}
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -110,8 +110,8 @@ echo
 
 echo "09. PATCH subscription: isActive=true"
 echo "======================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle \
-  --payload '{"isActive": true}'
+payload='{"isActive": true}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle --payload "$payload"
 echo
 echo
 
@@ -130,7 +130,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 300}
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

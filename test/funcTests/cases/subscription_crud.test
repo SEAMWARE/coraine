@@ -46,7 +46,7 @@ payload='{
   },
   "throttling": 5
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -76,7 +76,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -141,7 +141,7 @@ payload='{
   "entities": [{"type": "X"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/x"}}
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 

@@ -45,7 +45,7 @@ payload='{
     "datasetId": "urn:paint:factory"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

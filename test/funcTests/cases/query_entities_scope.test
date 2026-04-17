@@ -52,7 +52,7 @@ payload='{
     "value": "Parque Norte"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -68,7 +68,7 @@ payload='{
     "value": "Parque Sur"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -84,7 +84,7 @@ payload='{
     "value": "Centro"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -100,7 +100,7 @@ payload='{
     "value": "Branch Office"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -115,7 +115,7 @@ payload='{
     "value": "Headquarters"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

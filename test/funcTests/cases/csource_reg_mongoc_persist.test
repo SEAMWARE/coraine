@@ -30,24 +30,26 @@ swBrokerStart
 
 echo "01. Create R1"
 echo "============="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "id": "urn:ngsi-ld:CSR:R1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://csr.example/r1",
   "information": [{"entities": [{"type": "Vehicle"}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Create R2"
 echo "============="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations --payload '{
+payload='{
   "id": "urn:ngsi-ld:CSR:R2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://csr.example/r2",
   "information": [{"entities": [{"type": "Building"}]}]
 }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 

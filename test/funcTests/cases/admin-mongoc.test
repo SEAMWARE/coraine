@@ -128,7 +128,7 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -140,7 +140,7 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t2"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t2"
 echo
 echo
 

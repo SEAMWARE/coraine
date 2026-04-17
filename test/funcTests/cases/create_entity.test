@@ -36,7 +36,7 @@ payload='{
     "value": "red"
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -61,7 +61,7 @@ payload='{
   "id": "urn:ngsi-ld:Vehicle:A001",
   "type": "Vehicle"
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

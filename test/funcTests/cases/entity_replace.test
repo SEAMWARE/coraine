@@ -36,7 +36,7 @@ payload='{
   "color": { "type": "Property", "value": "blue" },
   "accuracy": { "type": "Property", "value": 0.9 }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

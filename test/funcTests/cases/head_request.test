@@ -38,21 +38,21 @@ echo
 
 echo "02. HEAD /entities/{id} - 200, correct Content-Length, no body"
 echo "=============================================================="
-curl -s --head http://localhost:${SW_ROLE_PORT:-1026}/ngsi-ld/v1/entities/urn:head:E1 | tr -d '\r' | grep -v "^$"
+curl -s --head http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:head:E1 | tr -d '\r' | grep -v "^$"
 echo
 echo
 
 
 echo "03. HEAD /entities?type=T - 200, correct Content-Length, no body"
 echo "================================================================"
-curl -s --head "http://localhost:${SW_ROLE_PORT:-1026}/ngsi-ld/v1/entities?type=T" | tr -d '\r' | grep -v "^$"
+curl -s --head "http://localhost:$CB_PORT/ngsi-ld/v1/entities?type=T" | tr -d '\r' | grep -v "^$"
 echo
 echo
 
 
 echo "04. HEAD /nonexistent - 404, no body"
 echo "===================================="
-curl -s --head http://localhost:${SW_ROLE_PORT:-1026}/nonexistent | tr -d '\r' | grep -v "^$"
+curl -s --head http://localhost:$CB_PORT/nonexistent | tr -d '\r' | grep -v "^$"
 echo
 echo
 

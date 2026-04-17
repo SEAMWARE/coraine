@@ -36,7 +36,7 @@ payload='{
   },
   "name": { "type": "Property", "value": "Madrid" }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -55,7 +55,7 @@ payload='{
     "value": { "type": "Polygon", "coordinates": [[[-5,35],[5,35],[5,44],[-5,44],[-5,35]]] }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -63,7 +63,7 @@ echo
 echo "03. Create entity E3 without any GeoProperty"
 echo "============================================="
 payload='{ "id": "urn:e3", "type": "City", "name": { "type": "Property", "value": "NoGeo" } }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

@@ -28,135 +28,250 @@ swBrokerStart
 
 echo "01. Seed local entity V1 with attr 'speed'"
 echo "=========================================="
-swCurl -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. exclusive reg for V1+speed -> 409 (local entity collision)"
 echo "=============================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R2",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "speed"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. exclusive reg for V1+color -> 201"
 echo "====================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R3",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R3",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "color"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. second exclusive for V1+color -> 409 (overlaps R3)"
 echo "======================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R4",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R4",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "color"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "05. redirect for V1+color -> 409 (overlaps exclusive R3)"
 echo "========================================================"
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R5",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "redirect",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R5",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "redirect",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "color"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "06. exclusive for V2+speed -> 201 (different entity)"
 echo "===================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R6",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V2", "type": "Vehicle"}], "propertyNames": ["speed"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R6",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V2",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "speed"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "07. inclusive for V3+humidity -> 201"
 echo "===================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R7",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "inclusive",
-    "information": [{"entities": [{"id": "urn:V3", "type": "Vehicle"}], "propertyNames": ["humidity"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R7",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V3",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "humidity"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "08. exclusive for V3+humidity -> 409 (blocked by inclusive R7)"
 echo "=============================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R8",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V3", "type": "Vehicle"}], "propertyNames": ["humidity"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R8",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V3",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "humidity"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "09. inclusive for V1+speed -> 201 (inclusive has no creation-time conflict)"
 echo "==========================================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R9",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "inclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R9",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "speed"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "10. auxiliary for V1+speed -> 201 (always accepted)"
 echo "==================================================="
-swCurl -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R10",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://x",
-    "mode": "auxiliary",
-    "operations": ["retrieveEntity"],
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
-  }'
+payload='{
+  "id": "urn:CSR:R10",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "mode": "auxiliary",
+  "operations": ["retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "propertyNames": [
+        "speed"
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 

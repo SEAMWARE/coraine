@@ -1,7 +1,7 @@
 # swBroker Implementation Status
 
 Version: post-0.2.0
-Date: 2026-04-16
+Date: 2026-04-18
 
 ---
 
@@ -41,8 +41,8 @@ Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins
 | Error handling (missing id, missing type, bad payload, bad Content-Type) | Done |
 | scope (entity scope property) | Done |
 | Multi-entity-type (type as array) | Done |
-| Subscriptions / notifications on create | Not done |
-| Distributed operations (forwarding to registrations) | Not done |
+| Subscriptions / notifications on create | Done |
+| Distributed operations (forwarding to registrations) | Done (exclusive + inclusive) |
 
 Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_persistence.test`
 
@@ -74,12 +74,14 @@ Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_p
 | expandValues (expand q-filter values via @context) | Done (parsing + q-parser hook) |
 | jsonKeys (opaque values in q-filter) | Done (parsing, no-op — no type coercion yet) |
 | attrs (deprecated) | Not done |
-| orderBy, orderFrom, orderGeometry, collation | Not done |
+| orderBy (multi-key, asc/desc, missing-sorts-last) | Done |
+| collation (BCP47 locale-aware string sort via strcoll_l) | Done |
+| orderFrom, orderGeometry (geo-distance sort) | Not done |
 | join, joinLevel, containedBy | Not done |
 | entityMap, entityMapLifetime, splitEntities | Not done |
-| local | Not done |
+| local | Done |
 | csf | Not done |
-| Distributed operations | Not done |
+| Distributed operations | Done (all 4 modes, per-RegistrationInfo dispatch) |
 
 Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`, `geojson_response.test`, `url_param_expand_values.test`
 
@@ -99,12 +101,13 @@ Functional tests: `query_entities_*.test` (20 test files), `tenant_geo.test`, `g
 | geometryProperty | Done |
 | Multi-tenancy | Done |
 | 404 Not Found | Done |
-| type (entity type selection for disambiguation) | Not done |
+| type (entity type selection for disambiguation) | Done (comma-separated list) |
 | join, joinLevel, containedBy | Not done |
 | entityMap, entityMapLifetime | Not done |
-| Distributed operations | Not done |
+| Distributed operations | Done (all 4 modes, per-RegistrationInfo dispatch, reg-constrained pick) |
 
-Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.test`
+Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.test`,
+`csource_reg_distops_*.test` (5 test files)
 
 ### 4. DELETE /ngsi-ld/v1/entities/{entityId} — Delete Entity
 
@@ -116,8 +119,8 @@ Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.tes
 | 204 No Content on success | Done |
 | 404 Not Found | Done |
 | Multi-tenancy | Done |
-| type (entity type selection for disambiguation) | Not done |
-| Subscriptions / notifications on delete | Not done |
+| type (entity type selection for disambiguation) | Done |
+| Subscriptions / notifications on delete | Done |
 | Distributed operations | Not done |
 
 Functional tests: `delete_entity.test`
@@ -157,7 +160,7 @@ attribute types and observedAt presence for correct behavior).
 | Multi-tenancy | Done |
 | mongoc surgical `$set`/`$unset` path (skips writing untouched attrs) | Done |
 | Per-change report for subscription matching (added / modified / deleted + preValue) | Done (produced, not yet consumed) |
-| `type` URL param (distops disambiguation) | Not done |
+| `type` URL param (distops disambiguation) | Done |
 | 207 Multi-Status response (distops forwarding) | Not done |
 | Subscriptions / notifications on merge | Not done |
 
@@ -189,7 +192,7 @@ replace — multi-type entities are compared as sets.
 | Multi-tenancy | Done |
 | Full shared-validator coverage (duplicate keys, bad URIs, conflicting value keys, GeoProperty errors, multi-attr datasetId, observedAt, unitCode, ...) | Done |
 | Subscriptions / notifications on replace | Done (deferred notify, LdNotifyEntityUpdate) |
-| `type` URL param (distops disambiguation) | Not done |
+| `type` URL param (distops disambiguation) | Done |
 | Distributed operations | Not done |
 
 Functional tests: `entity_replace.test` (8 cases — happy path + PUT-specific
@@ -200,7 +203,10 @@ errors), `entity_replace_errors.test` (17 cases — one per validator class).
 **Status: Done.** CRUD, in-memory matcher (q, geoQ, scopeQ, entity selector
 with id/idPattern/type), throttling, expiration, status recomputation,
 notification format (normalized/concise/simplified), counters, and mongoc
-persistence/retrieval. 70+ dedicated functests.
+persistence/retrieval. datasetId instance filtering in notifications
+(§ 5.8.6). Periodic notifications (timeInterval) via separate pernot
+cache + background loop thread — can't PATCH between periodic and
+normal mode. 80+ dedicated functests.
 
 ### 8. JSON-LD Context Hosting (§ 5.13)
 
@@ -291,14 +297,21 @@ notification transport and distributed-subscription forwarding remain.
 
 ### Registration / Distributed Operations
 
-| Endpoint | Spec Section | Complexity | Estimate |
-|----------|-------------|------------|----------|
-| POST /csourceRegistrations | 5.9.1 | Medium | 2-3 days |
-| GET /csourceRegistrations | 5.9.4 | Medium | 2 days |
-| GET /csourceRegistrations/{id} | 5.9.3 | Low | 0.5 days |
-| PATCH /csourceRegistrations/{id} | 5.9.2 | Medium | 2 days |
-| DELETE /csourceRegistrations/{id} | 5.9.5 | Low | 0.5 days |
-| Distributed operation forwarding | 5.11 | Very High | 10-15 days |
+**CRUD: Done.** All five CSR endpoints implemented with creation-time
+conflict checks (§ 5.9.2), per-tenant cache, mongoc persistence.
+
+**DistOps for retrieveEntity: Done.** Exclusive + inclusive forwarding,
+Via header + tenant-scoped loop detection, multi-source merge per
+§ 4.5.5.3 (drop expired → newest observedAt → newest modifiedAt).
+HTTP forwarding plugin architecture (extensible to binary transport).
+
+| Remaining | Spec Section | Complexity | Estimate |
+|-----------|-------------|------------|----------|
+| DistOps for queryEntities | 5.7.3 | High | 5-7 days |
+| DistOps for write operations (create/patch/delete) | 5.6.x | High | 5-7 days |
+| Discovery filter (§ 5.10.2 query params) | 5.10.2 | Medium | 2-3 days |
+| Redirect mode forwarding | 4.3.6 | Medium | 2-3 days |
+| Auxiliary mode forwarding | 4.3.6 | Low | 1-2 days |
 
 ### Type / Attribute Discovery
 
@@ -395,12 +408,12 @@ New endpoints will require extending the `DbDriver` interface with:
 | Entity CRUD | 8 | 6 | 2 |
 | Batch Operations | 6 | 0 | 6 |
 | Subscriptions | 5 + engine | 5 + engine | MQTT, distops |
-| Registrations | 5 + distops | 0 | 5 + distops |
+| Registrations | 5 + distops | 5 + retrieve distops | query/write distops |
 | Types/Attributes | 4 | 0 | 4 |
 | Temporal | ~8 | 0 | ~8 |
 | Snapshots | 7 + engine | 0 | 7 + engine |
 | @context hosting | 4 | 4 + persistence | 0 |
-| **Total** | **~47** | **15 + sub engine + ctx persistence** | **~32** |
+| **Total** | **~47** | **20 + sub engine + distops retrieve + ctx persistence** | **~27** |
 
 ### Rough Estimates to Full NGSI-LD v1.9.1 Coverage
 

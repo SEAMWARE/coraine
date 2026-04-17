@@ -44,7 +44,7 @@ payload='{
     "coordinates": [10.0, 20.0]
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 

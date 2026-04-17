@@ -54,7 +54,7 @@ payload='{
     }
   }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo

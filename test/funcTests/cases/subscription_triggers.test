@@ -18,77 +18,117 @@ swBrokerStart
 #
 # Setup: 4 subscriptions with different triggers, same entity type
 #
-# S1: default (no notificationTrigger) → entityCreated + attributeCreated + attributeModified
+# S1: default (no notificationTrigger) -> entityCreated + attributeCreated + attributeModified
 # S2: ["entityDeleted"] only
 # S3: ["attributeDeleted"] only
 # S4: ["attributeCreated"] only
 #
-# Actions:
-# 01-04. Create 4 subscriptions
-# 05.    Create entity → S1 fires (entityCreated/attributeCreated), S4 fires (attributeCreated)
-# 06.    Dump: 2 notifications (S1 + S4)
-# 07.    Reset
-# 08.    PATCH entity — modify speed → S1 fires (attributeModified), S2/S3/S4 don't
-# 09.    Dump: 1 notification (S1)
-# 10.    Reset
-# 11.    PATCH entity — add new attr "color" → S1 fires (attributeCreated), S4 fires (attributeCreated)
-# 12.    Dump: 2 notifications (S1 + S4)
-# 13.    Reset
-# 14.    PATCH entity — remove color (null) → S3 fires (attributeDeleted)
-# 15.    Dump: 1 notification (S3)
-# 16.    Reset
-# 17.    DELETE entity → S2 fires (entityDeleted)
-# 18.    Dump: 1 notification (S2)
+# 01. Create S1 - default triggers
+# 02. Create S2 - entityDeleted only
+# 03. Create S3 - attributeDeleted only
+# 04. Create S4 - attributeCreated only
+# 05. Create entity -> S1 fires (entityCreated/attributeCreated), S4 fires (attributeCreated)
+# 06. Dump: 2 notifications (S1 + S4)
+# 07. Reset
+# 08. PATCH entity - modify speed -> S1 fires (attributeModified)
+# 09. Dump: 1 notification (S1)
+# 10. Reset
+# 11. PATCH entity - add new attr "color" -> S1 + S4 fire (attributeCreated)
+# 12. Dump: 2 notifications (S1 + S4)
+# 13. Reset
+# 14. PATCH entity - remove color (null) -> S3 fires (attributeDeleted)
+# 15. Dump: 1 notification (S3)
+# 16. Reset
+# 17. DELETE entity -> S2 fires (entityDeleted)
+# 18. Dump: 1 notification (S2)
 #
 
-echo "01. Create S1 — default triggers"
+echo "01. Create S1 - default triggers"
 echo "=================================="
 payload='{
   "id": "urn:S1",
   "type": "Subscription",
-  "entities": [{"type": "Vehicle"}],
-  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
-echo "02. Create S2 — entityDeleted only"
+echo "02. Create S2 - entityDeleted only"
 echo "===================================="
 payload='{
   "id": "urn:S2",
   "type": "Subscription",
-  "entities": [{"type": "Vehicle"}],
-  "notificationTrigger": ["entityDeleted"],
-  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "notificationTrigger": [
+    "entityDeleted"
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
-echo "03. Create S3 — attributeDeleted only"
+echo "03. Create S3 - attributeDeleted only"
 echo "======================================="
 payload='{
   "id": "urn:S3",
   "type": "Subscription",
-  "entities": [{"type": "Vehicle"}],
-  "notificationTrigger": ["attributeDeleted"],
-  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "notificationTrigger": [
+    "attributeDeleted"
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
-echo "04. Create S4 — attributeCreated only"
+echo "04. Create S4 - attributeCreated only"
 echo "======================================="
 payload='{
   "id": "urn:S4",
   "type": "Subscription",
-  "entities": [{"type": "Vehicle"}],
-  "notificationTrigger": ["attributeCreated"],
-  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "notificationTrigger": [
+    "attributeCreated"
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
 }'
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload "$payload"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -98,13 +138,16 @@ echo "==================="
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
-  "speed": {"type": "Property", "value": 100}
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
-echo "06. Dump — 2 notifications (S1 default + S4 attributeCreated)"
+echo "06. Dump - 2 notifications (S1 default + S4 attributeCreated)"
 echo "=============================================================="
 ftClientDump | python3 -c "
 import sys, json
@@ -125,14 +168,19 @@ echo
 echo
 
 
-echo "08. PATCH entity — modify speed"
+echo "08. PATCH entity - modify speed"
 echo "================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
-  --payload '{"speed": {"type": "Property", "value": 200}}'
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 200
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
-echo "09. Dump — 1 notification (S1 attributeModified)"
+echo "09. Dump - 1 notification (S1 attributeModified)"
 echo "=================================================="
 ftClientDump | python3 -c "
 import sys, json
@@ -152,14 +200,19 @@ echo
 echo
 
 
-echo "11. PATCH entity — add color attribute"
+echo "11. PATCH entity - add color attribute"
 echo "========================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
-  --payload '{"color": {"type": "Property", "value": "red"}}'
+payload='{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
-echo "12. Dump — 2 notifications (S1 + S4 attributeCreated)"
+echo "12. Dump - 2 notifications (S1 + S4 attributeCreated)"
 echo "======================================================="
 ftClientDump | python3 -c "
 import sys, json
@@ -180,14 +233,16 @@ echo
 echo
 
 
-echo "14. PATCH entity — remove color (urn:ngsi-ld:null)"
+echo "14. PATCH entity - remove color (urn:ngsi-ld:null)"
 echo "====================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
-  --payload '{"color": "urn:ngsi-ld:null"}'
+payload='{
+  "color": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
-echo "15. Dump — 1 notification (S3 attributeDeleted)"
+echo "15. Dump - 1 notification (S3 attributeDeleted)"
 echo "================================================="
 ftClientDump | python3 -c "
 import sys, json
@@ -213,7 +268,7 @@ swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
-echo "18. Dump — 1 notification (S2 entityDeleted)"
+echo "18. Dump - 1 notification (S2 entityDeleted)"
 echo "==============================================="
 ftClientDump | python3 -c "
 import sys, json
@@ -227,7 +282,7 @@ echo
 
 
 --EXPECT--
-01. Create S1 — default triggers
+01. Create S1 - default triggers
 ==================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -239,7 +294,7 @@ Content-Length: REGEX(\d+)
 
 
 
-02. Create S2 — entityDeleted only
+02. Create S2 - entityDeleted only
 ====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -251,7 +306,7 @@ Content-Length: REGEX(\d+)
 
 
 
-03. Create S3 — attributeDeleted only
+03. Create S3 - attributeDeleted only
 =======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -263,7 +318,7 @@ Content-Length: REGEX(\d+)
 
 
 
-04. Create S4 — attributeCreated only
+04. Create S4 - attributeCreated only
 =======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -287,7 +342,7 @@ Content-Length: REGEX(\d+)
 
 
 
-06. Dump — 2 notifications (S1 default + S4 attributeCreated)
+06. Dump - 2 notifications (S1 default + S4 attributeCreated)
 ==============================================================
 2 notifications
   urn:S1
@@ -299,7 +354,7 @@ Content-Length: REGEX(\d+)
 done
 
 
-08. PATCH entity — modify speed
+08. PATCH entity - modify speed
 =================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
@@ -308,7 +363,7 @@ Content-Type: application/json
 
 
 
-09. Dump — 1 notification (S1 attributeModified)
+09. Dump - 1 notification (S1 attributeModified)
 ==================================================
 1 notifications
   urn:S1
@@ -319,7 +374,7 @@ Content-Type: application/json
 done
 
 
-11. PATCH entity — add color attribute
+11. PATCH entity - add color attribute
 ========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
@@ -328,7 +383,7 @@ Content-Type: application/json
 
 
 
-12. Dump — 2 notifications (S1 + S4 attributeCreated)
+12. Dump - 2 notifications (S1 + S4 attributeCreated)
 =======================================================
 2 notifications
   urn:S1
@@ -340,7 +395,7 @@ Content-Type: application/json
 done
 
 
-14. PATCH entity — remove color (urn:ngsi-ld:null)
+14. PATCH entity - remove color (urn:ngsi-ld:null)
 =====================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
@@ -349,7 +404,7 @@ Content-Type: application/json
 
 
 
-15. Dump — 1 notification (S3 attributeDeleted)
+15. Dump - 1 notification (S3 attributeDeleted)
 =================================================
 1 notifications
   urn:S3
@@ -369,7 +424,7 @@ Content-Type: application/json
 
 
 
-18. Dump — 1 notification (S2 entityDeleted)
+18. Dump - 1 notification (S2 entityDeleted)
 ===============================================
 1 notifications
   urn:S2

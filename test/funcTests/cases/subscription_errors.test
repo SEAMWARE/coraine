@@ -42,263 +42,287 @@ swBrokerStart
 
 echo "01. Missing type — 400"
 echo "======================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. Wrong type value — 400"
 echo "==========================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Entity",
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "03. Missing entities and watchedAttributes — 400"
 echo "=================================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "04. Missing notification — 400"
 echo "================================"
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}]
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "05. Empty entities array — 400"
 echo "================================"
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "06. entities item without type/id/idPattern — 400"
 echo "==================================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "07. entities[].type not a string — 400"
 echo "========================================"
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": 123}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "08. watchedAttributes not an array — 400"
 echo "=========================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "watchedAttributes": "speed",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "09. watchedAttributes items not strings — 400"
 echo "==============================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "watchedAttributes": [123, true],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "10. timeInterval + watchedAttributes conflict — 400"
 echo "====================================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "watchedAttributes": ["speed"],
   "timeInterval": 60,
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "11. throttling not a number — 400"
 echo "==================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "throttling": "fast",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "12. isActive not a boolean — 400"
 echo "=================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "isActive": "yes",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "13. notification.endpoint.uri missing — 400"
 echo "============================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "14. notification empty object — 400"
 echo "====================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "notification": {}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "15. expiresAt not valid ISO 8601 — 400"
 echo "========================================"
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "expiresAt": "tomorrow",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "16. q not a string — 400"
 echo "=========================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "q": 42,
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "17. geoQ missing geometry — 400"
 echo "================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "geoQ": {"coordinates": "[-3.7, 40.4]", "georel": "near;maxDistance==1000"},
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "18. geoQ invalid geometry value — 400"
 echo "======================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "geoQ": {"geometry": "Hexagon", "coordinates": "[-3.7, 40.4]", "georel": "near;maxDistance==1000"},
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "19. Duplicate entities field — 400"
 echo "===================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "entities": [{"type": "Bike"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "20. status is read-only — 400"
 echo "==============================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "status": "active",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "21. PATCH with id — 400"
 echo "========================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "id": "urn:ngsi-ld:Subscription:Err",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload '{
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+payload='{
   "id": "urn:ngsi-ld:Subscription:Other"
 }'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload "$payload"
 echo
 echo
 
 
 echo "22. PATCH with type — 400"
 echo "==========================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload '{
+payload='{
   "type": "Subscription"
 }'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload "$payload"
 echo
 echo
 
 
 echo "23. Valid creation — 201 (sanity check)"
 echo "========================================="
-swCurl -X POST --url /ngsi-ld/v1/subscriptions --payload '{
+payload='{
   "id": "urn:ngsi-ld:Subscription:OK",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
