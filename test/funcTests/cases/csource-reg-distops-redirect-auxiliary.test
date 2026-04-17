@@ -1,0 +1,317 @@
+#
+# FILE            csource-reg-distops-redirect-auxiliary.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - redirect and auxiliary mode forwarding for retrieveEntity
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart
+swBrokerStart -role CP1
+swBrokerStart -role CP2
+
+--RUN--
+
+#
+# 01. Setup: CB has V1 (color), CP1 has V1 (speed), CP2 has V1 (fuel, color, extra)
+# 02. Redirect CB->CP1 for speed: GET V1 -> color (local) + speed (CP1)
+# 03. Second redirect CB->CP2 for fuel: merged: color + speed + fuel
+# 04. Auxiliary CB->CP2 for color: already present -> NOT overridden
+# 05. Auxiliary fills a gap: CP2 has 'extra' attr -> added to merged entity
+#
+
+echo "01. Setup: seed entities"
+echo "========================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "fuel": {
+    "type": "Property",
+    "value": 85
+  },
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "extra": {
+    "type": "Property",
+    "value": "yes"
+  }
+}'
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Redirect CB->CP1 for speed -> merged: color (local) + speed (CP1)"
+echo "======================================================================"
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "mode": "redirect",
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "03. Second redirect CB->CP2 for fuel -> merged: color + speed + fuel"
+echo "===================================================================="
+payload='{
+  "id": "urn:CSR:R2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "mode": "redirect",
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["fuel"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "04. Auxiliary CB->CP2 for color: already present -> NOT overridden"
+echo "=================================================================="
+payload='{
+  "id": "urn:CSR:Aux1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "mode": "auxiliary",
+  "operations": ["retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "05. Auxiliary fills a gap: CP2 has 'extra' attr -> added to merged entity"
+echo "========================================================================="
+payload='{
+  "id": "urn:CSR:Aux2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "mode": "auxiliary",
+  "operations": ["retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["extra"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Setup: seed entities
+========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Redirect CB->CP1 for speed -> merged: color (local) + speed (CP1)
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "speed": 42,
+  "type": "Vehicle"
+}
+
+
+
+03. Second redirect CB->CP2 for fuel -> merged: color + speed + fuel
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "color": "red",
+  "fuel": 85,
+  "id": "urn:V1",
+  "speed": 42,
+  "type": "Vehicle"
+}
+
+
+
+04. Auxiliary CB->CP2 for color: already present -> NOT overridden
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Aux1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "color": "red",
+  "fuel": 85,
+  "id": "urn:V1",
+  "speed": 42,
+  "type": "Vehicle"
+}
+
+
+
+05. Auxiliary fills a gap: CP2 has 'extra' attr -> added to merged entity
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Aux2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 107
+
+{
+  "color": "red",
+  "extra": "yes",
+  "fuel": 85,
+  "id": "urn:V1",
+  "speed": 42,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2

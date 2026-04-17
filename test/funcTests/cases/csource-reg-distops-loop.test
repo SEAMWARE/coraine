@@ -9,9 +9,9 @@
 DistOps - Via header on forward + loop detection on receive (NGSI-LD § 5.7.5)
 
 --INIT--
-swDbDrop -role CB
+swDbDrop
 swDbDrop -role CP1
-swBrokerStart -role CB --csourceAlias cb-alias
+swBrokerStart --csourceAlias cb-alias
 swBrokerStart -role CP1 --csourceAlias cp1-alias
 
 --RUN--
@@ -20,125 +20,173 @@ swBrokerStart -role CP1 --csourceAlias cp1-alias
 # Brokers run with explicit aliases (cb-alias / cp1-alias) so the test
 # can reason about Via contents independently of the listener port.
 #
-# 01. Seed CP1 with V1 + register CB→CP1 (no loop yet)
-# 02. Plain GET on CB → forwarded to CP1, returns V1
-# 03. GET on CB with Via: 1.1 cb-alias → 502, loop detected (CB sees itself)
-# 04. GET on CB with Via: 1.1 unrelated-alias → forward proceeds normally
-# 05. Real two-hop loop: register CP1→CB so CB→CP1→CB; GET on CB returns 502
-# 06. tenant scoping: incoming Via cb-alias:tA does NOT match default-tenant alias "cb-alias"
+# 01. Seed CP1 with entity urn:V1
+# 02. Register CB->CP1 exclusive on urn:V1
+# 03. Plain GET V1 on CB -> forwarded to CP1, 200
+# 04. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected
+# 05. GET V1 on CB with Via: 1.1 unrelated-alias -> 200 (no loop)
+# 06. Register CP1->CB exclusive on urn:Loop:1
+# 07. Register CB->CP1 exclusive on urn:Loop:1
+# 08. GET urn:Loop:1 on CB -> two-hop loop, 502
+# 09. Tenant scoping: incoming Via cb-alias:tA -> no loop, forward proceeds
 #
 
-CB_PORT=1026
-CP1_PORT=1027
 
-
-echo "01. Seed CP1 with V1 + register CB->CP1 (exclusive on V1)"
-echo "========================================================="
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
-echo
-echo
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:R1",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://localhost:1027/ngsi-ld/v1",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
-  }'
+echo "01. Seed CP1 with entity urn:V1"
+echo "================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
-echo "02. Plain GET V1 on CB -> forwarded to CP1, 200"
-echo "==============================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo "02. Register CB->CP1 exclusive on urn:V1"
+echo "=========================================="
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
-echo "03. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected"
-echo "============================================================"
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
+echo "03. Plain GET V1 on CB -> forwarded to CP1, 200"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
-echo "04. GET V1 on CB with Via: 1.1 unrelated-alias -> 200 (no loop)"
-echo "==============================================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 unrelated-alias"
+echo "04. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
 echo
 echo
 
 
-echo "05. Real two-hop loop: CP1 registers back to CB -> GET ends in 502"
-echo "=================================================================="
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:Back",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://localhost:1026/ngsi-ld/v1",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:Loop:1", "type": "Vehicle"}]}]
-  }'
-echo
-echo
-# Need a matching CSR on CB pointing to CP1 for urn:Loop:1 too — to start
-# the chain at CB. Then CB->CP1->CB triggers CB's loop detection.
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:Out",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://localhost:1027/ngsi-ld/v1",
-    "mode": "exclusive",
-    "information": [{"entities": [{"id": "urn:Loop:1", "type": "Vehicle"}]}]
-  }'
-echo
-echo
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:Loop:1
-echo
-echo
-
-
-echo "06. Tenant scoping: incoming Via cb-alias:other-tenant -> no loop"
+echo "05. GET V1 on CB with Via: 1.1 unrelated-alias -> 200 (no loop)"
 echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 unrelated-alias"
+echo
+echo
+
+
+echo "06. Register CP1->CB exclusive on urn:Loop:1"
+echo "=============================================="
+payload='{
+  "id": "urn:CSR:Back",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'/ngsi-ld/v1",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:Loop:1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "07. Register CB->CP1 exclusive on urn:Loop:1"
+echo "=============================================="
+# Need a matching CSR on CB pointing to CP1 for urn:Loop:1 too - to start
+# the chain at CB. Then CB->CP1->CB triggers CB's loop detection.
+payload='{
+  "id": "urn:CSR:Out",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "mode": "exclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:Loop:1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "08. GET urn:Loop:1 on CB -> two-hop loop, 502"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:Loop:1
+echo
+echo
+
+
+echo "09. Tenant scoping: incoming Via cb-alias:tA -> no loop, forward proceeds"
+echo "=========================================================================="
 # Default-tenant alias is "cb-alias"; "cb-alias:tA" identifies a different
 # scope, so loop detection should not fire and the forward should proceed.
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias:tA"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias:tA"
 echo
 echo
 
 
 --EXPECT--
-01. Seed CP1 with V1 + register CB->CP1 (exclusive on V1)
-=========================================================
+01. Seed CP1 with entity urn:V1
+================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: urn:V1
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+02. Register CB->CP1 exclusive on urn:V1
+==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
-02. Plain GET V1 on CB -> forwarded to CP1, 200
-===============================================
+03. Plain GET V1 on CB -> forwarded to CP1, 200
+=================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
 
 {
   "id": "urn:V1",
@@ -151,12 +199,12 @@ Content-Length: REGEX(\d+)
 
 
 
-03. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected
-============================================================
+04. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected
+==============================================================
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 174
 
 {
   "detail": "loop detected: own alias 'cb-alias' present in incoming Via header",
@@ -166,13 +214,13 @@ Content-Length: REGEX(\d+)
 
 
 
-04. GET V1 on CB with Via: 1.1 unrelated-alias -> 200 (no loop)
-===============================================================
+05. GET V1 on CB with Via: 1.1 unrelated-alias -> 200 (no loop)
+=================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
 
 {
   "id": "urn:V1",
@@ -185,32 +233,36 @@ Content-Length: REGEX(\d+)
 
 
 
-05. Real two-hop loop: CP1 registers back to CB -> GET ends in 502
-==================================================================
+06. Register CP1->CB exclusive on urn:Loop:1
+==============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Back
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+07. Register CB->CP1 exclusive on urn:Loop:1
+==============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Out
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+08. GET urn:Loop:1 on CB -> two-hop loop, 502
+===============================================
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 145
 
 {
   "detail": "forwarded request failed (status 502)",
@@ -220,13 +272,13 @@ Content-Length: REGEX(\d+)
 
 
 
-06. Tenant scoping: incoming Via cb-alias:other-tenant -> no loop
-=================================================================
+09. Tenant scoping: incoming Via cb-alias:tA -> no loop, forward proceeds
+==========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
 
 {
   "id": "urn:V1",
@@ -240,7 +292,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop -role CB
-swBrokerStop -role CP1
-swDbDrop -role CB
+swBrokerStop --csourceAlias cb-alias
+swBrokerStop -role CP1 --csourceAlias cp1-alias
+swDbDrop
 swDbDrop -role CP1

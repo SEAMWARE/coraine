@@ -12,6 +12,7 @@
 #include "ktrace/kTrace.h"                               // KT_I
 #include "swRest/SwRestState.h"                          // swRest
 #include "swNgsild/SwNgsild.h"                           // swNgsild
+#include "swNgsild/ldExpandParams.h"                     // ldExpandParams
 #include "swNgsild/ldError.h"                            // ldError
 #include "swNgsild/LdProblem.h"                          // LD_ERROR_NONEXISTENT_TENANT
 
@@ -230,6 +231,11 @@ bool tenantPreServiceHook(void)
     return false;
 
   swNgsild.tenantP = tP;
+
+  // Expand vocab-bearing URL params (type, pick, omit, etc.) now that
+  // @context is resolved and all params are parsed.
+  ldExpandParams(&swRest.kalloc);
+
   return true;
 }
 

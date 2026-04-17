@@ -5,14 +5,15 @@
 #
 # Copyright 2026 Seamware
 #
+
 --NAME--
 DistOps - inclusive multi-source merge per § 4.5.5.3
 
 --INIT--
-swDbDrop -role CB
+swDbDrop
 swDbDrop -role CP1
 swDbDrop -role CP2
-swBrokerStart -role CB
+swBrokerStart
 swBrokerStart -role CP1
 swBrokerStart -role CP2
 
@@ -28,188 +29,369 @@ swBrokerStart -role CP2
 #   2. if any non-expired has observedAt -> newest observedAt wins
 #   3. else -> newest modifiedAt wins
 #
+# 01. Register CB->CP1 inclusive for urn:E1
+# 02. Register CB->CP2 inclusive for urn:E1
+# 03. Create entity urn:E1 on CB with speed=10, observedAt 2026-01-01
+# 04. Create entity urn:E1 on CP1 with speed=20, observedAt 2026-02-01
+# 05. Create entity urn:E1 on CP2 with speed=30, observedAt 2026-03-01
+# 06. GET urn:E1 on CB - newest observedAt wins (CP2 speed=30)
+# 07. Delete urn:E1 on CB
+# 08. Delete urn:E1 on CP1
+# 09. Delete urn:E1 on CP2
+# 10. Create entity urn:E1 on CP2 with speed=300 (no observedAt)
+# 11. Create entity urn:E1 on CB with speed=100 (no observedAt)
+# 12. Create entity urn:E1 on CP1 with speed=200, observedAt 2020-01-01
+# 13. GET urn:E1 on CB - CP1 has observedAt so CP1 wins (speed=200)
+# 14. Delete urn:E1 on CB
+# 15. Delete urn:E1 on CP1
+# 16. Delete urn:E1 on CP2
+# 17. Create entity urn:E1 on CP2 with speed=3000 (no observedAt)
+# 18. Create entity urn:E1 on CP1 with speed=2000 (no observedAt)
+# 19. Create entity urn:E1 on CB with speed=1000 (no observedAt)
+# 20. GET urn:E1 on CB - newest modifiedAt wins (CB speed=1000)
+#
 
-CB_PORT=1026
-CP1_PORT=1027
-CP2_PORT=1028
 
-
-echo "01. Setup - inclusive regs CB->CP1 and CB->CP2 (V1)"
-echo "==================================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:CP1",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://localhost:1027/ngsi-ld/v1",
-    "mode": "inclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
-  }'
+echo "01. Register CB->CP1 inclusive for urn:E1"
+echo "========================================="
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:E1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
-  --payload '{
-    "id": "urn:CSR:CP2",
-    "type": "ContextSourceRegistration",
-    "endpoint": "http://localhost:1028/ngsi-ld/v1",
-    "mode": "inclusive",
-    "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
-  }'
+
+
+echo "02. Register CB->CP2 inclusive for urn:E1"
+echo "=========================================="
+payload='{
+  "id": "urn:CSR:CP2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:E1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
-echo "A. All three sources have observedAt -> newest observedAt wins"
-echo "=============================================================="
+# A. All three sources have observedAt -> newest observedAt wins
 # CB:  observedAt 2026-01-01  value 10  (oldest observedAt)
 # CP1: observedAt 2026-02-01  value 20
 # CP2: observedAt 2026-03-01  value 30  (newest observedAt - should win)
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}}'
-echo
-echo
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":20,"observedAt":"2026-02-01T00:00:00Z"}}'
-echo
-echo
-swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-03-01T00:00:00Z"}}'
-echo
-echo
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+
+echo "03. Create entity urn:E1 on CB with speed=10, observedAt 2026-01-01"
+echo "==================================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 10,
+    "observedAt": "2026-01-01T00:00:00Z"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
-echo "B. Only CP1 has observedAt (old); others rely on modifiedAt -> CP1 wins"
-echo "======================================================================="
+echo "04. Create entity urn:E1 on CP1 with speed=20, observedAt 2026-02-01"
+echo "====================================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 20,
+    "observedAt": "2026-02-01T00:00:00Z"
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Create entity urn:E1 on CP2 with speed=30, observedAt 2026-03-01"
+echo "====================================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 30,
+    "observedAt": "2026-03-01T00:00:00Z"
+  }
+}'
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. GET urn:E1 on CB - newest observedAt wins (CP2 speed=30)"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+# B. Only CP1 has observedAt (old); others rely on modifiedAt -> CP1 wins
 # Wipe state then re-seed without observedAt on CB / CP2
-swCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-echo
-echo
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-echo
-echo
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-echo
-echo
-# CP2 first  (oldest modifiedAt), CB second, CP1 last with old observedAt
-swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}'
-echo
-echo
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}}'
-echo
-echo
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200,"observedAt":"2020-01-01T00:00:00Z"}}'
-echo
-echo
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+
+echo "07. Delete urn:E1 on CB"
+echo "======================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
-echo "C. None has observedAt -> newest modifiedAt wins (CB-local, last write)"
-echo "======================================================================="
+echo "08. Delete urn:E1 on CP1"
+echo "========================"
+swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "09. Delete urn:E1 on CP2"
+echo "========================"
+swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+# CP2 first (oldest modifiedAt), CB second, CP1 last with old observedAt
+
+echo "10. Create entity urn:E1 on CP2 with speed=300 (no observedAt)"
+echo "==============================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 300
+  }
+}'
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "11. Create entity urn:E1 on CB with speed=100 (no observedAt)"
+echo "=============================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "12. Create entity urn:E1 on CP1 with speed=200, observedAt 2020-01-01"
+echo "======================================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 200,
+    "observedAt": "2020-01-01T00:00:00Z"
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "13. GET urn:E1 on CB - CP1 has observedAt so CP1 wins (speed=200)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+# C. None has observedAt -> newest modifiedAt wins (CB-local, last write)
 # Reset, then CP2 -> CP1 -> CB in that order so CB has the newest modifiedAt
-swCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+
+echo "14. Delete urn:E1 on CB"
+echo "======================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+
+
+echo "15. Delete urn:E1 on CP1"
+echo "========================"
+swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+
+
+echo "16. Delete urn:E1 on CP2"
+echo "========================"
+swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
-swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3000}}'
+
+
+echo "17. Create entity urn:E1 on CP2 with speed=3000 (no observedAt)"
+echo "================================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 3000
+  }
+}'
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2000}}'
+
+
+echo "18. Create entity urn:E1 on CP1 with speed=2000 (no observedAt)"
+echo "================================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 2000
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
-  --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1000}}'
+
+
+echo "19. Create entity urn:E1 on CB with speed=1000 (no observedAt)"
+echo "==============================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 1000
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+
+
+echo "20. GET urn:E1 on CB - newest modifiedAt wins (CB speed=1000)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
 echo
 echo
 
 
 --EXPECT--
-01. Setup - inclusive regs CB->CP1 and CB->CP2 (V1)
-===================================================
+01. Register CB->CP1 inclusive for urn:E1
+=========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+02. Register CB->CP2 inclusive for urn:E1
+==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP2
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
-A. All three sources have observedAt -> newest observedAt wins
-==============================================================
+03. Create entity urn:E1 on CB with speed=10, observedAt 2026-01-01
+===================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+04. Create entity urn:E1 on CP1 with speed=20, observedAt 2026-02-01
+=====================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+05. Create entity urn:E1 on CP2 with speed=30, observedAt 2026-03-01
+=====================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+06. GET urn:E1 on CB - newest observedAt wins (CP2 speed=30)
+=============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
 
 {
-  "id": "urn:V1",
+  "id": "urn:E1",
   "speed": 30,
   "type": "Vehicle"
 }
 
 
 
-B. Only CP1 has observedAt (old); others rely on modifiedAt -> CP1 wins
-=======================================================================
+07. Delete urn:E1 on CB
+=======================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -217,6 +399,8 @@ Content-Type: application/json
 
 
 
+08. Delete urn:E1 on CP1
+========================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -224,6 +408,8 @@ Content-Type: application/json
 
 
 
+09. Delete urn:E1 on CP2
+========================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -231,52 +417,60 @@ Content-Type: application/json
 
 
 
+10. Create entity urn:E1 on CP2 with speed=300 (no observedAt)
+===============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+11. Create entity urn:E1 on CB with speed=100 (no observedAt)
+==============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+12. Create entity urn:E1 on CP1 with speed=200, observedAt 2020-01-01
+======================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+13. GET urn:E1 on CB - CP1 has observedAt so CP1 wins (speed=200)
+==================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 58
 
 {
-  "id": "urn:V1",
+  "id": "urn:E1",
   "speed": 200,
   "type": "Vehicle"
 }
 
 
 
-C. None has observedAt -> newest modifiedAt wins (CB-local, last write)
-=======================================================================
+14. Delete urn:E1 on CB
+=======================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -284,6 +478,8 @@ Content-Type: application/json
 
 
 
+15. Delete urn:E1 on CP1
+========================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -291,6 +487,8 @@ Content-Type: application/json
 
 
 
+16. Delete urn:E1 on CP2
+========================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -298,44 +496,52 @@ Content-Type: application/json
 
 
 
+17. Create entity urn:E1 on CP2 with speed=3000 (no observedAt)
+================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+18. Create entity urn:E1 on CP1 with speed=2000 (no observedAt)
+================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+19. Create entity urn:E1 on CB with speed=1000 (no observedAt)
+===============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
-Link: REGEX(.*)
+Location: urn:E1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
 
 
 
+20. GET urn:E1 on CB - newest modifiedAt wins (CB speed=1000)
+==============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 59
 
 {
-  "id": "urn:V1",
+  "id": "urn:E1",
   "speed": 1000,
   "type": "Vehicle"
 }
@@ -343,9 +549,9 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop -role CB
+swBrokerStop
 swBrokerStop -role CP1
 swBrokerStop -role CP2
-swDbDrop -role CB
+swDbDrop
 swDbDrop -role CP1
 swDbDrop -role CP2
