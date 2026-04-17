@@ -175,6 +175,88 @@ bool getEntities(void)
     return true;
 
   //
+  // EntityMap-based pagination: if entityMap=<mapId>, fetch entities
+  // from the frozen map instead of re-querying.
+  //
+  if (swNgsild.entityMapId != NULL)
+  {
+    Tenant* tP = (Tenant*) swNgsild.tenantP;
+    if (tP == NULL || tP->entityMapStoreP == NULL)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
+      return true;
+    }
+
+    LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, swNgsild.entityMapId);
+    if (mapP == NULL)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", swNgsild.entityMapId);
+      return true;
+    }
+
+    // Build result array from map entries at [offset..offset+limit]
+    KjNode* arrayP = kjArray(NULL, NULL);
+    int offset = swNgsild.offset;
+    int limit  = (swNgsild.limit > 0) ? swNgsild.limit : 20;
+    int ix     = 0;
+    int added  = 0;
+
+    for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
+    {
+      if (ix < offset) { ix++; continue; }
+
+      // Fetch entity by ID from its source
+      // For "@none" (local): use db.entityRetrieve
+      // For remote sources: would need HTTP forward (not implemented yet — local only for now)
+      KjNode* entityP = NULL;
+      int r = db.entityRetrieve(tP, entryP->entityId, &entityP);
+
+      if (r == DB_OK && entityP != NULL)
+        kjChildAdd(arrayP, entityP);
+      // else: entity was deleted since map creation — skip (fewer results OK per spec)
+
+      ix++;
+      added++;
+    }
+
+    // Count header
+    if (swNgsild.count)
+    {
+      char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+      snprintf(countStr, 32, "%d", mapP->entryCount);
+      SwRestKeyValue* hV = swRest.out.headerV;
+      int hix = swRest.out.headerCount;
+      hV[hix].key   = "NGSILD-Results-Count";
+      hV[hix].value = countStr;
+      swRest.out.headerCount++;
+    }
+
+    // Pagination Link header
+    bool hasMore = (offset + added < mapP->entryCount);
+    if (hasMore)
+    {
+      char* nextUrl = (char*) kaAlloc(&swRest.kalloc, 256);
+      snprintf(nextUrl, 256, "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\"",
+               swNgsild.entityMapId, offset + limit, limit);
+      SwRestKeyValue* hV = swRest.out.headerV;
+      int hix = swRest.out.headerCount;
+      hV[hix].key   = "Link";
+      hV[hix].value = nextUrl;
+      swRest.out.headerCount++;
+    }
+
+    // Apply pick/omit
+    if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+    {
+      for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+        ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
+    }
+
+    swRest.out.responseTree = arrayP;
+    return true;
+  }
+
+  //
   // Cross-parameter validation (limit=0 requires count, etc.)
   //
   if (ldParamsValidate())
@@ -511,7 +593,7 @@ bool getEntities(void)
   // for consistent pagination. The map is stored per-tenant and its location
   // is returned via the NGSILD-EntityMap response header.
   //
-  if (swNgsild.entityMap)
+  if (swNgsild.entityMapCreate)
   {
     Tenant* tP = (Tenant*) swNgsild.tenantP;
 
