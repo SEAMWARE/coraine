@@ -78,7 +78,8 @@ Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_p
 | collation (BCP47 locale-aware string sort via strcoll_l) | Done |
 | orderFrom, orderGeometry (geo-distance sort) | Not done |
 | join, joinLevel, containedBy | Not done |
-| entityMap, entityMapLifetime, splitEntities | Not done |
+| entityMap (creation + NGSILD-EntityMap header) | Done |
+| entityMapLifetime, splitEntities | Not done |
 | local | Done |
 | csf | Not done |
 | Distributed operations | Done (no-split, all 4 modes, per-RegistrationInfo dispatch, 13-case functest) |

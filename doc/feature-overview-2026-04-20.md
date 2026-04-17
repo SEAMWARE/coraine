@@ -73,6 +73,8 @@ loop thread. 80+ functional tests.
 | Via header + tenant-scoped loop detection | Done |
 | `?local=true` to bypass forwarding | Done |
 | Per-RegistrationInfo dispatch (respects info[] coverage areas) | Done |
+| EntityMap creation (`entityMap=true` → frozen ID list) | Done |
+| EntityMap CRUD (GET/DELETE /entityMaps/{id}) | Done |
 | Discovery filter (§ 5.10.2) | 501 (deferred) |
 
 ## JSON-LD Context Handling
