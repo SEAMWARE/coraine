@@ -78,11 +78,12 @@ Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_p
 | collation (BCP47 locale-aware string sort via strcoll_l) | Done |
 | orderFrom, orderGeometry (geo-distance sort) | Not done |
 | join, joinLevel, containedBy | Not done |
-| entityMap (creation + NGSILD-EntityMap header) | Done |
-| entityMapLifetime, splitEntities | Not done |
+| entityMap (creation + CRUD + frozen pagination) | Done |
+| splitEntities (no-split + split mode, post-assembly filters) | Done |
+| entityMapLifetime | Not done |
 | local | Done |
 | csf | Not done |
-| Distributed operations | Done (no-split, all 4 modes, per-RegistrationInfo dispatch, 13-case functest) |
+| Distributed operations | Done (no-split + split, all 4 modes, per-RegistrationInfo, EntityMap pagination) |
 
 Functional tests: `query_entities_*.test` (22 test files incl. distops + orderBy), `tenant_geo.test`, `geojson_response.test`, `url_param_expand_values.test`
 
