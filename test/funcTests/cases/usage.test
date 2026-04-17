@@ -56,6 +56,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
                  [--userContext/-ctx <default user @context URL>]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
+                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
@@ -77,6 +78,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
                  [--userContext/-ctx <default user @context URL>]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
+                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Database (mongoc) plugin options:
@@ -108,6 +110,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
                  [--userContext/-ctx <default user @context URL>]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
+                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins

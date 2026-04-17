@@ -15,9 +15,9 @@ Distributed queryEntities (comprehensive, no-split mode)
 swDbDrop
 swDbDrop -role CP1
 swDbDrop -role CP2
-swBrokerStart
-swBrokerStart -role CP1
-swBrokerStart -role CP2
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+swBrokerStart -role CP2 --noSplitEntities
 
 --RUN--
 

@@ -175,6 +175,7 @@ char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          userContext  = NULL;
 char*          csourceAlias = NULL;
+bool           noSplitEntities = false;
 
 static KArg kargV[] =
 {
@@ -188,6 +189,7 @@ static KArg kargV[] =
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
   { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
+  { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   KARGS_END
 };
@@ -410,7 +412,8 @@ int main(int argC, char* argV[])
     exit(1);
   }
 
-  ldLocalOnly        = localOnly;
+  ldLocalOnly         = localOnly;
+  ldSplitEntities     = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
   ldDefaultContextUrl = userContext;
 
   //

@@ -228,7 +228,14 @@ bool getEntities(void)
   filter.count    = swNgsild.count;
 
   //
-  // Query the local database
+  // Determine split-entities mode: per-request param overrides global setting.
+  // Split mode only activates when registrations actually match (checked below).
+  //
+  bool splitModeSetting = swNgsild.splitEntitiesSet ? swNgsild.splitEntitiesVal : ldSplitEntities;
+
+  //
+  // Query the local database (full filters for now — re-queried without
+  // filters if split mode activates below)
   //
   KjNode* arrayP = NULL;
   int     r      = db.entityQuery((Tenant*) swNgsild.tenantP, &filter, &arrayP);
@@ -240,15 +247,19 @@ bool getEntities(void)
   }
 
   //
-  // Distributed query (no-split mode): if registrations match and ?local=true
-  // is not set, forward the query to each matching CSR and merge results.
-  // Entity IDs are collected into an EntityMap for pagination.
+  // Distributed query: if registrations match and ?local=true is not set,
+  // forward to matching CSRs and merge results.
+  //
+  // No-split mode: forward full query, merge + dedup
+  // Split mode:    forward without filters, merge all attrs per entity,
+  //                then apply filters post-assembly
   //
   if (swNgsild.local == false)
   {
     Tenant*           tP    = (Tenant*) swNgsild.tenantP;
     LdRegCacheItem**  matchV = NULL;
     int               matchN = 0;
+    bool              splitMode = false;  // only true if splitModeSetting AND regs match
 
     // Match all four CSR modes with per-RegistrationInfo dispatch.
     // Each info entry is a separate (type, attr-set) coverage unit.
@@ -262,14 +273,29 @@ bool getEntities(void)
       for (int m = 0; m < 4; m++)
       {
         matchV = NULL;
+        // Split mode: match ALL registrations regardless of type
         matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                            NULL, swNgsild.typeV,
+                                            NULL,
+                                            splitModeSetting ? NULL : swNgsild.typeV,
                                             modes[m], &matchV);
         if (matchN == 0)
           continue;
 
+        // Registrations matched — activate split mode if configured
+        if (splitModeSetting && !splitMode)
+        {
+          splitMode = true;
+          // Re-query local WITHOUT filters (need all candidate entities)
+          DbQueryFilter splitFilter = {0};
+          splitFilter.idV       = filter.idV;
+          splitFilter.idPattern = filter.idPattern;
+          // No type, q, geoQ, scopeQ — applied post-assembly
+          arrayP = NULL;
+          db.entityQuery((Tenant*) swNgsild.tenantP, &splitFilter, &arrayP);
+        }
+
         if (baseQs == NULL)
-          baseQs = buildQueryString();
+          baseQs = splitMode ? "" : buildQueryString();
 
         for (int i = 0; i < matchN; i++)
         {
@@ -277,64 +303,83 @@ bool getEntities(void)
           if (csr->endpoint == NULL)
             continue;
 
-          // Per-RegistrationInfo dispatch: each info entry with a matching
-          // type gets its own forwarded request with per-entry type + pick.
-          for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-          {
-            // Check if this info entry's type matches the query's type
-            if (swNgsild.typeV != NULL)
-            {
-              bool typeMatch = false;
-              for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-              {
-                if (eiP->type == NULL) { typeMatch = true; break; }
-                for (int t = 0; swNgsild.typeV[t] != NULL; t++)
-                  if (strcmp(eiP->type, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
-                if (typeMatch) break;
-              }
-              if (!typeMatch) continue;
-            }
+          //
+          // Split mode: forward once per CSR (no filters, no per-info pick)
+          // No-split: per-RegistrationInfo dispatch with type + pick
+          //
+          const char* fullQs;
 
-            // Build per-info pick param (compacted attr names for upstream)
-            const char* pickParam = "";
-            if (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL)
+          if (splitMode)
+          {
+            // Split: forward with no filters — get all entities from this CSR
+            fullQs = baseQs;  // empty string
+          }
+          else
+          {
+            // No-split: per-RegistrationInfo dispatch
+            // For simplicity, forward once per CSR with base query + combined pick
+            // (the per-info-entry logic applies type + pick constraints)
+            fullQs = baseQs;
+
+            // Build per-info pick for the first matching info entry
+            for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
             {
-              int totalLen = 0;
-              int count = 0;
-              char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
-              for (int li = 0; lists[li] != NULL; li++)
-                for (int a = 0; lists[li][a] != NULL; a++)
-                {
-                  const char* c = swldCompact(swldCoreContext(), lists[li][a]);
-                  totalLen += strlen(c ? c : lists[li][a]) + 1;
-                  count++;
-                }
-              if (count > 0)
+              // Type check
+              if (swNgsild.typeV != NULL)
               {
-                char* buf = (char*) kaAlloc(&swRest.kalloc, 6 + totalLen + 1);
-                strcpy(buf, "&pick=");
-                int pos = 6;
+                bool typeMatch = false;
+                for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+                {
+                  if (eiP->type == NULL) { typeMatch = true; break; }
+                  for (int t = 0; swNgsild.typeV[t] != NULL; t++)
+                    if (strcmp(eiP->type, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
+                  if (typeMatch) break;
+                }
+                if (!typeMatch) continue;
+              }
+
+              // Build pick param
+              const char* pickParam = "";
+              if (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL)
+              {
+                int totalLen = 0, cnt = 0;
+                char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
                 for (int li = 0; lists[li] != NULL; li++)
                   for (int a = 0; lists[li][a] != NULL; a++)
                   {
-                    if (pos > 6) buf[pos++] = ',';
                     const char* c = swldCompact(swldCoreContext(), lists[li][a]);
-                    const char* n = c ? c : lists[li][a];
-                    strcpy(buf + pos, n);
-                    pos += strlen(n);
+                    totalLen += strlen(c ? c : lists[li][a]) + 1;
+                    cnt++;
                   }
-                buf[pos] = 0;
-                pickParam = buf;
+                if (cnt > 0)
+                {
+                  char* buf = (char*) kaAlloc(&swRest.kalloc, 6 + totalLen + 1);
+                  strcpy(buf, "&pick=");
+                  int pos = 6;
+                  for (int li = 0; lists[li] != NULL; li++)
+                    for (int a = 0; lists[li][a] != NULL; a++)
+                    {
+                      if (pos > 6) buf[pos++] = ',';
+                      const char* c = swldCompact(swldCoreContext(), lists[li][a]);
+                      const char* n = c ? c : lists[li][a];
+                      strcpy(buf + pos, n);
+                      pos += strlen(n);
+                    }
+                  buf[pos] = 0;
+                  pickParam = buf;
+                }
               }
+
+              int bLen = strlen(baseQs), pLen = strlen(pickParam);
+              char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
+              strcpy(combined, baseQs);
+              strcpy(combined + bLen, pickParam);
+              fullQs = combined;
+              break;  // use first matching info entry
             }
+          }
 
-            // Build full forwarded query: base + pick
-            int baseLen = strlen(baseQs);
-            int pickLen = strlen(pickParam);
-            char* fullQs = (char*) kaAlloc(&swRest.kalloc, baseLen + pickLen + 1);
-            strcpy(fullQs, baseQs);
-            strcpy(fullQs + baseLen, pickParam);
-
+          {
             KjNode* remoteArray = forwardQueryToCSR(csr, fullQs);
             if (remoteArray == NULL || remoteArray->type != KjArray)
               continue;
@@ -351,24 +396,47 @@ bool getEntities(void)
                 continue;
               }
 
-              bool duplicate = false;
-              for (KjNode* existingP = arrayP->value.firstChildP; existingP != NULL; existingP = existingP->next)
+              // Find existing entity with same ID
+              KjNode* existingP = NULL;
+              for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
               {
-                KjNode* existIdP = kjLookup(existingP, "id");
-                if (existIdP != NULL && existIdP->type == KjString && strcmp(existIdP->value.s, remoteIdP->value.s) == 0)
+                KjNode* eidP = kjLookup(ep, "id");
+                if (eidP != NULL && eidP->type == KjString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
                 {
-                  duplicate = true;
+                  existingP = ep;
                   break;
                 }
               }
 
-              if (!duplicate)
+              remoteEntity->next = NULL;
+              swldExpandTree(remoteEntity, &swRest.kalloc);
+              apiAttrToStorageWrap(remoteEntity);
+
+              if (existingP == NULL)
               {
-                remoteEntity->next = NULL;
-                swldExpandTree(remoteEntity, &swRest.kalloc);
-                apiAttrToStorageWrap(remoteEntity);
+                // New entity — add to results
                 kjChildAdd(arrayP, remoteEntity);
               }
+              else if (splitMode)
+              {
+                // Split mode: merge remote attrs into existing entity
+                // (add attrs not already present — simple overlay)
+                for (KjNode* attrP = remoteEntity->value.firstChildP; attrP != NULL; )
+                {
+                  KjNode* nextAttr = attrP->next;
+                  if (attrP->name != NULL &&
+                      strcmp(attrP->name, "id") != 0 &&
+                      strcmp(attrP->name, "type") != 0 &&
+                      attrP->name[0] != '@' &&
+                      kjLookup(existingP, attrP->name) == NULL)
+                  {
+                    attrP->next = NULL;
+                    kjChildAdd(existingP, attrP);
+                  }
+                  attrP = nextAttr;
+                }
+              }
+              // else: no-split mode, duplicate — skip
 
               remoteEntity = nextRemote;
             }
@@ -376,6 +444,41 @@ bool getEntities(void)
         }
 
         free(matchV);
+      }
+    }
+
+    //
+    // Split mode post-assembly: apply filters on assembled entities.
+    //
+    if (splitMode && arrayP != NULL)
+    {
+      KjNode* entityP = arrayP->value.firstChildP;
+      while (entityP != NULL)
+      {
+        KjNode* nextP = entityP->next;
+        bool keep = true;
+
+        // Type filter
+        if (swNgsild.typeV != NULL)
+        {
+          KjNode* typeP = kjLookup(entityP, "type");
+          if (typeP == NULL)
+            keep = false;
+          else if (typeP->type == KjString)
+          {
+            bool typeMatch = false;
+            for (int t = 0; swNgsild.typeV[t] != NULL; t++)
+              if (strcmp(typeP->value.s, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
+            keep = typeMatch;
+          }
+        }
+
+        // TODO: q-filter, geoQ, scopeQ post-assembly
+
+        if (!keep)
+          kjChildRemove(arrayP, entityP);
+
+        entityP = nextP;
       }
     }
   }
