@@ -1,0 +1,179 @@
+#
+# FILE            query_entities_distops.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distributed queryEntities: CB queries local + forwards to CP1.
+# No-split mode: each entity fully at one source.
+#
+--NAME--
+Distributed queryEntities (no-split mode)
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Seed CB with V1 (local) and CP1 with V2 (remote)
+# 02. Register CB→CP1 (inclusive, type=Vehicle)
+# 03. GET /entities?type=Vehicle on CB → both V1 + V2
+# 04. GET /entities?type=Vehicle&local=true → only V1
+# 05. GET /entities?type=Vehicle&options=keyValues on CB → V1 + V2 simplified
+#
+
+CB="http://localhost:${CB_PORT}"
+CP1="http://localhost:${CP1_PORT}"
+
+echo "01. Seed CB with V1, CP1 with V2"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}
+}'
+echo
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}
+}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 (inclusive, type=Vehicle)"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:CSR:CP1",
+  "type":"ContextSourceRegistration",
+  "endpoint":"'"$CP1"'/ngsi-ld/v1",
+  "mode":"inclusive",
+  "information":[{"entities":[{"type":"Vehicle"}]}]
+}'
+echo
+echo
+
+
+echo "03. GET /entities?type=Vehicle → V1 + V2 (merged from CB + CP1)"
+echo "================================================================"
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues"
+echo
+echo
+
+
+echo "04. GET /entities?type=Vehicle&local=true → V1 only"
+echo "==================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&local=true&options=keyValues"
+echo
+echo
+
+
+echo "05. GET /entities?type=Vehicle on CP1 directly → V2 only"
+echo "========================================================="
+swCurl --port $CP1_PORT --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues"
+echo
+echo
+
+
+--EXPECT--
+01. Seed CB with V1, CP1 with V2
+=================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 (inclusive, type=Vehicle)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. GET /entities?type=Vehicle → V1 + V2 (merged from CB + CP1)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 140
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 80,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 120,
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. GET /entities?type=Vehicle&local=true → V1 only
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 71
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 80,
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. GET /entities?type=Vehicle on CP1 directly → V2 only
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 72
+
+[
+  {
+    "id": "urn:V2",
+    "speed": 120,
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

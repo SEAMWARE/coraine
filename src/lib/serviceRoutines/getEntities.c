@@ -7,17 +7,146 @@
 //
 #include <stddef.h>                                  // NULL
 #include <stdio.h>                                   // snprintf
+#include <string.h>                                  // strcmp, strlen, strcpy
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjParse.h"                           // kjParse
+#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjChildAdd
+#include "kjson/kjChildReplace.h"                    // kjChildReplace
 #include "swRest/SwRestState.h"                      // swRest
+#include "swRest/swRestClient.h"                     // SwRestClientRequest, swRestClientSend
 #include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, SwNgsild, swNgsild, ldPaginationTrim, ldPaginationLinkHeader, ldPickOmit
+#include "swJsonld/swldExpandTree.h"                 // swldExpandTree
+#include "swJsonld/swldCompact.h"                    // swldCompact
+#include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
+#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
+#include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
+#include "swNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
 
 #include "db/DbDriver.h"                             // db, DB_OK
+#include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/getEntities.h"             // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// apiAttrToStorageWrap - wrap upstream API-format entity into storage format
+//
+// Wraps each attribute: "speed": {type,value} → "speed": {"@none": {type,value}}
+//
+static void apiAttrToStorageWrap(KjNode* entityP)
+{
+  if (entityP == NULL || entityP->type != KjObject)
+    return;
+
+  KjNode* curP = entityP->value.firstChildP;
+  while (curP != NULL)
+  {
+    KjNode* nextP = curP->next;
+
+    if (curP->name == NULL || curP->name[0] == '@' ||
+        strcmp(curP->name, "id")   == 0 ||
+        strcmp(curP->name, "type") == 0 ||
+        curP->type != KjObject)
+    {
+      curP = nextP;
+      continue;
+    }
+
+    KjNode* wrapperP = kjObject(NULL, curP->name);
+    kjChildReplace(entityP, curP, wrapperP);
+    curP->name = (char*) "@none";
+    curP->next = NULL;
+    kjChildAdd(wrapperP, curP);
+
+    curP = nextP;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// forwardQueryToCSR - forward GET /entities to a CSR, return the parsed response array
+//
+// Builds the URL from the CSR's endpoint + the original query string
+// (for no-split mode, the full query is forwarded). Returns NULL on failure.
+//
+static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
+{
+  if (csr->endpoint == NULL)
+    return NULL;
+
+  const char* base = csr->endpoint;
+  const char* path = "/entities?";
+  int baseLen = strlen(base);
+  int pathLen = strlen(path);
+  int qsLen   = strlen(queryString);
+  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+
+  strcpy(url, base);
+  strcpy(url + baseLen, path);
+  strcpy(url + baseLen + pathLen, queryString);
+
+  SwRestClientRequest  req;
+  SwRestClientResponse resp;
+
+  swRestClientRequestInit(&req, SwVerbGet, url, &swRest.kalloc);
+  swRestClientRequestTimeout(&req, 5000, 10000);
+
+  int rc = swRestClientSend(&req, &resp);
+  if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300)
+    return NULL;
+  if (resp.body == NULL || resp.bodyLen == 0)
+    return NULL;
+
+  // Parse response body (need mutable copy for kjParse)
+  char* bodyCopy = (char*) kaAlloc(&swRest.kalloc, resp.bodyLen + 1);
+  memcpy(bodyCopy, resp.body, resp.bodyLen);
+  bodyCopy[resp.bodyLen] = 0;
+
+  KjNode* treeP = kjParse(swRest.kjsonP, bodyCopy);
+  return treeP;  // KjArray of entities (in API format)
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// buildQueryString - reconstruct the query string from parsed URL params
+//
+// For no-split mode, we forward the full query. This builds the query
+// string from swNgsild state (type, q, georel, etc.)
+//
+static const char* buildQueryString(void)
+{
+  // Reconstruct from the original raw URL params — simpler than rebuilding
+  // from parsed state. swRest.in stores the raw URI params.
+  char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
+  int pos = 0;
+
+  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  {
+    if (i > 0) qs[pos++] = '&';
+    int kLen = strlen(swRest.in.uriParamV[i].key);
+    int vLen = strlen(swRest.in.uriParamV[i].value);
+    strcpy(qs + pos, swRest.in.uriParamV[i].key);
+    pos += kLen;
+    qs[pos++] = '=';
+    strcpy(qs + pos, swRest.in.uriParamV[i].value);
+    pos += vLen;
+  }
+  qs[pos] = 0;
+  return qs;
+}
 
 
 
@@ -28,7 +157,7 @@
 bool getEntities(void)
 {
   //
-  // Early exit if paramHook already set an error (e.g. invalid georel, geometry, coordinates)
+  // Early exit if paramHook already set an error
   //
   if (swRest.out.problemType != NULL)
     return true;
@@ -40,9 +169,7 @@ bool getEntities(void)
     return true;
 
   //
-  // Geo-query inter-parameter validation:
-  // If any of georel/geometry/coordinates is present, all three must be present.
-  // geoproperty alone (without the other three) is also an error.
+  // Geo-query inter-parameter validation
   //
   bool hasGeorel      = (swNgsild.georel      != NULL);
   bool hasGeometry    = (swNgsild.geometry     != NULL);
@@ -90,7 +217,7 @@ bool getEntities(void)
   filter.count    = swNgsild.count;
 
   //
-  // Query the database
+  // Query the local database
   //
   KjNode* arrayP = NULL;
   int     r      = db.entityQuery((Tenant*) swNgsild.tenantP, &filter, &arrayP);
@@ -99,6 +226,75 @@ bool getEntities(void)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying entities");
     return true;
+  }
+
+  //
+  // Distributed query (no-split mode): if registrations match and ?local=true
+  // is not set, forward the query to each matching CSR and merge results.
+  // Entity IDs are collected into an EntityMap for pagination.
+  //
+  if (swNgsild.local == false)
+  {
+    Tenant*           tP    = (Tenant*) swNgsild.tenantP;
+    LdRegCacheItem**  matchV = NULL;
+    int               matchN = 0;
+
+    // Match inclusive registrations (no-split: each entity fully at one source)
+    if (tP != NULL && tP->regCacheP != NULL)
+      matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
+                                          NULL, swNgsild.typeV,
+                                          LdRegModeInclusive, &matchV);
+
+    if (matchN > 0)
+    {
+      const char* qs = buildQueryString();
+
+      for (int i = 0; i < matchN; i++)
+      {
+        KjNode* remoteArray = forwardQueryToCSR(matchV[i], qs);
+        if (remoteArray == NULL || remoteArray->type != KjArray)
+          continue;
+
+        // Merge remote entities into local result array
+        // For no-split mode: just append (no attr-level merge needed —
+        // each entity is fully at one source). Deduplicate by ID.
+        for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
+        {
+          KjNode* nextRemote = remoteEntity->next;
+
+          KjNode* remoteIdP = kjLookup(remoteEntity, "id");
+          if (remoteIdP == NULL || remoteIdP->type != KjString)
+          {
+            remoteEntity = nextRemote;
+            continue;
+          }
+
+          // Check for duplicate (entity already in local results)
+          bool duplicate = false;
+          for (KjNode* localEntity = arrayP->value.firstChildP; localEntity != NULL; localEntity = localEntity->next)
+          {
+            KjNode* localIdP = kjLookup(localEntity, "id");
+            if (localIdP != NULL && localIdP->type == KjString && strcmp(localIdP->value.s, remoteIdP->value.s) == 0)
+            {
+              duplicate = true;
+              break;
+            }
+          }
+
+          if (!duplicate)
+          {
+            remoteEntity->next = NULL;
+            swldExpandTree(remoteEntity, &swRest.kalloc);
+            apiAttrToStorageWrap(remoteEntity);
+            kjChildAdd(arrayP, remoteEntity);
+          }
+
+          remoteEntity = nextRemote;
+        }
+      }
+
+      free(matchV);
+    }
   }
 
   //
@@ -115,7 +311,6 @@ bool getEntities(void)
     char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
     snprintf(countStr, 32, "%ld", (long) filter.totalCount);
 
-    // Write directly into swRest.out.headerV
     SwRestKeyValue* hV = swRest.out.headerV;
     int ix = swRest.out.headerCount;
     hV[ix].key   = "NGSILD-Results-Count";
