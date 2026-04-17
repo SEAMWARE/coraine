@@ -1,0 +1,137 @@
+#
+# FILE            subscription_notif_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# datasetId filtering in subscription notifications (§ 5.8.6).
+# Only attribute instances whose datasetId is in the subscription's
+# datasetId list are included in the notification.
+#
+--NAME--
+Subscription notification datasetId filtering
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create subscription with datasetId=["@none","urn:ds:1"]
+# 02. Create multi-attr entity: speed has @none + urn:ds:1 + urn:ds:2
+# 03. Dump ftClient — notification should have speed with @none + urn:ds:1 only
+#
+
+echo "01. Create subscription with datasetId filter"
+echo "=============================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:DS",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "datasetId": ["@none", "urn:ds:1"],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create multi-attr entity: speed @none + urn:ds:1 + urn:ds:2"
+echo "==============================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10},
+    {"type": "Property", "value": 20, "datasetId": "urn:ds:1"},
+    {"type": "Property", "value": 30, "datasetId": "urn:ds:2"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Dump ftClient — only @none + urn:ds:1 instances (urn:ds:2 filtered)"
+echo "======================================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription with datasetId filter
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DS
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create multi-attr entity: speed @none + urn:ds:1 + urn:ds:2
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Dump ftClient — only @none + urn:ds:1 instances (urn:ds:2 filtered)
+=======================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": [
+            {
+              "type": "Property",
+              "value": 10
+            },
+            {
+              "datasetId": "urn:ds:1",
+              "type": "Property",
+              "value": 20
+            }
+          ],
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:Subscription:DS",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": REGEX("localhost:.*"),
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
