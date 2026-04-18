@@ -1,0 +1,173 @@
+#
+# FILE            csource-reg-distops-replace-exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - replaceEntity (PUT) forwarded to exclusive registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 holds urn:V1 with attrs {speed, color, brand}. CB has an exclusive
+# CSR on V1 claiming speed + color via propertyNames. A PUT on CB sends
+# a full new entity; the CB must chop the claimed slice (speed+color) and
+# forward a Replace Entity request to CP1 with just those attrs + id/type.
+# Brand is unclaimed so it stays on CP1 only if we don't wipe it — but
+# the forward is slice-only (id/type/speed/color), and CP1's Replace
+# Entity semantic replaces the ENTIRE remote entity → brand at CP1 is
+# wiped. That's the spec-mandated behavior (§ 5.6.18.4).
+#
+# There is no local V1 on CB; the remaining body after chop is {id, type,
+# <unclaimed-attrs>}. Local replace silently no-ops (local doesn't exist)
+# and the overall 204 comes from the forward success.
+#
+
+echo "01. Seed CP1 with V1 (speed=42, color=red, brand=Acme)"
+echo "======================================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":42},
+  "color": {"type":"Property","value":"red"},
+  "brand": {"type":"Property","value":"Acme"}
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CB→CP1 exclusive CSR claiming speed + color"
+echo "========================================================"
+payload='{
+  "id": "urn:CSR:ReplExcl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["replaceEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed", "color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. PUT urn:V1 on CB with full new body → speed+color sliced to CP1 → 204"
+echo "========================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":99},
+  "color": {"type":"Property","value":"blue"},
+  "brand": {"type":"Property","value":"Zephyr"}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:V1 on CP1 → speed=99, color=blue (brand wiped by remote Replace)"
+echo "============================================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "05. PUT a non-existent id on CB (no local, no CSR match) → 404"
+echo "=============================================================="
+payload='{"id":"urn:NeverExisted","type":"Vehicle","speed":{"type":"Property","value":1}}'
+swCurl --url /ngsi-ld/v1/entities/urn:NeverExisted -X PUT --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1 (speed=42, color=red, brand=Acme)
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 exclusive CSR claiming speed + color
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:ReplExcl
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. PUT urn:V1 on CB with full new body → speed+color sliced to CP1 → 204
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET urn:V1 on CP1 → speed=99, color=blue (brand wiped by remote Replace)
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. PUT a non-existent id on CB (no local, no CSR match) → 404
+==============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:NeverExisted' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

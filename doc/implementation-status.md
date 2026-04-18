@@ -1,7 +1,7 @@
 # swBroker Implementation Status
 
 Version: post-0.2.0
-Date: 2026-04-19
+Date: 2026-04-20
 
 ---
 
@@ -203,9 +203,9 @@ Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
 
 ### 6. PUT /ngsi-ld/v1/entities/{entityId} — Replace Entity
 
-**Status: Mostly complete (local only, no type disambiguation, no distops)**
+**Status: Complete**
 
-Implements Replace Entity per § 5.6.16 using the procedure of § 5.5.12.
+Implements Replace Entity per § 5.6.18 using the procedure of § 5.5.12.
 Atomic replace at the driver level: swRamDB detaches the old tree and
 grafts a clone of the new one in place; mongoc uses
 `mongoc_collection_find_and_modify_with_opts` so the find/replace/return-old
@@ -227,10 +227,19 @@ replace — multi-type entities are compared as sets.
 | Full shared-validator coverage (duplicate keys, bad URIs, conflicting value keys, GeoProperty errors, multi-attr datasetId, observedAt, unitCode, ...) | Done |
 | Subscriptions / notifications on replace | Done (deferred notify, LdNotifyEntityUpdate) |
 | `type` URL param (distops disambiguation) | Done |
-| Distributed operations | Not done |
+| `local=true` URL param — bypass distops dispatch | Done |
+| DistOps — exclusive/redirect chop + forward via PUT | Done |
+| DistOps — inclusive clone + forward via PUT | Done |
+| Per-RegistrationInfo slice via `ldEntityFragmentForInfo` | Done |
+| op-check on `replaceEntity` (updateOps + redirectionOps groups) | Done |
+| 409 Conflict when CSR claims attr but refuses replaceEntity | Done |
+| 207 Multi-Status on partial forward failure (`BatchOperationResult`) | Done |
+| Upstream 404 tolerated (silent-skip; local DB_NOT_FOUND also tolerated) | Done |
+| Via loop detect → skip forwards but keep local replace | Done |
 
 Functional tests: `entity_replace.test` (8 cases — happy path + PUT-specific
-errors), `entity_replace_errors.test` (17 cases — one per validator class).
+errors), `entity_replace_errors.test` (17 cases — one per validator class),
+`csource-reg-distops-replace-{exclusive,misc,errors}.test` (3 distops files).
 
 ### 7. Subscriptions (POST / GET / PATCH / DELETE) + notifications
 
