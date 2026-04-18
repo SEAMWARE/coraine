@@ -1,0 +1,140 @@
+#
+# FILE            csource-reg-distops-create-excl-no-op.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - exclusive registration without createEntity in operations yields partial success
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+
+#
+# One exclusive CSR that declares only retrieveEntity in operations.
+# Its claimed attr (speed) cannot be created anywhere:
+#   - local: forbidden by § 4.3.6.3 exclusive invariant
+#   - forward: refused because createEntity is not in operations
+#
+# This is the "admin forbids this attr from being created" feature.
+# The non-claimed attrs (color) still go through the normal local create.
+#
+# Expect 207 because color succeeded locally but speed failed.
+#
+
+echo "01. Register CSR_NoCreate (exclusive, claims speed, retrieveEntity only)"
+echo "========================================================================"
+payload='{
+  "id": "urn:CSR:NoCreate",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST urn:V1 {speed, color} → speed dropped, color local → 207"
+echo "================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET urn:V1 ?local=true → only color, speed never stored"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_NoCreate (exclusive, claims speed, retrieveEntity only)
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NoCreate
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 {speed, color} → speed dropped, color local → 207
+=================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support createEntity; affected attributes: speed",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:NoCreate"
+    }
+  ],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+03. GET urn:V1 ?local=true → only color, speed never stored
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

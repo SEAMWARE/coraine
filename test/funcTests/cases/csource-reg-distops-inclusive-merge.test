@@ -57,7 +57,7 @@ echo "========================================="
 payload='{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "inclusive",
   "information": [
     {
@@ -80,7 +80,7 @@ echo "=========================================="
 payload='{
   "id": "urn:CSR:CP2",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP2_PORT'",
   "mode": "inclusive",
   "information": [
     {

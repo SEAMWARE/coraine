@@ -167,21 +167,22 @@ swDbInit() {
 
 # -----------------------------------------------------------------------------
 #
-# ftClient - notification receiver for subscription tests
+# ftClient - generic mock endpoint for forward-target / notification-receiver tests
+#
+# Each instance has its own PID file keyed by port, so multiple ftClients
+# can run concurrently (one per CSR target) and be stopped individually.
 #
 FT_CLIENT=$SW_BROKER_DIR/test/funcTests/ftClient/ftClient
-FT_CLIENT_PORT=7701
-FT_CLIENT_PID_FILE=/tmp/ftClient.pid
+FT_CLIENT_PORT=7701                          # default port when none given
 
 
-# ftClientStart [extra-params...]
+# ftClientStart [--port P] [--status S] [...extra]
 #
-# Usage:  ftClientStart
-#         ftClientStart --port 7702
+# Starts an ftClient on the given port (default 7701). --status sets the
+# HTTP status returned for incoming POSTs (default 201). Pass "misbehave"
+# statuses (503, 500, 403, ...) to simulate forwarding-target failures.
 #
 ftClientStart() {
-  ftClientStop 2>/dev/null
-
   local port=$FT_CLIENT_PORT
   local -a extraParams
 
@@ -196,21 +197,36 @@ ftClientStart() {
     shift
   done
 
+  local pidFile=/tmp/ftClient.$port.pid
+  ftClientStop --port $port 2>/dev/null
+
   $FT_CLIENT --port $port ${extraParams[*]} > /dev/null 2>&1 &
-  echo $! > "$FT_CLIENT_PID_FILE"
+  echo $! > "$pidFile"
   swAwaitPort $port 5
 }
 
 
-# ftClientStop
+# ftClientStop [--port P]
+#
+# Stops the ftClient on --port (default 7701). Safe to call when not running.
 #
 ftClientStop() {
-  if [ -f "$FT_CLIENT_PID_FILE" ]; then
-    local pid=$(cat "$FT_CLIENT_PID_FILE")
+  local port=$FT_CLIENT_PORT
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      shift
+    fi
+    shift
+  done
+
+  local pidFile=/tmp/ftClient.$port.pid
+  if [ -f "$pidFile" ]; then
+    local pid=$(cat "$pidFile")
     kill $pid 2>/dev/null
     sleep 0.1
     kill -0 $pid 2>/dev/null && kill -9 $pid 2>/dev/null
-    \rm -f "$FT_CLIENT_PID_FILE"
+    \rm -f "$pidFile"
   fi
 }
 

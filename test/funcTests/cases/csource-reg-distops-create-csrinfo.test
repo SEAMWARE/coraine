@@ -1,0 +1,108 @@
+#
+# FILE            csource-reg-distops-create-csrinfo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - contextSourceInfo headers are emitted on forwarded createEntity
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+
+#
+# Register exclusive CSR with a contextSourceInfo item declaring an
+# X-Api-Key header. On POST, the forward to ftClient must carry that
+# header. We verify by reading the ftClient dump.
+#
+
+echo "01. Register CSR with contextSourceInfo X-Api-Key"
+echo "================================================="
+payload='{
+  "id": "urn:CSR:Info",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity"],
+  "contextSourceInfo": [
+    { "key": "X-Api-Key",    "value": "secret-abc" },
+    { "key": "X-Downstream", "value": "prod" }
+  ],
+  "information": [
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST urn:V1 - forward includes the X-Api-Key + X-Downstream headers"
+echo "========================================================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. ftClient dump → request carries X-Api-Key + X-Downstream"
+echo "============================================================="
+curl -s http://localhost:7711/dump | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(len(d), 'request(s)')
+for e in d:
+    print('  -', e['verb'], e['url'])
+    for k in ('X-Api-Key', 'X-Downstream'):
+        print('   ', k + ':', e['headers'].get(k, '<missing>'))
+"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR with contextSourceInfo X-Api-Key
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Info
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 - forward includes the X-Api-Key + X-Downstream headers
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. ftClient dump → request carries X-Api-Key + X-Downstream
+=============================================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities
+    X-Api-Key: secret-abc
+    X-Downstream: prod
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

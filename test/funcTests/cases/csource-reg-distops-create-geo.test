@@ -1,0 +1,189 @@
+#
+# FILE            csource-reg-distops-create-geo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - CSR location geo filter on createEntity (shared GEOS via db.geoMatchFunc)
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+
+#
+# Two exclusive CSRs with disjoint geo coverage + disjoint attr claims:
+#   - CSR_Iberia   location=Polygon around Iberia (-10..3, 36..44)   claims "speed"
+#   - CSR_Scandi   location=Polygon around Scandinavia (5..30, 55..71) claims "color"
+#
+# Entity V1 at lon=-3.7,lat=40.4 (Madrid, in Iberia). Only CSR_Iberia
+# should match. Speed is forwarded; color has no CSR match and stays local.
+#
+
+echo "01. Register CSR_Iberia (bounding Iberia) claims speed"
+echo "======================================================"
+payload='{
+  "id": "urn:CSR:Iberia",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity"],
+  "location": {
+    "type": "Polygon",
+    "coordinates": [[[-10,36],[3,36],[3,44],[-10,44],[-10,36]]]
+  },
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CSR_Scandi (bounding Scandinavia) claims color"
+echo "==========================================================="
+payload='{
+  "id": "urn:CSR:Scandi",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity"],
+  "location": {
+    "type": "Polygon",
+    "coordinates": [[[5,55],[30,55],[30,71],[5,71],[5,55]]]
+  },
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. POST V1 in Madrid → only CSR_Iberia matches, color stays local"
+echo "=================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "location": {
+    "type": "GeoProperty",
+    "value": { "type": "Point", "coordinates": [-3.7, 40.4] }
+  },
+  "speed": { "type": "Property", "value": 42 },
+  "color": { "type": "Property", "value": "red" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET V1 local → color present (not claimed), speed not (went to Iberia)"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+echo "05. ftClient dump → exactly one forward (to CSR_Iberia for speed)"
+echo "================================================================="
+curl -s http://localhost:7711/dump | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(len(d), 'request(s)')
+for e in d:
+    attrs = [k for k in e['body'] if k not in ('id','type','@context','scope','location') and not k.startswith('@')]
+    short = [a.split('/')[-1] for a in attrs]
+    print('  -', e['verb'], e['url'], 'attrs:', ','.join(sorted(short)))
+"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_Iberia (bounding Iberia) claims speed
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Iberia
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CSR_Scandi (bounding Scandinavia) claims color
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Scandi
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST V1 in Madrid → only CSR_Iberia matches, color stays local
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. GET V1 local → color present (not claimed), speed not (went to Iberia)
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        -3.7,
+        40.4
+      ],
+      "type": "Point"
+    }
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. ftClient dump → exactly one forward (to CSR_Iberia for speed)
+=================================================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities attrs: speed
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

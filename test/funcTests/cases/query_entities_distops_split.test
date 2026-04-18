@@ -46,7 +46,7 @@ echo
 
 echo "02. Register CB→CP1 (inclusive, type=Vehicle)"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'/ngsi-ld/v1","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 

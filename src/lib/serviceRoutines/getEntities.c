@@ -87,7 +87,7 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
     return NULL;
 
   const char* base = csr->endpoint;
-  const char* path = "/entities?";
+  const char* path = "/ngsi-ld/v1/entities?";
   int baseLen = strlen(base);
   int pathLen = strlen(path);
   int qsLen   = strlen(queryString);

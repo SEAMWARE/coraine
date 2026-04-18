@@ -1,0 +1,178 @@
+#
+# FILE            csource-reg-distops-create-scope.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - CSR scope filter on createEntity
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+
+#
+# Two exclusive CSRs, same entity+type, different scope filters:
+#   - CSR_Madrid scope="/Madrid/#"     claims attr "speed"
+#   - CSR_BCN    scope="/Barcelona/#"  claims attr "color"
+#
+# POST V1 with scope "/Madrid/Parque" + {speed, color}:
+#   - speed → CSR_Madrid (scope matches) → forwarded
+#   - color → CSR_BCN (scope mismatch)   → NOT forwarded → stays local
+#
+# Verify:
+#   - 201 Created
+#   - ?local=true shows only color
+#   - ftClient has one forward with speed only
+#
+
+echo "01. Register CSR_Madrid (scope=/Madrid/#, claims speed)"
+echo "======================================================="
+payload='{
+  "id": "urn:CSR:Madrid",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity"],
+  "scope": "/Madrid/#",
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CSR_BCN (scope=/Barcelona/#, claims color)"
+echo "======================================================="
+payload='{
+  "id": "urn:CSR:BCN",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity"],
+  "scope": "/Barcelona/#",
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. POST V1 with scope=/Madrid/Parque → CSR_Madrid matches, CSR_BCN skipped"
+echo "==========================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "scope": "/Madrid/Parque",
+  "speed": { "type": "Property", "value": 42 },
+  "color": { "type": "Property", "value": "red" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET V1 local → color present, speed not (went to Madrid CSR)"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+echo "05. ftClient dump → one forward for speed"
+echo "========================================="
+curl -s http://localhost:7711/dump | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+print(len(d), 'request(s)')
+for e in d:
+    attrs = [k for k in e['body'] if k not in ('id','type','@context','scope') and not k.startswith('@')]
+    # attrs may be expanded IRIs, keep tails only
+    short = [a.split('/')[-1] for a in attrs]
+    print('  -', e['verb'], e['url'], 'attrs:', ','.join(sorted(short)))
+"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_Madrid (scope=/Madrid/#, claims speed)
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Madrid
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CSR_BCN (scope=/Barcelona/#, claims color)
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:BCN
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST V1 with scope=/Madrid/Parque → CSR_Madrid matches, CSR_BCN skipped
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. GET V1 local → color present, speed not (went to Madrid CSR)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "scope": "/Madrid/Parque",
+  "type": "Vehicle"
+}
+
+
+
+05. ftClient dump → one forward for speed
+=========================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities attrs: speed
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

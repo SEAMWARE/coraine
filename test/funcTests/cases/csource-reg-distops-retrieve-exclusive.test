@@ -54,7 +54,7 @@ echo "=========================================="
 payload='{
   "id": "urn:CSR:R1",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "exclusive",
   "information": [
     {
@@ -91,7 +91,7 @@ echo "================================="
 payload='{
   "id": "urn:CSR:Dead",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:6666/ngsi-ld/v1",
+  "endpoint": "http://localhost:6666",
   "mode": "exclusive",
   "information": [
     {

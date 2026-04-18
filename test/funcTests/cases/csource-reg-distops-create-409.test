@@ -1,0 +1,158 @@
+#
+# FILE            csource-reg-distops-create-409.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - createEntity 409 Conflict when every forward fails and nothing else succeeds
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 503
+ftClientStart --port 7712 --status 403
+
+--RUN--
+
+#
+# Two redirect CSRs, each targeting a down / refusing ftClient:
+#   - CSR_503 → ftClient@7711, returns 503 → claims "speed"
+#   - CSR_403 → ftClient@7712, returns 403 → claims "color"
+#
+# POST entity with {speed, color}:
+#   - speed forwarded to CSR_503 → 503 (failed)
+#   - color forwarded to CSR_403 → 403 (failed)
+#   - both attrs chopped from fragment → no local create
+#   - anySucceeded = false
+#   - Response: 409 Conflict, body lists both failed attrs with their regIds
+#
+
+echo "01. Register CSR_503 (redirect, claims speed) → ftClient@7711"
+echo "============================================================="
+payload='{
+  "id": "urn:CSR:503",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CSR_403 (redirect, claims color) → ftClient@7712"
+echo "============================================================="
+payload='{
+  "id": "urn:CSR:403",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7712",
+  "mode": "redirect",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. POST urn:V1 {speed, color} → both forwards fail, 0 succeed → 409"
+echo "===================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_503 (redirect, claims speed) → ftClient@7711
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:503
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CSR_403 (redirect, claims color) → ftClient@7712
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:403
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST urn:V1 {speed, color} → both forwards fail, 0 succeed → 409
+====================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "forward returned status 503; affected attributes: speed",
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:503"
+    },
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "forward returned status 403; affected attributes: color",
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:403"
+    }
+  ],
+  "success": []
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+swBrokerStop
+swDbDrop

@@ -1,0 +1,256 @@
+#
+# FILE            csource-reg-distops-create-misc.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - createEntity misc cases: ?local, dead endpoint, 2 exclusives, mixed excl+incl, overlapping redirects, multi-info CSR
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+ftClientStart --port 7712 --status 201
+
+--RUN--
+
+#
+# This one test covers several scenarios sequentially. Between each, the
+# entity and all CSRs are left in place; we only add new regs + new
+# entities with unique IDs so prior state doesn't interfere.
+#
+
+# ----- ?local=true bypass -----
+echo "01. Register exclusive CSR for urn:V1"
+echo "====================================="
+payload='{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"exclusive","operations":["createEntity","retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST urn:V1 ?local=true → bypasses dispatch, stores locally only"
+echo "===================================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload "$payload"
+echo
+echo
+
+
+echo "03. GET urn:V1 ?local=true → 200 (stored here, forwarding was skipped)"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+# ----- Dead endpoint: connection refused -----
+echo "04. Register redirect CSR to nothing (port 6666) + another live"
+echo "==============================================================="
+payload='{"id":"urn:CSR:Dead","type":"ContextSourceRegistration","endpoint":"http://localhost:6666","mode":"redirect","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. Register live redirect CSR for urn:V2 / color"
+echo "================================================="
+payload='{"id":"urn:CSR:LiveRedir","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"redirect","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["color"]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "06. POST urn:V2 {speed, color} → dead CSR fails, live succeeds → 207"
+echo "===================================================================="
+payload='{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":42},"color":{"type":"Property","value":"red"}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+# ----- Mixed exclusive + inclusive -----
+echo "07. Register exclusive (claims speed) + inclusive (claims color) for urn:V3"
+echo "==========================================================================="
+payload='{"id":"urn:CSR:MixExcl","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"exclusive","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{"id":"urn:CSR:MixIncl","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","mode":"inclusive","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["color"]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "08. POST urn:V3 {speed, color, owner} → speed chopped → forward, color both, owner local"
+echo "========================================================================================="
+payload='{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":42},"color":{"type":"Property","value":"red"},"owner":{"type":"Property","value":"alice"}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. GET urn:V3 ?local=true → color + owner (speed was chopped away)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Register exclusive CSR for urn:V1
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 ?local=true → bypasses dispatch, stores locally only
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. GET urn:V1 ?local=true → 200 (stored here, forwarding was skipped)
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. Register redirect CSR to nothing (port 6666) + another live
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Dead
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+05. Register live redirect CSR for urn:V2 / color
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveRedir
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+06. POST urn:V2 {speed, color} → dead CSR fails, live succeeds → 207
+====================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V2",
+      "error": {
+        "detail": REGEX("forward (failed|returned status).*"),
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:Dead"
+    }
+  ],
+  "success": [
+    "urn:V2"
+  ]
+}
+
+
+
+07. Register exclusive (claims speed) + inclusive (claims color) for urn:V3
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MixExcl
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MixIncl
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+08. POST urn:V3 {speed, color, owner} → speed chopped → forward, color both, owner local
+=========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V3
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+09. GET urn:V3 ?local=true → color + owner (speed was chopped away)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V3",
+  "owner": {
+    "type": "Property",
+    "value": "alice"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+swBrokerStop
+swDbDrop

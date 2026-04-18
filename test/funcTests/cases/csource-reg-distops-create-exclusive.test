@@ -1,0 +1,169 @@
+#
+# FILE            csource-reg-distops-create-exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - createEntity forwarded to exclusive registration, all attrs claimed
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Register CP1 as exclusive on CB for Vehicle entities (with createEntity op)
+# 02. POST V1 with speed → CB forwards whole payload to CP1, no local store
+# 03. GET V1 on CB with ?local=true → 404 (nothing stored locally)
+# 04. GET V1 on CP1 directly → 200 with speed=42
+# 05. GET V1 on CB (no ?local) → 200 via retrieve-dispatch to CP1
+#
+
+echo "01. Register CP1 as exclusive on CB for V1 with createEntity op"
+echo "==============================================================="
+payload='{
+  "id": "urn:CSR:Excl1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST V1 with speed → CB forwards to CP1"
+echo "==========================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET V1 on CB with ?local=true → 404 (nothing stored locally)"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+echo "04. GET V1 on CP1 directly → 200 with speed=42"
+echo "=============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "05. GET V1 on CB (dispatched to CP1) → 200"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Register CP1 as exclusive on CB for V1 with createEntity op
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST V1 with speed → CB forwards to CP1
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. GET V1 on CB with ?local=true → 404 (nothing stored locally)
+================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. GET V1 on CP1 directly → 200 with speed=42
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. GET V1 on CB (dispatched to CP1) → 200
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

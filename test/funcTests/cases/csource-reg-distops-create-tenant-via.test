@@ -1,0 +1,158 @@
+#
+# FILE            csource-reg-distops-create-tenant-via.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - tenant-scoped Via loop detection: broker forwards to itself with tenant rewrite
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# One broker (CB) on port $CB_PORT. Two tenants are involved:
+#   - t1 — where the client request lands (NGSILD-Tenant: t1)
+#   - t2 — the rewritten target tenant
+#
+# On tenant t1, a CSR is registered with:
+#   - endpoint: http://localhost:$CB_PORT    (back to CB itself)
+#   - tenant:   "t2"                         (§ 5.2.9 rewrite)
+#   - mode:     redirect
+#
+# Client POSTs an entity on t1. CB-on-t1 matches the CSR, forwards to
+# http://localhost:$CB_PORT/entities with headers:
+#   - NGSILD-Tenant: t2
+#   - Via: 1.1 swBroker:$CB_PORT:t1
+#
+# The receiver is CB on tenant t2. Its own alias is "swBroker:$CB_PORT:t2".
+# Via entry is "swBroker:$CB_PORT:t1" — no exact match → NO loop detected.
+# Forward succeeds, entity stored on t2.
+#
+# Verification:
+#   - ?local=true on t1 → 404 (nothing stored there)
+#   - ?local=true on t2 →  entity present
+#
+# If the alias were not tenant-scoped (just "swBroker:$CB_PORT"), both
+# sides would match and the forward would have come back as 502 loop
+# detected.
+#
+
+echo "01. Register CSR on t1 with tenant rewrite → t2, endpoint back to CB"
+echo "===================================================================="
+payload='{
+  "id": "urn:CSR:Rewrite",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "redirect",
+  "tenant": "t2",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "02. POST urn:V1 on t1 → CB-on-t1 forwards to CB-on-t2 (no loop) → 201"
+echo "====================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "03. GET urn:V1 on t1 with ?local=true → 404 (never stored locally on t1)"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "04. GET urn:V1 on t2 with ?local=true → 200 (forwarded and stored here)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR on t1 with tenant rewrite → t2, endpoint back to CB
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Rewrite
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 on t1 → CB-on-t1 forwards to CB-on-t2 (no loop) → 201
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. GET urn:V1 on t1 with ?local=true → 404 (never stored locally on t1)
+========================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. GET urn:V1 on t2 with ?local=true → 200 (forwarded and stored here)
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

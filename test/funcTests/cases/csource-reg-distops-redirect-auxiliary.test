@@ -78,7 +78,7 @@ echo "======================================================================"
 payload='{
   "id": "urn:CSR:R1",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "redirect",
   "information": [
     {
@@ -100,7 +100,7 @@ echo "===================================================================="
 payload='{
   "id": "urn:CSR:R2",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP2_PORT'",
   "mode": "redirect",
   "information": [
     {
@@ -122,7 +122,7 @@ echo "=================================================================="
 payload='{
   "id": "urn:CSR:Aux1",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP2_PORT'",
   "mode": "auxiliary",
   "operations": ["retrieveEntity"],
   "information": [
@@ -145,7 +145,7 @@ echo "========================================================================="
 payload='{
   "id": "urn:CSR:Aux2",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP2_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP2_PORT'",
   "mode": "auxiliary",
   "operations": ["retrieveEntity"],
   "information": [

@@ -49,13 +49,17 @@ static int     dumpCount     = 0;
 //
 // Command line arguments
 //
-unsigned short ftPort   = 7701;
-bool           ftFg     = true;
+unsigned short ftPort       = 7701;
+bool           ftFg         = true;
+unsigned short ftPostStatus = 200;     // status returned for accumulate POSTs; override with --status
+unsigned int   ftDelayMs    = 0;       // sleep before responding — for timeout tests
 
 static KArg ftArgV[] =
 {
-  { "--port",       "-p",  KaUShort, _vp &ftPort, KaOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
-  { "--foreground", "-fg", KaBool,   _vp &ftFg,   KaOpt, _vp KTRUE, _vp KFALSE, _vp KTRUE, "run in foreground" },
+  { "--port",       "-p",  KaUShort, _vp &ftPort,       KaOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
+  { "--foreground", "-fg", KaBool,   _vp &ftFg,         KaOpt, _vp KTRUE, _vp KFALSE, _vp KTRUE, "run in foreground" },
+  { "--status",     "-s",  KaUShort, _vp &ftPostStatus, KaOpt, _vp 200,   _vp 100, _vp 599, "HTTP status for accumulate POSTs (misbehave mode)" },
+  { "--delay",      NULL,  KaUInt,   _vp &ftDelayMs,    KaOpt, _vp 0,     _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
   KARGS_END
 };
 
@@ -212,8 +216,29 @@ static bool getDie(void)
 static bool postAccumulate(void)
 {
   dumpAccumulate();
-  KT_T(1, "POST %s received (total: %d)", swRest.in.urlPath, dumpCount);
-  swRest.out.httpStatusCode = 200;
+  KT_T(1, "POST %s received (total: %d, status=%u, delay=%ums)", swRest.in.urlPath, dumpCount, ftPostStatus, ftDelayMs);
+
+  if (ftDelayMs > 0)
+    usleep(ftDelayMs * 1000);
+
+  swRest.out.httpStatusCode = ftPostStatus;
+
+  //
+  // For 4xx/5xx responses, emit an NGSI-LD ProblemDetails body so swBroker's
+  // forward-failure surfacing has something spec-shaped to log / include
+  // as the "reason" in notCreated entries.
+  //
+  if (ftPostStatus >= 400)
+  {
+    static char errBuf[256];
+    snprintf(errBuf, sizeof(errBuf),
+             "{\"type\":\"https://uri.etsi.org/ngsi-ld/errors/InternalError\","
+             "\"title\":\"Mock Error\","
+             "\"detail\":\"ftClient configured with --status %u\"}", ftPostStatus);
+    swRest.out.payload     = errBuf;
+    swRest.out.payloadSize = strlen(errBuf);
+  }
+
   return true;
 }
 

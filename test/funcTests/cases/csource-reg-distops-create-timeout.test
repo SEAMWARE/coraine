@@ -1,0 +1,95 @@
+#
+# FILE            csource-reg-distops-create-timeout.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - per-CSR management.timeout triggers notCreated on slow forward
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201 --delay 2000
+
+--RUN--
+
+#
+# ftClient sleeps 2s before responding. CSR declares management.timeout: 200 ms.
+# The forward will time out, producing a notCreated entry, and since nothing
+# else succeeded, response is 409 Conflict.
+#
+
+echo "01. Register CSR with short timeout → slow ftClient"
+echo "==================================================="
+payload='{
+  "id": "urn:CSR:Slow",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["createEntity"],
+  "management": { "timeout": 200 },
+  "information": [
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST urn:V1 → forward times out → 409 Conflict"
+echo "=================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR with short timeout → slow ftClient
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Slow
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 → forward times out → 409 Conflict
+==================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": REGEX("forward failed: .*"),
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:Slow"
+    }
+  ],
+  "success": []
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

@@ -21,7 +21,7 @@ Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins
 
 ### 1. POST /ngsi-ld/v1/entities — Create Entity
 
-**Status: Mostly complete (local)**
+**Status: Complete, incl. distributed ops**
 
 | Feature | Status |
 |---------|--------|
@@ -42,9 +42,26 @@ Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins
 | scope (entity scope property) | Done |
 | Multi-entity-type (type as array) | Done |
 | Subscriptions / notifications on create | Done |
-| Distributed operations (forwarding to registrations) | Done (exclusive + inclusive) |
+| `?local=true` bypass of dispatch (§ 5.5.13) | Done |
+| DistOps — exclusive mode forwarding + chop (§ 4.3.6.3) | Done |
+| DistOps — redirect mode forwarding + chop | Done |
+| DistOps — inclusive mode forwarding + local keep | Done |
+| Per-RegistrationInfo dispatch (chop per info entry) | Done |
+| CSR `expiresAt` runtime enforcement | Done |
+| CSR `tenant` rewrite (§ 5.2.9, NGSILD-Tenant on forward) | Done |
+| CSR `contextSourceInfo` outbound headers + § 4.3.6.6 special-cases (accept/contentType) | Done |
+| CSR `scope` vs entity scope match | Done |
+| CSR `management.timeout` applied to forward | Done |
+| CSR `location` / `observationSpace` / `operationSpace` geo match (shared GEOS via `db.geoMatchFunc`) | Done (entity-within-CSR via `LdGeoWithin`) |
+| CSR dispatch counters (timesSent/Failed, lastSuccess/Failure) | Done |
+| Via loop detection — tenant-scoped alias | Done |
+| 207 Multi-Status with `BatchOperationResult` body (§ 5.2.17 / § 6.4.3.1) | Done |
+| 409 Conflict with `BatchOperationResult` on complete dispatch failure | Done |
+| Exclusive CSR without createEntity op → 207/409 with BatchEntityError (§ 5.6.1.4) | Done |
+| `jsonldContext` / `ngsildConformance` contextSourceInfo keys | TODO |
+| `urn:ngsi-ld:request` sentinel value (§ 4.3.6.5) | TODO |
 
-Functional tests: `create_entity*.test` (9 test files), `tenant.test`, `tenant_persistence.test`
+Functional tests: `create_entity*.test` (9 files), `tenant.test`, `tenant_persistence.test`, `csource-reg-distops-create-*.test` (9 distops files).
 
 ### 2. GET /ngsi-ld/v1/entities — Query Entities
 

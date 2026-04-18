@@ -52,7 +52,7 @@ echo "=========================================="
 payload='{
   "id": "urn:CSR:R1",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "exclusive",
   "information": [
     {
@@ -96,7 +96,7 @@ echo "=============================================="
 payload='{
   "id": "urn:CSR:Back",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CB_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CB_PORT'",
   "mode": "exclusive",
   "information": [
     {
@@ -121,7 +121,7 @@ echo "=============================================="
 payload='{
   "id": "urn:CSR:Out",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CP1_PORT'/ngsi-ld/v1",
+  "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "exclusive",
   "information": [
     {

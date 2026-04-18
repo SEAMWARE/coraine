@@ -1,0 +1,171 @@
+#
+# FILE            csource-reg-distops-create-expired.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - expired CSRs are ignored by createEntity dispatch
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+
+#
+# Two exclusive CSRs for the same entity:
+#   - Live  CSR (no expiresAt)       → claims "speed"
+#   - Dead  CSR (expiresAt 2020-...) → claims "color"
+#
+# POST entity with {speed, color}:
+#   - speed forwarded (Live)
+#   - color NOT forwarded (expired reg ignored) → stays local
+#
+# Verify:
+#   - 201 Created (one forward ok, color stored locally)
+#   - color present on local ?local=true
+#   - ftClient dump has only the speed POST
+#
+
+echo "01. Register Live CSR (no expiresAt) claiming speed"
+echo "==================================================="
+payload='{
+  "id": "urn:CSR:Live",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register Short-Lived CSR (expiresAt in 1s) claiming color"
+echo "============================================================="
+expiresAt=$(date -u -d '+1 second' +"%Y-%m-%dT%H:%M:%SZ")
+payload='{
+  "id": "urn:CSR:Dead",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "expiresAt": "'$expiresAt'",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+# Wait past expiration
+sleep 2
+
+
+echo "03. POST urn:V1 {speed, color} → Live forwarded, expired Dead ignored"
+echo "============================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 },
+  "color": { "type": "Property", "value": "red" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET V1 local=true → color still there, speed is not"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+echo "05. ftClient dump → exactly one forwarded POST"
+echo "=============================================="
+curl -s http://localhost:7711/dump | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d), 'request(s)'); [print('  -', e['verb'], e['url']) for e in d]"
+echo
+echo
+
+
+--EXPECT--
+01. Register Live CSR (no expiresAt) claiming speed
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Live
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register Short-Lived CSR (expiresAt in 1s) claiming color
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Dead
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST urn:V1 {speed, color} → Live forwarded, expired Dead ignored
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. GET V1 local=true → color still there, speed is not
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+05. ftClient dump → exactly one forwarded POST
+==============================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

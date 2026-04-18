@@ -1,0 +1,91 @@
+#
+# FILE            csource-reg-distops-create-loop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - createEntity loop detection via Via header (§ 5.7.5)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Register a CSR on CB that points back to CB itself. A client POST to CB
+# then triggers a forward to CB with a Via header. A second forward — the
+# one from the forwarded POST — would see its own alias in the Via list
+# and is blocked with 502 Bad Gateway per § 5.7.5 / RFC 7230.
+#
+# Here we don't actually need a full round-trip: we can simulate the
+# "second hop" by including a Via header matching the broker's own alias
+# in the initial POST.
+#
+
+echo "01. Register CSR pointing back to CB"
+echo "===================================="
+payload='{
+  "id": "urn:CSR:Self",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "redirect",
+  "operations": ["createEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST entity with Via header containing CB's own alias → 502"
+echo "==============================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" --header "Via: 1.1 swBroker:$CB_PORT"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR pointing back to CB
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Self
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST entity with Via header containing CB's own alias → 502
+===============================================================
+HTTP/1.1 502 Bad Gateway
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": REGEX("loop detected: .*"),
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

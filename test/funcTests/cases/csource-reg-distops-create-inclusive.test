@@ -1,0 +1,135 @@
+#
+# FILE            csource-reg-distops-create-inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - createEntity inclusive forwards AND stores locally
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+
+#
+# Inclusive CSR pointing to ftClient@7711. Per § 4.3.6.2 inclusive CSRs
+# are additive — the broker holds the data locally AND forwards it.
+#
+# POST urn:V1 {speed}:
+#   - forward to CSR_Incl → 201 (ok)
+#   - local create also runs (attr stays on entityP, detach=false)
+#   - Response: 201 Created (no failures)
+#
+# Then verify:
+#   - local has V1.speed (because inclusive keeps local)
+#   - ftClient dump has the forwarded POST
+#
+
+echo "01. Register CSR_Incl (inclusive, wildcard attrs) → ftClient@7711"
+echo "================================================================="
+payload='{
+  "id": "urn:CSR:Incl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "inclusive",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST urn:V1 {speed} → local AND forward → 201"
+echo "================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET urn:V1 ?local=true → local copy has speed"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+echo "04. ftClient dump → shows the forwarded POST"
+echo "============================================="
+curl -s http://localhost:7711/dump | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d), 'request(s)'); [print('  -', e['verb'], e['url']) for e in d]"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_Incl (inclusive, wildcard attrs) → ftClient@7711
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Incl
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 {speed} → local AND forward → 201
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. GET urn:V1 ?local=true → local copy has speed
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. ftClient dump → shows the forwarded POST
+=============================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

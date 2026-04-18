@@ -1,0 +1,150 @@
+#
+# FILE            csource-reg-distops-create-207.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - createEntity 207 partial success when one redirect forward fails
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+ftClientStart --port 7712 --status 503
+
+--RUN--
+
+#
+# Two redirect CSRs, each claiming a different attribute:
+#   - CSR_OK    → ftClient@7711, returns 201 (happy)  → claims "speed"
+#   - CSR_Down  → ftClient@7712, returns 503 (down)   → claims "color"
+#
+# POST entity with {speed, color}:
+#   - speed forwarded to CSR_OK    → 201   (succeeded)
+#   - color forwarded to CSR_Down  → 503   (failed)
+#   - both attrs chopped from fragment → no local create
+#   - Response: 207 Multi-Status, body lists "color" with regId CSR_Down
+#
+
+echo "01. Register CSR_OK (redirect, claims speed) → ftClient@7711"
+echo "============================================================"
+payload='{
+  "id": "urn:CSR:OK",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CSR_Down (redirect, claims color) → ftClient@7712"
+echo "=============================================================="
+payload='{
+  "id": "urn:CSR:Down",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7712",
+  "mode": "redirect",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:V1", "type": "Vehicle" }
+      ],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. POST urn:V1 {speed, color} → speed OK, color 503 → 207"
+echo "=========================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_OK (redirect, claims speed) → ftClient@7711
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:OK
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CSR_Down (redirect, claims color) → ftClient@7712
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Down
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST urn:V1 {speed, color} → speed OK, color 503 → 207
+==========================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "forward returned status 503; affected attributes: color",
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:Down"
+    }
+  ],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+swBrokerStop
+swDbDrop

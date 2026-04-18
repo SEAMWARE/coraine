@@ -481,9 +481,11 @@ static int forwardAndParse(LdRegCacheItem* csr,
     return 502;
   }
 
-  // Build URL: <endpoint>/entities/<entityId>?sysAttrs=true[&type=X][&pick=a,b,c]
+  // Build URL: <endpoint>/ngsi-ld/v1/entities/<entityId>?sysAttrs=true[&type=X][&pick=a,b,c]
+  // CSR endpoint is host+port only per spec § 5.2.9 example C.3; broker
+  // appends the standard NGSI-LD API path.
   const char* base = csr->endpoint;
-  const char* path = "/entities/";
+  const char* path = "/ngsi-ld/v1/entities/";
   const char* qs   = "?sysAttrs=true";
   const char* pick = buildInfoPickParam(riP, &swRest.kalloc);
 
@@ -530,9 +532,11 @@ static int forwardAndParse(LdRegCacheItem* csr,
     if (swRest.in.httpHeaderV[i].key != NULL && strcasecmp(swRest.in.httpHeaderV[i].key, "Via") == 0)
       viaIn++;
 
-  if (ownAlias != NULL || viaIn > 0)
+  bool hasTenant = (csr->tenant != NULL && csr->tenant[0] != 0);
+
+  if (ownAlias != NULL || viaIn > 0 || hasTenant)
   {
-    hv = (SwRestKeyValue*) kaAlloc(&swRest.kalloc, (viaIn + 1) * sizeof(SwRestKeyValue));
+    hv = (SwRestKeyValue*) kaAlloc(&swRest.kalloc, (viaIn + 2) * sizeof(SwRestKeyValue));
     for (int i = 0; i < swRest.in.httpHeaderCount; i++)
     {
       if (swRest.in.httpHeaderV[i].key != NULL && strcasecmp(swRest.in.httpHeaderV[i].key, "Via") == 0)
@@ -552,6 +556,55 @@ static int forwardAndParse(LdRegCacheItem* csr,
       hv[hc].value = viaVal;
       hc++;
     }
+    if (hasTenant)
+    {
+      // § 5.2.9 tenant rewrite — forward under the target tenancy
+      hv[hc].key   = (char*) "NGSILD-Tenant";
+      hv[hc].value = (char*) csr->tenant;
+      hc++;
+    }
+  }
+
+  // § 5.2.22 contextSourceInfo — arbitrary outbound headers (API keys etc.).
+  // Special-cased keys: `accept` → Accept header. `contentType` is ignored
+  // for GETs (no request body). Banned-by-spec keys (§ 4.3.6.5) are dropped.
+  // `jsonldContext` + `ngsildConformance` have rich semantics — TODO.
+  if (csr->contextSourceInfoKV != NULL)
+  {
+    int csiCount = 0;
+    for (int i = 0; csr->contextSourceInfoKV[i] != NULL; i += 2) csiCount++;
+
+    if (csiCount > 0)
+    {
+      SwRestKeyValue* hv2 = (SwRestKeyValue*) kaAlloc(&swRest.kalloc, (hc + csiCount + 1) * sizeof(SwRestKeyValue));
+      for (int i = 0; i < hc; i++) hv2[i] = hv[i];
+      hv = hv2;
+
+      for (int i = 0; csr->contextSourceInfoKV[i] != NULL; i += 2)
+      {
+        const char* k = csr->contextSourceInfoKV[i];
+        const char* v = csr->contextSourceInfoKV[i + 1];
+
+        if (strcasecmp(k, "accept") == 0)
+        {
+          hv[hc].key   = (char*) "Accept";
+          hv[hc].value = (char*) v;
+          hc++;
+          continue;
+        }
+
+        if (strcasecmp(k, "contentType")       == 0) continue;  // GET has no body
+        if (strcasecmp(k, "Content-Length")    == 0) continue;  // libcurl-controlled
+        if (strcasecmp(k, "Host")              == 0) continue;  // libcurl-controlled
+        if (strcasecmp(k, "NGSILD-Tenant")     == 0) continue;  // use csr->tenant
+        if (strcasecmp(k, "jsonldContext")     == 0) continue;  // § 4.3.6.6 — TODO
+        if (strcasecmp(k, "ngsildConformance") == 0) continue;  // § 4.3.6.6 — TODO
+
+        hv[hc].key   = (char*) k;
+        hv[hc].value = (char*) v;
+        hc++;
+      }
+    }
   }
 
   LdForwardRequest  req;
@@ -564,7 +617,7 @@ static int forwardAndParse(LdRegCacheItem* csr,
   req.body             = NULL;
   req.bodyLen          = 0;
   req.connectTimeoutMs = 0;
-  req.requestTimeoutMs = 0;
+  req.requestTimeoutMs = csr->timeoutMs;   // § 5.2.34 per-CSR override
 
   resp.statusCode      = 0;
   resp.headerV         = NULL;
@@ -576,8 +629,18 @@ static int forwardAndParse(LdRegCacheItem* csr,
   resp.errorDetail[0]  = 0;
 
   int rc = plugin->send(&req, &resp);
+
+  // CSR dispatch counters — § 5.2.36
+  struct timespec nowTs;
+  clock_gettime(CLOCK_REALTIME, &nowTs);
+  uint64_t nowNsCtr = (uint64_t) nowTs.tv_sec * 1000000000ULL + (uint64_t) nowTs.tv_nsec;
+  csr->timesSent++;
+
   if (rc != 0)
   {
+    csr->timesFailed++;
+    csr->lastFailure = nowNsCtr;
+
     if (resp.errorDetail[0] != 0)
     {
       char* d = (char*) kaAlloc(&swRest.kalloc, strlen(resp.errorDetail) + 1);
@@ -588,7 +651,13 @@ static int forwardAndParse(LdRegCacheItem* csr,
   }
 
   if (resp.statusCode < 200 || resp.statusCode >= 300)
+  {
+    csr->timesFailed++;
+    csr->lastFailure = nowNsCtr;
     return resp.statusCode;
+  }
+
+  csr->lastSuccess = nowNsCtr;
 
   if (resp.body == NULL || resp.bodyLen == 0)
   {
