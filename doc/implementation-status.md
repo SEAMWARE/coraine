@@ -1,7 +1,7 @@
 # swBroker Implementation Status
 
 Version: post-0.2.0
-Date: 2026-04-18
+Date: 2026-04-19
 
 ---
 
@@ -130,7 +130,7 @@ Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.tes
 
 ### 4. DELETE /ngsi-ld/v1/entities/{entityId} — Delete Entity
 
-**Status: Mostly complete (no type disambiguation, no distops)**
+**Status: Complete**
 
 | Feature | Status |
 |---------|--------|
@@ -140,13 +140,18 @@ Functional tests: `retrieve_entity_*.test` (5 test files), `geojson_response.tes
 | Multi-tenancy | Done |
 | type (entity type selection for disambiguation) | Done |
 | Subscriptions / notifications on delete | Done |
-| Distributed operations | Not done |
+| `local=true` URL param — bypass distops dispatch | Done |
+| DistOps — exclusive/redirect/inclusive forwarding | Done |
+| op-check on `deleteEntity` (exclusive/redirect → 409 if unsupported; inclusive silent-skip) | Done |
+| 207 Multi-Status on partial forward failure (`BatchOperationResult`) | Done |
+| Upstream 404 tolerated (silent-skip; local DB_NOT_FOUND also tolerated) | Done |
+| Via loop detect → skip forwards but keep local delete | Done |
 
-Functional tests: `delete_entity.test`
+Functional tests: `delete_entity.test`, `csource-reg-distops-delete-{exclusive,misc,errors}.test`
 
 ### 5. PATCH /ngsi-ld/v1/entities/{entityId} — Merge Entity
 
-**Status: Mostly complete (local only, no type disambiguation, no 207)**
+**Status: Complete**
 
 Implements Merge Entity per § 5.6.17 using the merge-patch procedure of § 5.5.12
 (RFC 7396 adaptation with `"urn:ngsi-ld:null"` as the delete marker, since
@@ -180,11 +185,21 @@ attribute types and observedAt presence for correct behavior).
 | mongoc surgical `$set`/`$unset` path (skips writing untouched attrs) | Done |
 | Per-change report for subscription matching (added / modified / deleted + preValue) | Done (produced, not yet consumed) |
 | `type` URL param (distops disambiguation) | Done |
-| 207 Multi-Status response (distops forwarding) | Not done |
-| Subscriptions / notifications on merge | Not done |
+| `local=true` URL param — bypass distops dispatch | Done |
+| DistOps — exclusive/redirect chop + forward via PATCH | Done |
+| DistOps — inclusive clone + forward via PATCH | Done |
+| Per-RegistrationInfo slice via `ldEntityFragmentForInfo` | Done |
+| `urn:ngsi-ld:null` delete-marker carried verbatim in forwarded body | Done |
+| op-check on `mergeEntity` (redirectionOps group) | Done |
+| 409 Conflict when CSR claims attr but refuses mergeEntity | Done |
+| 207 Multi-Status on partial forward failure (`BatchOperationResult`) | Done |
+| Upstream 404 tolerated (silent-skip; local DB_NOT_FOUND also tolerated) | Done |
+| Via loop detect → skip forwards but keep local merge | Done |
+| Subscriptions / notifications on merge | Done |
 
 Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
-`patch_entity_url_params.test`, `patch_entity_type_change.test`
+`patch_entity_url_params.test`, `patch_entity_type_change.test`,
+`csource-reg-distops-patch-{exclusive,misc,errors}.test` (3 distops files)
 
 ### 6. PUT /ngsi-ld/v1/entities/{entityId} — Replace Entity
 
