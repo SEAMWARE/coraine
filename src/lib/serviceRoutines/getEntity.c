@@ -32,10 +32,8 @@
 #include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
-#include "swNgsild/LdForwarding.h"                   // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
-#include "swNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
-#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
+#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -475,16 +473,11 @@ static int forwardAndParse(LdRegCacheItem* csr,
   *upstreamPP    = NULL;
   *errorDetailPP = NULL;
 
-  const LdForwardingPlugin* plugin = ldForwardingForEndpoint(csr->endpoint);
-  if (plugin == NULL)
-  {
-    *errorDetailPP = "no forwarding plugin available for endpoint";
-    return 502;
-  }
-
+  //
   // Build URL: <endpoint>/ngsi-ld/v1/entities/<entityId>?sysAttrs=true[&type=X][&pick=a,b,c]
   // CSR endpoint is host+port only per spec § 5.2.9 example C.3; broker
   // appends the standard NGSI-LD API path.
+  //
   const char* base = csr->endpoint;
   const char* path = "/ngsi-ld/v1/entities/";
   const char* qs   = "?sysAttrs=true";
@@ -519,154 +512,29 @@ static int forwardAndParse(LdRegCacheItem* csr,
   strcpy(url + baseLen + pathLen + idLen + qsLen, typePart);
   strcpy(url + baseLen + pathLen + idLen + qsLen + typeLen, pick);
 
-  // Build outbound headers: pass through any incoming Via headers (so the
-  // chain stays observable end-to-end) plus our own per-tenant alias as a
-  // new Via entry. RFC 7230 § 5.7.1: Via is a list-valued header; one entry
-  // per hop, comma-separated. We keep one SwRestKeyValue per hop instead
-  // of joining — swRest's downstream serializer concatenates list values.
   //
-  SwRestKeyValue* hv = NULL;
-  int             hc = 0;
+  // Send — all header composition, counter updates, transport handling
+  // delegated to ldDistOpSendReceive.
+  //
+  char* respBody    = NULL;
+  int   respBodyLen = 0;
 
-  int viaIn = 0;
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
-    if (swRest.in.httpHeaderV[i].key != NULL && strcasecmp(swRest.in.httpHeaderV[i].key, "Via") == 0)
-      viaIn++;
+  int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
+                                   errorDetailPP, &respBody, &respBodyLen);
 
-  bool hasTenant = (csr->tenant != NULL && csr->tenant[0] != 0);
-
-  if (ownAlias != NULL || viaIn > 0 || hasTenant)
-  {
-    hv = (SwRestKeyValue*) kaAlloc(&swRest.kalloc, (viaIn + 2) * sizeof(SwRestKeyValue));
-    for (int i = 0; i < swRest.in.httpHeaderCount; i++)
-    {
-      if (swRest.in.httpHeaderV[i].key != NULL && strcasecmp(swRest.in.httpHeaderV[i].key, "Via") == 0)
-      {
-        hv[hc].key   = (char*) "Via";
-        hv[hc].value = swRest.in.httpHeaderV[i].value;
-        hc++;
-      }
-    }
-    if (ownAlias != NULL)
-    {
-      int   aliasLen = strlen(ownAlias);
-      char* viaVal   = (char*) kaAlloc(&swRest.kalloc, 4 + aliasLen + 1);  // "1.1 " + alias
-      strcpy(viaVal, "1.1 ");
-      strcpy(viaVal + 4, ownAlias);
-      hv[hc].key   = (char*) "Via";
-      hv[hc].value = viaVal;
-      hc++;
-    }
-    if (hasTenant)
-    {
-      // § 5.2.9 tenant rewrite — forward under the target tenancy
-      hv[hc].key   = (char*) "NGSILD-Tenant";
-      hv[hc].value = (char*) csr->tenant;
-      hc++;
-    }
-  }
-
-  // § 5.2.22 contextSourceInfo — arbitrary outbound headers (API keys etc.).
-  // Special-cased keys: `accept` → Accept header. `contentType` is ignored
-  // for GETs (no request body). Banned-by-spec keys (§ 4.3.6.5) are dropped.
-  // `jsonldContext` + `ngsildConformance` have rich semantics — TODO.
-  if (csr->contextSourceInfoKV != NULL)
-  {
-    int csiCount = 0;
-    for (int i = 0; csr->contextSourceInfoKV[i] != NULL; i += 2) csiCount++;
-
-    if (csiCount > 0)
-    {
-      SwRestKeyValue* hv2 = (SwRestKeyValue*) kaAlloc(&swRest.kalloc, (hc + csiCount + 1) * sizeof(SwRestKeyValue));
-      for (int i = 0; i < hc; i++) hv2[i] = hv[i];
-      hv = hv2;
-
-      for (int i = 0; csr->contextSourceInfoKV[i] != NULL; i += 2)
-      {
-        const char* k = csr->contextSourceInfoKV[i];
-        const char* v = csr->contextSourceInfoKV[i + 1];
-
-        if (strcasecmp(k, "accept") == 0)
-        {
-          hv[hc].key   = (char*) "Accept";
-          hv[hc].value = (char*) v;
-          hc++;
-          continue;
-        }
-
-        if (strcasecmp(k, "contentType")       == 0) continue;  // GET has no body
-        if (strcasecmp(k, "Content-Length")    == 0) continue;  // libcurl-controlled
-        if (strcasecmp(k, "Host")              == 0) continue;  // libcurl-controlled
-        if (strcasecmp(k, "NGSILD-Tenant")     == 0) continue;  // use csr->tenant
-        if (strcasecmp(k, "jsonldContext")     == 0) continue;  // § 4.3.6.6 — TODO
-        if (strcasecmp(k, "ngsildConformance") == 0) continue;  // § 4.3.6.6 — TODO
-
-        hv[hc].key   = (char*) k;
-        hv[hc].value = (char*) v;
-        hc++;
-      }
-    }
-  }
-
-  LdForwardRequest  req;
-  LdForwardResponse resp;
-
-  req.endpoint         = url;
-  req.verb             = SwVerbGet;
-  req.headerV          = hv;
-  req.headerCount      = hc;
-  req.body             = NULL;
-  req.bodyLen          = 0;
-  req.connectTimeoutMs = 0;
-  req.requestTimeoutMs = csr->timeoutMs;   // § 5.2.34 per-CSR override
-
-  resp.statusCode      = 0;
-  resp.headerV         = NULL;
-  resp.headerCount     = 0;
-  resp.body            = NULL;
-  resp.bodyLen         = 0;
-  resp.allocP          = &swRest.kalloc;
-  resp.error           = 0;
-  resp.errorDetail[0]  = 0;
-
-  int rc = plugin->send(&req, &resp);
-
-  // CSR dispatch counters — § 5.2.36
-  struct timespec nowTs;
-  clock_gettime(CLOCK_REALTIME, &nowTs);
-  uint64_t nowNsCtr = (uint64_t) nowTs.tv_sec * 1000000000ULL + (uint64_t) nowTs.tv_nsec;
-  csr->timesSent++;
-
-  if (rc != 0)
-  {
-    csr->timesFailed++;
-    csr->lastFailure = nowNsCtr;
-
-    if (resp.errorDetail[0] != 0)
-    {
-      char* d = (char*) kaAlloc(&swRest.kalloc, strlen(resp.errorDetail) + 1);
-      strcpy(d, resp.errorDetail);
-      *errorDetailPP = d;
-    }
+  if (status == 502)
     return 502;
-  }
 
-  if (resp.statusCode < 200 || resp.statusCode >= 300)
-  {
-    csr->timesFailed++;
-    csr->lastFailure = nowNsCtr;
-    return resp.statusCode;
-  }
+  if (status < 200 || status >= 300)
+    return status;
 
-  csr->lastSuccess = nowNsCtr;
-
-  if (resp.body == NULL || resp.bodyLen == 0)
+  if (respBody == NULL || respBodyLen == 0)
   {
     *errorDetailPP = "empty body in upstream 2xx response";
     return 502;
   }
 
-  KjNode* treeP = kjParse(swRest.kjsonP, resp.body);
+  KjNode* treeP = kjParse(swRest.kjsonP, respBody);
   if (treeP == NULL)
   {
     *errorDetailPP = "upstream returned malformed JSON";
@@ -681,7 +549,7 @@ static int forwardAndParse(LdRegCacheItem* csr,
   apiAttrToStorageWrap(treeP, swRest.kjsonP);
 
   *upstreamPP = treeP;
-  return resp.statusCode;
+  return status;
 }
 
 

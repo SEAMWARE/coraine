@@ -14,7 +14,6 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/SwRestVerb.h"                       // SwVerbPost
-#include "swRest/SwRestKeyValue.h"                   // SwRestKeyValue
 
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjClone.h"                           // kjClone
@@ -40,8 +39,6 @@
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
-#include "swNgsild/LdForwarding.h"                   // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
-#include "swNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
 #include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
 #include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
@@ -204,128 +201,6 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
 
 // -----------------------------------------------------------------------------
 //
-// buildForwardHeaders - assemble outbound headers (Content-Type + Via + tenant)
-//
-// csrTenant (§ 5.2.9): when non-NULL, the forwarded request is sent with
-// NGSILD-Tenant: <csrTenant>, overriding whatever tenant the sender was
-// processing. This is the "tenant rewrite" feature — a single broker
-// instance can forward to itself under a different tenancy without
-// triggering loop detection (the Via alias is sender-tenant-scoped,
-// while the receiver's own alias is target-tenant-scoped).
-//
-static SwRestKeyValue* buildForwardHeaders(const char*   ownAlias,
-                                           const char*   csrTenant,
-                                           char**        csrInfoKV,
-                                           int*          hcP)
-{
-  int viaIn = 0;
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
-    if (swRest.in.httpHeaderV[i].key != NULL &&
-        strcasecmp(swRest.in.httpHeaderV[i].key, "Via") == 0)
-      viaIn++;
-
-  int csiCount = 0;
-  if (csrInfoKV != NULL)
-    for (int i = 0; csrInfoKV[i] != NULL; i += 2) csiCount++;
-
-  int cap = viaIn + 4 + csiCount;   // Content-Type + optional Accept + optional Via + optional NGSILD-Tenant + info[]
-  SwRestKeyValue* hv = (SwRestKeyValue*) kaAlloc(&swRest.kalloc, cap * sizeof(SwRestKeyValue));
-  int hc = 0;
-
-  //
-  // Scan contextSourceInfo first — special-cased well-known keys
-  // (§ 4.3.6.6) override the broker's defaults; arbitrary keys pass
-  // through. Keys that shall be ignored per § 4.3.6.5 (binding-level
-  // headers or tenant info) are dropped silently.
-  //
-  const char* csiContentType = NULL;
-  const char* csiAccept      = NULL;
-
-  if (csrInfoKV != NULL)
-  {
-    for (int i = 0; csrInfoKV[i] != NULL; i += 2)
-    {
-      const char* k = csrInfoKV[i];
-      if      (strcasecmp(k, "contentType") == 0)  csiContentType = csrInfoKV[i + 1];
-      else if (strcasecmp(k, "accept")      == 0)  csiAccept      = csrInfoKV[i + 1];
-    }
-  }
-
-  hv[hc].key   = (char*) "Content-Type";
-  hv[hc].value = (char*) (csiContentType != NULL ? csiContentType : "application/ld+json");
-  hc++;
-
-  if (csiAccept != NULL)
-  {
-    hv[hc].key   = (char*) "Accept";
-    hv[hc].value = (char*) csiAccept;
-    hc++;
-  }
-
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
-  {
-    if (swRest.in.httpHeaderV[i].key != NULL &&
-        strcasecmp(swRest.in.httpHeaderV[i].key, "Via") == 0)
-    {
-      hv[hc].key   = (char*) "Via";
-      hv[hc].value = swRest.in.httpHeaderV[i].value;
-      hc++;
-    }
-  }
-
-  if (ownAlias != NULL)
-  {
-    int   aliasLen = strlen(ownAlias);
-    char* viaVal   = (char*) kaAlloc(&swRest.kalloc, 4 + aliasLen + 1);
-    strcpy(viaVal, "1.1 ");
-    strcpy(viaVal + 4, ownAlias);
-    hv[hc].key   = (char*) "Via";
-    hv[hc].value = viaVal;
-    hc++;
-  }
-
-  if (csrTenant != NULL && csrTenant[0] != 0)
-  {
-    hv[hc].key   = (char*) "NGSILD-Tenant";
-    hv[hc].value = (char*) csrTenant;
-    hc++;
-  }
-
-  //
-  // Arbitrary contextSourceInfo entries — pass through except for the
-  // already-special-cased keys and the banned-by-spec set.
-  // Banned (§ 4.3.6.5): Content-Length / Host / any binding-level glue
-  // (libcurl sets these), plus NGSILD-Tenant (forbidden verbatim — we
-  // already emit it via csrTenant).
-  //
-  if (csrInfoKV != NULL)
-  {
-    for (int i = 0; csrInfoKV[i] != NULL; i += 2)
-    {
-      const char* k = csrInfoKV[i];
-
-      if (strcasecmp(k, "contentType")    == 0) continue;   // already handled above
-      if (strcasecmp(k, "accept")         == 0) continue;   // already handled above
-      if (strcasecmp(k, "Content-Length") == 0) continue;   // libcurl-controlled
-      if (strcasecmp(k, "Host")           == 0) continue;   // libcurl-controlled
-      if (strcasecmp(k, "NGSILD-Tenant")  == 0) continue;   // use CSR.tenant field
-      if (strcasecmp(k, "jsonldContext")  == 0) continue;   // § 4.3.6.6 — TODO: compaction support
-      if (strcasecmp(k, "ngsildConformance") == 0) continue; // § 4.3.6.6 — TODO: version transforms
-
-      hv[hc].key   = (char*) k;
-      hv[hc].value = csrInfoKV[i + 1];
-      hc++;
-    }
-  }
-
-  *hcP = hc;
-  return hv;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // renderFragmentWithContext - serialize fragment body with @context for remote
 //
 // The fragment's attr names are expanded IRIs. We attach a @context that
@@ -454,30 +329,18 @@ static const char* forwardFailureReason(int upCode, const char* upErr)
 
 // -----------------------------------------------------------------------------
 //
-// forwardCreateEntity - POST entity fragment to a CSR endpoint
+// forwardCreateEntity - compose URL + body and delegate to ldDistOpSend
 //
-// Returns the upstream HTTP status (2xx = success). On transport failure
-// returns 502 and populates *errorDetailPP. Body is built from fragP.
-// csrTenant, if non-NULL, is emitted as NGSILD-Tenant on the forwarded
-// request (§ 5.2.9 tenant rewrite).
+// Endpoint is host+port only per § 5.2.9 C.3; broker appends
+// /ngsi-ld/v1/entities. Body = fragment rendered as compact JSON with
+// @context. All header composition and counter updates happen inside
+// ldDistOpSend.
 //
 static int forwardCreateEntity(LdRegCacheItem* csr,
                                KjNode*         fragP,
                                const char*     ownAlias,
                                const char**    errorDetailPP)
 {
-  *errorDetailPP = NULL;
-
-  const LdForwardingPlugin* plugin = ldForwardingForEndpoint(csr->endpoint);
-  if (plugin == NULL)
-  {
-    *errorDetailPP = "no forwarding plugin available for endpoint";
-    return 502;
-  }
-
-  // URL = <endpoint>/ngsi-ld/v1/entities — the NGSI-LD API path is
-  // standardized (spec § 5.2.9 example C.3: endpoint is host+port only),
-  // so the broker appends it, not the CSR admin.
   const char* path    = "/ngsi-ld/v1/entities";
   int         baseLen = strlen(csr->endpoint);
   int         pathLen = strlen(path);
@@ -487,62 +350,7 @@ static int forwardCreateEntity(LdRegCacheItem* csr,
 
   char* body = renderFragmentWithContext(fragP);
 
-  int              hc = 0;
-  SwRestKeyValue*  hv = buildForwardHeaders(ownAlias, csr->tenant, csr->contextSourceInfoKV, &hc);
-
-  LdForwardRequest  req;
-  LdForwardResponse resp;
-
-  req.endpoint         = url;
-  req.verb             = SwVerbPost;
-  req.headerV          = hv;
-  req.headerCount      = hc;
-  req.body             = body;
-  req.bodyLen          = strlen(body);
-  req.connectTimeoutMs = 0;
-  req.requestTimeoutMs = csr->timeoutMs;   // § 5.2.34 per-CSR override
-
-  resp.statusCode      = 0;
-  resp.headerV         = NULL;
-  resp.headerCount     = 0;
-  resp.body            = NULL;
-  resp.bodyLen         = 0;
-  resp.allocP          = &swRest.kalloc;
-  resp.error           = 0;
-  resp.errorDetail[0]  = 0;
-
-  int rc = plugin->send(&req, &resp);
-
-  // CSR dispatch counters — § 5.2.36 (brokers may expose via admin API).
-  struct timespec nowTs;
-  clock_gettime(CLOCK_REALTIME, &nowTs);
-  uint64_t nowNs = (uint64_t) nowTs.tv_sec * 1000000000ULL + (uint64_t) nowTs.tv_nsec;
-
-  csr->timesSent++;
-
-  if (rc != 0)
-  {
-    csr->timesFailed++;
-    csr->lastFailure = nowNs;
-
-    if (resp.errorDetail[0] != 0)
-    {
-      char* d = (char*) kaAlloc(&swRest.kalloc, strlen(resp.errorDetail) + 1);
-      strcpy(d, resp.errorDetail);
-      *errorDetailPP = d;
-    }
-    return 502;
-  }
-
-  if (resp.statusCode >= 200 && resp.statusCode < 300)
-    csr->lastSuccess = nowNs;
-  else
-  {
-    csr->timesFailed++;
-    csr->lastFailure = nowNs;
-  }
-
-  return resp.statusCode;
+  return ldDistOpSend(csr, SwVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
 }
 
 

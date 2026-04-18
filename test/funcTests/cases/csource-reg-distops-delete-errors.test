@@ -1,0 +1,172 @@
+#
+# FILE            csource-reg-distops-delete-errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - deleteEntity error modes (ftClient mocks): excl-no-op → 409, dead+live → 207
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 204
+ftClientStart --port 7712 --status 503
+
+--RUN--
+
+#
+# ftClient is the right tool here — we're inducing error states:
+#   - exclusive CSR that refuses deleteEntity → 409 Conflict
+#   - dead endpoint (503) paired with a live one → 207 Multi-Status
+#   - per-CSR timeout → forward failure → 409
+#
+# No receive-side state to verify; only the outbound behaviour matters.
+#
+
+echo "01. Register exclusive CSR without deleteEntity in operations"
+echo "============================================================="
+payload='{
+  "id": "urn:CSR:NoDel",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. DELETE urn:V1 → 409 Conflict (CSR claims + refuses op, no local)"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
+echo
+echo
+
+
+echo "03. Register CSR_Dead (503) and CSR_Live (204) for urn:V2"
+echo "========================================================="
+payload='{
+  "id": "urn:CSR:DeadDel",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7712",
+  "mode": "redirect",
+  "operations": ["deleteEntity"],
+  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{
+  "id": "urn:CSR:LiveDel",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["deleteEntity"],
+  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. DELETE urn:V2 → Dead fails, Live succeeds → 207"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2 -X DELETE
+echo
+echo
+
+
+--EXPECT--
+01. Register exclusive CSR without deleteEntity in operations
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NoDel
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. DELETE urn:V1 → 409 Conflict (CSR claims + refuses op, no local)
+====================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support deleteEntity",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:NoDel"
+    }
+  ],
+  "success": []
+}
+
+
+
+03. Register CSR_Dead (503) and CSR_Live (204) for urn:V2
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:DeadDel
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveDel
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. DELETE urn:V2 → Dead fails, Live succeeds → 207
+===================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V2",
+      "error": {
+        "detail": "forward returned status 503",
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:DeadDel"
+    }
+  ],
+  "success": [
+    "urn:V2"
+  ]
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+swBrokerStop
+swDbDrop

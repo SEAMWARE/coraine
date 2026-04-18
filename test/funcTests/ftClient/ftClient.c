@@ -253,7 +253,11 @@ static SwRestServiceSimplified ftServices[] =
   { SwVerbGet,    "/dump",  getDump,         0 },
   { SwVerbDelete, "/dump",  deleteDump,      0 },
   { SwVerbGet,    "/die",   getDie,          0 },
+  // Catch-all accumulators — every write verb lands here and honors --status.
   { SwVerbPost,   "/**",    postAccumulate,  0 },
+  { SwVerbDelete, "/**",    postAccumulate,  0 },
+  { SwVerbPatch,  "/**",    postAccumulate,  0 },
+  { SwVerbPut,    "/**",    postAccumulate,  0 },
 };
 
 static int ftServiceCount = sizeof(ftServices) / sizeof(ftServices[0]);
