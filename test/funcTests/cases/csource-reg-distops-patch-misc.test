@@ -1,0 +1,417 @@
+#
+# FILE            csource-reg-distops-patch-misc.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - patchEntity (Merge): redirect, inclusive, ?local bypass, loop skip (real CP1)
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# Real CB + CP1 brokers — so the test sees both the SEND side on CB and
+# the RECEIVE side on CP1 (CP1 actually applies the forwarded merge and
+# we can query it afterward to verify).
+#
+# Covered:
+#   01-04  redirect mode: CB forwards PATCH to CP1, CP1 really merges
+#   05-09  inclusive mode: CB forwards + merges local; both sides verified
+#   10-13  ?local=true bypass: CSR exists but skipped, only local merges
+#   14     loop-skip: own Via alias → no forward, local merge still runs
+#
+
+# --- 01-04: redirect (CB has no local V1; CP1 owns it) ---
+echo "01. Seed CP1 with urn:V1 (speed=50, color=blue)"
+echo "==============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"blue"}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 redirect CSR on V1 with mergeEntity + retrieveEntity"
+echo "========================================================================"
+payload='{
+  "id": "urn:CSR:PatchRedir",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "redirect",
+  "operations": ["mergeEntity", "retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. PATCH urn:V1 on CB: speed=77, color=null → forwarded to CP1 → 204"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":77},"color":"urn:ngsi-ld:null"}'
+echo
+echo
+
+
+echo "04. GET urn:V1 on CP1 directly → speed=77, color gone"
+echo "====================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+# --- 05-09: inclusive (local + forward) ---
+echo "05. Seed CP1 with urn:V2, AND local CB with urn:V2"
+echo "=================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "06. Register CB→CP1 inclusive CSR on urn:V2 with mergeEntity"
+echo "============================================================"
+payload='{
+  "id": "urn:CSR:PatchIncl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["mergeEntity", "retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "07. PATCH urn:V2: speed=111, color=white → local+forward → 204"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2 -X PATCH --payload '{"speed":{"type":"Property","value":111},"color":{"type":"Property","value":"white"}}'
+echo
+echo
+
+
+echo "08. GET urn:V2 on CB ?local=true → speed=111, color=white (local merged)"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
+echo
+echo
+
+
+echo "09. GET urn:V2 on CP1 directly → speed=111, color=white (remote merged)"
+echo "======================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+# --- 10-13: ?local=true bypass ---
+echo "10. Seed CP1 with urn:V3, register exclusive CSR on CB claiming speed"
+echo "====================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1}}'
+echo
+payload='{
+  "id": "urn:CSR:PatchBypass",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["mergeEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V3", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "11. Seed CB's local urn:V3 with color"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
+echo
+echo
+
+
+echo "12. PATCH urn:V3 ?local=true: speed=9000 → CSR skipped, local-only merge (204)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"speed":{"type":"Property","value":9000}}'
+echo
+echo
+
+
+echo "13. GET urn:V3 on CP1 → still speed=1 (bypass did not forward)"
+echo "=============================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
+echo
+echo
+
+
+# --- 14: loop skip ---
+echo "14. PATCH with own Via alias → forward skipped, local merge still runs"
+echo "======================================================================"
+# CB's local V3 now has color=green, speed=9000. The Via loop suppresses the
+# forward to CP1 but the local merge of brand=Ghost still lands.
+swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PATCH -H "Via: 1.1 swBroker:$CB_PORT" --payload '{"brand":{"type":"Property","value":"Ghost"}}'
+echo
+echo
+
+
+echo "15. GET urn:V3 on CB ?local=true → now also has brand=Ghost"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with urn:V1 (speed=50, color=blue)
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 redirect CSR on V1 with mergeEntity + retrieveEntity
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:PatchRedir
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. PATCH urn:V1 on CB: speed=77, color=null → forwarded to CP1 → 204
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET urn:V1 on CP1 directly → speed=77, color gone
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 77
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. Seed CP1 with urn:V2, AND local CB with urn:V2
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. Register CB→CP1 inclusive CSR on urn:V2 with mergeEntity
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:PatchIncl
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. PATCH urn:V2: speed=111, color=white → local+forward → 204
+==============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET urn:V2 on CB ?local=true → speed=111, color=white (local merged)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "white"
+  },
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 111
+  },
+  "type": "Vehicle"
+}
+
+
+
+09. GET urn:V2 on CP1 directly → speed=111, color=white (remote merged)
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": {
+    "type": "Property",
+    "value": "white"
+  },
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 111
+  },
+  "type": "Vehicle"
+}
+
+
+
+10. Seed CP1 with urn:V3, register exclusive CSR on CB claiming speed
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:PatchBypass
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+11. Seed CB's local urn:V3 with color
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+12. PATCH urn:V3 ?local=true: speed=9000 → CSR skipped, local-only merge (204)
+==============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+13. GET urn:V3 on CP1 → still speed=1 (bypass did not forward)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V3",
+  "speed": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "Vehicle"
+}
+
+
+
+14. PATCH with own Via alias → forward skipped, local merge still runs
+======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+15. GET urn:V3 on CB ?local=true → now also has brand=Ghost
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Ghost"
+  },
+  "color": {
+    "type": "Property",
+    "value": "green"
+  },
+  "id": "urn:V3",
+  "speed": {
+    "type": "Property",
+    "value": 9000
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

@@ -1,0 +1,165 @@
+#
+# FILE            csource-reg-distops-patch-exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - patchEntity (Merge) forwarded to exclusive registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 holds urn:V1 with attrs (speed, color). CB has an exclusive CSR on
+# V1 claiming speed + color via propertyNames. A PATCH on CB must forward
+# those attrs (including a "urn:ngsi-ld:null" delete-marker) to CP1.
+#
+
+echo "01. Seed CP1 with V1 (speed, color, brand)"
+echo "=========================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":42},
+  "color": {"type":"Property","value":"red"},
+  "brand": {"type":"Property","value":"Acme"}
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CB→CP1 exclusive CSR claiming speed + color"
+echo "========================================================"
+payload='{
+  "id": "urn:CSR:PatchExcl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["mergeEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed", "color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. PATCH urn:V1 on CB: speed=99, color=null (delete), local brand=Zephyr"
+echo "========================================================================="
+# speed+color are forwarded to CP1. "brand" is NOT claimed by the CSR so
+# it would normally merge into local — but there is no local V1 here,
+# so the merge-miss is tolerated (forward succeeded → 204 overall).
+payload='{
+  "speed": {"type":"Property","value":99},
+  "color": "urn:ngsi-ld:null",
+  "brand": {"type":"Property","value":"Zephyr"}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:V1 on CP1 directly → speed=99, color gone, brand=Acme (untouched)"
+echo "============================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "05. PATCH a non-existent id on CB (no local, no CSR match) → 404"
+echo "================================================================"
+payload='{"speed":{"type":"Property","value":1}}'
+swCurl --url /ngsi-ld/v1/entities/urn:NeverExisted -X PATCH --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1 (speed, color, brand)
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CB→CP1 exclusive CSR claiming speed + color
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:PatchExcl
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. PATCH urn:V1 on CB: speed=99, color=null (delete), local brand=Zephyr
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET urn:V1 on CP1 directly → speed=99, color gone, brand=Acme (untouched)
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. PATCH a non-existent id on CB (no local, no CSR match) → 404
+================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:NeverExisted' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

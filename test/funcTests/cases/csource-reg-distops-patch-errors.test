@@ -1,0 +1,187 @@
+#
+# FILE            csource-reg-distops-patch-errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - patchEntity error modes (ftClient mocks): excl-no-op → 409, dead+live → 207
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 204
+ftClientStart --port 7712 --status 503
+
+--RUN--
+
+#
+# ftClient is the right tool here — we're inducing error states:
+#   - exclusive CSR that refuses mergeEntity (claims entity but
+#     operations excludes mergeEntity) → 409 Conflict
+#   - dead endpoint (503) paired with a live one → 207 Multi-Status
+#
+# No receive-side state to verify; only the outbound behaviour matters.
+#
+
+echo "01. Register exclusive CSR without mergeEntity in operations"
+echo "============================================================"
+payload='{
+  "id": "urn:CSR:NoMerge",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH urn:V1 on CB: speed=9 → 409 (CSR claims speed + refuses op)"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+echo
+echo
+
+
+echo "03. Register CSR_Dead (503) and CSR_Live (204) on V2, both redirect"
+echo "==================================================================="
+payload='{
+  "id": "urn:CSR:DeadMerge",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7712",
+  "mode": "redirect",
+  "operations": ["mergeEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V2", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{
+  "id": "urn:CSR:LiveMerge",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["mergeEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V2", "type": "Vehicle"}],
+      "propertyNames": ["color"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. PATCH urn:V2: speed+color → Dead fails, Live succeeds → 207"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2 -X PATCH --payload '{"speed":{"type":"Property","value":50},"color":{"type":"Property","value":"teal"}}'
+echo
+echo
+
+
+--EXPECT--
+01. Register exclusive CSR without mergeEntity in operations
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NoMerge
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. PATCH urn:V1 on CB: speed=9 → 409 (CSR claims speed + refuses op)
+=====================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support mergeEntity",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:NoMerge"
+    }
+  ],
+  "success": []
+}
+
+
+
+03. Register CSR_Dead (503) and CSR_Live (204) on V2, both redirect
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:DeadMerge
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveMerge
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. PATCH urn:V2: speed+color → Dead fails, Live succeeds → 207
+===============================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V2",
+      "error": {
+        "detail": "forward returned status 503",
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:DeadMerge"
+    }
+  ],
+  "success": [
+    "urn:V2"
+  ]
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+swBrokerStop
+swDbDrop
