@@ -1,0 +1,138 @@
+#
+# FILE            csource-reg-distops-delete-exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - deleteEntity forwarded to exclusive registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 holds urn:V1. CB has exclusive CSR pointing at CP1.
+# DELETE urn:V1 on CB should forward to CP1 and delete it there.
+#
+# Then a second DELETE should 404 everywhere (already gone).
+#
+
+echo "01. Seed CP1 with V1"
+echo "===================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CP1 as exclusive on CB for V1 with deleteEntity op"
+echo "==============================================================="
+payload='{
+  "id": "urn:CSR:DelExcl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["deleteEntity", "retrieveEntity"],
+  "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. DELETE urn:V1 on CB → forwards to CP1 → 204"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
+echo
+echo
+
+
+echo "04. GET urn:V1 on CP1 directly → 404 (deleted)"
+echo "=============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "05. Second DELETE on CB → 404 (nothing left anywhere)"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CP1 as exclusive on CB for V1 with deleteEntity op
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:DelExcl
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. DELETE urn:V1 on CB → forwards to CP1 → 204
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET urn:V1 on CP1 directly → 404 (deleted)
+==============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. Second DELETE on CB → 404 (nothing left anywhere)
+=====================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

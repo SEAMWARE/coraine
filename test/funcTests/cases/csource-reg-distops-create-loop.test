@@ -46,8 +46,8 @@ echo
 echo
 
 
-echo "02. POST entity with Via header containing CB's own alias → 502"
-echo "==============================================================="
+echo "02. POST entity with Via header carrying CB's own alias → loop skipped, local 201"
+echo "=================================================================================="
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
@@ -71,18 +71,15 @@ Content-Length: REGEX(\d+)
 
 
 
-02. POST entity with Via header containing CB's own alias → 502
-===============================================================
-HTTP/1.1 502 Bad Gateway
+02. POST entity with Via header carrying CB's own alias → loop skipped, local 201
+==================================================================================
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
-{
-  "detail": REGEX("loop detected: .*"),
-  "title": "Bad Gateway",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-}
 
 
 

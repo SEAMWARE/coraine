@@ -77,8 +77,8 @@ echo
 echo
 
 
-echo "04. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected"
-echo "=============================================================="
+echo "04. GET V1 on CB with Via: 1.1 cb-alias -> loop skipped, local 404"
+echo "=================================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
 echo
 echo
@@ -139,8 +139,8 @@ echo
 echo
 
 
-echo "08. GET urn:Loop:1 on CB -> two-hop loop, 502"
-echo "==============================================="
+echo "08. GET urn:Loop:1 on CB -> two-hop loop, inner broker returns 404"
+echo "==================================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:Loop:1
 echo
 echo
@@ -199,17 +199,17 @@ Content-Length: 100
 
 
 
-04. GET V1 on CB with Via: 1.1 cb-alias -> 502 loop detected
-==============================================================
-HTTP/1.1 502 Bad Gateway
+04. GET V1 on CB with Via: 1.1 cb-alias -> loop skipped, local 404
+==================================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 174
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "loop detected: own alias 'cb-alias' present in incoming Via header",
-  "title": "Bad Gateway",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
@@ -257,17 +257,17 @@ Content-Length: 0
 
 
 
-08. GET urn:Loop:1 on CB -> two-hop loop, 502
-===============================================
-HTTP/1.1 502 Bad Gateway
+08. GET urn:Loop:1 on CB -> two-hop loop, inner broker returns 404
+===================================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 145
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "forwarded request failed (status 502)",
-  "title": "Bad Gateway",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+  "detail": "entity 'urn:Loop:1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

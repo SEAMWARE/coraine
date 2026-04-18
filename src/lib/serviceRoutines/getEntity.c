@@ -35,6 +35,7 @@
 #include "swNgsild/LdForwarding.h"                   // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
 #include "swNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
+#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -733,21 +734,22 @@ bool getEntity(void)
                                           LdRegModeAuxiliary, &auxV);
     }
 
+    // Loop detection per § 5.7.5 / RFC 7230 — if our own Via alias is
+    // already in the inbound request, skip forwards entirely (a looped
+    // request should still be served locally; suppressing forwards is
+    // all that loop detection actually mandates).
+    const char* ownAlias = ldCsourceAliasForTenant(tP != NULL ? tP->name : NULL,
+                                                    &swRest.kalloc);
+    if (ldDistOpLoopDetected(ownAlias))
+    {
+      if (exclV  != NULL) { free(exclV);  exclV  = NULL; exclN  = 0; }
+      if (redirV != NULL) { free(redirV); redirV = NULL; redirN = 0; }
+      if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
+      if (auxV   != NULL) { free(auxV);   auxV   = NULL; auxN   = 0; }
+    }
+
     if (exclN > 0 || redirN > 0 || inclN > 0 || auxN > 0)
     {
-      // Loop detection runs once per request (per § 5.7.5 / RFC 7230)
-      const char* ownAlias = ldCsourceAliasForTenant(tP != NULL ? tP->name : NULL,
-                                                      &swRest.kalloc);
-      if (ownAlias != NULL && ldViaHasAlias(swRest.in.httpHeaderV, swRest.in.httpHeaderCount, ownAlias))
-      {
-        ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                "loop detected: own alias '%s' present in incoming Via header", ownAlias);
-        if (exclV  != NULL) free(exclV);
-        if (redirV != NULL) free(redirV);
-        if (inclV  != NULL) free(inclV);
-        if (auxV   != NULL) free(auxV);
-        return true;
-      }
 
       // Local lookup (always — per § 5.7.1.4)
       KjNode* destP = NULL;

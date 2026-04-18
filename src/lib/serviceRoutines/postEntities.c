@@ -43,6 +43,7 @@
 #include "swNgsild/LdForwarding.h"                   // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
 #include "swNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
+#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
 #include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
@@ -678,20 +679,20 @@ bool postEntities(void)
                                                   entityId, typeArr, entityScopeV,
                                                   LdRegModeInclusive, &inclV);
 
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    bool        loopSeen = ldDistOpLoopDetected(ownAlias);
+
+    // Loop detected → skip forwards but still run local create. Freeing
+    // the match arrays; dispatch block below is gated on !loopSeen.
+    if (loopSeen)
+    {
+      if (exclV  != NULL) { free(exclV);  exclV  = NULL; exclN  = 0; }
+      if (redirV != NULL) { free(redirV); redirV = NULL; redirN = 0; }
+      if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
+    }
+
     if (exclN > 0 || redirN > 0 || inclN > 0)
     {
-      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
-
-      if (ownAlias != NULL &&
-          ldViaHasAlias(swRest.in.httpHeaderV, swRest.in.httpHeaderCount, ownAlias))
-      {
-        ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                "loop detected: own alias '%s' present in incoming Via header", ownAlias);
-        if (exclV  != NULL) free(exclV);
-        if (redirV != NULL) free(redirV);
-        if (inclV  != NULL) free(inclV);
-        return true;
-      }
 
       //
       // Exclusive pass — per-CSR, per-RegistrationInfo.
