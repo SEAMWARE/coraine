@@ -31,6 +31,10 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/replaceEntity.c  \
                 src/lib/serviceRoutines/postEntityAttrs.c \
                 src/lib/serviceRoutines/patchEntityAttrs.c \
+                src/lib/serviceRoutines/getTypes.c \
+                src/lib/serviceRoutines/getType.c \
+                src/lib/serviceRoutines/getAttributes.c \
+                src/lib/serviceRoutines/getAttribute.c \
                 src/lib/serviceRoutines/postSubscriptions.c  \
                 src/lib/serviceRoutines/getSubscriptions.c   \
                 src/lib/serviceRoutines/getSubscription.c    \
@@ -95,6 +99,7 @@ RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_D
                  $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
                  $(RAMDB_DIR)/ramdbEntityDelete.c $(RAMDB_DIR)/ramdbEntityMerge.c \
                  $(RAMDB_DIR)/ramdbEntityReplace.c $(RAMDB_DIR)/ramdbEntityAttrsSet.c \
+                 $(RAMDB_DIR)/ramdbTypeList.c $(RAMDB_DIR)/ramdbAttrList.c \
                  $(RAMDB_DIR)/ramdbSubscriptionCreate.c $(RAMDB_DIR)/ramdbSubscriptionRetrieve.c \
                  $(RAMDB_DIR)/ramdbSubscriptionQuery.c $(RAMDB_DIR)/ramdbSubscriptionUpdate.c \
                  $(RAMDB_DIR)/ramdbSubscriptionDelete.c \
@@ -116,6 +121,7 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityRetrieve.c \
                  $(MONGOC_DIR)/mongocEntityDelete.c $(MONGOC_DIR)/mongocEntityMerge.c \
                  $(MONGOC_DIR)/mongocEntityReplace.c $(MONGOC_DIR)/mongocEntityAttrsSet.c \
+                 $(MONGOC_DIR)/mongocTypeList.c $(MONGOC_DIR)/mongocAttrList.c \
                  $(MONGOC_DIR)/mongocEntityQuery.c $(MONGOC_DIR)/mongocGeoIndex.c \
                  $(MONGOC_DIR)/mongocTenantSetup.c $(MONGOC_DIR)/mongocVersion.c \
                  $(MONGOC_DIR)/mongocKjTreeToBson.c $(MONGOC_DIR)/mongocBsonToKjTree.c \

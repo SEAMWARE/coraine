@@ -24,6 +24,8 @@
 #include "currentState/swRamDB/ramdbEntityMerge.h"    // ramdbEntityMerge
 #include "currentState/swRamDB/ramdbEntityReplace.h"  // ramdbEntityReplace
 #include "currentState/swRamDB/ramdbEntityAttrsSet.h" // ramdbEntityAttrsSet
+#include "currentState/swRamDB/ramdbTypeList.h"       // ramdbTypeList
+#include "currentState/swRamDB/ramdbAttrList.h"       // ramdbAttrList
 #include "currentState/swRamDB/ramdbSubscriptionCreate.h"    // ramdbSubscriptionCreate
 #include "currentState/swRamDB/ramdbSubscriptionRetrieve.h"  // ramdbSubscriptionRetrieve
 #include "currentState/swRamDB/ramdbSubscriptionQuery.h"     // ramdbSubscriptionQuery
@@ -88,6 +90,8 @@ void dbRegister(DbDriver* driverP)
   driverP->entityMerge     = ramdbEntityMerge;
   driverP->entityReplace   = ramdbEntityReplace;
   driverP->entityAttrsSet  = ramdbEntityAttrsSet;
+  driverP->typeList        = ramdbTypeList;
+  driverP->attrList        = ramdbAttrList;
   driverP->subscriptionCreate   = ramdbSubscriptionCreate;
   driverP->subscriptionRetrieve = ramdbSubscriptionRetrieve;
   driverP->subscriptionQuery    = ramdbSubscriptionQuery;

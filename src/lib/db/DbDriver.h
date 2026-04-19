@@ -95,6 +95,34 @@ typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
 typedef int  (*DbEntityAttrsSetFunc)(Tenant* tenantP, const char* entityId,
                                      KjNode* fragmentP, bool overwriteScope,
                                      uint64_t ts, LdMergeReport* reportP);
+
+//
+// DbTypeListFunc - aggregate distinct entity types and their attribute sets.
+//
+// Returns a KjArray of objects, each:
+//   { "typeIri":    "<IRI>",
+//     "attrs":      [ "<attrIri>", ... ],
+//     "attrTypes":  { "<attrIri>": [ "Property", "Relationship", ... ] },
+//     "entityCount": <int> }
+//
+// attrTypes and entityCount are only populated when details is true —
+// the simple list case short-circuits the heavier per-type scan.
+//
+// Nodes are allocated via swRest.kjsonP (sw) / &fwHttp.alloc (fw).
+//
+typedef int  (*DbTypeListFunc)(Tenant* tenantP, bool details, KjNode** arrayPP);
+
+//
+// DbAttrListFunc - aggregate distinct attribute names and the entity
+// types they appear on.
+//
+// Returns a KjArray of objects, each:
+//   { "attrIri":       "<IRI>",
+//     "typeNames":     [ "<typeIri>", ... ],
+//     "attrTypes":     [ "Property", "Relationship", ... ],
+//     "attrCount":     <int> }
+//
+typedef int  (*DbAttrListFunc)(Tenant* tenantP, bool details, KjNode** arrayPP);
 typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
 typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, KjNode** subPP);
 typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
@@ -130,6 +158,8 @@ typedef struct DbDriver
   DbEntityMergeFunc       entityMerge;
   DbEntityReplaceFunc     entityReplace;
   DbEntityAttrsSetFunc    entityAttrsSet;
+  DbTypeListFunc          typeList;        // Discovery § 5.7.5 / § 5.7.6 / § 5.7.7
+  DbAttrListFunc          attrList;        // Discovery § 5.7.8 / § 5.7.9 / § 5.7.10
   DbSubscriptionCreateFunc   subscriptionCreate;
   DbSubscriptionRetrieveFunc subscriptionRetrieve;
   DbSubscriptionQueryFunc    subscriptionQuery;

@@ -1,0 +1,341 @@
+#
+# FILE            discovery_local.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Discovery endpoints - mode 1 local (§ 5.7.5-§ 5.7.10)
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Seed three entities spanning two types. Types:
+#   Vehicle  (V1: speed, color)  (V2: speed, brand)
+#   Sensor   (S1: temp)
+#
+# Mode 1 (?local=true) is the default today; we exercise it via the four
+# discovery HTTP resources: /types, /types/{type}, /attributes,
+# /attributes/{attrId}, each with and without ?details where applicable.
+#
+
+echo "01. Seed three entities"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"red"}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":100},"brand":{"type":"Property","value":"Acme"}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}'
+echo
+echo
+
+
+echo "02. GET /types → EntityTypeList"
+echo "================================"
+swCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "03. GET /types?details=true → EntityType[]"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/types --urlParams 'details=true'
+echo
+echo
+
+
+echo "04. GET /types/Vehicle → EntityTypeInfo"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/types/Vehicle
+echo
+echo
+
+
+echo "05. GET /types/NoSuch → 404"
+echo "============================"
+swCurl --url /ngsi-ld/v1/types/NoSuch
+echo
+echo
+
+
+echo "06. GET /attributes → AttributeList"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+echo "07. GET /attributes?details=true → Attribute[]"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/attributes --urlParams 'details=true'
+echo
+echo
+
+
+echo "08. GET /attributes/speed → Attribute"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/attributes/speed
+echo
+echo
+
+
+echo "09. GET /attributes/noSuch → 404"
+echo "================================="
+swCurl --url /ngsi-ld/v1/attributes/noSuch
+echo
+echo
+
+
+--EXPECT--
+01. Seed three entities
+=======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. GET /types → EntityTypeList
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle",
+    "Sensor"
+  ]
+}
+
+
+
+03. GET /types?details=true → EntityType[]
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "attributeNames": [
+      "speed",
+      "color",
+      "brand"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Vehicle",
+    "type": "EntityType",
+    "typeName": "Vehicle"
+  },
+  {
+    "attributeNames": [
+      "temp"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Sensor",
+    "type": "EntityType",
+    "typeName": "Sensor"
+  }
+]
+
+
+
+04. GET /types/Vehicle → EntityTypeInfo
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeDetails": [
+    {
+      "attributeName": "speed",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "color",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/color",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "brand",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/brand",
+      "type": "Attribute"
+    }
+  ],
+  "entityCount": 2,
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/Vehicle",
+  "type": "EntityTypeInfo",
+  "typeName": "Vehicle"
+}
+
+
+
+05. GET /types/NoSuch → 404
+============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity type 'NoSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. GET /attributes → AttributeList
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeList": [
+    "speed",
+    "color",
+    "brand",
+    "temp"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+07. GET /attributes?details=true → Attribute[]
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "attributeName": "speed",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+    "type": "Attribute",
+    "typeNames": [
+      "Vehicle"
+    ]
+  },
+  {
+    "attributeName": "color",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/color",
+    "type": "Attribute",
+    "typeNames": [
+      "Vehicle"
+    ]
+  },
+  {
+    "attributeName": "brand",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/brand",
+    "type": "Attribute",
+    "typeNames": [
+      "Vehicle"
+    ]
+  },
+  {
+    "attributeName": "temp",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+    "type": "Attribute",
+    "typeNames": [
+      "Sensor"
+    ]
+  }
+]
+
+
+
+08. GET /attributes/speed → Attribute
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeCount": 2,
+  "attributeName": "speed",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+  "type": "Attribute",
+  "typeNames": [
+    "Vehicle"
+  ]
+}
+
+
+
+09. GET /attributes/noSuch → 404
+=================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'noSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

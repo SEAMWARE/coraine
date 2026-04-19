@@ -20,6 +20,10 @@
 #include "serviceRoutines/replaceEntity.h"       // replaceEntity
 #include "serviceRoutines/postEntityAttrs.h"     // postEntityAttrs
 #include "serviceRoutines/patchEntityAttrs.h"    // patchEntityAttrs
+#include "serviceRoutines/getTypes.h"            // getTypes
+#include "serviceRoutines/getType.h"             // getType
+#include "serviceRoutines/getAttributes.h"       // getAttributes
+#include "serviceRoutines/getAttribute.h"        // getAttribute
 #include "serviceRoutines/postSubscriptions.h"   // postSubscriptions
 #include "serviceRoutines/getSubscriptions.h"    // getSubscriptions
 #include "serviceRoutines/getSubscription.h"     // getSubscription
@@ -58,6 +62,12 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY },
   { SwVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS  },
   { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS },
+
+  // Discovery (§ 5.7.5 – § 5.7.10)
+  { SwVerbGet,    "/ngsi-ld/v1/types",            getTypes,         LD_PARAMS_GET_TYPES          },
+  { SwVerbGet,    "/ngsi-ld/v1/types/*",          getType,          LD_PARAMS_GET_TYPE           },
+  { SwVerbGet,    "/ngsi-ld/v1/attributes",       getAttributes,    LD_PARAMS_GET_ATTRIBUTES     },
+  { SwVerbGet,    "/ngsi-ld/v1/attributes/*",     getAttribute,     LD_PARAMS_GET_ATTRIBUTE      },
 
   { SwVerbPost,   "/ngsi-ld/v1/subscriptions",   postSubscriptions,   LD_PARAMS_POST_SUBSCRIPTIONS   },
   { SwVerbGet,    "/ngsi-ld/v1/subscriptions",   getSubscriptions,    LD_PARAMS_GET_SUBSCRIPTIONS    },
