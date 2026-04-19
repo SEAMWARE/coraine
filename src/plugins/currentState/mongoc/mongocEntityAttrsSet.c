@@ -6,9 +6,8 @@
 // Copyright 2026 Seamware
 //
 // mongoc entityAttrsSet: fetch the current document, apply
-// ldEntityAttrsSet in memory, then $set only the attribute wrappers
-// ldEntityAttrsSet actually touched (plus the entity-level
-// modifiedAt / type / scope). Append never deletes — no $unset.
+// ldEntityAttrsSet in memory, then $set the touched wrappers and
+// $unset any attrs ldEntityAttrsSet deleted (PATCH /attrs null-markers).
 //
 // Writing only touched attrs (not the whole document) matters for
 // mongoc, where each write is a wire op.
@@ -93,15 +92,19 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
   ldEntityAttrsSet(target, fragmentDb, overwriteScope, ts, reportP, swRest.kjsonP);
 
   //
-  // 3. Build a surgical $set from the merge report. Append never deletes,
-  //    so no $unset. Each touched attr is written as the whole wrapper.
+  // 3. Build a surgical $set + $unset from the merge report.
+  //    - "attributeDeleted" → $unset (attr is gone from target after merge)
+  //    - anything else      → $set the whole wrapper from target
   //
   bson_t update;
   bson_t setDoc;
+  bson_t unsetDoc;
   bson_init(&update);
   bson_init(&setDoc);
+  bson_init(&unsetDoc);
 
-  bool hasSet = false;
+  bool hasSet   = false;
+  bool hasUnset = false;
 
   if (reportP != NULL && reportP->changes != NULL)
   {
@@ -111,9 +114,19 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
       if (attrNameP == NULL || attrNameP->type != KjString)
         continue;
 
-      const char* attrName    = attrNameP->value.s;
-      const char* escaped     = mongocEscapeDotsInKey(attrName);
-      KjNode*     attrWrapper = kjLookup(target, attrName);
+      KjNode*     reasonP  = kjLookup(change, "reason");
+      const char* reason   = (reasonP != NULL && reasonP->type == KjString) ? reasonP->value.s : "";
+      const char* attrName = attrNameP->value.s;
+      const char* escaped  = mongocEscapeDotsInKey(attrName);
+
+      if (strcmp(reason, "attributeDeleted") == 0)
+      {
+        BSON_APPEND_UTF8(&unsetDoc, escaped, "");
+        hasUnset = true;
+        continue;
+      }
+
+      KjNode* attrWrapper = kjLookup(target, attrName);
       if (attrWrapper == NULL)
         continue;
 
@@ -125,28 +138,38 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
   //
   // Refresh entity-level modifiedAt / type / scope when anything changed.
   // ldEntityAttrsSet bumps all three in memory; we mirror those onto
-  // the update doc.
+  // the $set portion.
   //
-  if (hasSet)
+  if (hasSet || hasUnset)
   {
     KjNode* modAtP = kjLookup(target, LD_VOCAB_MODIFIED_AT);
     if (modAtP != NULL && modAtP->type == KjInt)
+    {
       mongocKjNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
+      hasSet = true;
+    }
 
     KjNode* typeP = kjLookup(target, "type");
     if (typeP != NULL)
+    {
       mongocKjNodeAppend(&setDoc, "type", typeP);
+      hasSet = true;
+    }
 
     KjNode* scopeP = kjLookup(target, LD_VOCAB_SCOPE);
     if (scopeP != NULL)
+    {
       mongocKjNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
+      hasSet = true;
+    }
   }
 
   int result = DB_OK;
 
-  if (hasSet)
+  if (hasSet || hasUnset)
   {
-    BSON_APPEND_DOCUMENT(&update, "$set", &setDoc);
+    if (hasSet)   BSON_APPEND_DOCUMENT(&update, "$set",   &setDoc);
+    if (hasUnset) BSON_APPEND_DOCUMENT(&update, "$unset", &unsetDoc);
 
     bson_error_t err;
     bool ok = mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err);
@@ -160,6 +183,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
 
   bson_destroy(&update);
   bson_destroy(&setDoc);
+  bson_destroy(&unsetDoc);
   bson_destroy(&filter);
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);
