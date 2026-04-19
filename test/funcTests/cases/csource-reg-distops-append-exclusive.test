@@ -1,0 +1,172 @@
+#
+# FILE            csource-reg-distops-append-exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - POST /entities/{id}/attrs forwarded to exclusive registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 holds urn:V1 with a speed attr. CB has an exclusive CSR on V1
+# claiming "speed" via propertyNames. POST attrs on CB with {speed, brand}
+# should chop speed → forward to CP1; brand stays local (needs local V1).
+#
+# Also seed local V1 with an initial attr so the local-append path runs.
+#
+
+echo "01. Seed CP1 with V1 (speed=42)"
+echo "==============================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. Seed CB local V1 (no attrs) so local append can land"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V1","type":"Vehicle"}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 exclusive CSR claiming speed"
+echo "================================================"
+payload='{
+  "id": "urn:CSR:AppendExcl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["appendAttrs", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. POST V1/attrs on CB: speed=99, brand=Zephyr"
+echo "==============================================="
+# speed is chopped + forwarded (→ CP1 replaces its speed). brand stays local.
+payload='{"speed":{"type":"Property","value":99},"brand":{"type":"Property","value":"Zephyr"}}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
+echo
+echo
+
+
+echo "05. GET V1 on CP1 → speed=99"
+echo "============================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "06. GET V1 on CB ?local=true → brand=Zephyr (speed not local)"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1 (speed=42)
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed CB local V1 (no attrs) so local append can land
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 exclusive CSR claiming speed
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:AppendExcl
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. POST V1/attrs on CB: speed=99, brand=Zephyr
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET V1 on CP1 → speed=99
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. GET V1 on CB ?local=true → brand=Zephyr (speed not local)
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Zephyr"
+  },
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
