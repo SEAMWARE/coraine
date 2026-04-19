@@ -1,0 +1,182 @@
+#
+# FILE            patch_entity_attrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id}/attrs - Update Attributes (§ 5.6.2)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity V1 with speed + color
+# 02. PATCH attrs: update speed, add brand, delete color via null → 204
+# 03. GET — verify
+# 04. PATCH attrs: delete non-existent attr + add new weight → 204
+#     (deleting a missing attr is a no-op, not an error)
+# 05. GET — weight added
+# 06. PATCH attrs on missing entity → 404
+#
+
+echo "01. Create entity V1 with speed + color"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":50},
+  "color": {"type":"Property","value":"red"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH attrs: update speed, add brand, delete color via null"
+echo "==============================================================="
+payload='{
+  "speed": {"type":"Property","value":99},
+  "brand": {"type":"Property","value":"Acme"},
+  "color": "urn:ngsi-ld:null"
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. GET V1 — speed=99, brand=Acme, no color"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "04. PATCH attrs: delete missing gone, add weight"
+echo "================================================"
+payload='{
+  "gone":   "urn:ngsi-ld:null",
+  "weight": {"type":"Property","value":1500}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "05. GET V1 — weight=1500"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "06. PATCH attrs on missing entity → 404"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities/urn:DoesNotExist/attrs -X PATCH --payload '{"speed":{"type":"Property","value":1}}'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity V1 with speed + color
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. PATCH attrs: update speed, add brand, delete color via null
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET V1 — speed=99, brand=Acme, no color
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. PATCH attrs: delete missing gone, add weight
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET V1 — weight=1500
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle",
+  "weight": {
+    "type": "Property",
+    "value": 1500
+  }
+}
+
+
+
+06. PATCH attrs on missing entity → 404
+=======================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:DoesNotExist' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

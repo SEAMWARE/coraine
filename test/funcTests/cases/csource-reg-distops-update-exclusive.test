@@ -1,0 +1,177 @@
+#
+# FILE            csource-reg-distops-update-exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - PATCH /entities/{id}/attrs forwarded to exclusive registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 holds urn:V1 with speed+color. CB has an exclusive CSR claiming
+# speed. PATCH attrs on CB with {speed=99, color=null (delete),
+# brand=new} should:
+#   - speed  → forwarded to CP1 (chopped)
+#   - color  → forwarded only if CSR also claims color — it doesn't, so
+#             color stays local for deletion
+#   - brand  → stays local for append
+#
+
+echo "01. Seed CP1 with V1 (speed=42)"
+echo "==============================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. Seed CB local V1 with color (to test null-delete)"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 exclusive CSR claiming speed"
+echo "================================================"
+payload='{
+  "id": "urn:CSR:UpdateExcl",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["updateAttrs", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. PATCH V1/attrs on CB: speed=99, color=null (delete), brand=Zephyr"
+echo "====================================================================="
+payload='{
+  "speed": {"type":"Property","value":99},
+  "color": "urn:ngsi-ld:null",
+  "brand": {"type":"Property","value":"Zephyr"}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "05. GET V1 on CP1 → speed=99 (updated from 42)"
+echo "=============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "06. GET V1 on CB ?local=true → brand=Zephyr (color deleted, speed not local)"
+echo "============================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1 (speed=42)
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed CB local V1 with color (to test null-delete)
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 exclusive CSR claiming speed
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:UpdateExcl
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. PATCH V1/attrs on CB: speed=99, color=null (delete), brand=Zephyr
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET V1 on CP1 → speed=99 (updated from 42)
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. GET V1 on CB ?local=true → brand=Zephyr (color deleted, speed not local)
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Zephyr"
+  },
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

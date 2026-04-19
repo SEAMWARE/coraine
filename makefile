@@ -30,6 +30,7 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/patchEntity.c  \
                 src/lib/serviceRoutines/replaceEntity.c  \
                 src/lib/serviceRoutines/postEntityAttrs.c \
+                src/lib/serviceRoutines/patchEntityAttrs.c \
                 src/lib/serviceRoutines/postSubscriptions.c  \
                 src/lib/serviceRoutines/getSubscriptions.c   \
                 src/lib/serviceRoutines/getSubscription.c    \
