@@ -1,0 +1,241 @@
+#
+# FILE            post_entity_attrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /entities/{id}/attrs - Append Attributes (§ 5.6.3)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with speed (with accuracy sub-attr) and color
+# 02. Append new attrs: brand, color.finish (new sub-attr) — default overwrite
+# 03. GET — verify speed updated, color replaced, brand added
+# 04. Append with noOverwrite: brand conflicts → notUpdated[], new=weight
+# 05. GET — verify weight added, brand untouched
+# 06. Append to non-existent entity → 404
+# 07. Append to existing with only existing attrs, noOverwrite → 207 all notUpdated
+#
+
+echo "01. Create entity V1 with speed + color"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 50,
+    "accuracy": {"type": "Property", "value": 0.9}
+  },
+  "color": {"type": "Property", "value": "red"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. POST /entities/V1/attrs — overwrite speed, add brand"
+echo "========================================================"
+payload='{
+  "speed": {"type": "Property", "value": 99},
+  "brand": {"type": "Property", "value": "Acme"}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload "$payload"
+echo
+echo
+
+
+echo "03. GET V1 — speed=99, color=red, brand=Acme"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "04. POST attrs with noOverwrite — brand conflicts, weight new → 207"
+echo "==================================================================="
+payload='{
+  "brand":  {"type": "Property", "value": "Zephyr"},
+  "weight": {"type": "Property", "value": 1500}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --urlParams 'options=noOverwrite' --payload "$payload"
+echo
+echo
+
+
+echo "05. GET V1 — weight=1500, brand still Acme (noOverwrite kept original)"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+echo
+echo
+
+
+echo "06. POST attrs to non-existent entity → 404"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:DoesNotExist/attrs --payload '{"speed":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "07. POST attrs with noOverwrite, only-existing attrs → 207 all notUpdated"
+echo "========================================================================="
+payload='{
+  "speed": {"type":"Property","value":9999},
+  "color": {"type":"Property","value":"blue"}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --urlParams 'options=noOverwrite' --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity V1 with speed + color
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:ngsi-ld:Vehicle:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. POST /entities/V1/attrs — overwrite speed, add brand
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET V1 — speed=99, color=red, brand=Acme
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. POST attrs with noOverwrite — brand conflicts, weight new → 207
+===================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "brand",
+      "reason": "Attribute already exists"
+    }
+  ],
+  "updated": [
+    "weight"
+  ]
+}
+
+
+
+05. GET V1 — weight=1500, brand still Acme (noOverwrite kept original)
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle",
+  "weight": {
+    "type": "Property",
+    "value": 1500
+  }
+}
+
+
+
+06. POST attrs to non-existent entity → 404
+===========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:DoesNotExist' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. POST attrs with noOverwrite, only-existing attrs → 207 all notUpdated
+=========================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "speed",
+      "reason": "Attribute already exists"
+    },
+    {
+      "attributeName": "color",
+      "reason": "Attribute already exists"
+    }
+  ],
+  "updated": []
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

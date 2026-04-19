@@ -10,6 +10,7 @@
 //
 
 #include <stdint.h>                                       // uint64_t
+#include <stdbool.h>                                      // bool
 
 #include "kalloc/KAlloc.h"                                // KAlloc
 #include "kargs/KArg.h"                                   // KArg
@@ -72,6 +73,28 @@ typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode*
                                   uint64_t ts, LdMergeReport* reportP);
 typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
                                     KjNode* newEntityP, KjNode** oldEntityPP);
+//
+// DbEntityAttrsSetFunc - generic "set attrs/dsKeys on an entity".
+//
+// For each top-level attribute in fragmentP, and for each dsKey-keyed
+// instance within, set it on the target entity:
+//   - if target has a matching (attrName, dsKey) → replace the instance
+//     preserving createdAt;
+//   - otherwise → append the instance.
+// In both cases bump the entity's and touched attr's modifiedAt to ts.
+//
+// Handles "type" (union into target's type array) and "scope" (replaced
+// when overwriteScope is true, union-appended otherwise) at top level.
+//
+// Fragment is in storage (DB-model) format — the caller has already run
+// ldApiEntityToDbModel on it. reportP is filled for subscription
+// matching; pass NULL to skip reporting.
+//
+// Returns DB_OK / DB_NOT_FOUND / DB_ERR.
+//
+typedef int  (*DbEntityAttrsSetFunc)(Tenant* tenantP, const char* entityId,
+                                     KjNode* fragmentP, bool overwriteScope,
+                                     uint64_t ts, LdMergeReport* reportP);
 typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
 typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, KjNode** subPP);
 typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
@@ -106,6 +129,7 @@ typedef struct DbDriver
   DbEntityDeleteFunc      entityDelete;
   DbEntityMergeFunc       entityMerge;
   DbEntityReplaceFunc     entityReplace;
+  DbEntityAttrsSetFunc    entityAttrsSet;
   DbSubscriptionCreateFunc   subscriptionCreate;
   DbSubscriptionRetrieveFunc subscriptionRetrieve;
   DbSubscriptionQueryFunc    subscriptionQuery;

@@ -18,6 +18,7 @@
 #include "serviceRoutines/deleteEntity.h"        // deleteEntity
 #include "serviceRoutines/patchEntity.h"         // patchEntity
 #include "serviceRoutines/replaceEntity.h"       // replaceEntity
+#include "serviceRoutines/postEntityAttrs.h"     // postEntityAttrs
 #include "serviceRoutines/postSubscriptions.h"   // postSubscriptions
 #include "serviceRoutines/getSubscriptions.h"    // getSubscriptions
 #include "serviceRoutines/getSubscription.h"     // getSubscription
@@ -54,6 +55,7 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY  },
   { SwVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY   },
   { SwVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY },
+  { SwVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs, LD_PARAMS_POST_ENTITY_ATTRS },
 
   { SwVerbPost,   "/ngsi-ld/v1/subscriptions",   postSubscriptions,   LD_PARAMS_POST_SUBSCRIPTIONS   },
   { SwVerbGet,    "/ngsi-ld/v1/subscriptions",   getSubscriptions,    LD_PARAMS_GET_SUBSCRIPTIONS    },

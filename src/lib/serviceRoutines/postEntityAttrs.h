@@ -1,0 +1,19 @@
+#ifndef SWBROKER_POST_ENTITY_ATTRS_H_
+#define SWBROKER_POST_ENTITY_ATTRS_H_
+
+//
+// FILE            postEntityAttrs.h
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+// POST /ngsi-ld/v1/entities/{entityId}/attrs — Append Attributes
+// (NGSI-LD § 5.6.3 / § 6.6.3.1).
+//
+
+#include <stdbool.h>
+
+extern bool postEntityAttrs(void);
+
+#endif  // SWBROKER_POST_ENTITY_ATTRS_H_
