@@ -285,7 +285,45 @@ noOverwrite, partial/full conflicts, 404),
 `csource-reg-distops-append-exclusive.test` (distops: exclusive chop +
 forward).
 
-### 8. Subscriptions (POST / GET / PATCH / DELETE) + notifications
+### 8. PATCH /ngsi-ld/v1/entities/{entityId}/attrs — Update Attributes
+
+**Status: Complete**
+
+Implements Update Attributes per § 5.6.2. Same pipeline as Append but
+without `?options=noOverwrite`, with null-marker support enabled. At
+ldCheckEntity time the op is LdOpUpdateEntity, which accepts the
+`"urn:ngsi-ld:null"` delete-marker both as a top-level attr value
+("delete this attribute") and as an instance-level `value`
+("delete this dsKey instance").
+
+| Feature | Status |
+|---------|--------|
+| Update existing Attribute (replace instance, preserve createdAt) | Done |
+| Append Attribute (when target does not have it) | Done |
+| Delete attribute via top-level `"urn:ngsi-ld:null"` | Done |
+| Delete dsKey instance via instance `value: "urn:ngsi-ld:null"` | Done |
+| Multi-datasetId add-or-replace per dsKey | Done |
+| Type union | Done |
+| Scope replacement | Done |
+| 204 No Content on full success | Done |
+| 207 Multi-Status with UpdateResult body (§ 5.2.18) | Done |
+| 404 Not Found (entity absent + no CSR match) | Done |
+| Subscriptions / notifications on update | Done |
+| `type` URL param (distops disambiguation) | Done |
+| `local=true` URL param — bypass distops dispatch | Done |
+| DistOps — exclusive/redirect chop + forward via PATCH/attrs | Done |
+| DistOps — inclusive clone + forward via PATCH/attrs | Done |
+| op-check on `updateAttrs` (exclusive/redirect → notUpdated) | Done |
+| Via loop detect + per-CSR proactive skip | Done |
+| swRamDB `entityAttrsSet` (shared with Append) | Done |
+| mongoc `entityAttrsSet` (shared with Append) | Done |
+
+Functional tests: `patch_entity_attrs.test` (core: update + append +
+null-delete at attr + null-delete on missing attr is no-op + 404),
+`csource-reg-distops-update-exclusive.test` (distops: exclusive chop
+to real CP1 + local null-delete + local append of unclaimed attr).
+
+### 9. Subscriptions (POST / GET / PATCH / DELETE) + notifications
 
 **Status: Done.** CRUD, in-memory matcher (q, geoQ, scopeQ, entity selector
 with id/idPattern/type), throttling, expiration, status recomputation,
@@ -295,7 +333,7 @@ persistence/retrieval. datasetId instance filtering in notifications
 cache + background loop thread — can't PATCH between periodic and
 normal mode. 80+ dedicated functests.
 
-### 8. JSON-LD Context Hosting (§ 5.13)
+### 10. JSON-LD Context Hosting (§ 5.13)
 
 **Status: Done.** All four endpoints, all three context kinds, persistence,
 and concurrent-download dedup.
@@ -328,7 +366,7 @@ Known residuals (non-blocking):
   signalled on failure.
 - No OPTIONS/HEAD/CORS coverage tests on the new routes.
 
-### 9. Admin API (plugin)
+### 11. Admin API (plugin)
 
 **Status: Complete**
 
@@ -338,7 +376,7 @@ Known residuals (non-blocking):
 - GET /admin/tenants
 - GET /admin/plugins
 
-### 10. Other
+### 12. Other
 
 - CORS support (--corsOrigin, --corsMaxAge)
 - HEAD requests (auto-generated from GET handlers)
@@ -355,7 +393,6 @@ Known residuals (non-blocking):
 
 | Endpoint | Spec Section | Complexity | Estimate |
 |----------|-------------|------------|----------|
-| PATCH /entities/{entityId}/attrs | 5.5.8 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs/{attrId} | 5.5.9 | Medium | 1-2 days |
 | DELETE /entities/{entityId}/attrs/{attrId} | 5.5.10 | Low | 1 day |
 | PUT /entities/{entityId}/attrs/{attrId} | 5.5.11 | Medium | 1-2 days |
