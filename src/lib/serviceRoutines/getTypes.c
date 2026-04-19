@@ -29,6 +29,8 @@
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_*
 #include "swNgsild/LdRegCache.h"                      // LdRegCache
 #include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
+#include "swNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardTypes, ldDiscoveryShouldForward
+#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -79,12 +81,23 @@ bool getTypes(void)
   }
 
   //
-  // Mode 2 (?noForward=true) or default (mode 3 — forwarding not yet
-  // wired up): augment with CSR-declared types/attrs. Mode 1
-  // (?local=true) stops at local data.
+  // Mode 2 (?noForward=true) or default (mode 3): augment with
+  // CSR-declared types/attrs. Mode 1 (?local=true) stops at local data.
   //
   if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentTypes(aggregated, (LdRegCache*) tenantP->regCacheP, details);
+
+  //
+  // Mode 3 only (default — !local && !noForward): forward the query to
+  // every CSR supporting retrieveEntityType(s) and merge the results.
+  //
+  if (!swNgsild.local && !swNgsild.noForward &&
+      tenantP != NULL && tenantP->regCacheP != NULL &&
+      ldDiscoveryShouldForward())
+  {
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    ldDiscoveryForwardTypes(aggregated, (LdRegCache*) tenantP->regCacheP, details, ownAlias);
+  }
 
   SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
 

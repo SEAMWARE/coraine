@@ -1,0 +1,275 @@
+#
+# FILE            discovery_forward.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Discovery mode 3 — forward /types + /attributes to CSRs (§ 5.7.11 + ?hops)
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 has a Sensor (temp, humidity).
+# CB has a Vehicle (speed) and an inclusive CSR pointing to CP1.
+#
+# Mode 3 (default, no ?local / ?noForward) causes CB to forward the
+# discovery GETs to CP1 and merge. Mode 1 (?local=true) stays local.
+# Mode 2 (?noForward=true) only augments from CSR metadata.
+# ?hops=0 disables forwarding even in default mode.
+#
+
+echo "01. Seed CP1: Sensor with temp + humidity"
+echo "=========================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22},"humidity":{"type":"Property","value":60}}'
+echo
+echo
+
+
+echo "02. Seed CB: Vehicle with speed"
+echo "================================"
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 inclusive (no propertyNames — rely on forwarding)"
+echo "====================================================================="
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /types (mode 3, default) → Vehicle + Sensor (forwarded)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "05. GET /types?local=true → only Vehicle"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/types --urlParams 'local=true'
+echo
+echo
+
+
+echo "06. GET /types?hops=0 → no forwarding (only CSR metadata, so Sensor only if declared)"
+echo "====================================================================================="
+swCurl --url /ngsi-ld/v1/types --urlParams 'hops=0'
+echo
+echo
+
+
+echo "07. GET /types/Sensor (mode 3) → from CP1, entityCount=1, attrs=[temp,humidity]"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/types/Sensor
+echo
+echo
+
+
+echo "08. GET /attributes (mode 3) → speed (local) + temp+humidity (CP1)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+echo "09. GET /attributes/humidity (mode 3) → count=1, on Sensor"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/attributes/humidity
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1: Sensor with temp + humidity
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed CB: Vehicle with speed
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 inclusive (no propertyNames — rely on forwarding)
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. GET /types (mode 3, default) → Vehicle + Sensor (forwarded)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle",
+    "Sensor"
+  ]
+}
+
+
+
+05. GET /types?local=true → only Vehicle
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle"
+  ]
+}
+
+
+
+06. GET /types?hops=0 → no forwarding (only CSR metadata, so Sensor only if declared)
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle",
+    "Sensor"
+  ]
+}
+
+
+
+07. GET /types/Sensor (mode 3) → from CP1, entityCount=1, attrs=[temp,humidity]
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeDetails": [
+    {
+      "attributeName": "temp",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "humidity",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/humidity",
+      "type": "Attribute"
+    }
+  ],
+  "entityCount": 1,
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/Sensor",
+  "type": "EntityTypeInfo",
+  "typeName": "Sensor"
+}
+
+
+
+08. GET /attributes (mode 3) → speed (local) + temp+humidity (CP1)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeList": [
+    "speed",
+    "temp",
+    "humidity"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+09. GET /attributes/humidity (mode 3) → count=1, on Sensor
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeCount": 1,
+  "attributeName": "humidity",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/humidity",
+  "type": "Attribute",
+  "typeNames": [
+    "Sensor"
+  ]
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

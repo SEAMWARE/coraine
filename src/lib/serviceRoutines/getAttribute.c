@@ -27,6 +27,8 @@
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdRegCache.h"                      // LdRegCache
 #include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentAttrs
+#include "swNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardAttr, ldDiscoveryShouldForward
+#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -75,6 +77,15 @@ bool getAttribute(void)
 
   if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentAttrs(aggregated, (LdRegCache*) tenantP->regCacheP, true);
+
+  if (!swNgsild.local && !swNgsild.noForward &&
+      tenantP != NULL && tenantP->regCacheP != NULL &&
+      ldDiscoveryShouldForward())
+  {
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    ldDiscoveryForwardAttr(aggregated, (LdRegCache*) tenantP->regCacheP,
+                           attrIri, attrWild, ownAlias);
+  }
 
   KjNode* entry = NULL;
   for (KjNode* e = aggregated->value.firstChildP; e != NULL; e = e->next)
