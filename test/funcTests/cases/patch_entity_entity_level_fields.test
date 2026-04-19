@@ -1,0 +1,164 @@
+#
+# FILE            patch_entity_entity_level_fields.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id} - id/type/scope/timestamps in body (§ 5.6.17.4, § 5.2.2)
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Spec positions for Merge Entity (PATCH /entities/{id}):
+#   - id        : not covered by spec — we reject with 400 (URL is authoritative)
+#   - type      : § 5.6.17.4 — new type names are unioned into target.type
+#   - scope     : § 5.6.17.4 — overwrite allowed → replace (default for Merge)
+#   - createdAt
+#     modifiedAt: § 5.2.2 common members — "shall be ignored"
+#
+
+echo "01. Create V1 with type=Vehicle, scope=/s1, speed=50"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","scope":"/s1","speed":{"type":"Property","value":50}}'
+echo
+echo
+
+
+echo "02. PATCH /{id} with id in body → 400 BadRequestData"
+echo "===================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+  --payload '{"id":"urn:V1","foo":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "03. PATCH /{id} adding new type=Car → unioned"
+echo "============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+  --payload '{"type":"Car","foo":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "04. PATCH /{id} replacing scope (overwrite default) → /s2"
+echo "========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+  --payload '{"scope":"/s2","bar":{"type":"Property","value":2}}'
+echo
+echo
+
+
+echo "05. PATCH /{id} with createdAt/modifiedAt → ignored (204)"
+echo "========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+  --payload '{"createdAt":"2000-01-01T00:00:00Z","modifiedAt":"2000-01-01T00:00:00Z","baz":{"type":"Property","value":3}}'
+echo
+echo
+
+
+echo "06. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Create V1 with type=Vehicle, scope=/s1, speed=50
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. PATCH /{id} with id in body → 400 BadRequestData
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'id' must not appear in the payload of MergeEntity",
+  "title": "Entity Id In Body",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. PATCH /{id} adding new type=Car → unioned
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. PATCH /{id} replacing scope (overwrite default) → /s2
+=========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. PATCH /{id} with createdAt/modifiedAt → ignored (204)
+=========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "bar": {
+    "type": "Property",
+    "value": 2
+  },
+  "baz": {
+    "type": "Property",
+    "value": 3
+  },
+  "foo": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:V1",
+  "scope": "/s2",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "type": [
+    "Vehicle",
+    "Car"
+  ]
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

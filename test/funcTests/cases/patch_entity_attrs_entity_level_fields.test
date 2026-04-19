@@ -1,0 +1,232 @@
+#
+# FILE            patch_entity_attrs_entity_level_fields.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entities/{id}/attrs - id/type/scope/timestamps in body (§ 5.6.2.4, § 5.2.2)
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Spec positions for Update Attributes:
+#   - id        : not covered by spec — we reject with 400 (URL is authoritative)
+#   - type      : § 5.6.2.4 — new type names are unioned into target.type
+#   - scope     : § 5.6.2.4 — replace ONLY if target already has scope;
+#                             otherwise ignore
+#   - createdAt
+#     modifiedAt: § 5.2.2 common members — "shall be ignored"
+#
+
+echo "01. Create V1 with type=Vehicle, scope=/s1, speed=50"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","scope":"/s1","speed":{"type":"Property","value":50}}'
+echo
+echo
+
+
+echo "02. Create V2 with type=Drone, speed=10 (NO scope — to test ignore-if-missing)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V2","type":"Drone","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "03. PATCH /attrs on V1 with id in body → 400 BadRequestData"
+echo "==========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+  --payload '{"id":"urn:V1","foo":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "04. PATCH /attrs on V1 adding new type=Car → unioned"
+echo "===================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+  --payload '{"type":"Car","foo":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "05. PATCH /attrs on V1 with scope=/s2 (target has scope → replace)"
+echo "=================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+  --payload '{"scope":"/s2","bar":{"type":"Property","value":2}}'
+echo
+echo
+
+
+echo "06. PATCH /attrs on V2 with scope=/x (target has no scope → ignore)"
+echo "==================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V2/attrs \
+  --payload '{"scope":"/x","alt":{"type":"Property","value":200}}'
+echo
+echo
+
+
+echo "07. PATCH /attrs on V1 with createdAt/modifiedAt → ignored (204)"
+echo "================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+  --payload '{"createdAt":"2000-01-01T00:00:00Z","modifiedAt":"2000-01-01T00:00:00Z","baz":{"type":"Property","value":3}}'
+echo
+echo
+
+
+echo "08. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "09. GET V2 — no scope (fragment's scope was ignored), alt=200"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+--EXPECT--
+01. Create V1 with type=Vehicle, scope=/s1, speed=50
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Create V2 with type=Drone, speed=10 (NO scope — to test ignore-if-missing)
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. PATCH /attrs on V1 with id in body → 400 BadRequestData
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'id' must not appear in the payload of UpdateEntity",
+  "title": "Entity Id In Body",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. PATCH /attrs on V1 adding new type=Car → unioned
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. PATCH /attrs on V1 with scope=/s2 (target has scope → replace)
+==================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. PATCH /attrs on V2 with scope=/x (target has no scope → ignore)
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. PATCH /attrs on V1 with createdAt/modifiedAt → ignored (204)
+================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "bar": {
+    "type": "Property",
+    "value": 2
+  },
+  "baz": {
+    "type": "Property",
+    "value": 3
+  },
+  "foo": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:V1",
+  "scope": "/s2",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "type": [
+    "Vehicle",
+    "Car"
+  ]
+}
+
+
+
+09. GET V2 — no scope (fragment's scope was ignored), alt=200
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "alt": {
+    "type": "Property",
+    "value": 200
+  },
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 10
+  },
+  "type": "Drone"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
