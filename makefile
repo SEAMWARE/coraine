@@ -114,7 +114,7 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocInit.c $(MONGOC_DIR)/mongocClose.c \
                  $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityRetrieve.c \
                  $(MONGOC_DIR)/mongocEntityDelete.c $(MONGOC_DIR)/mongocEntityMerge.c \
-                 $(MONGOC_DIR)/mongocEntityReplace.c \
+                 $(MONGOC_DIR)/mongocEntityReplace.c $(MONGOC_DIR)/mongocEntityAttrsSet.c \
                  $(MONGOC_DIR)/mongocEntityQuery.c $(MONGOC_DIR)/mongocGeoIndex.c \
                  $(MONGOC_DIR)/mongocTenantSetup.c $(MONGOC_DIR)/mongocVersion.c \
                  $(MONGOC_DIR)/mongocKjTreeToBson.c $(MONGOC_DIR)/mongocBsonToKjTree.c \
