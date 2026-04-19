@@ -231,6 +231,15 @@ Tenant* tenantFromRequest(bool autoCreate)
 //
 bool tenantPreServiceHook(void)
 {
+  //
+  // /info/sourceIdentity is tenant-agnostic at the broker level — the
+  // alias it returns is derived from the NGSILD-Tenant header, whether
+  // or not that tenant has been created on this broker. Bypass the
+  // tenant lookup so unknown tenants still get a valid probe response.
+  //
+  if (swRest.in.urlPath != NULL && strcmp(swRest.in.urlPath, "/info/sourceIdentity") == 0)
+    return true;
+
   bool autoCreate = (swRest.in.verb != SwVerbGet);
 
   Tenant* tP = tenantFromRequest(autoCreate);

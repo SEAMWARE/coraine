@@ -532,6 +532,10 @@ bool postEntities(void)
           return true;
         }
 
+        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))
+          continue;
+
         bool opSupported = ldRegOpSupported(csr, "createEntity");
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
@@ -580,6 +584,10 @@ bool postEntities(void)
         LdRegCacheItem* csr = redirV[i];
         if (!csrGeoCoverEntity(csr, entityP)) continue;
         if (csr->endpoint == NULL)    continue;
+
+        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))
+          continue;
 
         bool opSupported = ldRegOpSupported(csr, "createEntity");
 
@@ -631,6 +639,7 @@ bool postEntities(void)
         LdRegCacheItem* csr = inclV[i];
         if (!csrGeoCoverEntity(csr, entityP)) continue;
         if (csr->endpoint == NULL)                   continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))     continue;  // § 5.12 proactive
         if (!ldRegOpSupported(csr, "createEntity")) continue;
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)

@@ -646,6 +646,9 @@ bool getEntity(void)
           if (auxV   != NULL) free(auxV);
           return true;
         }
+        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))
+          continue;
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!infoEntryMatchesEntity(riP, entityId))
@@ -676,6 +679,7 @@ bool getEntity(void)
       {
         LdRegCacheItem* csr = redirV[i];
         if (csr->endpoint == NULL) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;  // § 5.12 proactive
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!infoEntryMatchesEntity(riP, entityId))
@@ -696,6 +700,7 @@ bool getEntity(void)
       {
         LdRegCacheItem* csr = inclV[i];
         if (csr->endpoint == NULL) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;  // § 5.12 proactive
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!infoEntryMatchesEntity(riP, entityId))
@@ -715,6 +720,7 @@ bool getEntity(void)
       {
         LdRegCacheItem* csr = auxV[i];
         if (csr->endpoint == NULL) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;  // § 5.12 proactive
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!infoEntryMatchesEntity(riP, entityId))

@@ -34,6 +34,7 @@
 #include "serviceRoutines/deleteCsourceRegistration.h" // deleteCsourceRegistration
 #include "serviceRoutines/getEntityMap.h"              // getEntityMap
 #include "serviceRoutines/deleteEntityMap.h"           // deleteEntityMap
+#include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -73,7 +74,10 @@ SwRestServiceSimplified ngsildCoreServices[] =
 
   // EntityMap CRUD (§ 5.14)
   { SwVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0 },
-  { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0 }
+  { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0 },
+
+  // Context Source Identity (§ 5.15 / § 6.33)
+  { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0 }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

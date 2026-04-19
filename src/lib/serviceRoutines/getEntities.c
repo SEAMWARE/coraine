@@ -27,6 +27,8 @@
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
 #include "swNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
 
@@ -352,6 +354,7 @@ bool getEntities(void)
     {
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
       const char* baseQs = NULL;
+      const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
 
       for (int m = 0; m < 4; m++)
       {
@@ -385,6 +388,10 @@ bool getEntities(void)
         {
           LdRegCacheItem* csr = matchV[i];
           if (csr->endpoint == NULL)
+            continue;
+
+          // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
+          if (ldDistOpCsrWouldLoop(csr, ownAlias))
             continue;
 
           //

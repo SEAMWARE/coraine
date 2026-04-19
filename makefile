@@ -44,7 +44,8 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/patchCsourceRegistration.c  \
                 src/lib/serviceRoutines/deleteCsourceRegistration.c \
                 src/lib/serviceRoutines/getEntityMap.c              \
-                src/lib/serviceRoutines/deleteEntityMap.c
+                src/lib/serviceRoutines/deleteEntityMap.c           \
+                src/lib/serviceRoutines/getSourceIdentity.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \

@@ -11,6 +11,7 @@
 #include <unistd.h>                               // pause
 #include <signal.h>                               // signal, SIGINT, SIGTERM
 #include <string.h>                               // strcmp, memcpy
+#include <time.h>                                 // time
 #include <execinfo.h>                             // backtrace, backtrace_symbols
 
 #include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
@@ -412,9 +413,10 @@ int main(int argC, char* argV[])
     exit(1);
   }
 
-  ldLocalOnly         = localOnly;
-  ldSplitEntities     = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
-  ldDefaultContextUrl = userContext;
+  ldLocalOnly           = localOnly;
+  ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
+  ldDefaultContextUrl   = userContext;
+  ldBrokerStartTimeSec  = (long long) time(NULL);
 
   //
   // contextSourceAlias base for Via headers (NGSI-LD § 5.7.5).

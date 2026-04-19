@@ -1,0 +1,259 @@
+#
+# FILE            csource-reg-proactive-loop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - proactive loop detect via /info/sourceIdentity probe
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --csourceAlias cb-alias
+swBrokerStart -role CP1 --csourceAlias cp1-alias
+
+--RUN--
+
+#
+# Proactive loop detection (§ 5.12):
+#   - At CSR-create time, broker probes <endpoint>/info/sourceIdentity
+#     and caches the target's contextSourceAlias on the cache item.
+#   - During dispatch, if a CSR's cached alias is already in the
+#     incoming Via chain (or equals the broker's own alias), the CSR
+#     is silently skipped — no wasted forward.
+#
+# Test cases:
+#   01-03  GET /info/sourceIdentity on CB and CP1 — verify the probe target
+#   04     Register self-pointing CSR on CB (endpoint = CB itself)
+#   05     GET through that CSR → proactive skip → local 404 (no round-trip)
+#   06     Register CB→CP1 CSR (probe learns "cp1-alias")
+#   07     GET on CB with Via: 1.1 cp1-alias already present →
+#          proactive skip of the CB→CP1 CSR, local 404
+#   08     GET on CB without the Via → proactive check passes, forward
+#          proceeds, CP1 serves the entity
+#
+
+echo "01. GET /info/sourceIdentity on CB (default tenant)"
+echo "==================================================="
+swCurl --url /info/sourceIdentity
+echo
+echo
+
+
+echo "02. GET /info/sourceIdentity on CP1"
+echo "==================================="
+swCurl --port $CP1_PORT --url /info/sourceIdentity
+echo
+echo
+
+
+echo "03. GET /info/sourceIdentity on CB with tenant t1"
+echo "================================================="
+swCurl --url /info/sourceIdentity --tenant t1
+echo
+echo
+
+
+echo "04. Register self-pointing CSR on CB (endpoint = CB's own URL)"
+echo "=============================================================="
+payload='{
+  "id": "urn:CSR:Self",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. GET urn:V1 on CB → proactive skip of self-pointing CSR → 404"
+echo "================================================================"
+# Without the probe, this would dispatch to CB (ourselves), which the
+# reactive Via-loop check would then catch on the forwarded request —
+# but the forward round-trip would have happened. With the probe, the
+# forward never fires.
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "06. Seed CP1 with urn:V2; register CB→CP1 CSR on CB"
+echo "==================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+payload='{
+  "id": "urn:CSR:CBtoCP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "07. GET urn:V2 on CB with Via: 1.1 cp1-alias → proactive skip → 404"
+echo "==================================================================="
+# The probe learned that urn:CSR:CBtoCP1 points at cp1-alias. The
+# incoming Via already has cp1-alias, so forwarding would loop.
+swCurl --url /ngsi-ld/v1/entities/urn:V2 -H "Via: 1.1 cp1-alias"
+echo
+echo
+
+
+echo "08. GET urn:V2 on CB without Via → forward proceeds → 200"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+--EXPECT--
+01. GET /info/sourceIdentity on CB (default tenant)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "contextSourceAlias": "cb-alias",
+  "contextSourceTimeAt": REGEX(".*")
+  "contextSourceUptime": REGEX(".*"),
+  "id": "urn:ngsi-ld:ContextSource:cb-alias",
+  "type": "ContextSourceIdentity"
+}
+
+
+
+02. GET /info/sourceIdentity on CP1
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "contextSourceAlias": "cp1-alias",
+  "contextSourceTimeAt": REGEX(".*")
+  "contextSourceUptime": REGEX(".*"),
+  "id": "urn:ngsi-ld:ContextSource:cp1-alias",
+  "type": "ContextSourceIdentity"
+}
+
+
+
+03. GET /info/sourceIdentity on CB with tenant t1
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "contextSourceAlias": "cb-alias",
+  "contextSourceTimeAt": REGEX(".*")
+  "contextSourceUptime": REGEX(".*"),
+  "id": "urn:ngsi-ld:ContextSource:cb-alias",
+  "type": "ContextSourceIdentity"
+}
+
+
+
+04. Register self-pointing CSR on CB (endpoint = CB's own URL)
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Self
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. GET urn:V1 on CB → proactive skip of self-pointing CSR → 404
+================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. Seed CP1 with urn:V2; register CB→CP1 CSR on CB
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CBtoCP1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. GET urn:V2 on CB with Via: 1.1 cp1-alias → proactive skip → 404
+===================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V2' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. GET urn:V2 on CB without Via → forward proceeds → 200
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

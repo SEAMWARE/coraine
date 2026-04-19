@@ -127,6 +127,10 @@ bool deleteEntity(void)
         if (csr->endpoint == NULL)
           continue;
 
+        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))
+          continue;
+
         if (!ldRegOpSupported(csr, "deleteEntity"))
         {
           if (!opConflict[g])

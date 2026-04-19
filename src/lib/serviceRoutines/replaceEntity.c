@@ -350,6 +350,10 @@ bool replaceEntity(void)
         if (csr->endpoint == NULL)
           continue;
 
+        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))
+          continue;
+
         bool opSupported = ldRegOpSupported(csr, "replaceEntity");
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
