@@ -138,6 +138,8 @@ echo "11. Exclusive reg: CB→CP1 for Sensor → query Sensor returns CP1's data
 echo "======================================================================="
 swBrokerStart -role CP2
 sleep 1
+# Re-seed CP2's V5 — ramdb wipes on restart, mongoc keeps it.
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}' > /dev/null 2>&1
 swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":25}}'
 echo
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
@@ -567,7 +569,7 @@ Content-Length: 0
 
 
 
-4
+5
 
 
 14. entityMap=true → response includes NGSILD-EntityMap header

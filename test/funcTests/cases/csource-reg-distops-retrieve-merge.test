@@ -114,15 +114,15 @@ echo
 echo
 
 
-echo "07. PATCH local V1 to add a stale speed"
-echo "========================================="
+echo "07. PATCH local V1 to add a stale speed (?local bypasses dispatch)"
+echo "=================================================================="
 payload='{
   "speed": {
     "type": "Property",
     "value": 99
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' --payload "$payload"
 echo
 echo
 
@@ -254,8 +254,8 @@ Content-Length: REGEX(\d+)
 
 
 
-07. PATCH local V1 to add a stale speed
-=========================================
+07. PATCH local V1 to add a stale speed (?local bypasses dispatch)
+==================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
