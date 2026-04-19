@@ -243,7 +243,7 @@ errors), `entity_replace_errors.test` (17 cases — one per validator class),
 
 ### 7. POST /ngsi-ld/v1/entities/{entityId}/attrs — Append Attributes
 
-**Status: Complete (ramdb only; mongoc impl pending)**
+**Status: Complete**
 
 Implements Append Attributes per § 5.6.3. Fragment walked per top-level
 attribute and per dsKey-keyed instance: if target has the same
@@ -277,7 +277,8 @@ format.
 | Per-RegistrationInfo slice via `ldEntityFragmentForInfo` | Done |
 | op-check on `appendAttrs` (exclusive/redirect → notUpdated) | Done |
 | Via loop detect + per-CSR proactive skip | Done |
-| mongoc `entityAttrsSet` implementation | **Not done** |
+| swRamDB `entityAttrsSet` — in-place tree mutation | Done |
+| mongoc `entityAttrsSet` — fetch + apply + `$set` of touched attrs only | Done |
 
 Functional tests: `post_entity_attrs.test` (core: overwrite,
 noOverwrite, partial/full conflicts, 404),
@@ -475,14 +476,18 @@ Subscription operations:
 
 Plus: `tenantSetup`, `geoMatchFunc`, `versionInfo`, `init`, `close`.
 
-New endpoints will require extending the `DbDriver` interface with:
-- `entityAppendAttrs` (POST attrs)
-- `entityUpdateAttrs` (PATCH attrs)
-- `attrUpdate` (PATCH attr)
-- `attrDelete` (DELETE attr)
-- `attrReplace` (PUT attr)
-- Registration CRUD
-- Temporal CRUD (if supported)
+Already added: `entityAttrsSet` — used by POST /entities/{id}/attrs.
+It's a plain "apply this fragment's attrs/instances to the target
+entity (add-or-replace per attrName+dsKey)" primitive, not a merge
+(no RFC 7396 recursion, no null-delete). Available in both swRamDB
+and mongoc.
+
+Future endpoints that may need new ops:
+- `attrUpdate` (PATCH attr) — could reuse `entityAttrsSet` with a
+  single-attr fragment if the semantic fits.
+- `attrDelete` (DELETE attr) — specialized.
+- `attrReplace` (PUT attr) — could reuse `entityAttrsSet`.
+- Temporal CRUD (if supported).
 
 ---
 

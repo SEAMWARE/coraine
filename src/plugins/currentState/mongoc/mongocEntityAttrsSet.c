@@ -6,10 +6,12 @@
 // Copyright 2026 Seamware
 //
 // mongoc entityAttrsSet: fetch the current document, apply
-// ldEntityAttrsSet in memory, then write a surgical $set of the
-// touched attribute wrappers plus entity-level modifiedAt / type /
-// scope. Append Entity Attributes never deletes, so no $unset is
-// needed.
+// ldEntityAttrsSet in memory, then $set only the attribute wrappers
+// ldEntityAttrsSet actually touched (plus the entity-level
+// modifiedAt / type / scope). Append never deletes — no $unset.
+//
+// Writing only touched attrs (not the whole document) matters for
+// mongoc, where each write is a wire op.
 //
 
 #include <string.h>                                    // strcmp, strlen
