@@ -27,6 +27,8 @@
 #include "swJsonld/swldInit.h"                        // swldCoreContext
 
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/LdRegCache.h"                      // LdRegCache
+#include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -86,6 +88,9 @@ bool getType(void)
             "type discovery failed");
     return true;
   }
+
+  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+    ldDiscoveryRegAugmentTypes(aggregated, (LdRegCache*) tenantP->regCacheP, true);
 
   KjNode* entry = NULL;
   for (KjNode* e = aggregated->value.firstChildP; e != NULL; e = e->next)

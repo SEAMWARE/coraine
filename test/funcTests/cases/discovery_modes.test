@@ -1,0 +1,256 @@
+#
+# FILE            discovery_modes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Discovery endpoints - ?local vs ?noForward vs default modes (§ 5.7.11)
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# Local entity: Vehicle with speed.
+# CSR declaring a Sensor with temp (Property) + ownedBy (Relationship).
+#
+# Expectations per mode:
+#   ?local=true    → only Vehicle / only speed
+#   ?noForward=true → Vehicle + Sensor (from CSR metadata)
+#   default         → same as noForward today (mode 3 forwarding to
+#                    follow in a later commit)
+#
+
+echo "01. Seed local Vehicle"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50}}'
+echo
+echo
+
+
+echo "02. Register CSR declaring Sensor/temp/ownedBy"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:CSR:S",
+  "type":"ContextSourceRegistration",
+  "endpoint":"http://localhost:9999",
+  "mode":"inclusive",
+  "information":[
+    {
+      "entities":[{"type":"Sensor"}],
+      "propertyNames":["temp"],
+      "relationshipNames":["ownedBy"]
+    }
+  ]
+}'
+echo
+echo
+
+
+echo "03. GET /types?local=true → only local Vehicle"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/types --urlParams 'local=true'
+echo
+echo
+
+
+echo "04. GET /types?noForward=true → Vehicle + Sensor"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/types --urlParams 'noForward=true'
+echo
+echo
+
+
+echo "05. GET /types/Sensor?noForward=true → EntityTypeInfo from CSR"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/types/Sensor --urlParams 'noForward=true'
+echo
+echo
+
+
+echo "06. GET /types/Sensor?local=true → 404 (not local)"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/types/Sensor --urlParams 'local=true'
+echo
+echo
+
+
+echo "07. GET /attributes/temp?noForward=true → Attribute from CSR"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/attributes/temp --urlParams 'noForward=true'
+echo
+echo
+
+
+echo "08. GET /attributes/ownedBy?noForward=true → Relationship"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/attributes/ownedBy --urlParams 'noForward=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed local Vehicle
+======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR declaring Sensor/temp/ownedBy
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:S
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. GET /types?local=true → only local Vehicle
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle"
+  ]
+}
+
+
+
+04. GET /types?noForward=true → Vehicle + Sensor
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle",
+    "Sensor"
+  ]
+}
+
+
+
+05. GET /types/Sensor?noForward=true → EntityTypeInfo from CSR
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeDetails": [
+    {
+      "attributeName": "temp",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "ownedBy",
+      "attributeTypes": [
+        "Relationship"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/ownedBy",
+      "type": "Attribute"
+    }
+  ],
+  "entityCount": 0,
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/Sensor",
+  "type": "EntityTypeInfo",
+  "typeName": "Sensor"
+}
+
+
+
+06. GET /types/Sensor?local=true → 404 (not local)
+==================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity type 'Sensor' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET /attributes/temp?noForward=true → Attribute from CSR
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeCount": 0,
+  "attributeName": "temp",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+  "type": "Attribute",
+  "typeNames": [
+    "Sensor"
+  ]
+}
+
+
+
+08. GET /attributes/ownedBy?noForward=true → Relationship
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeCount": 0,
+  "attributeName": "ownedBy",
+  "attributeTypes": [
+    "Relationship"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/ownedBy",
+  "type": "Attribute",
+  "typeNames": [
+    "Sensor"
+  ]
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

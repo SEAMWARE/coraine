@@ -25,6 +25,8 @@
 #include "swJsonld/swldInit.h"                        // swldCoreContext
 
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/LdRegCache.h"                      // LdRegCache
+#include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentAttrs
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -70,6 +72,9 @@ bool getAttribute(void)
             "attribute discovery failed");
     return true;
   }
+
+  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+    ldDiscoveryRegAugmentAttrs(aggregated, (LdRegCache*) tenantP->regCacheP, true);
 
   KjNode* entry = NULL;
   for (KjNode* e = aggregated->value.firstChildP; e != NULL; e = e->next)

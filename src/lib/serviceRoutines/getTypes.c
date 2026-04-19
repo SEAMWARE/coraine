@@ -27,6 +27,8 @@
 
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_*
+#include "swNgsild/LdRegCache.h"                      // LdRegCache
+#include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -75,6 +77,14 @@ bool getTypes(void)
             "type discovery failed");
     return true;
   }
+
+  //
+  // Mode 2 (?noForward=true) or default (mode 3 — forwarding not yet
+  // wired up): augment with CSR-declared types/attrs. Mode 1
+  // (?local=true) stops at local data.
+  //
+  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+    ldDiscoveryRegAugmentTypes(aggregated, (LdRegCache*) tenantP->regCacheP, details);
 
   SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
 
