@@ -171,7 +171,7 @@ char*          apiNames     = NULL;
 unsigned int   prettySpaces = 0;
 bool           localOnly    = false;
 bool           fg           = false;
-int            poolSize     = 6;
+int            poolSize     = 32;
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          userContext  = NULL;
@@ -184,7 +184,7 @@ static KArg kargV[] =
   { "--database",           "-db",          KaString, _vp &dbName,       KaOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 6,         _vp 1, _vp 200,  "MHD thread pool size" },
+  { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
   { "--localOnly",          "-local",       KaBool,   _vp &localOnly,    KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "local-only mode (no distributed operations)" },
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
@@ -345,10 +345,29 @@ static void apiPluginsInit(void)
 // Called by the pernot loop thread. Builds a DbQueryFilter from the
 // pernot item's entity selectors and calls db.entityQuery.
 //
+// db.entityQuery (mongoc, ramdb) allocates through swRest.kjsonP/kalloc.
+// swRest is __thread; the pernot thread's copy is zero-initialised so we
+// bring it up to working state on first call. Between pernot cycles we
+// reset it — the produced entity array is cloned by the caller (through
+// ldEntityToApi onto its own kaBuffer) before we return, so nothing
+// outside this function holds pointers into swRest afterwards.
+//
 static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* allocP)
 {
   if (db.entityQuery == NULL)
     return NULL;
+
+  static __thread bool pernotSwRestInited = false;
+  if (!pernotSwRestInited)
+  {
+    kaBufferInit(&swRest.kalloc, swRest.kallocBuffer, sizeof(swRest.kallocBuffer), 256 * 1024, NULL, "pernot");
+    swRest.kjsonP = kjBufferCreate(&swRest.kjson, &swRest.kalloc);
+    pernotSwRestInited = true;
+  }
+  else
+  {
+    kaBufferReset(&swRest.kalloc, KFALSE);
+  }
 
   // Build a minimal filter from the pernot item's entity selectors
   DbQueryFilter filter = {0};
