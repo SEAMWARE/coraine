@@ -241,7 +241,50 @@ Functional tests: `entity_replace.test` (8 cases — happy path + PUT-specific
 errors), `entity_replace_errors.test` (17 cases — one per validator class),
 `csource-reg-distops-replace-{exclusive,misc,errors}.test` (3 distops files).
 
-### 7. Subscriptions (POST / GET / PATCH / DELETE) + notifications
+### 7. POST /ngsi-ld/v1/entities/{entityId}/attrs — Append Attributes
+
+**Status: Complete (ramdb only; mongoc impl pending)**
+
+Implements Append Attributes per § 5.6.3. Fragment walked per top-level
+attribute and per dsKey-keyed instance: if target has the same
+(attrName, dsKey), replace preserving createdAt; else append. The
+`?options=noOverwrite` URL parameter flips the "replace" branch into a
+silent skip per (attrName, dsKey) — classified in the service routine
+before the DB call, with conflicts surfaced in the UpdateResult body.
+
+Generic primitive: `db.entityAttrsSet(tenantP, id, fragmentDb,
+overwriteScope, ts, report)` — DB-plugin-level "apply fragment to
+entity" op, reusable by any endpoint that grafts a fragment. Knows
+nothing about noOverwrite (caller filter) or the UpdateResult response
+format.
+
+| Feature | Status |
+|---------|--------|
+| Append new Attribute | Done |
+| Overwrite existing Attribute instance (default) | Done |
+| `?options=noOverwrite` — preserve existing, report in notUpdated | Done |
+| Multi-datasetId: same attr different dsKey → append | Done |
+| Type union (new types added to target's type array) | Done |
+| Scope replacement (overwrite allowed) / union (noOverwrite) | Done |
+| 204 No Content on full success | Done |
+| 207 Multi-Status with UpdateResult body (§ 5.2.18) | Done |
+| 404 Not Found (entity absent + no CSR match) | Done |
+| Subscriptions / notifications on append | Done |
+| `type` URL param (distops disambiguation) | Done |
+| `local=true` URL param — bypass distops dispatch | Done |
+| DistOps — exclusive/redirect chop + forward via POST/attrs | Done |
+| DistOps — inclusive clone + forward via POST/attrs | Done |
+| Per-RegistrationInfo slice via `ldEntityFragmentForInfo` | Done |
+| op-check on `appendAttrs` (exclusive/redirect → notUpdated) | Done |
+| Via loop detect + per-CSR proactive skip | Done |
+| mongoc `entityAttrsSet` implementation | **Not done** |
+
+Functional tests: `post_entity_attrs.test` (core: overwrite,
+noOverwrite, partial/full conflicts, 404),
+`csource-reg-distops-append-exclusive.test` (distops: exclusive chop +
+forward).
+
+### 8. Subscriptions (POST / GET / PATCH / DELETE) + notifications
 
 **Status: Done.** CRUD, in-memory matcher (q, geoQ, scopeQ, entity selector
 with id/idPattern/type), throttling, expiration, status recomputation,
@@ -311,7 +354,6 @@ Known residuals (non-blocking):
 
 | Endpoint | Spec Section | Complexity | Estimate |
 |----------|-------------|------------|----------|
-| POST /entities/{entityId}/attrs | 5.5.7 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs | 5.5.8 | Medium | 2 days |
 | PATCH /entities/{entityId}/attrs/{attrId} | 5.5.9 | Medium | 1-2 days |
 | DELETE /entities/{entityId}/attrs/{attrId} | 5.5.10 | Low | 1 day |
