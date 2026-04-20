@@ -21,6 +21,10 @@
 #include "serviceRoutines/postEntityAttrs.h"     // postEntityAttrs
 #include "serviceRoutines/patchEntityAttrs.h"    // patchEntityAttrs
 #include "serviceRoutines/purgeEntities.h"       // purgeEntities
+#include "serviceRoutines/getEntityAttr.h"       // getEntityAttr
+#include "serviceRoutines/patchEntityAttr.h"     // patchEntityAttr
+#include "serviceRoutines/putEntityAttr.h"       // putEntityAttr
+#include "serviceRoutines/deleteEntityAttr.h"    // deleteEntityAttr
 #include "serviceRoutines/getTypes.h"            // getTypes
 #include "serviceRoutines/getType.h"             // getType
 #include "serviceRoutines/getAttributes.h"       // getAttributes
@@ -63,6 +67,10 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY },
   { SwVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS  },
   { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS },
+  { SwVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR    },
+  { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR  },
+  { SwVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR    },
+  { SwVerbDelete, "/ngsi-ld/v1/entities/*/attrs/*", deleteEntityAttr, LD_PARAMS_DELETE_ENTITY_ATTR },
   { SwVerbDelete, "/ngsi-ld/v1/entities",         purgeEntities,    LD_PARAMS_PURGE_ENTITIES     },
 
   // Discovery (§ 5.7.5 – § 5.7.10)

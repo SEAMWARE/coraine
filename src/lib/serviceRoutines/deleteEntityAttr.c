@@ -1,0 +1,369 @@
+//
+// FILE            deleteEntityAttr.c
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+// DELETE /ngsi-ld/v1/entities/{entityId}/attrs/{attrId}
+//
+// § 5.6.5 Delete Attribute. Removes an Attribute (or a specific instance)
+// from an Entity.
+//   - ?deleteAll=true → remove the Attribute and all its instances
+//   - ?datasetId=X    → remove only that instance
+//   - neither         → remove the default instance ("@none")
+//
+// Forwarding propagates the same URL (incl. query string) to matching CSRs
+// with op "deleteAttrs".
+//
+
+#include <stddef.h>                                  // NULL
+#include <string.h>                                  // strcmp, strlen, memcpy, strchr
+#include <stdlib.h>                                  // free
+#include <stdio.h>                                   // snprintf
+
+#include "swRest/SwRestState.h"                      // swRest
+#include "swRest/SwRestVerb.h"                       // SwVerbDelete
+
+#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd, kjArray
+#include "kjson/kjLookup.h"                          // kjLookup
+
+#include "swJsonld/swldExpand.h"                     // swldExpand
+#include "swJsonld/swldInit.h"                       // swldCoreContext
+
+#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_NGSILD_NULL
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
+#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/ldDistOp.h"                       // ldDistOp*
+
+#include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "db/Tenant.h"                               // Tenant
+
+#include "serviceRoutines/deleteEntityAttr.h"        // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// attrUrl - build the forward URL including any ?datasetId / ?deleteAll.
+//
+static char* attrUrl(const char* endpoint, const char* entityId, const char* attrWild)
+{
+  const char* p1 = "/ngsi-ld/v1/entities/";
+  const char* p2 = "/attrs/";
+  const char* dsKey   = swNgsild.datasetId;   // may be NULL
+  bool        delAll  = swNgsild.deleteAll;
+
+  int lenE  = strlen(endpoint);
+  int lenP1 = strlen(p1);
+  int lenId = strlen(entityId);
+  int lenP2 = strlen(p2);
+  int lenA  = strlen(attrWild);
+  int lenDs = (dsKey != NULL) ? strlen(dsKey) : 0;
+  int extra = (dsKey != NULL ? 1 + 10 + lenDs : 0) + (delAll ? 1 + 15 : 0);
+  //   "?datasetId=" = 11; "?deleteAll=true" = 15; "&..." sep = 1 each.
+
+  char* buf = (char*) kaAlloc(&swRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + extra + 1);
+  char* p = buf;
+  memcpy(p, endpoint, lenE); p += lenE;
+  memcpy(p, p1, lenP1);      p += lenP1;
+  memcpy(p, entityId, lenId); p += lenId;
+  memcpy(p, p2, lenP2);      p += lenP2;
+  memcpy(p, attrWild, lenA); p += lenA;
+
+  bool first = true;
+  if (dsKey != NULL)
+  {
+    *p++ = first ? '?' : '&'; first = false;
+    memcpy(p, "datasetId=", 10); p += 10;
+    memcpy(p, dsKey, lenDs);     p += lenDs;
+  }
+  if (delAll)
+  {
+    *p++ = first ? '?' : '&'; first = false;
+    memcpy(p, "deleteAll=true", 14); p += 14;
+  }
+  *p = 0;
+  return buf;
+}
+
+
+
+static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
+{
+  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+  {
+    if (eiP->id == NULL && eiP->idPatternList == NULL) return true;
+    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0) return true;
+  }
+  return false;
+}
+
+static bool infoCoversAttr(LdRegInfo* riP, const char* attrIri)
+{
+  if (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL)
+    return true;
+  for (int i = 0; riP->propertyNamesV != NULL && riP->propertyNamesV[i] != NULL; i++)
+    if (strcmp(riP->propertyNamesV[i], attrIri) == 0) return true;
+  for (int i = 0; riP->relationshipNamesV != NULL && riP->relationshipNamesV[i] != NULL; i++)
+    if (strcmp(riP->relationshipNamesV[i], attrIri) == 0) return true;
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// applyLocalDelete - remove attr / instance(s) from target, respecting params.
+//
+// Returns true if any change was made. Populates a report entry the caller
+// may use to drive subscription notifications.
+//
+static bool applyLocalDelete(KjNode* entityP, const char* attrIri)
+{
+  KjNode* attrP = kjLookup(entityP, attrIri);
+  if (attrP == NULL)
+    return false;
+
+  if (swNgsild.deleteAll || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
+  {
+    kjChildRemove(entityP, attrP);
+    return true;
+  }
+
+  const char* dsKey = swNgsild.datasetId;
+  if (dsKey == NULL) dsKey = "@none";
+
+  KjNode* instP = kjLookup(attrP, dsKey);
+  if (instP == NULL)
+    return false;
+
+  kjChildRemove(attrP, instP);
+
+  // If the wrapper became empty after removing the only instance, drop it.
+  if (attrP->value.firstChildP == NULL)
+    kjChildRemove(entityP, attrP);
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// deleteEntityAttr -
+//
+bool deleteEntityAttr(void)
+{
+  if (swNgsild.contextError)
+    return true;
+
+  const char* entityId = swRest.in.wildcard[0];
+  const char* attrWild = swRest.in.wildcard[1];
+
+  ldContextResolve();
+
+  SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+  const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  if (attrIri == NULL) attrIri = attrWild;
+
+  //
+  // § 5.6.5.4: "If the target Attribute is scope, remove the scope Attribute
+  // from the target Entity." No error — "scope" is a legitimate delete target.
+  //
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+
+  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  bool    anySucceeded = false;
+
+  const char* ownAlias = (tenantP != NULL)
+                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
+                         : NULL;
+
+  bool dispatch = (swNgsild.local == false
+                   && tenantP != NULL
+                   && tenantP->regCacheP != NULL);
+
+  if (dispatch && ldDistOpLoopDetected(ownAlias))
+    dispatch = false;
+
+  bool localApply = true;
+
+  if (dispatch)
+  {
+    LdRegCacheItem** exclV  = NULL;
+    LdRegCacheItem** redirV = NULL;
+    LdRegCacheItem** inclV  = NULL;
+    int exclN  = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                  entityId, NULL, NULL,
+                                                  LdRegModeExclusive, &exclV);
+    int redirN = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                  entityId, NULL, NULL,
+                                                  LdRegModeRedirect, &redirV);
+    int inclN  = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                  entityId, NULL, NULL,
+                                                  LdRegModeInclusive, &inclV);
+
+    LdRegCacheItem** groups[] = { exclV,       redirV,     inclV      };
+    int              counts[] = { exclN,       redirN,     inclN      };
+    const char*      tag[]    = { "exclusive", "redirect", "inclusive" };
+    bool             opConf[] = { true,        true,       false      };
+    bool             detach[] = { true,        true,       false      };
+
+    for (int g = 0; g < 3; g++)
+    {
+      for (int i = 0; i < counts[g]; i++)
+      {
+        LdRegCacheItem* csr = groups[g][i];
+        if (csr->endpoint == NULL) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+
+        bool matched = false;
+        for (LdRegInfo* riP = csr->infoV; riP != NULL && !matched; riP = riP->next)
+          if (entityInfoCoversId(riP, entityId) && infoCoversAttr(riP, attrIri))
+            matched = true;
+
+        if (!matched) continue;
+
+        if (!ldRegOpSupported(csr, "deleteAttrs"))
+        {
+          if (!opConf[g]) continue;
+          char detail[256];
+          snprintf(detail, sizeof(detail),
+                   "%s registration does not support deleteAttrs", tag[g]);
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+          continue;
+        }
+
+        const char* upErr  = NULL;
+        int         upCode = ldDistOpSend(csr, SwVerbDelete,
+                                          attrUrl(csr->endpoint, entityId, attrWild),
+                                          NULL, 0, ownAlias, &upErr);
+
+        if (upCode >= 200 && upCode < 300)
+        {
+          anySucceeded = true;
+          if (detach[g]) localApply = false;
+        }
+        else if (upCode != 404)
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                ldDistOpForwardFailureReason(upCode, upErr), csr->regId);
+      }
+    }
+
+    if (exclV  != NULL) free(exclV);
+    if (redirV != NULL) free(redirV);
+    if (inclV  != NULL) free(inclV);
+  }
+
+  //
+  // Local apply — retrieve entity, mutate in memory, write back via
+  // entityReplace. We don't have a DB op dedicated to attribute removal,
+  // so a replace with the modified document is the simplest portable way.
+  //
+  if (localApply)
+  {
+    KjNode* targetEntity = NULL;
+    int     rr           = db.entityRetrieve(tenantP, entityId, &targetEntity);
+
+    if (rr == DB_NOT_FOUND)
+    {
+      if (!anySucceeded)
+      {
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                "entity '%s' not found", entityId);
+        return true;
+      }
+    }
+    else if (rr != DB_OK)
+    {
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+              "database error retrieving entity '%s'", entityId);
+      return true;
+    }
+    else
+    {
+      if (kjLookup(targetEntity, attrIri) == NULL)
+      {
+        if (!anySucceeded)
+        {
+          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                  "attribute '%s' not found in entity '%s'", attrWild, entityId);
+          return true;
+        }
+      }
+      else
+      {
+        bool changed = applyLocalDelete(targetEntity, attrIri);
+
+        if (changed)
+        {
+          if (db.entityReplace == NULL)
+          {
+            ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+                    "Delete Attribute not supported by this DB plugin");
+            return true;
+          }
+
+          KjNode* oldEntity = NULL;
+          int r = db.entityReplace(tenantP, entityId, targetEntity, &oldEntity);
+
+          if (r != DB_OK && r != DB_NOT_FOUND)
+          {
+            ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                    "database error deleting attribute '%s' on entity '%s'",
+                    attrWild, entityId);
+            return true;
+          }
+
+          if (r == DB_OK)
+          {
+            anySucceeded = true;
+
+            if (tenantP != NULL && tenantP->subCacheP != NULL)
+              ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
+                            LdNotifyEntityUpdate, NULL);
+          }
+        }
+      }
+    }
+  }
+
+  int errorsCount = 0;
+  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+
+  if (!anySucceeded && errorsCount == 0)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+            "entity '%s' not found", entityId);
+    return true;
+  }
+
+  if (errorsCount == 0)
+  {
+    swRest.out.httpStatusCode = 204;
+    return true;
+  }
+
+  KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
+  if (anySucceeded)
+    kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
+
+  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+  kjChildAdd(respBodyP, successArrayP);
+  kjChildAdd(respBodyP, errorsArrayP);
+
+  swRest.out.responseTree   = respBodyP;
+  swRest.out.httpStatusCode = anySucceeded ? 207 : 409;
+  return true;
+}

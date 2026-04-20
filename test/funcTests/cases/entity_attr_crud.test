@@ -1,0 +1,461 @@
+#
+# FILE            entity_attr_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Per-attribute CRUD on /entities/{id}/attrs/{attrId} — § 5.6.4 / § 5.6.5 / § 5.6.19 + pre-emptive GET
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Seed V1 (Vehicle) with speed + color + brand
+# 02. GET /attrs/speed → 200 plain Property
+# 03. PATCH /attrs/speed: {value:80} → 204
+# 04. GET /attrs/speed → value 80
+# 05. PUT /attrs/color: replacement Property → 204
+# 06. GET /attrs/color → replaced
+# 07. DELETE /attrs/brand → 204
+# 08. GET /attrs/brand → 404
+# 09. GET /attrs/unknown → 404
+# 10. DELETE /attrs/brand again → 404 (gone)
+# 11. PATCH /attrs/scope → 400 (spec § 5.6.4.4)
+# 12. PUT   /attrs/scope → 400 (spec § 5.6.19.4)
+# 13. PATCH on missing entity → 404
+# 14. PATCH on missing attr → 404
+#
+
+echo "01. Seed V1 (Vehicle) with speed + color + brand"
+echo "================================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":50},
+  "color": {"type":"Property","value":"red"},
+  "brand": {"type":"Property","value":"Acme"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /attrs/speed → 200 plain Property"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed
+echo
+echo
+
+
+echo "03. PATCH /attrs/speed: value=80 → 204"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80}'
+echo
+echo
+
+
+echo "04. GET /attrs/speed → 80"
+echo "========================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed
+echo
+echo
+
+
+echo "05. PUT /attrs/color — replace Property → 204"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color -X PUT --payload '{"type":"Property","value":"green"}'
+echo
+echo
+
+
+echo "06. GET /attrs/color → green"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color
+echo
+echo
+
+
+echo "07. DELETE /attrs/brand → 204"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/brand -X DELETE
+echo
+echo
+
+
+echo "08. GET /attrs/brand → 404"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/brand
+echo
+echo
+
+
+echo "09. GET /attrs/unknown → 404"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/unknown
+echo
+echo
+
+
+echo "10. DELETE /attrs/brand again → 404"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/brand -X DELETE
+echo
+echo
+
+
+echo "11. PATCH /attrs/scope → 400"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/scope -X PATCH --payload '{"value":"/foo"}'
+echo
+echo
+
+
+echo "12. PUT /attrs/scope → 400"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/scope -X PUT --payload '{"value":"/foo"}'
+echo
+echo
+
+
+echo "13. PATCH on missing entity → 404"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities/urn:NoSuch/attrs/speed -X PATCH --payload '{"value":1}'
+echo
+echo
+
+
+echo "14. PATCH on missing attr → 404"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/noSuchAttr -X PATCH --payload '{"value":1}'
+echo
+echo
+
+
+echo "15. Seed multi-instance speed on V2 (default + datasetId=ds:A)"
+echo "=============================================================="
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": [
+    {"type":"Property","value":50},
+    {"type":"Property","value":80,"datasetId":"ds:A"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "16. GET /attrs/speed?datasetId=ds:A → 80"
+echo "========================================"
+swCurl --url "/ngsi-ld/v1/entities/urn:V2/attrs/speed?datasetId=ds:A"
+echo
+echo
+
+
+echo "17. DELETE /attrs/speed?datasetId=ds:A → 204 (ds:A instance)"
+echo "============================================================"
+swCurl --url "/ngsi-ld/v1/entities/urn:V2/attrs/speed?datasetId=ds:A" -X DELETE
+echo
+echo
+
+
+echo "18. GET V2 — speed default instance only"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+echo "19. DELETE /attrs/speed?deleteAll=true → 204"
+echo "============================================"
+swCurl --url "/ngsi-ld/v1/entities/urn:V2/attrs/speed?deleteAll=true" -X DELETE
+echo
+echo
+
+
+echo "20. GET V2 — no speed"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 (Vehicle) with speed + color + brand
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. GET /attrs/speed → 200 plain Property
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "type": "Property",
+  "value": 50
+}
+
+
+
+03. PATCH /attrs/speed: value=80 → 204
+======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET /attrs/speed → 80
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "type": "Property",
+  "value": 80
+}
+
+
+
+05. PUT /attrs/color — replace Property → 204
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET /attrs/color → green
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "type": "Property",
+  "value": "green"
+}
+
+
+
+07. DELETE /attrs/brand → 204
+=============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET /attrs/brand → 404
+==========================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'brand' not found in entity 'urn:V1'",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. GET /attrs/unknown → 404
+============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'unknown' not found in entity 'urn:V1'",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. DELETE /attrs/brand again → 404
+===================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'brand' not found in entity 'urn:V1'",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. PATCH /attrs/scope → 400
+============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "scope cannot be modified via Partial Attribute Update",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. PUT /attrs/scope → 400
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "scope cannot be replaced via Replace Attribute",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. PATCH on missing entity → 404
+=================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:NoSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+14. PATCH on missing attr → 404
+===============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'noSuchAttr' not found in entity 'urn:V1'",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+15. Seed multi-instance speed on V2 (default + datasetId=ds:A)
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+16. GET /attrs/speed?datasetId=ds:A → 80
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "datasetId": "ds:A",
+  "type": "Property",
+  "value": 80
+}
+
+
+
+17. DELETE /attrs/speed?datasetId=ds:A → 204 (ds:A instance)
+============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+18. GET V2 — speed default instance only
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "type": "Vehicle"
+}
+
+
+
+19. DELETE /attrs/speed?deleteAll=true → 204
+============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+20. GET V2 — no speed
+=====================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V2",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
