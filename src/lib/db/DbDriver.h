@@ -84,6 +84,22 @@ typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode
 //
 typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
 
+//
+// DbEntityBulkUpdateFunc - batch replace of N already-merged entities in a
+// single DB round-trip where the driver supports it (mongoc: bulk_write
+// with replace_one operations).
+//
+// entitiesArr is a KjArray of DB-format entities — each one the final
+// merged state as computed by the service routine (post multi-instance
+// merge). The caller has already run ldApiEntityToDbModel and each
+// entity carries its id (or _id).
+//
+// resultsV is a caller-allocated int[N] populated per-entity with one
+// of: DB_OK on success, DB_NOT_FOUND if the id doesn't exist (batch
+// update requires pre-existence), DB_ERR on anything else.
+//
+typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
@@ -171,6 +187,7 @@ typedef struct DbDriver
   DbCloseFunc             close;
   DbEntityCreateFunc      entityCreate;
   DbEntityBulkCreateFunc  entityBulkCreate;
+  DbEntityBulkUpdateFunc  entityBulkUpdate;
   DbEntityRetrieveFunc    entityRetrieve;
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;

@@ -19,6 +19,7 @@
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbTenantStore
 #include "currentState/swRamDB/ramdbEntityCreate.h"   // ramdbEntityCreate
 #include "currentState/swRamDB/ramdbEntityBulkCreate.h" // ramdbEntityBulkCreate
+#include "currentState/swRamDB/ramdbEntityBulkUpdate.h" // ramdbEntityBulkUpdate
 #include "currentState/swRamDB/ramdbEntityRetrieve.h" // ramdbEntityRetrieve
 #include "currentState/swRamDB/ramdbEntityQuery.h"    // ramdbEntityQuery
 #include "currentState/swRamDB/ramdbEntityDelete.h"   // ramdbEntityDelete
@@ -86,6 +87,7 @@ void dbRegister(DbDriver* driverP)
   driverP->close           = ramdbClose;
   driverP->entityCreate     = ramdbEntityCreate;
   driverP->entityBulkCreate = ramdbEntityBulkCreate;
+  driverP->entityBulkUpdate = ramdbEntityBulkUpdate;
   driverP->entityRetrieve  = ramdbEntityRetrieve;
   driverP->entityQuery     = ramdbEntityQuery;
   driverP->entityDelete    = ramdbEntityDelete;

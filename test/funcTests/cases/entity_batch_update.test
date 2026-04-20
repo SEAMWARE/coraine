@@ -1,0 +1,309 @@
+#
+# FILE            entity_batch_update.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Update (§ 5.6.8). Multi-instance per id collapses in
+# array order — first is oldest, last is newest; merge runs in order
+# and the final merged state hits the DB via one bulk write.
+#
+--NAME--
+POST /entityOperations/update — Batch Entity Update (§ 5.6.8)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed — create V1, V2, V3"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "02. Batch Update V1.speed=11 + V2.speed=22 → 204 No Content"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":11}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":22}}
+]'
+echo
+echo
+
+
+echo "03. GET V1 — speed=11, color=red still there (merge, not replace)"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "04. Multi-instance V1 in one batch — array order wins"
+echo "====================================================="
+# V1 appears three times: 100 → 200 → 300; newest (300) wins.
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}
+]'
+echo
+echo
+
+
+echo "05. GET V1 — speed=300 (last instance)"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "06. Update including a non-existing entity → 207 partial"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":222}},
+  {"id":"urn:VX","type":"Vehicle","speed":{"type":"Property","value":999}}
+]'
+echo
+echo
+
+
+echo "07. GET V2 — speed=222 (update applied)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+echo
+echo
+
+
+echo "08. All ids missing → 409"
+echo "========================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:missingA","type":"Vehicle","speed":{"type":"Property","value":1}},
+  {"id":"urn:missingB","type":"Vehicle","speed":{"type":"Property","value":2}}
+]'
+echo
+echo
+
+
+echo "09. Empty array → 400"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[]'
+echo
+echo
+
+
+echo "10. null element → 400"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
+echo
+echo
+
+
+echo "11. Non-array body → 400"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '{"id":"urn:V1","type":"Vehicle"}'
+echo
+echo
+
+
+--EXPECT--
+01. Seed — create V1, V2, V3
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+02. Batch Update V1.speed=11 + V2.speed=22 → 204 No Content
+===========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET V1 — speed=11, color=red still there (merge, not replace)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "speed": 11,
+  "type": "Vehicle"
+}
+
+
+
+04. Multi-instance V1 in one batch — array order wins
+=====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET V1 — speed=300 (last instance)
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "speed": 300,
+  "type": "Vehicle"
+}
+
+
+
+06. Update including a non-existing entity → 207 partial
+=========================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 264
+
+{
+  "errors": [
+    {
+      "entityId": "urn:VX",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": [
+    "urn:V2"
+  ]
+}
+
+
+
+07. GET V2 — speed=222 (update applied)
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 58
+
+{
+  "id": "urn:V2",
+  "speed": 222,
+  "type": "Vehicle"
+}
+
+
+
+08. All ids missing → 409
+=========================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 470
+
+{
+  "errors": [
+    {
+      "entityId": "urn:missingA",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    },
+    {
+      "entityId": "urn:missingB",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+09. Empty array → 400
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "detail": "Batch Entity Update: input array is empty",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. null element → 400
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Batch Entity Update: null entry at position 1",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. Non-array body → 400
+========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Batch Entity Update body must be a JSON array",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
