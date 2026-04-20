@@ -1,0 +1,270 @@
+#
+# FILE            entity_batch_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /entityOperations/create — Batch Entity Creation (§ 5.6.7)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST batch of 3 valid entities → 201 with success[]
+# 02. GET /entities?type=Vehicle → all 3 present
+# 03. POST batch with one duplicate id against existing → 207 (partial)
+# 04. POST batch with in-batch duplicate → 207 (first-wins, second errors)
+# 05. POST batch with missing id on one → 207 (one error)
+# 06. POST empty array → 400
+# 07. POST null element in array → 400
+# 08. POST non-array body → 400
+#
+
+echo "01. POST batch of 3 → 201"
+echo "========================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "02. GET /entities?type=Vehicle → all 3"
+echo "======================================"
+swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id"
+echo
+echo
+
+
+echo "03. POST batch with duplicate id V1 → 207 partial"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle"},
+  {"id":"urn:V4","type":"Vehicle"}
+]'
+echo
+echo
+
+
+echo "04. POST batch with in-batch duplicate → first-wins + error for second"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V5","type":"Vehicle"},
+  {"id":"urn:V5","type":"Vehicle"}
+]'
+echo
+echo
+
+
+echo "05. POST batch with one invalid (no id) → 207"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V6","type":"Vehicle"},
+  {"type":"Vehicle"}
+]'
+echo
+echo
+
+
+echo "06. POST empty array → 400"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[]'
+echo
+echo
+
+
+echo "07. POST null element → 400"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{"id":"urn:V7","type":"Vehicle"}, null]'
+echo
+echo
+
+
+echo "08. POST non-array body → 400"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '{"id":"urn:V8","type":"Vehicle"}'
+echo
+echo
+
+
+--EXPECT--
+01. POST batch of 3 → 201
+=========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+02. GET /entities?type=Vehicle → all 3
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 10,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 20,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. POST batch with duplicate id V1 → 207 partial
+=================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "entity already exists",
+        "title": "Already Exists",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+      }
+    }
+  ],
+  "success": [
+    "urn:V4"
+  ]
+}
+
+
+
+04. POST batch with in-batch duplicate → first-wins + error for second
+======================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V5",
+      "error": {
+        "detail": "duplicate entity id within the same batch",
+        "title": "Already Exists",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+      }
+    }
+  ],
+  "success": [
+    "urn:V5"
+  ]
+}
+
+
+
+05. POST batch with one invalid (no id) → 207
+=============================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "",
+      "error": {
+        "detail": "Entity 'id' is mandatory for CreateEntity",
+        "title": "Bad Request",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": [
+    "urn:V6"
+  ]
+}
+
+
+
+06. POST empty array → 400
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Batch Entity Creation: input array is empty",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. POST null element → 400
+===========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Batch Entity Creation: null entry at position 1",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. POST non-array body → 400
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Batch Entity Creation body must be a JSON array",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

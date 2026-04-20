@@ -18,6 +18,7 @@
 #include "currentState/swRamDB/ramdbClose.h"          // ramdbClose
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbTenantStore
 #include "currentState/swRamDB/ramdbEntityCreate.h"   // ramdbEntityCreate
+#include "currentState/swRamDB/ramdbEntityBulkCreate.h" // ramdbEntityBulkCreate
 #include "currentState/swRamDB/ramdbEntityRetrieve.h" // ramdbEntityRetrieve
 #include "currentState/swRamDB/ramdbEntityQuery.h"    // ramdbEntityQuery
 #include "currentState/swRamDB/ramdbEntityDelete.h"   // ramdbEntityDelete
@@ -83,7 +84,8 @@ void dbRegister(DbDriver* driverP)
   driverP->args            = ramdbArgV;
   driverP->init            = ramdbInit;
   driverP->close           = ramdbClose;
-  driverP->entityCreate    = ramdbEntityCreate;
+  driverP->entityCreate     = ramdbEntityCreate;
+  driverP->entityBulkCreate = ramdbEntityBulkCreate;
   driverP->entityRetrieve  = ramdbEntityRetrieve;
   driverP->entityQuery     = ramdbEntityQuery;
   driverP->entityDelete    = ramdbEntityDelete;

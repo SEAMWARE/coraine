@@ -1,13 +1,18 @@
 //
-// FILE            postEntityMap.c
+// FILE            postEntityBatchQuery.c
 //
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
 //
-// POST /ngsi-ld/v1/entityMaps — § 5.14.4 / § 6.34.3.2. Accepts a Query
-// object (§ 5.2.23). Translation to the query pipeline is shared with
-// POST /entityOperations/query via ldQueryBodyToParams.
+// POST /ngsi-ld/v1/entityOperations/query — § 6.23.3.1. Mirrors the
+// GET /entities behaviour (§ 5.7.2) but moves all filter parameters
+// from the URL into a § 5.2.23 Query object in the body. Useful when
+// the query is too big to fit in a URL or contains characters that
+// would need aggressive URL-encoding.
+//
+// Implementation: translate the body via ldQueryBodyToParams (shared
+// with POST /entityMaps) and delegate to getEntities.
 //
 
 #include <stddef.h>                                  // NULL
@@ -19,12 +24,12 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldQueryBody.h"                    // ldQueryBodyToParams
 
-#include "serviceRoutines/createEntityMap.h"         // createEntityMap
-#include "serviceRoutines/postEntityMap.h"           // Own interface
+#include "serviceRoutines/getEntities.h"             // getEntities
+#include "serviceRoutines/postEntityBatchQuery.h"    // Own interface
 
 
 
-bool postEntityMap(void)
+bool postEntityBatchQuery(void)
 {
   if (swNgsild.contextError)
     return true;
@@ -47,5 +52,5 @@ bool postEntityMap(void)
   if (!ldQueryBodyToParams(bodyP))
     return true;
 
-  return createEntityMap();
+  return getEntities();
 }

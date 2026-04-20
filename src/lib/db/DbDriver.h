@@ -66,6 +66,24 @@ typedef int (*DbContextListFunc)(KAlloc* allocP, DbContextRow** rowsPP, int* cou
 typedef int (*DbContextGetFunc)(const char* id, KAlloc* allocP, DbContextRow* rowOut);
 
 typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode* entityP);
+
+//
+// DbEntityBulkCreateFunc - batch insert of N entities in a single DB
+// round-trip where the driver supports it (mongoc: insert_many).
+//
+// entitiesArr is a KjArray of DB-format entities (each already an object
+// with _id / type / attrs wrappers — ldApiEntityToDbModel already ran).
+//
+// resultsV is a caller-allocated int[N], populated per-entity with one
+// of: DB_OK on success, DB_ALREADY_EXISTS on duplicate id, DB_ERR on
+// anything else. N must equal the number of entities in entitiesArr.
+//
+// Return value is DB_OK if at least one entity succeeded, otherwise
+// DB_ERR. The per-entity outcome is carried in resultsV; callers map
+// that to the BatchOperationResult body.
+//
+typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
@@ -152,6 +170,7 @@ typedef struct DbDriver
   DbInitFunc              init;
   DbCloseFunc             close;
   DbEntityCreateFunc      entityCreate;
+  DbEntityBulkCreateFunc  entityBulkCreate;
   DbEntityRetrieveFunc    entityRetrieve;
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;

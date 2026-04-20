@@ -1,0 +1,167 @@
+#
+# FILE            entity_batch_query.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /entityOperations/query — Batch Query (§ 6.23)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Seed V1, V2 (Vehicle), S1 (Sensor) via /entityOperations/create
+# 02. POST query {type:Query, entities:[{type:Vehicle}]} → V1 + V2
+# 03. POST query with q=speed>15 → V2 only
+# 04. POST query with attrs:[temp] → S1 only (only entity with temp)
+# 05. POST without type:Query → 400
+# 06. POST body that's not an object → 400
+#
+
+echo "01. Batch-seed entities"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}
+]'
+echo
+echo
+
+
+echo "02. POST query entities:[{type:Vehicle}] → V1+V2"
+echo "================================================"
+swCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}]}'
+echo
+echo
+
+
+echo "03. POST query q=speed>15 → V2"
+echo "=============================="
+swCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>15"}'
+echo
+echo
+
+
+echo "04. POST without type:Query → 400"
+echo "================================="
+swCurl --url "/ngsi-ld/v1/entityOperations/query" --payload '{"entities":[{"type":"Vehicle"}]}'
+echo
+echo
+
+
+echo "05. POST non-object body → 400"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --payload '[1,2,3]'
+echo
+echo
+
+
+--EXPECT--
+01. Batch-seed entities
+=======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:S1"
+  ]
+}
+
+
+
+02. POST query entities:[{type:Vehicle}] → V1+V2
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 10
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. POST query q=speed>15 → V2
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. POST without type:Query → 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Query body must carry \"type\": \"Query\"",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. POST non-object body → 400
+==============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Query body must be a JSON object",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

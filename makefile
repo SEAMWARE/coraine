@@ -59,6 +59,8 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/patchEntityMap.c            \
                 src/lib/serviceRoutines/createEntityMap.c           \
                 src/lib/serviceRoutines/postEntityMap.c             \
+                src/lib/serviceRoutines/postEntityBatchCreate.c     \
+                src/lib/serviceRoutines/postEntityBatchQuery.c      \
                 src/lib/serviceRoutines/getSourceIdentity.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
@@ -104,6 +106,7 @@ ADMIN_DIR      = src/plugins/api/admin
 
 RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
+                 $(RAMDB_DIR)/ramdbEntityBulkCreate.c \
                  $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
                  $(RAMDB_DIR)/ramdbEntityDelete.c $(RAMDB_DIR)/ramdbEntityMerge.c \
                  $(RAMDB_DIR)/ramdbEntityReplace.c $(RAMDB_DIR)/ramdbEntityAttrsSet.c \
@@ -126,7 +129,8 @@ ADMIN_OBJS     = $(ADMIN_SOURCES:.c=.o)
 MONGOC_DIR     = src/plugins/currentState/mongoc
 MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocInit.c $(MONGOC_DIR)/mongocClose.c \
-                 $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityRetrieve.c \
+                 $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityBulkCreate.c \
+                 $(MONGOC_DIR)/mongocEntityRetrieve.c \
                  $(MONGOC_DIR)/mongocEntityDelete.c $(MONGOC_DIR)/mongocEntityMerge.c \
                  $(MONGOC_DIR)/mongocEntityReplace.c $(MONGOC_DIR)/mongocEntityAttrsSet.c \
                  $(MONGOC_DIR)/mongocTypeList.c $(MONGOC_DIR)/mongocAttrList.c \

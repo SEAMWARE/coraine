@@ -17,6 +17,7 @@
 #include "currentState/mongoc/mongocInit.h"                         // mongocInit
 #include "currentState/mongoc/mongocClose.h"                        // mongocClose
 #include "currentState/mongoc/mongocEntityCreate.h"                 // mongocEntityCreate
+#include "currentState/mongoc/mongocEntityBulkCreate.h"             // mongocEntityBulkCreate
 #include "currentState/mongoc/mongocEntityRetrieve.h"               // mongocEntityRetrieve
 #include "currentState/mongoc/mongocEntityQuery.h"                  // mongocEntityQuery
 #include "currentState/mongoc/mongocEntityDelete.h"                 // mongocEntityDelete
@@ -72,7 +73,8 @@ void dbRegister(DbDriver* driverP)
   driverP->args            = mongocArgV;
   driverP->init            = mongocInit;
   driverP->close           = mongocClose;
-  driverP->entityCreate    = mongocEntityCreate;
+  driverP->entityCreate     = mongocEntityCreate;
+  driverP->entityBulkCreate = mongocEntityBulkCreate;
   driverP->entityRetrieve  = mongocEntityRetrieve;
   driverP->entityQuery     = mongocEntityQuery;
   driverP->entityDelete    = mongocEntityDelete;

@@ -48,6 +48,8 @@
 #include "serviceRoutines/patchEntityMap.h"            // patchEntityMap
 #include "serviceRoutines/createEntityMap.h"           // createEntityMap
 #include "serviceRoutines/postEntityMap.h"             // postEntityMap
+#include "serviceRoutines/postEntityBatchCreate.h"     // postEntityBatchCreate
+#include "serviceRoutines/postEntityBatchQuery.h"      // postEntityBatchQuery
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
@@ -105,6 +107,10 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0 },
   { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0 },
   { SwVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  patchEntityMap,  0 },
+
+  // Batch Operations (§ 5.6.7 – § 5.6.10, § 5.6.20, § 6.14 – § 6.17, § 6.31)
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, 0 },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES },
 
   // Context Source Identity (§ 5.15 / § 6.33)
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0 }
