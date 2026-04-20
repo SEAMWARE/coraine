@@ -74,9 +74,9 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
-Allow: GET, POST, HEAD, OPTIONS
+Allow: GET, POST, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS
+Access-Control-Allow-Methods: GET, POST, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant

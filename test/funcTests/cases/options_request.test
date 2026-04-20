@@ -60,7 +60,7 @@ echo
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
-Allow: GET, POST, HEAD, OPTIONS
+Allow: GET, POST, DELETE, HEAD, OPTIONS
 
 
 

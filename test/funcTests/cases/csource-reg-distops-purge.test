@@ -1,0 +1,161 @@
+#
+# FILE            csource-reg-distops-purge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - Purge Entities forwarded to a CSR that supports purgeEntity (§ 5.6.21)
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# CP1 has V1 (Vehicle). CB has V2 (Vehicle) locally and a CSR pointing
+# to CP1 with operations=[retrieveEntity,purgeEntity] — i.e., redirection
+# without the default federationOps-only set.
+#
+# DELETE /entities?type=Vehicle on CB must:
+#   - forward to CP1 → CP1 purges V1 locally
+#   - purge V2 locally on CB
+#   - return 204
+#
+
+echo "01. Seed CP1 with V1 (Vehicle)"
+echo "=============================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. Seed CB with V2 (Vehicle)"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 redirect with purgeEntity op"
+echo "================================================"
+payload='{
+  "id": "urn:CSR:PurgeCP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "redirect",
+  "operations": ["retrieveEntity","queryEntity","purgeEntity"],
+  "information": [{"entities": [{"type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. DELETE /entities?type=Vehicle on CB → 204"
+echo "=============================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+echo
+echo
+
+
+echo "05. GET V2 on CB ?local=true → 404 (purged locally)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
+echo
+echo
+
+
+echo "06. GET V1 on CP1 → 404 (purged via forward)"
+echo "============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with V1 (Vehicle)
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed CB with V2 (Vehicle)
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 redirect with purgeEntity op
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:PurgeCP1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. DELETE /entities?type=Vehicle on CB → 204
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET V2 on CB ?local=true → 404 (purged locally)
+====================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V2' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. GET V1 on CP1 → 404 (purged via forward)
+=============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

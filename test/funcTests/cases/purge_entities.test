@@ -1,0 +1,293 @@
+#
+# FILE            purge_entities.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DELETE /entities - Purge Entities (§ 5.6.21) — local (filters, drop, keep)
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. No filter + no ?local → 400 BadRequestData
+# 02. Seed V1, V2 (Vehicles), S1 (Sensor with temp+humidity+wind)
+# 03. Purge ?type=Vehicle → 204; V1+V2 gone, S1 stays
+# 04. Purge ?id=urn:S1&drop=humidity → 204; S1 still there, humidity gone
+# 05. Purge ?id=urn:S1&keep=temp → 204; S1 still there, wind gone, only temp
+# 06. Purge ?local=true → 204; everything gone
+# 07. Purge with q filter
+#
+
+echo "01. DELETE /entities (no filter, not local) → 400"
+echo "=================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities
+echo
+echo
+
+
+echo "02. Seed V1, V2 (Vehicle), S1 (Sensor with three attrs)"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":100}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22},"humidity":{"type":"Property","value":60},"wind":{"type":"Property","value":5}}'
+echo
+echo
+
+
+echo "03. DELETE /entities?type=Vehicle → 204"
+echo "========================================"
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+echo
+echo
+
+
+echo "04. GET urn:V1 → 404 (purged)"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "05. GET urn:S1 → still there"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities/urn:S1
+echo
+echo
+
+
+echo "06. DELETE /entities?id=urn:S1&drop=humidity → partial (humidity dropped)"
+echo "========================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'id=urn:S1&drop=humidity'
+echo
+echo
+
+
+echo "07. GET urn:S1 → humidity gone, temp + wind remain"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:S1
+echo
+echo
+
+
+echo "08. DELETE /entities?id=urn:S1&keep=temp → all but temp gone"
+echo "============================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'id=urn:S1&keep=temp'
+echo
+echo
+
+
+echo "09. GET urn:S1 → only temp left"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities/urn:S1
+echo
+echo
+
+
+echo "10. DELETE /entities?local=true → purge everything"
+echo "==================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'local=true'
+echo
+echo
+
+
+echo "11. GET urn:S1 → 404"
+echo "===================="
+swCurl --url /ngsi-ld/v1/entities/urn:S1
+echo
+echo
+
+
+--EXPECT--
+01. DELETE /entities (no filter, not local) → 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Purge Entities requires at least one of id, type, idPattern, q, geoquery, scopeQ — or ?local=true",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Seed V1, V2 (Vehicle), S1 (Sensor with three attrs)
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. DELETE /entities?type=Vehicle → 204
+========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET urn:V1 → 404 (purged)
+=============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. GET urn:S1 → still there
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "humidity": {
+    "type": "Property",
+    "value": 60
+  },
+  "id": "urn:S1",
+  "temp": {
+    "type": "Property",
+    "value": 22
+  },
+  "type": "Sensor",
+  "wind": {
+    "type": "Property",
+    "value": 5
+  }
+}
+
+
+
+06. DELETE /entities?id=urn:S1&drop=humidity → partial (humidity dropped)
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. GET urn:S1 → humidity gone, temp + wind remain
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:S1",
+  "temp": {
+    "type": "Property",
+    "value": 22
+  },
+  "type": "Sensor",
+  "wind": {
+    "type": "Property",
+    "value": 5
+  }
+}
+
+
+
+08. DELETE /entities?id=urn:S1&keep=temp → all but temp gone
+=============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+09. GET urn:S1 → only temp left
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:S1",
+  "temp": {
+    "type": "Property",
+    "value": 22
+  },
+  "type": "Sensor"
+}
+
+
+
+10. DELETE /entities?local=true → purge everything
+===================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+11. GET urn:S1 → 404
+====================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:S1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
