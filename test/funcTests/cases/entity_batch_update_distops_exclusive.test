@@ -1,0 +1,224 @@
+#
+# FILE            entity_batch_update_distops_exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Update (§ 5.6.8) — exclusive CSR mode.
+#
+# An exclusive registration OWNS the claimed attributes. A batch
+# update on the broker must:
+#   - chop the claimed attrs off the local fragment (they don't
+#     get stored locally);
+#   - forward them (in array order) to the CSR in a single
+#     POST /entityOperations/update;
+#   - merge anything left over into the local state.
+#
+--NAME--
+Batch Entity Update — exclusive CSR chops attrs, local keeps the rest
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 locally on CB — only 'color' exists, no 'speed'"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Seed V1 on CP1 — owner of 'speed'"
+echo "====================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 exclusive, claims only 'speed' (updateBatch op)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["updateBatch"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "04. Batch Update V1 — speed (chopped to CP1) + color (stays local) → 204"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "05. GET CB V1 — color=blue (updated locally), no speed (chopped)"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "06. GET CP1 V1 — speed=99 (forwarded)"
+echo "====================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+echo "07. Multi-instance V1 with chopped speed — array order on CP1 too"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100},"color":{"type":"Property","value":"green"}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200},"color":{"type":"Property","value":"yellow"}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300},"color":{"type":"Property","value":"black"}}
+]'
+echo
+echo
+
+
+echo "08. GET CB V1 — color=black (last wins locally)"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "09. GET CP1 V1 — speed=300 (last wins on CP1's own multi-instance merge)"
+echo "========================================================================"
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 locally on CB — only 'color' exists, no 'speed'
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Seed V1 on CP1 — owner of 'speed'
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 exclusive, claims only 'speed' (updateBatch op)
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+04. Batch Update V1 — speed (chopped to CP1) + color (stays local) → 204
+========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET CB V1 — color=blue (updated locally), no speed (chopped)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+06. GET CP1 V1 — speed=99 (forwarded)
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+07. Multi-instance V1 with chopped speed — array order on CP1 too
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET CB V1 — color=black (last wins locally)
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 62
+
+{
+  "color": "black",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+09. GET CP1 V1 — speed=300 (last wins on CP1's own multi-instance merge)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 58
+
+{
+  "id": "urn:V1",
+  "speed": 300,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

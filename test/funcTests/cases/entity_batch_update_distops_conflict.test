@@ -1,0 +1,202 @@
+#
+# FILE            entity_batch_update_distops_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Update (§ 5.6.8) — exclusive CSR conflicts and forward
+# failures.
+#
+# Covers two "things go wrong" modes:
+#
+#   Part A: the CSR doesn't declare updateBatch in its operations list.
+#           An exclusive chop against such a CSR produces a Conflict
+#           per entity (§ 4.20) — the claimed attrs have nowhere valid
+#           to go.
+#
+#   Part B: the CSR DOES declare updateBatch, but the remote endpoint
+#           is unreachable. The forward returns a transport error and
+#           every forwarded id gets a Bad Gateway entry in errors[].
+#
+--NAME--
+Batch Entity Update — exclusive CSR without updateBatch op (409 conflict)
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 on CB — only 'color' exists, no 'speed'"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 exclusive claiming 'speed' but WITHOUT updateBatch"
+echo "======================================================================"
+# retrieveEntity is in the default federationOps group — the CSR can still
+# answer GETs. It cannot accept updates though, so the batch-update chop
+# must produce a 409 Conflict per affected entity.
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "03. Batch Update V1 speed=99 → 409 Conflict, registrationId stamped"
+echo "==================================================================="
+# The body only changes 'speed' — which is claimed by the exclusive CSR
+# that cannot accept updates. With no other attrs to apply locally, the
+# response is a 409 All-failed with one BatchEntityError per entity.
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
+]'
+echo
+echo
+
+
+echo "04. GET CB V1 local-only — color still red, unchanged"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "05. Batch Update V1 speed+color → 207 (speed conflicts, color applied locally)"
+echo "=============================================================================="
+# speed is still chopped-and-conflicts; color merges locally → partial success.
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "06. GET CB V1 local-only — color=blue (the only attr that reached local)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 on CB — only 'color' exists, no 'speed'
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 exclusive claiming 'speed' but WITHOUT updateBatch
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Batch Update V1 speed=99 → 409 Conflict, registrationId stamped
+===================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 307
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support updateBatch",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": []
+}
+
+
+
+04. GET CB V1 local-only — color still red, unchanged
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+05. Batch Update V1 speed+color → 207 (speed conflicts, color applied locally)
+==============================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 323
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support updateBatch",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+06. GET CB V1 local-only — color=blue (the only attr that reached local)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

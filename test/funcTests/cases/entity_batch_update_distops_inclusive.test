@@ -1,0 +1,292 @@
+#
+# FILE            entity_batch_update_distops_inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Update (§ 5.6.8) — inclusive CSR mode.
+#
+# An inclusive registration makes the broker keep its local copy AND
+# fan out every update to the registered Context Source. The forward
+# is a SINGLE POST /entityOperations/update carrying every updated
+# fragment in encounter order (per-CSR grouping).
+#
+--NAME--
+Batch Entity Update — inclusive CSR, local + forwarded
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1,V2,V3 on CB (no CSR yet — local only)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "02. Seed the same V1,V2,V3 on CP1 (so CP1 has state to update)"
+echo "=============================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "03. Register CB→CP1 inclusive (Vehicle, updateBatch)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["updateBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "04. Batch update V1.speed=99 + V2.speed=88 on CB → 204"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}
+]'
+echo
+echo
+
+
+echo "05. GET CB V1 — speed=99, color=red preserved"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "06. GET CP1 V1 — speed=99 (forwarded)"
+echo "====================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "07. GET CP1 V2 — speed=88 (forwarded in same batch)"
+echo "==================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+echo
+echo
+
+
+echo "08. GET CP1 V3 — speed=30 untouched (not in the batch)"
+echo "======================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
+echo
+echo
+
+
+echo "09. Multi-instance V1 in one batch — array order wins on BOTH sides"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}
+]'
+echo
+echo
+
+
+echo "10. GET CB V1 — speed=300 (last instance)"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "11. GET CP1 V1 — speed=300 (CP1 merged 3 forwarded instances in order)"
+echo "======================================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1,V2,V3 on CB (no CSR yet — local only)
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+02. Seed the same V1,V2,V3 on CP1 (so CP1 has state to update)
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+03. Register CB→CP1 inclusive (Vehicle, updateBatch)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+04. Batch update V1.speed=99 + V2.speed=88 on CB → 204
+======================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET CB V1 — speed=99, color=red preserved
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+06. GET CP1 V1 — speed=99 (forwarded)
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+07. GET CP1 V2 — speed=88 (forwarded in same batch)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V2",
+  "speed": 88,
+  "type": "Vehicle"
+}
+
+
+
+08. GET CP1 V3 — speed=30 untouched (not in the batch)
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V3",
+  "speed": 30,
+  "type": "Vehicle"
+}
+
+
+
+09. Multi-instance V1 in one batch — array order wins on BOTH sides
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+10. GET CB V1 — speed=300 (last instance)
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "speed": 300,
+  "type": "Vehicle"
+}
+
+
+
+11. GET CP1 V1 — speed=300 (CP1 merged 3 forwarded instances in order)
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 58
+
+{
+  "id": "urn:V1",
+  "speed": 300,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
