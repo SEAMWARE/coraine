@@ -909,6 +909,19 @@ bool getEntities(void)
       hV[ix].key   = "NGSILD-EntityMap";
       hV[ix].value = mapUrl;
       swRest.out.headerCount++;
+
+      //
+      // GET / POST /entityMaps (§ 6.34.3): return the EntityMap itself
+      // (201 Created) instead of the matching entities array. rawResponse
+      // lets ldEntityMapToTree's JSON flow unchanged through renderHook.
+      //
+      if (swNgsild.entityMapOnly)
+      {
+        swRest.out.responseTree   = ldEntityMapToTree(mapP);
+        swRest.out.httpStatusCode = 201;
+        swNgsild.rawResponse      = true;
+        return true;
+      }
     }
   }
 

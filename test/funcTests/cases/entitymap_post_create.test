@@ -1,0 +1,212 @@
+#
+# FILE            entitymap_post_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# POST /entityMaps — Create EntityMap via Query body (§ 5.14.4 / § 6.34.3.2).
+# Body is a § 5.2.23 Query object.
+#
+--NAME--
+POST /entityMaps — Create EntityMap via Query body (§ 6.34.3.2)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Seed V1, V2 (Vehicle), S1 (Sensor)
+# 02. POST Query { type:"Query", entities:[{type:"Vehicle"}] } → 201 with V1+V2
+# 03. POST Query with type:Car (no match) → empty map
+# 04. POST Query with attrs:[speed] — array field translation
+# 05. POST without "type":"Query" → 400
+# 06. POST with bogus top-level type → 400
+#
+
+echo "01. Seed V1, V2, S1"
+echo "==================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}'
+echo
+echo
+
+
+echo "02. POST Query entities:[{type:Vehicle}] → 201 + V1+V2"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entityMaps --payload '{"type":"Query","entities":[{"type":"Vehicle"}]}'
+echo
+echo
+
+
+echo "03. POST Query for non-existent type → 201 empty"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entityMaps --payload '{"type":"Query","entities":[{"type":"Car"}]}'
+echo
+echo
+
+
+echo "04. POST Query with attrs:[speed] → only entities that have speed"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entityMaps --payload '{"type":"Query","attrs":["speed"]}'
+echo
+echo
+
+
+echo "05. POST without type:Query → 400"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entityMaps --payload '{"entities":[{"type":"Vehicle"}]}'
+echo
+echo
+
+
+echo "06. POST with wrong top-level type → 400"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entityMaps --payload '{"type":"Bogus"}'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1, V2, S1
+===================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:S1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST Query entities:[{type:Vehicle}] → 201 + V1+V2
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+03. POST Query for non-existent type → 201 empty
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {},
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+04. POST Query with attrs:[speed] → only entities that have speed
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:S1": [
+      "@none"
+    ],
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+05. POST without type:Query → 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Query body must carry \"type\": \"Query\"",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. POST with wrong top-level type → 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Query body must carry \"type\": \"Query\"",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,204 @@
+#
+# FILE            entitymap_patch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /entityMaps/{id} — Update EntityMap (§ 5.14.2)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Seed two entities and create a map via ?entityMap=true
+# 02. PATCH expiresAt — success, 204
+# 03. GET the map → expiresAt reflects the new value
+# 04. PATCH with extra field (id) → 400
+# 05. PATCH with entityMap in body → 400
+# 06. PATCH with invalid expiresAt string → 400
+# 07. PATCH with no expiresAt → 400
+# 08. PATCH non-existent map → 404
+#
+
+echo "01. Seed entities + create map"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":2}}'
+echo
+MAP_ID=$(swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+echo "Map: ${MAP_ID:0:10}..."
+echo
+echo
+
+
+echo "02. PATCH expiresAt → 204"
+echo "========================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
+echo
+echo
+
+
+echo "03. GET map → expiresAt reflects new value"
+echo "=========================================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '"expiresAt"'
+echo
+echo
+
+
+echo "04. PATCH with id field → 400"
+echo "============================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"id":"urn:other","expiresAt":"2099-01-01T00:00:00.000Z"}'
+echo
+echo
+
+
+echo "05. PATCH with entityMap in body → 400"
+echo "======================================"
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"entityMap":{"urn:X":["@none"]}}'
+echo
+echo
+
+
+echo "06. PATCH with invalid expiresAt → 400"
+echo "======================================"
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"not a date"}'
+echo
+echo
+
+
+echo "07. PATCH with empty body → 400"
+echo "==============================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{}'
+echo
+echo
+
+
+echo "08. PATCH non-existent map → 404"
+echo "================================"
+swCurl --url "/ngsi-ld/v1/entityMaps/urn:NoSuch" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
+echo
+echo
+
+
+--EXPECT--
+01. Seed entities + create map
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+Map: REGEX(.*)
+
+
+02. PATCH expiresAt → 204
+=========================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET map → expiresAt reflects new value
+==========================================
+  "expiresAt": "2099-01-01T00:00:00.000Z",
+
+
+04. PATCH with id field → 400
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "field 'id' cannot be updated on an EntityMap — only expiresAt is mutable",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PATCH with entityMap in body → 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "field 'entityMap' cannot be updated on an EntityMap — only expiresAt is mutable",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PATCH with invalid expiresAt → 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "expiresAt is not a valid ISO 8601 DateTime: 'not a date'",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. PATCH with empty body → 400
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Update EntityMap requires expiresAt in the body",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. PATCH non-existent map → 404
+================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity map 'urn:NoSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

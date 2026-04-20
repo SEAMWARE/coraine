@@ -45,6 +45,9 @@
 #include "serviceRoutines/deleteCsourceRegistration.h" // deleteCsourceRegistration
 #include "serviceRoutines/getEntityMap.h"              // getEntityMap
 #include "serviceRoutines/deleteEntityMap.h"           // deleteEntityMap
+#include "serviceRoutines/patchEntityMap.h"            // patchEntityMap
+#include "serviceRoutines/createEntityMap.h"           // createEntityMap
+#include "serviceRoutines/postEntityMap.h"             // postEntityMap
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
@@ -97,8 +100,11 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION },
 
   // EntityMap CRUD (§ 5.14)
+  { SwVerbGet,    "/ngsi-ld/v1/entityMaps",    createEntityMap, LD_PARAMS_GET_ENTITIES },
+  { SwVerbPost,   "/ngsi-ld/v1/entityMaps",    postEntityMap,   0                      },
   { SwVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0 },
   { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0 },
+  { SwVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  patchEntityMap,  0 },
 
   // Context Source Identity (§ 5.15 / § 6.33)
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0 }

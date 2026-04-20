@@ -1,0 +1,167 @@
+#
+# FILE            entitymap_get_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /entityMaps — Create EntityMap for Query Entities (§ 5.14.4, § 6.34.3.1).
+# Same URL params as GET /entities. Returns the EntityMap body + 201.
+#
+--NAME--
+GET /entityMaps — Create EntityMap for Query (§ 5.14.4)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Seed V1, V2 (Vehicle), S1 (Sensor)
+# 02. GET /entityMaps?type=Vehicle → 201 with map body containing V1+V2, NGSILD-EntityMap header
+# 03. Extract the returned map ID from the header and GET /entityMaps/{id} — content matches
+# 04. GET /entityMaps with no filter → map body with all 3 entities
+# 05. GET /entityMaps?type=NonExistent → empty map (still 201, just no entries)
+#
+
+echo "01. Seed V1 + V2 (Vehicle), S1 (Sensor)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}'
+echo
+echo
+
+
+echo "02. GET /entityMaps?type=Vehicle → 201 + map body (V1+V2)"
+echo "========================================================="
+swCurl --url "/ngsi-ld/v1/entityMaps?type=Vehicle"
+echo
+echo
+
+
+echo "03. GET /entityMaps with no filter → all 3 entities"
+echo "==================================================="
+swCurl --url "/ngsi-ld/v1/entityMaps"
+echo
+echo
+
+
+echo "04. GET /entityMaps?type=NonExistent → 201 + empty map"
+echo "======================================================"
+swCurl --url "/ngsi-ld/v1/entityMaps?type=NonExistent"
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 + V2 (Vehicle), S1 (Sensor)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:S1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET /entityMaps?type=Vehicle → 201 + map body (V1+V2)
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+03. GET /entityMaps with no filter → all 3 entities
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:S1": [
+      "@none"
+    ],
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+04. GET /entityMaps?type=NonExistent → 201 + empty map
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {},
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
