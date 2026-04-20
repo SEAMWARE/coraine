@@ -13,7 +13,7 @@
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjParse.h"                           // kjParse
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjChildAdd
+#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjChildAdd, kjChildRemove
 #include "kjson/kjChildReplace.h"                    // kjChildReplace
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/swRestClient.h"                     // SwRestClientRequest, swRestClientSend
@@ -78,6 +78,63 @@ static void apiAttrToStorageWrap(KjNode* entityP)
 
 // -----------------------------------------------------------------------------
 //
+// srcMapAdd - record that `source` contributes to `entityId`
+//
+// The srcMap is a KjObject keyed by entityId whose value is a KjArray of
+// source strings ("@none" for local, CSR's regId otherwise). Duplicates
+// are suppressed — the same source contributing the same entity twice is
+// collapsed into one list entry.
+//
+// Pass srcMap=NULL to skip (tracking is only needed when an EntityMap is
+// being built, so the common query path pays zero cost).
+//
+static void srcMapAdd(KjNode* srcMap, const char* entityId, const char* source)
+{
+  if (srcMap == NULL || entityId == NULL || source == NULL)
+    return;
+
+  KjNode* arrP = kjLookup(srcMap, entityId);
+  if (arrP == NULL)
+  {
+    arrP = kjArray(swRest.kjsonP, entityId);
+    kjChildAdd(srcMap, arrP);
+  }
+
+  for (KjNode* s = arrP->value.firstChildP; s != NULL; s = s->next)
+  {
+    if (s->type == KjString && strcmp(s->value.s, source) == 0)
+      return;
+  }
+
+  kjChildAdd(arrP, kjString(swRest.kjsonP, NULL, source));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// srcMapStampLocalFrom - add "@none" for every entity currently in arrayP
+//
+// Called after the local DB query (initial or split-mode re-query) so the
+// srcMap reflects the current set of locally-held entity IDs.
+//
+static void srcMapStampLocalFrom(KjNode* srcMap, KjNode* arrayP)
+{
+  if (srcMap == NULL || arrayP == NULL || arrayP->type != KjArray)
+    return;
+
+  for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+  {
+    KjNode* idP = kjLookup(ep, "id");
+    if (idP != NULL && idP->type == KjString)
+      srcMapAdd(srcMap, idP->value.s, "@none");
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // forwardQueryToCSR - forward GET /entities to a CSR, return the parsed response array
 //
 // Builds the URL from the CSR's endpoint + the original query string
@@ -118,6 +175,116 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
 
   KjNode* treeP = kjParse(swRest.kjsonP, bodyCopy);
   return treeP;  // KjArray of entities (in API format)
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// retrieveEntityFromCSR - GET /entities/{id} from a specific CSR.
+//
+// Used by entity-map pagination: the map records the source per entity,
+// and the client's paged follow-up retrieves each entity from its
+// recorded source (not via reg-cache matching, which could return a
+// different set if registrations have changed since the map was built).
+//
+// Returns the expanded, storage-format entity tree on success, NULL on
+// any failure (network error, non-2xx status, parse error).
+//
+static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
+                                      const char*     entityId,
+                                      const char*     ownAlias)
+{
+  if (csr == NULL || csr->endpoint == NULL)
+    return NULL;
+
+  const char* base = csr->endpoint;
+  const char* path = "/ngsi-ld/v1/entities/";
+  const char* qs   = "?sysAttrs=true";
+  int baseLen = strlen(base);
+  int pathLen = strlen(path);
+  int idLen   = strlen(entityId);
+  int qsLen   = strlen(qs);
+  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + 1);
+
+  strcpy(url, base);
+  strcpy(url + baseLen, path);
+  strcpy(url + baseLen + pathLen, entityId);
+  strcpy(url + baseLen + pathLen + idLen, qs);
+
+  char*       respBody    = NULL;
+  int         respBodyLen = 0;
+  const char* errDetail   = NULL;
+
+  int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
+                                    &errDetail, &respBody, &respBodyLen);
+  if (status < 200 || status >= 300 || respBody == NULL || respBodyLen == 0)
+    return NULL;
+
+  KjNode* treeP = kjParse(swRest.kjsonP, respBody);
+  if (treeP == NULL)
+    return NULL;
+
+  swldExpandTree(treeP, &swRest.kalloc);
+  apiAttrToStorageWrap(treeP);
+  return treeP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mergeAttrsNonOverriding - graft src's attrs into dest, skipping conflicts.
+//
+// Used by the entity-map pagination path when one entity is built from
+// multiple recorded sources (split mode). First-wins for (attrName, dsKey)
+// collisions — matches the main query's split-mode merge behaviour (full
+// § 4.5.5.3 timestamp comparison is overkill here since both sides were
+// already present in the map's snapshot).
+//
+static void mergeAttrsNonOverriding(KjNode* destP, KjNode* srcP)
+{
+  if (destP == NULL || srcP == NULL || srcP->type != KjObject)
+    return;
+
+  KjNode* srcAttrP = srcP->value.firstChildP;
+  while (srcAttrP != NULL)
+  {
+    KjNode* nextSrcAttr = srcAttrP->next;
+
+    if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
+        strcmp(srcAttrP->name, "id")   == 0 ||
+        strcmp(srcAttrP->name, "type") == 0 ||
+        srcAttrP->type != KjObject)
+    {
+      srcAttrP = nextSrcAttr;
+      continue;
+    }
+
+    KjNode* destAttrP = kjLookup(destP, srcAttrP->name);
+    if (destAttrP == NULL)
+    {
+      srcAttrP->next = NULL;
+      kjChildAdd(destP, srcAttrP);
+    }
+    else
+    {
+      // Merge per dsKey — add dsKeys not already present
+      KjNode* srcInstP = srcAttrP->value.firstChildP;
+      while (srcInstP != NULL)
+      {
+        KjNode* nextInst = srcInstP->next;
+        if (kjLookup(destAttrP, srcInstP->name) == NULL)
+        {
+          srcInstP->next = NULL;
+          kjChildAdd(destAttrP, srcInstP);
+        }
+        srcInstP = nextInst;
+      }
+    }
+
+    srcAttrP = nextSrcAttr;
+  }
 }
 
 
@@ -203,19 +370,54 @@ bool getEntities(void)
     int ix     = 0;
     int added  = 0;
 
+    //
+    // § 5.2.39 pagination: each map entry records a list of sources that
+    // contribute to the entity. Retrieve from each listed source — local
+    // "@none" via db.entityRetrieve, remote via HTTP GET on the CSR
+    // identified by regId. Do NOT consult the registration cache for
+    // routing — the whole point of the map is a stable snapshot of
+    // "where each entity is" at map-creation time, immune to later reg
+    // changes.
+    //
+    const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
+
     for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
     {
       if (ix < offset) { ix++; continue; }
 
-      // Fetch entity by ID from its source
-      // For "@none" (local): use db.entityRetrieve
-      // For remote sources: would need HTTP forward (not implemented yet — local only for now)
-      KjNode* entityP = NULL;
-      int r = db.entityRetrieve(tP, entryP->entityId, &entityP);
+      KjNode* mergedEntity = NULL;
 
-      if (r == DB_OK && entityP != NULL)
-        kjChildAdd(arrayP, entityP);
-      // else: entity was deleted since map creation — skip (fewer results OK per spec)
+      for (int s = 0; s < entryP->sourceCount; s++)
+      {
+        const char* src      = entryP->sourceIdV[s];
+        KjNode*     partialP = NULL;
+
+        if (strcmp(src, "@none") == 0)
+        {
+          db.entityRetrieve(tP, entryP->entityId, &partialP);
+        }
+        else if (tP->regCacheP != NULL)
+        {
+          LdRegCacheItem* csr = ldRegCacheItemLookup((LdRegCache*) tP->regCacheP, src);
+          if (csr != NULL)
+            partialP = retrieveEntityFromCSR(csr, entryP->entityId, ownAlias);
+        }
+        // Source not reachable / deleted / reg removed → skip silently;
+        // any other source that still resolves still contributes.
+
+        if (partialP == NULL)
+          continue;
+
+        if (mergedEntity == NULL)
+          mergedEntity = partialP;
+        else
+          mergeAttrsNonOverriding(mergedEntity, partialP);
+      }
+
+      if (mergedEntity != NULL)
+        kjChildAdd(arrayP, mergedEntity);
+      // else: all recorded sources failed — skip, client gets fewer
+      // results than requested (§ 5.5.9 allows this).
 
       ix++;
       added++;
@@ -332,6 +534,16 @@ bool getEntities(void)
   }
 
   //
+  // Source-provenance map (§ 5.2.39) — built only when an EntityMap is
+  // being created. Each entityId maps to the list of sources that
+  // contributed to it: "@none" for local, a CSR regId otherwise. Without
+  // this, paged follow-up via ?entityMap=<id> cannot route to the right
+  // source for a given entity.
+  //
+  KjNode* srcMap = swNgsild.entityMapCreate ? kjObject(swRest.kjsonP, NULL) : NULL;
+  srcMapStampLocalFrom(srcMap, arrayP);
+
+  //
   // Distributed query: if registrations match and ?local=true is not set,
   // forward to matching CSRs and merge results.
   //
@@ -379,6 +591,9 @@ bool getEntities(void)
           // No type, q, geoQ, scopeQ — applied post-assembly
           arrayP = NULL;
           db.entityQuery((Tenant*) swNgsild.tenantP, &splitFilter, &arrayP);
+
+          // Re-stamp srcMap with the new (unfiltered) local set.
+          srcMapStampLocalFrom(srcMap, arrayP);
         }
 
         if (baseQs == NULL)
@@ -507,9 +722,14 @@ bool getEntities(void)
               {
                 // New entity — add to results
                 kjChildAdd(arrayP, remoteEntity);
+                srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
               }
               else if (splitMode)
               {
+                // Split-mode merge: this CSR contributed attrs to an
+                // entity that also exists locally (or in another CSR).
+                // Record the regId alongside whatever was already there.
+                srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
                 // Split mode: merge remote attrs into existing entity per
                 // § 4.5.5.3 — instance-level conflict resolution per
                 // (attrName, datasetId). Both trees are in storage format.
@@ -645,14 +865,38 @@ bool getEntities(void)
       LdEntityMap* mapP = ldEntityMapCreate((LdEntityMapStore*) tP->entityMapStoreP,
                                              5ULL * 60 * 1000000000ULL, tP);
 
-      // Walk the sorted array, add each entity ID to the map
+      //
+      // Walk the sorted array, add each entity ID to the map along with
+      // its provenance: look up the entity in srcMap and flatten the
+      // KjArray of source strings into a char** for ldEntityMapAddEntry.
+      //
       for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       {
         KjNode* idP = kjLookup(entityP, "id");
-        if (idP != NULL && idP->type == KjString)
+        if (idP == NULL || idP->type != KjString)
+          continue;
+
+        KjNode* srcArr = (srcMap != NULL) ? kjLookup(srcMap, idP->value.s) : NULL;
+
+        int n = 0;
+        if (srcArr != NULL && srcArr->type == KjArray)
+          for (KjNode* s = srcArr->value.firstChildP; s != NULL; s = s->next) n++;
+
+        if (n == 0)
         {
-          const char* src = "@none";  // TODO: track actual source per entity
-          ldEntityMapAddEntry(mapP, idP->value.s, &src, 1);
+          // Shouldn't happen for an entity that made it into arrayP, but
+          // stay safe — fall back to "@none".
+          const char* lone = "@none";
+          ldEntityMapAddEntry(mapP, idP->value.s, &lone, 1);
+        }
+        else
+        {
+          const char** srcV = (const char**) kaAlloc(&swRest.kalloc, n * sizeof(char*));
+          int i = 0;
+          for (KjNode* s = srcArr->value.firstChildP; s != NULL; s = s->next)
+            if (s->type == KjString)
+              srcV[i++] = s->value.s;
+          ldEntityMapAddEntry(mapP, idP->value.s, srcV, i);
         }
       }
 

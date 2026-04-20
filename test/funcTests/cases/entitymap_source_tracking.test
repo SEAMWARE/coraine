@@ -1,0 +1,167 @@
+#
+# FILE            entitymap_source_tracking.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.39 EntityMap — per-entity source list records which broker (local
+# "@none" or CSR regId) holds each entity. This is what makes paged
+# ?entityMap=<id> follow-ups routable in a distributed setup. Without it,
+# all IDs would be stamped "@none" and pagination would silently mis-route
+# when N>offset crosses a local/remote boundary.
+#
+--NAME--
+EntityMap source tracking — per-entity regIds (§ 5.2.39)
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+swBrokerStart -role CP2 --noSplitEntities
+
+--RUN--
+
+#
+# Setup:
+#   CB:  V1 local
+#   CP1: V2
+#   CP2: V3
+#
+# Registrations on CB:
+#   R1 inclusive → CP1
+#   R2 inclusive → CP2
+#
+# Tests:
+#   01. Seed V1 on CB, V2 on CP1, V3 on CP2
+#   02. Register CB→CP1 (R1) and CB→CP2 (R2)
+#   03. GET /entities?entityMap=true → capture map ID from NGSILD-EntityMap header
+#   04. GET /entityMaps/{id} → verify V1→[@none], V2→[urn:CSR:R1], V3→[urn:CSR:R2]
+#
+
+CP1="http://localhost:${CP1_PORT}"
+CP2="http://localhost:${CP2_PORT}"
+
+
+echo "01. Seed V1 on CB, V2 on CP1, V3 on CP2"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 (R1) and CB→CP2 (R2), both inclusive"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. GET /entities?entityMap=true → capture map ID"
+echo "================================================="
+MAP_ID=$(swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues&orderBy=id" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+echo "Map ID captured: ${MAP_ID:0:10}... (truncated for stability)"
+echo
+echo
+
+
+echo "04. GET /entityMaps/{id} → verify per-entity source lists"
+echo "========================================================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -A 20 '"entityMap"'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 on CB, V2 on CP1, V3 on CP2
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 (R1) and CB→CP2 (R2), both inclusive
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. GET /entities?entityMap=true → capture map ID
+=================================================
+Map ID captured: REGEX(.*)
+
+
+04. GET /entityMaps/{id} → verify per-entity source lists
+=========================================================
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "urn:CSR:R1"
+    ],
+    "urn:V3": [
+      "urn:CSR:R2"
+    ]
+  },
+  "expiresAt": REGEX(.*)
+  "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2

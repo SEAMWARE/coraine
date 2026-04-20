@@ -1,0 +1,185 @@
+#
+# FILE            entitymap_paginate_sources.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Entity-map pagination routes via the recorded per-entity sources, not
+# by re-running registration matching. Each page's retrieval of a remote
+# entity goes to the exact CSR recorded in the map, bypassing the
+# current query's reg-cache match (which could have shifted since the
+# map was created).
+#
+--NAME--
+EntityMap-based pagination routes by recorded source, not reg-match
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+#
+# 01. Seed V1 on CB, V2 on CP1
+# 02. Register CB→CP1 (R1) inclusive
+# 03. GET /entities?entityMap=true → capture map ID
+# 04. Paginate page 1: limit=1 → V1 from local
+# 05. Paginate page 2: limit=1 offset=1 → V2 from CP1 (via recorded source)
+# 06. Full pull via the map: limit=10 → both V1 + V2
+#
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 on CB, V2 on CP1"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 (R1) inclusive"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. Create map"
+echo "=============="
+MAP_ID=$(swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues&orderBy=id" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+echo "Map captured: ${MAP_ID:0:10}... (truncated)"
+echo
+echo
+
+
+echo "04. Page 1: limit=1 offset=0 → V1 (from local)"
+echo "=============================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&options=keyValues&limit=1&offset=0"
+echo
+echo
+
+
+echo "05. Page 2: limit=1 offset=1 → V2 (from CP1 via recorded source)"
+echo "================================================================"
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&options=keyValues&limit=1&offset=1"
+echo
+echo
+
+
+echo "06. Full pull via map: limit=10 → both V1 + V2"
+echo "=============================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&options=keyValues&limit=10"
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 on CB, V2 on CP1
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Register CB→CP1 (R1) inclusive
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Create map
+==============
+Map captured: REGEX(.*)
+
+
+04. Page 1: limit=1 offset=0 → V1 (from local)
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 10,
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. Page 2: limit=1 offset=1 → V2 (from CP1 via recorded source)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V2",
+    "speed": 20,
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. Full pull via map: limit=10 → both V1 + V2
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 10,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 20,
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
