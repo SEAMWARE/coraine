@@ -233,7 +233,7 @@ bool deleteEntityAttr(void)
 
         if (!matched) continue;
 
-        if (!ldRegOpSupported(csr, "deleteAttrs"))
+        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
           if (!opConf[g]) continue;
           char detail[256];

@@ -11,6 +11,7 @@
 #include "swRest/SwRestService.h"                // SwRestServiceSimplified, SwRestVerb
 #include "swRest/SwRestVerb.h"                   // SwVerbGet, SwVerbPost, SwVerbDelete, SwVerbPatch
 #include "swNgsild/ldParams.h"                   // LD_PARAMS_GET_ENTITIES, LD_PARAMS_GET_ENTITY, LD_PARAMS_POST_ENTITIES, LD_PARAMS_DELETE_ENTITY, LD_PARAMS_PATCH_ENTITY
+#include "swNgsild/LdOp.h"                       // LdOp*
 
 #include "serviceRoutines/getEntities.h"         // getEntities
 #include "serviceRoutines/getEntity.h"           // getEntity
@@ -64,56 +65,56 @@
 //
 SwRestServiceSimplified ngsildCoreServices[] =
 {
-  { SwVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES   },
-  { SwVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY     },
-  { SwVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES  },
-  { SwVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY  },
-  { SwVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY   },
-  { SwVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY },
-  { SwVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS  },
-  { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS },
-  { SwVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR    },
-  { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR  },
-  { SwVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR    },
-  { SwVerbDelete, "/ngsi-ld/v1/entities/*/attrs/*", deleteEntityAttr, LD_PARAMS_DELETE_ENTITY_ATTR },
-  { SwVerbDelete, "/ngsi-ld/v1/entities",         purgeEntities,    LD_PARAMS_PURGE_ENTITIES     },
+  { SwVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES,   LdOpQueryEntities  },
+  { SwVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY,     LdOpRetrieveEntity },
+  { SwVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
+  { SwVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY,  LdOpDeleteEntity   },
+  { SwVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY,   LdOpMergeEntity    },
+  { SwVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY, LdOpReplaceEntity },
+  { SwVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS,  LdOpAppendAttrs },
+  { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS, LdOpUpdateAttrs },
+  { SwVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
+  { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
+  { SwVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR,    LdOpReplaceAttr    },
+  { SwVerbDelete, "/ngsi-ld/v1/entities/*/attrs/*", deleteEntityAttr, LD_PARAMS_DELETE_ENTITY_ATTR, LdOpDeleteAttr     },
+  { SwVerbDelete, "/ngsi-ld/v1/entities",         purgeEntities,    LD_PARAMS_PURGE_ENTITIES,     LdOpPurgeEntity    },
 
   // Discovery (§ 5.7.5 – § 5.7.10)
-  { SwVerbGet,    "/ngsi-ld/v1/types",            getTypes,         LD_PARAMS_GET_TYPES          },
-  { SwVerbGet,    "/ngsi-ld/v1/types/*",          getType,          LD_PARAMS_GET_TYPE           },
-  { SwVerbGet,    "/ngsi-ld/v1/attributes",       getAttributes,    LD_PARAMS_GET_ATTRIBUTES     },
-  { SwVerbGet,    "/ngsi-ld/v1/attributes/*",     getAttribute,     LD_PARAMS_GET_ATTRIBUTE      },
+  { SwVerbGet,    "/ngsi-ld/v1/types",            getTypes,         LD_PARAMS_GET_TYPES,          LdOpRetrieveEntityTypes       },
+  { SwVerbGet,    "/ngsi-ld/v1/types/*",          getType,          LD_PARAMS_GET_TYPE,           LdOpRetrieveEntityTypeInfo    },
+  { SwVerbGet,    "/ngsi-ld/v1/attributes",       getAttributes,    LD_PARAMS_GET_ATTRIBUTES,     LdOpRetrieveAttrTypes         },
+  { SwVerbGet,    "/ngsi-ld/v1/attributes/*",     getAttribute,     LD_PARAMS_GET_ATTRIBUTE,      LdOpRetrieveAttrTypeInfo      },
 
-  { SwVerbPost,   "/ngsi-ld/v1/subscriptions",   postSubscriptions,   LD_PARAMS_POST_SUBSCRIPTIONS   },
-  { SwVerbGet,    "/ngsi-ld/v1/subscriptions",   getSubscriptions,    LD_PARAMS_GET_SUBSCRIPTIONS    },
-  { SwVerbGet,    "/ngsi-ld/v1/subscriptions/*", getSubscription,     LD_PARAMS_GET_SUBSCRIPTION     },
-  { SwVerbPatch,  "/ngsi-ld/v1/subscriptions/*", patchSubscription,   LD_PARAMS_PATCH_SUBSCRIPTION   },
-  { SwVerbDelete, "/ngsi-ld/v1/subscriptions/*", deleteSubscription,  LD_PARAMS_DELETE_SUBSCRIPTION  },
+  { SwVerbPost,   "/ngsi-ld/v1/subscriptions",   postSubscriptions,   LD_PARAMS_POST_SUBSCRIPTIONS,   LdOpCreateSubscription   },
+  { SwVerbGet,    "/ngsi-ld/v1/subscriptions",   getSubscriptions,    LD_PARAMS_GET_SUBSCRIPTIONS,    LdOpQuerySubscription    },
+  { SwVerbGet,    "/ngsi-ld/v1/subscriptions/*", getSubscription,     LD_PARAMS_GET_SUBSCRIPTION,     LdOpRetrieveSubscription },
+  { SwVerbPatch,  "/ngsi-ld/v1/subscriptions/*", patchSubscription,   LD_PARAMS_PATCH_SUBSCRIPTION,   LdOpUpdateSubscription   },
+  { SwVerbDelete, "/ngsi-ld/v1/subscriptions/*", deleteSubscription,  LD_PARAMS_DELETE_SUBSCRIPTION,  LdOpDeleteSubscription   },
 
-  { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS },
-  { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT  },
-  { SwVerbPost,   "/ngsi-ld/v1/jsonldContexts",   postJsonldContexts,  LD_PARAMS_POST_JSONLD_CONTEXTS  },
-  { SwVerbDelete, "/ngsi-ld/v1/jsonldContexts/**", deleteJsonldContext, LD_PARAMS_DELETE_JSONLD_CONTEXT },
+  { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS, LdOpNone },
+  { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT,  LdOpNone },
+  { SwVerbPost,   "/ngsi-ld/v1/jsonldContexts",   postJsonldContexts,  LD_PARAMS_POST_JSONLD_CONTEXTS,  LdOpNone },
+  { SwVerbDelete, "/ngsi-ld/v1/jsonldContexts/**", deleteJsonldContext, LD_PARAMS_DELETE_JSONLD_CONTEXT, LdOpNone },
 
-  { SwVerbPost,   "/ngsi-ld/v1/csourceRegistrations",   postCsourceRegistration,   LD_PARAMS_POST_CSOURCE_REGISTRATIONS },
-  { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations",   getCsourceRegistrations,   LD_PARAMS_GET_CSOURCE_REGISTRATIONS  },
-  { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", getCsourceRegistration,    LD_PARAMS_GET_CSOURCE_REGISTRATION   },
-  { SwVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", patchCsourceRegistration,  LD_PARAMS_PATCH_CSOURCE_REGISTRATION },
-  { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION },
+  { SwVerbPost,   "/ngsi-ld/v1/csourceRegistrations",   postCsourceRegistration,   LD_PARAMS_POST_CSOURCE_REGISTRATIONS, LdOpCreateRegistration   },
+  { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations",   getCsourceRegistrations,   LD_PARAMS_GET_CSOURCE_REGISTRATIONS,  LdOpQueryRegistration    },
+  { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", getCsourceRegistration,    LD_PARAMS_GET_CSOURCE_REGISTRATION,   LdOpRetrieveRegistration },
+  { SwVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", patchCsourceRegistration,  LD_PARAMS_PATCH_CSOURCE_REGISTRATION, LdOpUpdateRegistration   },
+  { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION, LdOpDeleteRegistration  },
 
   // EntityMap CRUD (§ 5.14)
-  { SwVerbGet,    "/ngsi-ld/v1/entityMaps",    createEntityMap, LD_PARAMS_GET_ENTITIES },
-  { SwVerbPost,   "/ngsi-ld/v1/entityMaps",    postEntityMap,   0                      },
-  { SwVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0 },
-  { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0 },
-  { SwVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  patchEntityMap,  0 },
+  { SwVerbGet,    "/ngsi-ld/v1/entityMaps",    createEntityMap, LD_PARAMS_GET_ENTITIES, LdOpNone },
+  { SwVerbPost,   "/ngsi-ld/v1/entityMaps",    postEntityMap,   0,                      LdOpNone },
+  { SwVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0,                      LdOpNone },
+  { SwVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0,                      LdOpNone },
+  { SwVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  patchEntityMap,  0,                      LdOpNone },
 
   // Batch Operations (§ 5.6.7 – § 5.6.10, § 5.6.20, § 6.14 – § 6.17, § 6.31)
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, 0 },
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, 0,                      LdOpBatchCreate },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery  },
 
   // Context Source Identity (§ 5.15 / § 6.33)
-  { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0 }
+  { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

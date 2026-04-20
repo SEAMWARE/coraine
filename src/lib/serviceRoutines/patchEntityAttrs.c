@@ -285,7 +285,7 @@ bool patchEntityAttrs(void)
         if (csr->endpoint == NULL)                    continue;
         if (ldDistOpCsrWouldLoop(csr, ownAlias))      continue;
 
-        bool opSupported = ldRegOpSupported(csr, "updateAttrs");
+        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {

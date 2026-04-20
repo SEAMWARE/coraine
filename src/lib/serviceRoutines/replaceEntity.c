@@ -354,7 +354,7 @@ bool replaceEntity(void)
         if (ldDistOpCsrWouldLoop(csr, ownAlias))
           continue;
 
-        bool opSupported = ldRegOpSupported(csr, "replaceEntity");
+        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {

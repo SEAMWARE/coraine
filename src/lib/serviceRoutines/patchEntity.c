@@ -271,7 +271,7 @@ bool patchEntity(void)
         if (ldDistOpCsrWouldLoop(csr, ownAlias))
           continue;
 
-        bool opSupported = ldRegOpSupported(csr, "mergeEntity");
+        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {

@@ -536,7 +536,7 @@ bool postEntities(void)
         if (ldDistOpCsrWouldLoop(csr, ownAlias))
           continue;
 
-        bool opSupported = ldRegOpSupported(csr, "createEntity");
+        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
@@ -589,7 +589,7 @@ bool postEntities(void)
         if (ldDistOpCsrWouldLoop(csr, ownAlias))
           continue;
 
-        bool opSupported = ldRegOpSupported(csr, "createEntity");
+        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
@@ -640,7 +640,7 @@ bool postEntities(void)
         if (!csrGeoCoverEntity(csr, entityP)) continue;
         if (csr->endpoint == NULL)                   continue;
         if (ldDistOpCsrWouldLoop(csr, ownAlias))     continue;  // § 5.12 proactive
-        if (!ldRegOpSupported(csr, "createEntity")) continue;
+        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp)) continue;
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {

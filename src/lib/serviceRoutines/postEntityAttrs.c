@@ -380,7 +380,7 @@ bool postEntityAttrs(void)
         if (csr->endpoint == NULL)                    continue;
         if (ldDistOpCsrWouldLoop(csr, ownAlias))      continue;
 
-        bool opSupported = ldRegOpSupported(csr, "appendAttrs");
+        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {

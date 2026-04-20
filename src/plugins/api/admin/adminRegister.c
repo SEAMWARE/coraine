@@ -55,19 +55,19 @@ static SwRestParam adminParams[] =
 static SwRestServiceSimplified adminServices[] =
 {
   // GET
-  { SwVerbGet,    "/admin/version", adminGetVersion, 0                },
-  { SwVerbGet,    "/admin/health",  adminGetHealth,  0                },
-  { SwVerbGet,    "/admin/log",     adminGetLog,     0                },
-  { SwVerbGet,    "/admin/tenants", adminGetTenants, 0                },
-  { SwVerbGet,    "/admin/plugins", adminGetPlugins, 0                },
+  { SwVerbGet,    "/admin/version", adminGetVersion, 0,                0 },
+  { SwVerbGet,    "/admin/health",  adminGetHealth,  0,                0 },
+  { SwVerbGet,    "/admin/log",     adminGetLog,     0,                0 },
+  { SwVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
+  { SwVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
   // PUT
-  { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS },
+  { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
-  { SwVerbPost,   "/admin/log",     adminPostLog,    ADMIN_LOG_PARAMS },
+  { SwVerbPost,   "/admin/log",     adminPostLog,    ADMIN_LOG_PARAMS, 0 },
   // DELETE
-  { SwVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS },
+  { SwVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
   // PATCH
-  { SwVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS }
+  { SwVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS, 0 }
 };
 
 

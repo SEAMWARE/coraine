@@ -478,7 +478,7 @@ static void dispatchOneMode(Tenant*       tenantP,
     Group* g = &groups[gi];
     LdRegCacheItem* csr = g->csr;
 
-    if (!ldRegOpSupported(csr, "createEntity"))
+    if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
     {
       if (conflictOnNoOp)
       {

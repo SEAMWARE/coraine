@@ -131,7 +131,7 @@ bool deleteEntity(void)
         if (ldDistOpCsrWouldLoop(csr, ownAlias))
           continue;
 
-        if (!ldRegOpSupported(csr, "deleteEntity"))
+        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
           if (!opConflict[g])
             continue;  // inclusive: silently skip

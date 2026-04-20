@@ -265,7 +265,7 @@ bool patchEntityAttr(void)
         if (!matched)
           continue;
 
-        if (!ldRegOpSupported(csr, "updateAttrs"))
+        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
           if (!opConf[g]) continue;
           char detail[256];

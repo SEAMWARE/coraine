@@ -295,7 +295,7 @@ bool purgeEntities(void)
         if (csr->endpoint == NULL)                  continue;
         if (ldDistOpCsrWouldLoop(csr, ownAlias))    continue;
 
-        if (!ldRegOpSupported(csr, "purgeEntity"))
+        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
           if (!opConflict[g])
             continue;

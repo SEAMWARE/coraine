@@ -225,7 +225,7 @@ bool putEntityAttr(void)
 
         if (!matched) continue;
 
-        if (!ldRegOpSupported(csr, "replaceAttrs"))
+        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
           if (!opConf[g]) continue;
           char detail[256];
