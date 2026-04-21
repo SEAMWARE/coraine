@@ -97,12 +97,21 @@ void mongocKjTreeToBson(KjNode* treeP, bson_t* bsonP)
 {
   bson_init(bsonP);
 
-  // treeP is a KjObject - iterate its children, rename "id" to "_id"
+  // treeP is a KjObject — iterate its children, appending to the bson
+  // doc with "id" rewritten to "_id". The node is mutated temporarily
+  // so kjNodeToBson sees the right key, then restored — the tree is
+  // shared with the service routine / notifier, which expect "id".
   for (KjNode* childP = treeP->value.firstChildP; childP != NULL; childP = childP->next)
   {
+    bool idRewritten = false;
     if (childP->name != NULL && strcmp(childP->name, "id") == 0)
+    {
       childP->name = "_id";
+      idRewritten  = true;
+    }
     kjNodeToBson(childP, bsonP, false, 0);
+    if (idRewritten)
+      childP->name = "id";
   }
 }
 

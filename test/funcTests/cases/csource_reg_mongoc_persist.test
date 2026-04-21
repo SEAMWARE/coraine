@@ -65,7 +65,7 @@ echo
 
 echo "04. Query after restart - both visible"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
 echo
 echo
 
@@ -88,7 +88,7 @@ echo "07. Restart again, query - only R1 remains"
 echo "=========================================="
 swBrokerStop
 swBrokerStart
-swCurl --url /ngsi-ld/v1/csourceRegistrations
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
 echo
 echo
 
