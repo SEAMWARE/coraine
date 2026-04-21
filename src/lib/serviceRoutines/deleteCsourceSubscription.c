@@ -15,6 +15,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemLookup
 
+#include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/deleteCsourceSubscription.h" // Own interface
@@ -36,6 +37,9 @@ bool deleteCsourceSubscription(void)
   }
 
   ldSubCacheItemRemove(cacheP, subId);
+
+  if (db.subscriptionDelete != NULL)
+    db.subscriptionDelete(tenantP, subId);
 
   swRest.out.httpStatusCode = 204;
   return true;

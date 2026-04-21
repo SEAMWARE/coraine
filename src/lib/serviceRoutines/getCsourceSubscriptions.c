@@ -14,8 +14,9 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
+#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjClone.h"                           // kjClone
+#include "kjson/kjLookup.h"                          // kjLookup
 
 #include "swNgsild/swNgsild.h"                       // ldContextResolve, swNgsild
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
@@ -55,6 +56,12 @@ bool getCsourceSubscriptions(void)
       KjNode* subP = kjClone(swRest.kjsonP, itemP->subTree);
       ldSubscriptionCompactQ(subP, itemP->qExpr, swNgsild.contextP, &swRest.kalloc);
       ldSubscriptionCountersInject(subP, itemP);
+
+      // Hide the internal marker
+      KjNode* kindP = kjLookup(subP, "_subKind");
+      if (kindP != NULL)
+        kjChildRemove(subP, kindP);
+
       kjChildAdd(arrayP, subP);
     }
   }

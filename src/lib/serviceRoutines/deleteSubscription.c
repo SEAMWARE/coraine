@@ -7,8 +7,11 @@
 //
 
 #include <stddef.h>                                  // NULL
+#include <string.h>                                  // strcmp
 
 #include "swRest/SwRestState.h"                      // swRest
+#include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/KjNode.h"                            // KjNode
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove
@@ -34,6 +37,21 @@ bool deleteSubscription(void)
   {
     ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented", "subscription CRUD not supported by this DB plugin");
     return true;
+  }
+
+  //
+  // Block deletion of CSR-subs via this endpoint — they live under
+  // /csourceSubscriptions. Look them up in the CSR cache to avoid a DB
+  // round-trip.
+  //
+  {
+    Tenant* _t = (Tenant*) swNgsild.tenantP;
+    if (_t != NULL && _t->regSubCacheP != NULL
+        && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, subId) != NULL)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
+      return true;
+    }
   }
 
   int r = db.subscriptionDelete((Tenant*) swNgsild.tenantP, subId);

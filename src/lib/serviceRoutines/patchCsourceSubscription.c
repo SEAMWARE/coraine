@@ -33,6 +33,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheItemRemove, ldSubCacheItemAdd
 
+#include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/patchCsourceSubscription.h"  // Own interface
@@ -148,6 +149,14 @@ bool patchCsourceSubscription(void)
     else
       kjChildAdd(subTree, kjString(NULL, LD_VOCAB_STATUS, newStatus));
   }
+
+  //
+  // Persist the merged tree. The DB fragment semantics in our plugins
+  // do merge-patch anyway, but since we've already merged in-memory
+  // we just push the full updated tree via the same entry point.
+  //
+  if (db.subscriptionUpdate != NULL)
+    db.subscriptionUpdate(tenantP, subId, subTree);
 
   //
   // Re-add cache item so parsed shortcuts are rebuilt.

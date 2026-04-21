@@ -109,6 +109,21 @@ bool postSubscriptions(void)
   }
 
   //
+  // Reject id collision with an existing CSR-subscription — the mongo
+  // collection is shared across /subscriptions and /csourceSubscriptions.
+  //
+  {
+    Tenant* _t = (Tenant*) swNgsild.tenantP;
+    if (_t != NULL && _t->regSubCacheP != NULL
+        && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, idP->value.s) != NULL)
+    {
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+              "subscription '%s' already exists", idP->value.s);
+      return true;
+    }
+  }
+
+  //
   // Expand q-filter attribute names using the request's @context.
   // The q string is opaque to JSON-LD expansion, so we parse it (which expands
   // attr names via swNgsild.contextP), then render back to a string with the

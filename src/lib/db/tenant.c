@@ -277,9 +277,23 @@ static void tenantSubCacheLoad(Tenant* tP)
 
   int normalCount = 0;
   int pernotCount = 0;
+  int csrCount    = 0;
 
   for (KjNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
   {
+    // CSR-subs (§ 5.11) are persisted in the same collection, tagged
+    // with _subKind="csr". Route them to regSubCacheP and skip the
+    // entity-sub paths.
+    KjNode* kindP = kjLookup(subP, "_subKind");
+    bool    isCsr = (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0);
+
+    if (isCsr && tP->regSubCacheP != NULL)
+    {
+      ldSubCacheItemAdd((LdSubCache*) tP->regSubCacheP, subP, NULL);
+      csrCount++;
+      continue;
+    }
+
     KjNode* tiP = kjLookup(subP, "timeInterval");
     bool isPernot = (tiP != NULL && (tiP->type == KjInt || tiP->type == KjFloat));
 
@@ -295,9 +309,9 @@ static void tenantSubCacheLoad(Tenant* tP)
     }
   }
 
-  if (normalCount + pernotCount > 0)
-    KT_I("tenant '%s': loaded %d subscription(s) + %d pernot into cache",
-         tP->name[0] ? tP->name : "(default)", normalCount, pernotCount);
+  if (normalCount + pernotCount + csrCount > 0)
+    KT_I("tenant '%s': loaded %d subscription(s) + %d pernot + %d csr-sub into cache",
+         tP->name[0] ? tP->name : "(default)", normalCount, pernotCount, csrCount);
 }
 
 

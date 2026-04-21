@@ -1,0 +1,361 @@
+#
+# FILE            csr_subscription_mongoc_persist.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11 CSR-subs share the mongo `subscriptions` collection with
+# entity-subs (tagged internally via _subKind). On restart, the
+# subscription cache loader routes each stored sub into either
+# subCacheP (entity) or regSubCacheP (csr) based on the tag. After
+# restart, each endpoint must still only see its own kind.
+#
+# REQUIRE_DB: mongoc
+--NAME--
+CSR + entity subscriptions — mixed persistence across broker restart (mongoc)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity-sub E1 on /subscriptions
+# 02. Create CSR-sub C1 on /csourceSubscriptions
+# 03. List /subscriptions — E1 only
+# 04. List /csourceSubscriptions — C1 only
+# 05. Restart broker — both reload from mongo, each into its own cache
+# 06. List /subscriptions after restart — E1 only (still no C1 leaked)
+# 07. List /csourceSubscriptions after restart — C1 only
+# 08. Retrieve E1 via /subscriptions/{id} — 200
+# 09. Retrieve C1 via /subscriptions/{id} — 404 (CSR-sub hidden from entity endpoint)
+# 10. Retrieve C1 via /csourceSubscriptions/{id} — 200
+# 11. Retrieve E1 via /csourceSubscriptions/{id} — 404 (entity-sub hidden from CSR endpoint)
+#
+
+echo "01. Create entity-sub E1"
+echo "========================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:E1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": { "endpoint": { "uri": "http://localhost:1234/E1" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create CSR-sub C1"
+echo "====================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:C1",
+  "type": "Subscription",
+  "entities": [{"type": "Temperature"}],
+  "notification": { "endpoint": { "uri": "http://localhost:1234/C1" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. List /subscriptions — E1 only"
+echo "================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. List /csourceSubscriptions — C1 only"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/csourceSubscriptions
+echo
+echo
+
+
+echo "05. Restart broker"
+echo "=================="
+swBrokerStop
+swBrokerStart
+echo "restarted"
+echo
+echo
+
+
+echo "06. List /subscriptions after restart — E1 only"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "07. List /csourceSubscriptions after restart — C1 only"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/csourceSubscriptions
+echo
+echo
+
+
+echo "08. Retrieve E1 via /subscriptions/E1 — 200"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:E1
+echo
+echo
+
+
+echo "09. Retrieve C1 via /subscriptions/C1 — 404"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:C1
+echo
+echo
+
+
+echo "10. Retrieve C1 via /csourceSubscriptions/C1 — 200"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C1
+echo
+echo
+
+
+echo "11. Retrieve E1 via /csourceSubscriptions/E1 — 404"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity-sub E1
+========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:E1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Create CSR-sub C1
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. List /subscriptions — E1 only
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:E1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/E1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+04. List /csourceSubscriptions — C1 only
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Temperature"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:C1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/C1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+05. Restart broker
+==================
+restarted
+
+
+06. List /subscriptions after restart — E1 only
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:E1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/E1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+07. List /csourceSubscriptions after restart — C1 only
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Temperature"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:C1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/C1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+08. Retrieve E1 via /subscriptions/E1 — 200
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:E1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/E1"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+09. Retrieve C1 via /subscriptions/C1 — 404
+===========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "subscription 'urn:ngsi-ld:Subscription:C1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. Retrieve C1 via /csourceSubscriptions/C1 — 200
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Temperature"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:C1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/C1"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+11. Retrieve E1 via /csourceSubscriptions/E1 — 404
+==================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "CSR subscription 'urn:ngsi-ld:Subscription:E1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

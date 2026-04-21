@@ -7,8 +7,11 @@
 //
 #include <stddef.h>                                  // NULL
 
+#include <string.h>                                  // strcmp
+
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjBuilder.h"                         // kjChildRemove
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
@@ -50,8 +53,24 @@ bool getSubscriptions(void)
   Tenant*      tenantP  = (Tenant*) swNgsild.tenantP;
   LdSubCache*  scP      = (LdSubCache*) tenantP->subCacheP;
 
-  for (KjNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
+  //
+  // Filter out CSR-subs (they share the same mongo collection, tagged
+  // with _subKind="csr") and strip the internal marker from the rest.
+  //
+  KjNode* subP = arrayP->value.firstChildP;
+  KjNode* nextP;
+  while (subP != NULL)
   {
+    nextP = subP->next;
+
+    KjNode* kindP = kjLookup(subP, "_subKind");
+    if (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0)
+    {
+      kjChildRemove(arrayP, subP);
+      subP = nextP;
+      continue;
+    }
+
     KjNode* idP = kjLookup(subP, "id");
     LdSubCacheItem* cacheItem = (scP != NULL && idP != NULL && idP->type == KjString)
       ? ldSubCacheItemLookup(scP, idP->value.s)
@@ -59,6 +78,11 @@ bool getSubscriptions(void)
     LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr : NULL;
     ldSubscriptionCompactQ(subP, qExpr, swNgsild.contextP, &swRest.kalloc);
     ldSubscriptionCountersInject(subP, cacheItem);
+
+    if (kindP != NULL)
+      kjChildRemove(subP, kindP);
+
+    subP = nextP;
   }
 
   swNgsild.rawResponse    = true;

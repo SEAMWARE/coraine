@@ -81,10 +81,21 @@ bool patchSubscription(void)
     }
   }
 
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+
+  //
+  // Block patching of CSR-subs via this endpoint.
+  //
+  if (tenantP != NULL && tenantP->regSubCacheP != NULL
+      && ldSubCacheItemLookup((LdSubCache*) tenantP->regSubCacheP, subId) != NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
+    return true;
+  }
+
   //
   // Can't switch between periodic (timeInterval) and normal (watchedAttributes)
   //
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
   KjNode* tiInFragment = kjLookup(fragment, "timeInterval");
   KjNode* waInFragment = kjLookup(fragment, LD_VOCAB_WATCHED_ATTRS);
   KjNode* thInFragment = kjLookup(fragment, LD_VOCAB_THROTTLING);

@@ -7,8 +7,11 @@
 //
 
 #include <stddef.h>                                  // NULL
+#include <string.h>                                  // strcmp
 
 #include "swRest/SwRestState.h"                      // swRest
+#include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjBuilder.h"                         // kjChildRemove
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
@@ -52,6 +55,18 @@ bool getSubscription(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error retrieving subscription '%s'", subId);
     return true;
   }
+
+  //
+  // Hide CSR-subs from this endpoint — they live under /csourceSubscriptions
+  //
+  KjNode* kindP = kjLookup(subP, "_subKind");
+  if (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
+    return true;
+  }
+  if (kindP != NULL)
+    kjChildRemove(subP, kindP);
 
   // Resolve @context (may not be set yet for GET with no URL params)
   ldContextResolve();

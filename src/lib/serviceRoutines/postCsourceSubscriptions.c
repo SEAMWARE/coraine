@@ -36,6 +36,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemLookup
 
+#include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postCsourceSubscriptions.h"  // Own interface
@@ -105,12 +106,21 @@ bool postCsourceSubscriptions(void)
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
-  // Reject duplicate id in the CSR-sub cache
+  // Reject duplicate id in either sub cache — /subscriptions and
+  // /csourceSubscriptions share the mongo collection, so the id space
+  // is effectively global.
   if (tenantP->regSubCacheP != NULL
       && ldSubCacheItemLookup((LdSubCache*) tenantP->regSubCacheP, idP->value.s) != NULL)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
             "CSR subscription '%s' already exists", idP->value.s);
+    return true;
+  }
+  if (tenantP->subCacheP != NULL
+      && ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, idP->value.s) != NULL)
+  {
+    ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+            "subscription '%s' already exists", idP->value.s);
     return true;
   }
 
@@ -133,6 +143,39 @@ bool postCsourceSubscriptions(void)
       KjNode* jcP = kjString(NULL, "jsonldContext", reqCtxP->url);
       kjChildAdd(subP, jcP);
     }
+  }
+
+  //
+  // Internal marker: distinguishes CSR-subs from entity-subs in the
+  // shared mongo collection. Stripped from GET responses.
+  //
+  kjChildAdd(subP, kjString(NULL, "_subKind", "csr"));
+
+  //
+  // Persist (same collection as entity subs). If no DB plugin is
+  // configured, we still add to cache — CSR-subs remain in-memory
+  // and are lost on restart.
+  //
+  if (db.subscriptionCreate != NULL)
+  {
+    int r = db.subscriptionCreate(tenantP, idP->value.s, subP);
+
+    if (r == DB_ALREADY_EXISTS)
+    {
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+              "subscription '%s' already exists", idP->value.s);
+      return true;
+    }
+    if (r != DB_OK)
+    {
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+              "database error creating CSR subscription '%s'", idP->value.s);
+      return true;
+    }
+
+    // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
+    if (idP->name[0] == '_')
+      idP->name = "id";
   }
 
   //
