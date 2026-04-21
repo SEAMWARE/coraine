@@ -61,7 +61,8 @@ int mongocEntityMergeOne(mongoc_collection_t* collP,
                          const char*          entityId,
                          KjNode*              fragmentDb,
                          uint64_t             ts,
-                         LdMergeReport*       reportP)
+                         LdMergeReport*       reportP,
+                         KjNode**             targetPP)
 {
   //
   // 1. Fetch current document by _id
@@ -221,6 +222,9 @@ int mongocEntityMergeOne(mongoc_collection_t* collP,
   bson_destroy(&unsetDoc);
   bson_destroy(&filter);
 
+  if (targetPP != NULL && result == DB_OK)
+    *targetPP = target;
+
   return result;
 }
 
@@ -239,7 +243,7 @@ int mongocEntityMerge(Tenant*        tenantP,
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
 
-  int result = mongocEntityMergeOne(collP, entityId, fragmentDb, ts, reportP);
+  int result = mongocEntityMergeOne(collP, entityId, fragmentDb, ts, reportP, NULL);
 
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);

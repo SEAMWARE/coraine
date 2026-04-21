@@ -1,0 +1,231 @@
+#
+# FILE            entity_batch_merge_distops_inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Merge (§ 5.6.10) — inclusive CSR mode.
+#
+# An inclusive registration mirrors every merge to the registered
+# Context Source. The forward is a SINGLE POST /entityOperations/merge
+# per CSR. Local still merges surgically (unrelated attrs untouched);
+# the remote also applies the same fragment via its own merge path.
+#
+--NAME--
+Batch Entity Merge — inclusive CSR, local + forwarded
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 on CB {speed:10, size:large} and on CP1 {speed:10, size:large}"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"size":{"type":"Property","value":"large"}}'
+echo
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"size":{"type":"Property","value":"large"}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 inclusive (Vehicle, mergeBatch)"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["mergeBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. Batch Merge V1.color=blue → 204 (surgical, mirrored to CP1)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "04. GET CB V1 local-only — speed=10, size=large, color=blue"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "05. GET CP1 V1 — speed=10, size=large, color=blue (merged too)"
+echo "==============================================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+echo "06. Batch Merge delete V1.size with urn:ngsi-ld:null → 204"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","size":"urn:ngsi-ld:null"}
+]'
+echo
+echo
+
+
+echo "07. GET CB V1 — speed=10, color=blue (size gone locally)"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "08. GET CP1 V1 — speed=10, color=blue (size gone on remote too)"
+echo "==============================================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 on CB {speed:10, size:large} and on CP1 {speed:10, size:large}
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 inclusive (Vehicle, mergeBatch)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Batch Merge V1.color=blue → 204 (surgical, mirrored to CP1)
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET CB V1 local-only — speed=10, size=large, color=blue
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 95
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "size": "large",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+05. GET CP1 V1 — speed=10, size=large, color=blue (merged too)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 245
+
+{
+  "@context": {
+    "@none": {
+      "type": "Property",
+      "value": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+    }
+  },
+  "color": "blue",
+  "id": "urn:V1",
+  "size": "large",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+06. Batch Merge delete V1.size with urn:ngsi-ld:null → 204
+==========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. GET CB V1 — speed=10, color=blue (size gone locally)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+08. GET CP1 V1 — speed=10, color=blue (size gone on remote too)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 226
+
+{
+  "@context": {
+    "@none": {
+      "type": "Property",
+      "value": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+    }
+  },
+  "color": "blue",
+  "id": "urn:V1",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

@@ -32,11 +32,16 @@
 // document. Until then, a PATCH that touches one attribute on a large entity
 // still transfers the full entity.
 //
+// targetPP (optional, may be NULL) is populated on DB_OK with the
+// post-merge target tree (request-arena lifetime via swRest.kalloc) —
+// used by Batch Merge to skip the extra retrieve for notifications.
+//
 extern int mongocEntityMergeOne(mongoc_collection_t* collP,
                                 const char*          entityId,
                                 KjNode*              fragmentDb,
                                 uint64_t             ts,
-                                LdMergeReport*       reportP);
+                                LdMergeReport*       reportP,
+                                KjNode**             targetPP);
 
 
 

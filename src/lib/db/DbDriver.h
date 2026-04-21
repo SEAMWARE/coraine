@@ -100,6 +100,35 @@ typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, KjNode* entitiesArr, int
 //
 typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
 
+//
+// DbEntityBulkMergeFunc - batch merge (§ 5.6.10) of N fragments against
+// pre-existing entities. Each fragment has already had multi-instance
+// collapse applied by the service routine, so there is one effective
+// fragment per unique id. Surgical semantics: only attributes mentioned
+// in the fragment are touched (plus entity modifiedAt). Null-valued
+// sub-elements remove the target; other values overwrite.
+//
+// fragmentsArr is a KjArray of DB-format fragments. Each child object
+// carries its entity id under "_id" (or "id"); other fields are the
+// attr wrappers to merge.
+//
+// resultsV is a caller-allocated int[N] populated per-entity with one
+// of: DB_OK, DB_NOT_FOUND (entity doesn't exist — batch merge requires
+// pre-existence), DB_ERR. N must equal fragmentsArr length.
+//
+// reportsV is a caller-allocated LdMergeReport[N] populated per-entity
+// with the per-attribute change record the driver produced. The service
+// routine uses reportsV for subscription-notification matching.
+//
+// snapshotsV is a caller-allocated KjNode*[N] populated per-entity with
+// the post-merge full DB-form entity, in request-arena lifetime so the
+// service can feed it to ldNotifyDefer without an extra retrieve.
+//
+typedef int  (*DbEntityBulkMergeFunc)(Tenant* tenantP, KjNode* fragmentsArr,
+                                       uint64_t ts, int* resultsV,
+                                       LdMergeReport* reportsV,
+                                       KjNode** snapshotsV);
+
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
@@ -188,6 +217,7 @@ typedef struct DbDriver
   DbEntityCreateFunc      entityCreate;
   DbEntityBulkCreateFunc  entityBulkCreate;
   DbEntityBulkUpdateFunc  entityBulkUpdate;
+  DbEntityBulkMergeFunc   entityBulkMerge;
   DbEntityRetrieveFunc    entityRetrieve;
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;

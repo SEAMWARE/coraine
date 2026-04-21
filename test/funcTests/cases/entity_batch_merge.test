@@ -1,0 +1,382 @@
+#
+# FILE            entity_batch_merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Merge (§ 5.6.10). Local-only semantics covering:
+#
+#   - all-existing + merge      → 204 (surgical, unrelated attrs kept)
+#   - sub-attr null-delete      → 204 (only the named sub-attr removed)
+#   - attribute null-delete     → 204 (whole attribute removed)
+#   - non-existing entity       → 207 / 404 per id
+#   - multi-instance same id    → applied in array order; late delete + reset works
+#   - body validation           → 400
+#
+--NAME--
+POST /entityOperations/merge — Batch Entity Merge (§ 5.6.10)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed — create V1 {speed:10, color:red, size:large} and V2 {speed:20}"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"},"size":{"type":"Property","value":"large"}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
+]'
+echo
+echo
+
+
+echo "02. Merge V1.color=blue + V2.size=small → 204 (surgical)"
+echo "========================================================"
+# V1.speed and V1.size must remain intact.
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"blue"}},
+  {"id":"urn:V2","type":"Vehicle","size":{"type":"Property","value":"small"}}
+]'
+echo
+echo
+
+
+echo "03. GET V1 — speed=10, color=blue, size=large (all present)"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "04. GET V2 — speed=20, size=small"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+echo
+echo
+
+
+echo "05. Merge V1 with simplified urn:ngsi-ld:null → delete V1.size (§ 4.5.5.9)"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","size":"urn:ngsi-ld:null"}
+]'
+echo
+echo
+
+
+echo "06. GET V1 — speed=10, color=blue (size gone)"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "07. Batch with a missing id → 207 partial"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}},
+  {"id":"urn:VX","type":"Vehicle","speed":{"type":"Property","value":999}}
+]'
+echo
+echo
+
+
+echo "08. GET V1 — speed=99 (merge applied for V1 even though VX failed)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "09. All ids missing → 409"
+echo "========================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:missingA","type":"Vehicle","speed":{"type":"Property","value":1}},
+  {"id":"urn:missingB","type":"Vehicle","speed":{"type":"Property","value":2}}
+]'
+echo
+echo
+
+
+echo "10. Multi-instance V1 — array order, delete then reset works per-fragment"
+echo "========================================================================="
+# V1 currently has speed=99, color=blue. Array: frag1 deletes color, frag2 resets color=green.
+# Plugin applies fragments in order per fragment — last fragment sees color removed then
+# creates it again.
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","color":"urn:ngsi-ld:null"},
+  {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"green"}}
+]'
+echo
+echo
+
+
+echo "11. GET V1 — speed=99, color=green"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "12. Empty array → 400"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[]'
+echo
+echo
+
+
+echo "13. null element → 400"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
+echo
+echo
+
+
+echo "14. Non-array body → 400"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '{"id":"urn:V1","type":"Vehicle"}'
+echo
+echo
+
+
+--EXPECT--
+01. Seed — create V1 {speed:10, color:red, size:large} and V2 {speed:20}
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2"
+  ]
+}
+
+
+
+02. Merge V1.color=blue + V2.size=small → 204 (surgical)
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET V1 — speed=10, color=blue, size=large (all present)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 95
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "size": "large",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+04. GET V2 — speed=20, size=small
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "id": "urn:V2",
+  "size": "small",
+  "speed": 20,
+  "type": "Vehicle"
+}
+
+
+
+05. Merge V1 with simplified urn:ngsi-ld:null → delete V1.size (§ 4.5.5.9)
+==========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET V1 — speed=10, color=blue (size gone)
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+07. Batch with a missing id → 207 partial
+=========================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 264
+
+{
+  "errors": [
+    {
+      "entityId": "urn:VX",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+08. GET V1 — speed=99 (merge applied for V1 even though VX failed)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+09. All ids missing → 409
+=========================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 470
+
+{
+  "errors": [
+    {
+      "entityId": "urn:missingA",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    },
+    {
+      "entityId": "urn:missingB",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+10. Multi-instance V1 — array order, delete then reset works per-fragment
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+11. GET V1 — speed=99, color=green
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 77
+
+{
+  "color": "green",
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+12. Empty array → 400
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 149
+
+{
+  "detail": "Batch Entity Merge: input array is empty",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. null element → 400
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "Batch Entity Merge: null entry at position 1",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. Non-array body → 400
+========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "Batch Entity Merge body must be a JSON array",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

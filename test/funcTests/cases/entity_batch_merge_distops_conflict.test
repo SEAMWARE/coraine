@@ -1,0 +1,186 @@
+#
+# FILE            entity_batch_merge_distops_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Merge (§ 5.6.10) — exclusive CSR that doesn't declare
+# mergeBatch in its operations. The chopped attrs have nowhere valid
+# to go, so they become Conflict entries in errors[] with the CSR's
+# registrationId. Locally-kept attrs still apply.
+#
+--NAME--
+Batch Entity Merge — exclusive CSR without mergeBatch op (409 / 207 conflict)
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 on CB with {color:red}"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Register CB→CP1 exclusive claiming 'speed' but WITHOUT mergeBatch op"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "03. Merge V1 {speed only} → 409 (all-chopped, CSR can't accept, nothing local)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
+]'
+echo
+echo
+
+
+echo "04. GET CB V1 local-only — still just color=red (nothing merged)"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "05. Merge V1 {speed, color} → 207 (color locally, speed conflicts)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "06. GET CB V1 local-only — color=blue (local merge applied)"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 on CB with {color:red}
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Register CB→CP1 exclusive claiming 'speed' but WITHOUT mergeBatch op
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Merge V1 {speed only} → 409 (all-chopped, CSR can't accept, nothing local)
+==============================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 306
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support mergeBatch",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": []
+}
+
+
+
+04. GET CB V1 local-only — still just color=red (nothing merged)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+05. Merge V1 {speed, color} → 207 (color locally, speed conflicts)
+==================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 322
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support mergeBatch",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+06. GET CB V1 local-only — color=blue (local merge applied)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
