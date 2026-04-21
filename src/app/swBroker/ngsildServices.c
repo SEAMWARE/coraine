@@ -44,6 +44,11 @@
 #include "serviceRoutines/getCsourceRegistration.h"    // getCsourceRegistration
 #include "serviceRoutines/patchCsourceRegistration.h"  // patchCsourceRegistration
 #include "serviceRoutines/deleteCsourceRegistration.h" // deleteCsourceRegistration
+#include "serviceRoutines/postCsourceSubscriptions.h"  // postCsourceSubscriptions
+#include "serviceRoutines/getCsourceSubscriptions.h"   // getCsourceSubscriptions
+#include "serviceRoutines/getCsourceSubscription.h"    // getCsourceSubscription
+#include "serviceRoutines/patchCsourceSubscription.h"  // patchCsourceSubscription
+#include "serviceRoutines/deleteCsourceSubscription.h" // deleteCsourceSubscription
 #include "serviceRoutines/getEntityMap.h"              // getEntityMap
 #include "serviceRoutines/deleteEntityMap.h"           // deleteEntityMap
 #include "serviceRoutines/patchEntityMap.h"            // patchEntityMap
@@ -105,6 +110,13 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", getCsourceRegistration,    LD_PARAMS_GET_CSOURCE_REGISTRATION,   LdOpRetrieveRegistration },
   { SwVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", patchCsourceRegistration,  LD_PARAMS_PATCH_CSOURCE_REGISTRATION, LdOpUpdateRegistration   },
   { SwVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION, LdOpDeleteRegistration  },
+
+  // Context Source Registration Subscriptions (§ 5.11)
+  { SwVerbPost,   "/ngsi-ld/v1/csourceSubscriptions",   postCsourceSubscriptions,   LD_PARAMS_POST_CSOURCE_SUBSCRIPTIONS,   LdOpCreateCsourceSubscription   },
+  { SwVerbGet,    "/ngsi-ld/v1/csourceSubscriptions",   getCsourceSubscriptions,    LD_PARAMS_GET_CSOURCE_SUBSCRIPTIONS,    LdOpQueryCsourceSubscription    },
+  { SwVerbGet,    "/ngsi-ld/v1/csourceSubscriptions/*", getCsourceSubscription,     LD_PARAMS_GET_CSOURCE_SUBSCRIPTION,     LdOpRetrieveCsourceSubscription },
+  { SwVerbPatch,  "/ngsi-ld/v1/csourceSubscriptions/*", patchCsourceSubscription,   LD_PARAMS_PATCH_CSOURCE_SUBSCRIPTION,   LdOpUpdateCsourceSubscription   },
+  { SwVerbDelete, "/ngsi-ld/v1/csourceSubscriptions/*", deleteCsourceSubscription,  LD_PARAMS_DELETE_CSOURCE_SUBSCRIPTION,  LdOpDeleteCsourceSubscription   },
 
   // EntityMap CRUD (§ 5.14)
   { SwVerbGet,    "/ngsi-ld/v1/entityMaps",    createEntityMap, LD_PARAMS_GET_ENTITIES, LdOpNone },

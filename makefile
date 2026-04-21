@@ -54,6 +54,11 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/getCsourceRegistration.c    \
                 src/lib/serviceRoutines/patchCsourceRegistration.c  \
                 src/lib/serviceRoutines/deleteCsourceRegistration.c \
+                src/lib/serviceRoutines/postCsourceSubscriptions.c  \
+                src/lib/serviceRoutines/getCsourceSubscriptions.c   \
+                src/lib/serviceRoutines/getCsourceSubscription.c    \
+                src/lib/serviceRoutines/patchCsourceSubscription.c  \
+                src/lib/serviceRoutines/deleteCsourceSubscription.c \
                 src/lib/serviceRoutines/getEntityMap.c              \
                 src/lib/serviceRoutines/deleteEntityMap.c           \
                 src/lib/serviceRoutines/patchEntityMap.c            \

@@ -1,0 +1,65 @@
+//
+// FILE            getCsourceSubscriptions.c
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+// GET /ngsi-ld/v1/csourceSubscriptions  (NGSI-LD § 5.11.5)
+//
+// Cache-only query — no DB persistence in v1. Iterates the tenant's
+// regSubCache and returns an array of subscription trees.
+//
+#include <stddef.h>                                  // NULL
+
+#include "swRest/SwRestState.h"                      // swRest
+#include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
+#include "kjson/kjClone.h"                           // kjClone
+
+#include "swNgsild/swNgsild.h"                       // ldContextResolve, swNgsild
+#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
+#include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
+
+#include "db/Tenant.h"                               // Tenant
+
+#include "serviceRoutines/getCsourceSubscriptions.h" // Own interface
+
+
+
+bool getCsourceSubscriptions(void)
+{
+  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  LdSubCache* cacheP  = (tenantP != NULL) ? (LdSubCache*) tenantP->regSubCacheP : NULL;
+
+  ldContextResolve();
+
+  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
+
+  if (cacheP != NULL)
+  {
+    int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
+    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : 1 << 30;
+    int idx   = 0;
+
+    for (LdSubCacheItem* itemP = cacheP->itemList; itemP != NULL; itemP = itemP->next)
+    {
+      if (idx < skip) { ++idx; continue; }
+      if ((idx - skip) >= limit) break;
+      ++idx;
+
+      if (itemP->subTree == NULL)
+        continue;
+
+      KjNode* subP = kjClone(swRest.kjsonP, itemP->subTree);
+      ldSubscriptionCompactQ(subP, itemP->qExpr, swNgsild.contextP, &swRest.kalloc);
+      ldSubscriptionCountersInject(subP, itemP);
+      kjChildAdd(arrayP, subP);
+    }
+  }
+
+  swNgsild.rawResponse    = true;
+  swRest.out.responseTree = arrayP;
+  return true;
+}

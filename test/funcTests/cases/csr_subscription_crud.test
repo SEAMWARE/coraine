@@ -1,0 +1,386 @@
+#
+# FILE            csr_subscription_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11 Context Source Registration Subscription — CRUD surface.
+# Separate cache (Tenant.regSubCacheP) so entity-sub hot path is
+# untouched. Cache-only (no DB persistence in v1). timeInterval
+# returns 501.
+#
+--NAME--
+CSR Subscription CRUD - create, retrieve, query, update, delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create CSR-sub with explicit id - 201
+# 02. Retrieve by id - 200
+# 03. Create second CSR-sub - 201
+# 04. List all - two subs
+# 05. Create duplicate id - 409
+# 06. PATCH - change description
+# 07. Retrieve after patch - 200, new description
+# 08. POST with timeInterval - 501 (deferred)
+# 09. DELETE first - 204
+# 10. List after delete - one sub
+# 11. DELETE non-existing - 404
+# 12. Retrieve deleted - 404
+#
+
+echo "01. Create CSR-sub S1"
+echo "====================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:CSR1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:1234/csrNotify" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve CSR-sub S1"
+echo "======================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+echo
+echo
+
+
+echo "03. Create second CSR-sub S2"
+echo "============================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:CSR2",
+  "type": "Subscription",
+  "entities": [ { "type": "Temperature" } ],
+  "watchedAttributes": [ "temperature" ],
+  "notification": { "endpoint": { "uri": "http://localhost:1234/csrNotify2" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. List all CSR-subs - two"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions
+echo
+echo
+
+
+echo "05. Duplicate create - 409"
+echo "=========================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:CSR1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:1234/x" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "06. PATCH - change description"
+echo "==============================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1 --payload '{"description": "watches all Vehicle CSRs"}'
+echo
+echo
+
+
+echo "07. Retrieve after patch"
+echo "========================"
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+echo
+echo
+
+
+echo "08. POST with timeInterval - 501"
+echo "================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:CSR3",
+  "type": "Subscription",
+  "timeInterval": 30,
+  "entities": [ { "type": "X" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:1234/pernot" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "09. DELETE CSR-sub CSR1 - 204"
+echo "============================="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+echo
+echo
+
+
+echo "10. List after delete - one"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions
+echo
+echo
+
+
+echo "11. DELETE non-existing - 404"
+echo "============================="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:no:such
+echo
+echo
+
+
+echo "12. Retrieve deleted - 404"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+echo
+echo
+
+
+--EXPECT--
+01. Create CSR-sub S1
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Retrieve CSR-sub S1
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:CSR1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/csrNotify"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+03. Create second CSR-sub S2
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. List all CSR-subs - two
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:CSR1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/csrNotify"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "type": "Temperature"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:CSR2",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/csrNotify2"
+      }
+    },
+    "status": "active",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "temperature"
+    ]
+  }
+]
+
+
+
+05. Duplicate create - 409
+==========================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' already exists",
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+06. PATCH - change description
+===============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. Retrieve after patch
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "description": "watches all Vehicle CSRs",
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:CSR1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/csrNotify"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+08. POST with timeInterval - 501
+================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "periodic CSR subscriptions ('timeInterval') are not supported",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+09. DELETE CSR-sub CSR1 - 204
+=============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+10. List after delete - one
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Temperature"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:CSR2",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/csrNotify2"
+      }
+    },
+    "status": "active",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "temperature"
+    ]
+  }
+]
+
+
+
+11. DELETE non-existing - 404
+=============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "CSR subscription 'urn:no:such' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+12. Retrieve deleted - 404
+==========================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
