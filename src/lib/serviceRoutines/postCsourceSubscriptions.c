@@ -35,6 +35,8 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemLookup
+#include "swNgsild/LdRegCache.h"                     // LdRegCache
+#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -181,8 +183,9 @@ bool postCsourceSubscriptions(void)
   //
   // Add to CSR-subscription cache
   //
+  LdSubCacheItem* cacheItem = NULL;
   if (tenantP->regSubCacheP != NULL)
-    ldSubCacheItemAdd((LdSubCache*) tenantP->regSubCacheP, subP, NULL);
+    cacheItem = ldSubCacheItemAdd((LdSubCache*) tenantP->regSubCacheP, subP, NULL);
 
   //
   // 201 Created — Location + Link headers
@@ -222,10 +225,14 @@ bool postCsourceSubscriptions(void)
   swRest.out.headerCount = ix;
 
   //
-  // Initial-on-subscribe notification (§ 5.11.2.4 / § 5.11.7) will be
-  // dispatched by the CSR-sub matcher/notifier — hooked after cache add.
-  // Placeholder — see ldCsrSubNotifyInitial (added in follow-up commit).
+  // Initial-on-subscribe notification (§ 5.11.2.4 / § 5.11.7): walk the
+  // reg cache, find CSRs matching this sub per § 5.12, and fire a single
+  // CsourceNotification with triggerReason="newlyMatching". No-op when
+  // no CSRs match. The 201 has already been committed to the client;
+  // a notification-side failure must not flip the create result.
   //
+  if (cacheItem != NULL && tenantP->regCacheP != NULL)
+    ldCsrSubInitialNotify((LdRegCache*) tenantP->regCacheP, cacheItem);
 
   return true;
 }

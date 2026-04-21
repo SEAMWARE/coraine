@@ -1,0 +1,270 @@
+#
+# FILE            csr_subscription_initial_notif.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11.2.4 / § 5.11.7 — a freshly-created CSR-subscription must
+# receive an initial CsourceNotification listing all currently
+# matching CSRs with triggerReason="newlyMatching".
+#
+# Matcher scope covered here (§ 5.12): entity type + attr list
+# (propertyNames). No geo / scope / q / temporal.
+#
+--NAME--
+CSR Subscription - initial newlyMatching notification on subscribe
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# Setup three CSRs covering different type × attr surfaces.
+# 01. Register CSR-A: Vehicle.propertyNames=[speed]
+# 02. Register CSR-B: Temperature.propertyNames=[temperature]
+# 03. Register CSR-C: Vehicle (all attrs)
+# 04. Create CSR-sub S1 watching Vehicle entities with watchedAttributes=[speed]
+#     → initial notification includes CSR-A and CSR-C (C has no attr list,
+#       so covers all attrs for Vehicle) but NOT CSR-B (wrong type).
+# 05. Dump ftClient — one POST to /notify
+# 06. Create CSR-sub S2 watching Temperature with watchedAttributes=[humidity]
+#     → CSR-B covers temperature only, not humidity → NO match → no notif.
+# 07. Dump ftClient — still one (no new notif)
+#
+
+echo "01. Register CSR-A (Vehicle propertyNames=[speed])"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Register CSR-B (Temperature propertyNames=[temperature])"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
+echo
+echo
+
+
+echo "03. Register CSR-C (Vehicle, all attrs)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "04. Create CSR-sub S1 (Vehicle + watchedAttributes=[speed])"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "05. Dump ftClient — one CsourceNotification with CSR-A + CSR-C"
+echo "=============================================================="
+ftClientDump
+echo
+echo
+
+
+echo "06. Create CSR-sub S2 (Temperature + watchedAttributes=[humidity]) — no match"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Temperature"}],"watchedAttributes":["humidity"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "07. Dump ftClient — still only one notification"
+echo "==============================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR-A (Vehicle propertyNames=[speed])
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR-B (Temperature propertyNames=[temperature])
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Register CSR-C (Vehicle, all attrs)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:C
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Create CSR-sub S1 (Vehicle + watchedAttributes=[speed])
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. Dump ftClient — one CsourceNotification with CSR-A + CSR-C
+==============================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        },
+        {
+          "endpoint": "http://cp3.example",
+          "id": "urn:CSR:C",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+06. Create CSR-sub S2 (Temperature + watchedAttributes=[humidity]) — no match
+=============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:S2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. Dump ftClient — still only one notification
+===============================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        },
+        {
+          "endpoint": "http://cp3.example",
+          "id": "urn:CSR:C",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
