@@ -1,0 +1,264 @@
+#
+# FILE            entity_batch_upsert_distops_exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Upsert (§ 5.6.9) — exclusive CSR mode.
+#
+# The exclusive CSR OWNS claimed attributes: they are chopped off the
+# local fragment and forwarded to CSR in a SINGLE batch-upsert; the
+# remainder merges locally. Missing local entity + fully-chopped
+# fragment = no local write at all (the CSR becomes the authoritative
+# location).
+#
+--NAME--
+Batch Entity Upsert — exclusive CSR, attrs chopped to CSR
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Register CB→CP1 exclusive claiming 'speed' (upsertBatch op)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["upsertBatch"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Upsert V1 {speed,color} — speed→CP1, color→local. 201 (new locally, new remotely)"
+echo "====================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}
+]'
+echo
+echo
+
+
+echo "03. GET CB V1 local-only — color=red only (speed chopped)"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "04. GET CP1 V1 — speed=10 (forwarded)"
+echo "====================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+echo "05. Upsert V1 with only speed=99 — 100% chopped, no local write"
+echo "==============================================================="
+# Every attr is claimed by the exclusive CSR. Local has nothing to
+# write. The forward reaches CP1 and V1.speed becomes 99.
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
+]'
+echo
+echo
+
+
+echo "06. GET CB V1 local-only — color=red unchanged (local wasn't touched)"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "07. GET CP1 V1 — speed=99 (replaced on remote)"
+echo "=============================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+echo "08. Multi-instance V1 mixed — speed chops + color merges, array order"
+echo "====================================================================="
+# Three instances. Locally, first replaces with color=blue, then each
+# merges color. Remotely, CP1 gets three speed-only instances and
+# processes them in order, ending with speed=300.
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100},"color":{"type":"Property","value":"blue"}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200},"color":{"type":"Property","value":"green"}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300},"color":{"type":"Property","value":"black"}}
+]'
+echo
+echo
+
+
+echo "09. GET CB V1 local-only — color=black (last wins)"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "10. GET CP1 V1 — speed=300 (last wins on remote)"
+echo "================================================"
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Register CB→CP1 exclusive claiming 'speed' (upsertBatch op)
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Upsert V1 {speed,color} — speed→CP1, color→local. 201 (new locally, new remotely)
+=====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 52
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+03. GET CB V1 local-only — color=red only (speed chopped)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+04. GET CP1 V1 — speed=10 (forwarded)
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 139
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "id": "urn:V1",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+05. Upsert V1 with only speed=99 — 100% chopped, no local write
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET CB V1 local-only — color=red unchanged (local wasn't touched)
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+07. GET CP1 V1 — speed=99 (replaced on remote)
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 139
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+08. Multi-instance V1 mixed — speed chops + color merges, array order
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+09. GET CB V1 local-only — color=black (last wins)
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 62
+
+{
+  "color": "black",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+10. GET CP1 V1 — speed=300 (last wins on remote)
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 140
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "id": "urn:V1",
+  "speed": 300,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

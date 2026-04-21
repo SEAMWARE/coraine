@@ -61,6 +61,7 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postEntityMap.c             \
                 src/lib/serviceRoutines/postEntityBatchCreate.c     \
                 src/lib/serviceRoutines/postEntityBatchUpdate.c     \
+                src/lib/serviceRoutines/postEntityBatchUpsert.c     \
                 src/lib/serviceRoutines/postEntityBatchQuery.c      \
                 src/lib/serviceRoutines/getSourceIdentity.c
 

@@ -1,0 +1,166 @@
+#
+# FILE            entity_batch_upsert_distops_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Upsert (§ 5.6.9) — exclusive CSR that doesn't declare
+# upsertBatch in its operations. The chopped attrs have nowhere valid
+# to go, so they become Conflict entries in errors[] with the CSR's
+# registrationId. Locally-kept attrs still apply.
+#
+--NAME--
+Batch Entity Upsert — exclusive CSR without upsertBatch (409 / 207 conflict)
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Register CB→CP1 exclusive claiming 'speed' but WITHOUT upsertBatch"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Upsert new V1 {speed only} → 409 (all-chopped, CSR can't accept, nothing local)"
+echo "==================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
+]'
+echo
+echo
+
+
+echo "03. GET CB V1 local-only — 404 (was never created locally)"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+echo "04. Upsert new V1 {speed, color} → 207 (color locally, speed conflicts)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "05. GET CB V1 local-only — color=blue (the only part that reached local)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Register CB→CP1 exclusive claiming 'speed' but WITHOUT upsertBatch
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Upsert new V1 {speed only} → 409 (all-chopped, CSR can't accept, nothing local)
+===================================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 307
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support upsertBatch",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": []
+}
+
+
+
+03. GET CB V1 local-only — 404 (was never created locally)
+==========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. Upsert new V1 {speed, color} → 207 (color locally, speed conflicts)
+=======================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 323
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "exclusive registration does not support upsertBatch",
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": [
+    "urn:V1"
+  ]
+}
+
+
+
+05. GET CB V1 local-only — color=blue (the only part that reached local)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

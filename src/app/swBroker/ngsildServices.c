@@ -51,6 +51,7 @@
 #include "serviceRoutines/postEntityMap.h"             // postEntityMap
 #include "serviceRoutines/postEntityBatchCreate.h"     // postEntityBatchCreate
 #include "serviceRoutines/postEntityBatchUpdate.h"     // postEntityBatchUpdate
+#include "serviceRoutines/postEntityBatchUpsert.h"     // postEntityBatchUpsert
 #include "serviceRoutines/postEntityBatchQuery.h"      // postEntityBatchQuery
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 
@@ -113,6 +114,7 @@ SwRestServiceSimplified ngsildCoreServices[] =
   // Batch Operations (§ 5.6.7 – § 5.6.10, § 5.6.20, § 6.14 – § 6.17, § 6.31)
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, 0,                      LdOpBatchCreate },
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/update", postEntityBatchUpdate, 0,                      LdOpBatchUpdate },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/upsert", postEntityBatchUpsert, LD_PARAM_OPTIONS,       LdOpBatchUpsert },
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery  },
 
   // Context Source Identity (§ 5.15 / § 6.33)

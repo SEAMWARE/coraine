@@ -1,0 +1,413 @@
+#
+# FILE            entity_batch_upsert.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Upsert (§ 5.6.9). Local-only semantics covering:
+#
+#   - all-new entities         → 201 Created
+#   - all-existing + replace   → 204 (existing entirely replaced by the
+#                                     first fragment; non-specified attrs
+#                                     disappear)
+#   - all-existing + update    → 204 (existing merged by the first
+#                                     fragment; non-specified attrs kept)
+#   - mix new + existing       → 201 (at least one created)
+#   - multi-instance same id   → array-order merge; first instance is
+#                                 create-or-replace, subsequent always merge
+#   - body validation (empty / null / non-array) → 400
+#
+--NAME--
+POST /entityOperations/upsert — Batch Entity Upsert (§ 5.6.9)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Upsert 3 new — all created → 201"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "02. GET V1 — speed=10, color=red"
+echo "================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "03. Upsert existing V1 with only speed — default REPLACE mode → 204"
+echo "==================================================================="
+# First fragment becomes the new state: color disappears.
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
+]'
+echo
+echo
+
+
+echo "04. GET V1 — speed=99, no color (replaced)"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "05. Upsert existing V2 with only color, ?options=update → 204"
+echo "============================================================="
+# Update mode: V2 merged; speed=20 stays, color added.
+swCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
+  {"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "06. GET V2 — speed=20 AND color=blue"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+echo
+echo
+
+
+echo "07. Mixed new + existing → 201 (at least one created)"
+echo "====================================================="
+# V4 new, V3 existing with replace (replaces whole thing).
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":40}},
+  {"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}
+]'
+echo
+echo
+
+
+echo "08. GET V3 — only color=green (replaced; speed=30 gone)"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
+echo
+echo
+
+
+echo "09. GET V4 — speed=40 (created fresh)"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V4?options=keyValues
+echo
+echo
+
+
+echo "10. Multi-instance new entity V5 — first creates, rest merge"
+echo "============================================================"
+# V5 doesn't exist. Array-order: first creates V5 with speed=100,
+# second merges color=pink, third merges speed=300. Final V5 has
+# speed=300 AND color=pink.
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":100}},
+  {"id":"urn:V5","type":"Vehicle","color":{"type":"Property","value":"pink"}},
+  {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":300}}
+]'
+echo
+echo
+
+
+echo "11. GET V5 — speed=300, color=pink"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V5?options=keyValues
+echo
+echo
+
+
+echo "12. Multi-instance existing V1 — first REPLACES, rest merge"
+echo "==========================================================="
+# V1 currently {speed:99}. Array: first frag {foo:1} → V1 becomes {foo:1}
+# (replace, speed gone). Second frag {bar:2} → merge, V1 = {foo:1, bar:2}.
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","foo":{"type":"Property","value":1}},
+  {"id":"urn:V1","type":"Vehicle","bar":{"type":"Property","value":2}}
+]'
+echo
+echo
+
+
+echo "13. GET V1 — foo=1, bar=2, no speed (replaced then merged)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+echo
+echo
+
+
+echo "14. Empty array → 400"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[]'
+echo
+echo
+
+
+echo "15. null element → 400"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
+echo
+echo
+
+
+echo "16. Non-array body → 400"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '{"id":"urn:V1","type":"Vehicle"}'
+echo
+echo
+
+
+--EXPECT--
+01. Upsert 3 new — all created → 201
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+02. GET V1 — speed=10, color=red
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+03. Upsert existing V1 with only speed — default REPLACE mode → 204
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET V1 — speed=99, no color (replaced)
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+05. Upsert existing V2 with only color, ?options=update → 204
+=============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET V2 — speed=20 AND color=blue
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+{
+  "color": "blue",
+  "id": "urn:V2",
+  "speed": 20,
+  "type": "Vehicle"
+}
+
+
+
+07. Mixed new + existing → 201 (at least one created)
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "errors": [],
+  "success": [
+    "urn:V4",
+    "urn:V3"
+  ]
+}
+
+
+
+08. GET V3 — only color=green (replaced; speed=30 gone)
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 62
+
+{
+  "color": "green",
+  "id": "urn:V3",
+  "type": "Vehicle"
+}
+
+
+
+09. GET V4 — speed=40 (created fresh)
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V4",
+  "speed": 40,
+  "type": "Vehicle"
+}
+
+
+
+10. Multi-instance new entity V5 — first creates, rest merge
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 52
+
+{
+  "errors": [],
+  "success": [
+    "urn:V5"
+  ]
+}
+
+
+
+11. GET V5 — speed=300, color=pink
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 77
+
+{
+  "color": "pink",
+  "id": "urn:V5",
+  "speed": 300,
+  "type": "Vehicle"
+}
+
+
+
+12. Multi-instance existing V1 — first REPLACES, rest merge
+===========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+13. GET V1 — foo=1, bar=2, no speed (replaced then merged)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "bar": 2,
+  "foo": 1,
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+14. Empty array → 400
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "detail": "Batch Entity Upsert: input array is empty",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. null element → 400
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Batch Entity Upsert: null entry at position 1",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. Non-array body → 400
+========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Batch Entity Upsert body must be a JSON array",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
