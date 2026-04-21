@@ -1567,7 +1567,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "Context Source Registration discovery filter 'q' is not implemented; only type/id/idPattern/limit/offset/count are honored",
+  "detail": "Context Source Registration discovery with 'q' as sole filter is not implemented",
   "title": "Not Implemented",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -1579,10 +1579,10 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 187
+Content-Length: 195
 
 {
-  "detail": "at least one of 'type', 'attrs', 'q' or the geo-query quadruple is required",
+  "detail": "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required",
   "title": "Too Wide Query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

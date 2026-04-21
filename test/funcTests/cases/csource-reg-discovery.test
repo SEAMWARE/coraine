@@ -6,15 +6,19 @@
 # Copyright 2026 Seamware
 #
 # § 5.10.2 Query Context Source Registrations — the Discovery endpoint.
-# Verifies:
-#   - no filter -> 400 BadRequestData (§ 5.10.2.4 "too wide query")
-#   - ?type=X -> array of CSRs whose information[].entities[].type matches
-#   - ?type=X&id=... -> narrower AND match
-#   - ?attrs=... -> 501 (deferred)
-#   - ?q=... -> 501 (deferred)
+# Covers:
+#   - no filter                          -> 400 Too Wide Query
+#   - ?type=X                            -> match against EntityInfo.type
+#   - ?type=X&id=URI                     -> AND with exact id
+#   - ?type=X&idPattern=regex            -> request-side regex
+#   - ?attrs=name                        -> match propertyNames/relationshipNames
+#   - ?pick=name                         -> same semantics as attrs
+#   - ?attrs=...&pick=...                -> 400 conflicting query
+#   - ?q=...                             -> 501 alone, ignored alongside attrs
+#   - ?geoproperty=...                   -> 501 (unsupported filter)
 #
 --NAME--
-CSR Discovery (§ 5.10.2) — type filter
+CSR Discovery (§ 5.10.2) — type / id / idPattern / attrs / pick
 
 --INIT--
 swDbDrop
@@ -22,101 +26,138 @@ swBrokerStart
 
 --RUN--
 
-echo "01. No filter — 400 too-wide-query"
-echo "=================================="
+echo "01. No filter -> 400"
+echo "===================="
 swCurl --url /ngsi-ld/v1/csourceRegistrations
 echo
 echo
 
 
-echo "02. Register CSR-A (Vehicle)"
-echo "============================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo "02. Register CSR-A (Vehicle, propertyNames=[speed])"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
-echo "03. Register CSR-B (Temperature)"
-echo "================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}]}]}'
+echo "03. Register CSR-B (Temperature, propertyNames=[temperature])"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
 echo
 echo
 
 
-echo "04. Register CSR-C (Vehicle, id=urn:V1 only)"
-echo "============================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}]}]}'
+echo "04. Register CSR-C (Vehicle id=urn:V1, propertyNames=[color])"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}],"propertyNames":["color"]}]}'
 echo
 echo
 
 
-echo "05. Discovery ?type=Vehicle — CSR-A + CSR-C"
-echo "==========================================="
+echo "05. ?type=Vehicle -> CSR-A + CSR-C"
+echo "=================================="
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
 echo
 echo
 
 
-echo "06. Discovery ?type=Temperature — only CSR-B"
-echo "============================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Temperature'
-echo
-echo
-
-
-echo "07. Discovery ?type=Building — empty array"
-echo "=========================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building'
-echo
-echo
-
-
-echo "08. Discovery ?type=Vehicle&id=urn:V1 — CSR-A + CSR-C"
-echo "====================================================="
+echo "06. ?type=Vehicle&id=urn:V1 -> CSR-A (no id constraint) + CSR-C (id match)"
+echo "=========================================================================="
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&id=urn:V1'
 echo
 echo
 
 
-echo "09. Discovery ?type=Vehicle&id=urn:V9 — only CSR-A"
-echo "=================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&id=urn:V9'
+echo "07. ?type=Vehicle&idPattern=^urn:V1$ -> CSR-A (no id constraint) + CSR-C (V1 match)"
+echo "===================================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&idPattern=^urn:V1$'
 echo
 echo
 
 
-echo "10. Discovery ?attrs=speed — 501 (deferred)"
-echo "==========================================="
+echo "08. ?type=Vehicle&idPattern=urn:X.* -> only CSR-A (no id constraint)"
+echo "===================================================================="
+# idPattern runs against EntityInfo.id, which only CSR-C has (and V1
+# doesn't match urn:X). CSR-A has no id constraint -> treated as match.
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&idPattern=urn:X.*'
+echo
+echo
+
+
+echo "09. ?attrs=speed -> CSR-A only (propertyName match)"
+echo "==================================================="
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed'
 echo
 echo
 
 
-echo "11. Discovery ?q=speed%3E10 — 501 (deferred)"
-echo "============================================"
+echo "10. ?pick=color -> CSR-C only"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?pick=color'
+echo
+echo
+
+
+echo "11. ?attrs=speed,color -> CSR-A + CSR-C"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed,color'
+echo
+echo
+
+
+echo "12. ?type=Vehicle&attrs=color -> only CSR-C (both filters AND)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&attrs=color'
+echo
+echo
+
+
+echo "13. ?attrs=X&pick=Y -> 400 (mutually exclusive)"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=X&pick=Y'
+echo
+echo
+
+
+echo "14. ?q=speed%3E10 -> 501 (alone)"
+echo "================================"
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?q=speed%3E10'
 echo
 echo
 
 
+echo "15. ?attrs=speed&q=foo==1 -> 200 (q tolerated alongside attrs)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed&q=foo==1'
+echo
+echo
+
+
+echo "16. ?geoproperty=location -> 501 (unsupported)"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?geoproperty=location'
+echo
+echo
+
+
 --EXPECT--
-01. No filter — 400 too-wide-query
-==================================
+01. No filter -> 400
+====================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 187
+Content-Length: 195
 
 {
-  "detail": "at least one of 'type', 'attrs', 'q' or the geo-query quadruple is required",
+  "detail": "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required",
   "title": "Too Wide Query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
 
-02. Register CSR-A (Vehicle)
-============================
+02. Register CSR-A (Vehicle, propertyNames=[speed])
+===================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
@@ -127,8 +168,8 @@ Content-Length: 0
 
 
 
-03. Register CSR-B (Temperature)
-================================
+03. Register CSR-B (Temperature, propertyNames=[temperature])
+=============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
@@ -139,8 +180,8 @@ Content-Length: 0
 
 
 
-04. Register CSR-C (Vehicle, id=urn:V1 only)
-============================================
+04. Register CSR-C (Vehicle id=urn:V1, propertyNames=[color])
+=============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
@@ -151,13 +192,13 @@ Content-Length: 0
 
 
 
-05. Discovery ?type=Vehicle — CSR-A + CSR-C
-===========================================
+05. ?type=Vehicle -> CSR-A + CSR-C
+==================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 561
+Content-Length: 673
 
 [
   {
@@ -169,6 +210,9 @@ Content-Length: 561
           {
             "type": "Vehicle"
           }
+        ],
+        "propertyNames": [
+          "speed"
         ]
       }
     ],
@@ -185,6 +229,9 @@ Content-Length: 561
             "id": "urn:V1",
             "type": "Vehicle"
           }
+        ],
+        "propertyNames": [
+          "color"
         ]
       }
     ],
@@ -195,53 +242,13 @@ Content-Length: 561
 
 
 
-06. Discovery ?type=Temperature — only CSR-B
-============================================
+06. ?type=Vehicle&id=urn:V1 -> CSR-A (no id constraint) + CSR-C (id match)
+==========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 272
-
-[
-  {
-    "endpoint": "http://cp2.example",
-    "id": "urn:CSR:B",
-    "information": [
-      {
-        "entities": [
-          {
-            "type": "Temperature"
-          }
-        ]
-      }
-    ],
-    "mode": "inclusive",
-    "type": "ContextSourceRegistration"
-  }
-]
-
-
-
-07. Discovery ?type=Building — empty array
-==========================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
-
-[]
-
-
-
-08. Discovery ?type=Vehicle&id=urn:V1 — CSR-A + CSR-C
-=====================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 561
+Content-Length: 673
 
 [
   {
@@ -253,6 +260,9 @@ Content-Length: 561
           {
             "type": "Vehicle"
           }
+        ],
+        "propertyNames": [
+          "speed"
         ]
       }
     ],
@@ -269,6 +279,9 @@ Content-Length: 561
             "id": "urn:V1",
             "type": "Vehicle"
           }
+        ],
+        "propertyNames": [
+          "color"
         ]
       }
     ],
@@ -279,13 +292,13 @@ Content-Length: 561
 
 
 
-09. Discovery ?type=Vehicle&id=urn:V9 — only CSR-A
-==================================================
+07. ?type=Vehicle&idPattern=^urn:V1$ -> CSR-A (no id constraint) + CSR-C (V1 match)
+====================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 268
+Content-Length: 673
 
 [
   {
@@ -297,6 +310,28 @@ Content-Length: 268
           {
             "type": "Vehicle"
           }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://cp3.example",
+    "id": "urn:CSR:C",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:V1",
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "color"
         ]
       }
     ],
@@ -307,30 +342,252 @@ Content-Length: 268
 
 
 
-10. Discovery ?attrs=speed — 501 (deferred)
-===========================================
+08. ?type=Vehicle&idPattern=urn:X.* -> only CSR-A (no id constraint)
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 324
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+09. ?attrs=speed -> CSR-A only (propertyName match)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 324
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+10. ?pick=color -> CSR-C only
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 352
+
+[
+  {
+    "endpoint": "http://cp3.example",
+    "id": "urn:CSR:C",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:V1",
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "color"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+11. ?attrs=speed,color -> CSR-A + CSR-C
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 673
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://cp3.example",
+    "id": "urn:CSR:C",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:V1",
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "color"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+12. ?type=Vehicle&attrs=color -> only CSR-C (both filters AND)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 352
+
+[
+  {
+    "endpoint": "http://cp3.example",
+    "id": "urn:CSR:C",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:V1",
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "color"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+13. ?attrs=X&pick=Y -> 400 (mutually exclusive)
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "'attrs' and 'pick' are mutually exclusive ('attrs' is deprecated; use 'pick')",
+  "title": "Conflicting Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. ?q=speed%3E10 -> 501 (alone)
+================================
 HTTP/1.1 501 Not Implemented
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 246
+Content-Length: 200
 
 {
-  "detail": "Context Source Registration discovery filter 'attrs' is not implemented; only type/id/idPattern/limit/offset/count are honored",
+  "detail": "Context Source Registration discovery with 'q' as sole filter is not implemented",
   "title": "Not Implemented",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 
 
 
-11. Discovery ?q=speed%3E10 — 501 (deferred)
-============================================
+15. ?attrs=speed&q=foo==1 -> 200 (q tolerated alongside attrs)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 324
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+16. ?geoproperty=location -> 501 (unsupported)
+==============================================
 HTTP/1.1 501 Not Implemented
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 242
+Content-Length: 277
 
 {
-  "detail": "Context Source Registration discovery filter 'q' is not implemented; only type/id/idPattern/limit/offset/count are honored",
+  "detail": "Context Source Registration discovery filter 'geoproperty' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), limit, offset, count",
   "title": "Not Implemented",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

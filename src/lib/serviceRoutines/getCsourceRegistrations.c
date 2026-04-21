@@ -9,15 +9,17 @@
 //
 // § 5.10.2 Query Context Source Registrations — the Discovery endpoint.
 //
-// Matching runs against each CSR's pre-parsed `information[]` entries.
-// § 5.10.2.4 requires at least one of: type selector, attrs, q, geoQ.
-// v1 supports type + id + idPattern filters; attrs / q / geoQ / csf /
-// scopeQ / timerel return 501 Not Implemented if supplied.
+// Matching runs against each CSR's pre-parsed `information[]` entries
+// (§ 5.12). Supported filters: type, id, idPattern, and the attribute-
+// name list via EITHER `pick` (current) OR `attrs` (deprecated per
+// § 6.8.3.2 Table 6.8.3.2-1). Supplying both is rejected with 400.
+//
+// Deferred (501 when supplied alone): q, geoQ, csf, scopeQ, timerel,
+// lang, omit, geometryProperty. When q is supplied alongside attrs
+// or pick we proceed using attrs/pick — the value-filter role of q
+// is a separate future concern.
 //
 // Response: 200 OK + JSON-LD array of CSourceRegistration (§ 5.10.2.5).
-// NOT a BatchOperationResult. Each matching CSR is returned whole; the
-// spec allows (SHOULD) filtering the RegistrationInfo within each CSR
-// but that refinement is deferred.
 //
 #include <stddef.h>                                  // NULL
 #include <stdlib.h>                                  // free
@@ -39,54 +41,70 @@
 
 
 
-// -----------------------------------------------------------------------------
-//
-// paramSupported - true for the URL params this route honors in v1.
-//
 static bool paramSupported(const char* key)
 {
-  if (key == NULL)                       return true;  // ignore malformed
+  if (key == NULL)                       return true;
   if (strcmp(key, "limit")     == 0)     return true;
   if (strcmp(key, "offset")    == 0)     return true;
   if (strcmp(key, "count")     == 0)     return true;
   if (strcmp(key, "type")      == 0)     return true;
   if (strcmp(key, "id")        == 0)     return true;
   if (strcmp(key, "idPattern") == 0)     return true;
+  if (strcmp(key, "pick")      == 0)     return true;
+  if (strcmp(key, "attrs")     == 0)     return true;
+  if (strcmp(key, "q")         == 0)     return true;   // handled separately (501 alone, tolerated with attrs/pick)
   return false;
 }
 
 
 
-// -----------------------------------------------------------------------------
-//
-// getCsourceRegistrations -
-//
 bool getCsourceRegistrations(void)
 {
-  //
-  // 501 for any filter param we don't honor yet.
-  //
+  bool hasAttrs = (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL);
+  bool hasPick  = (swNgsild.pickV  != NULL && swNgsild.pickV[0]  != NULL);
+  bool hasQ     = (swNgsild.q      != NULL && swNgsild.q[0]      != 0);
+
+  // § 6.8.3.2 Table 6.8.3.2-1: `attrs` is a deprecated synonym for
+  // `pick + q`. Accept either, but never both at once.
+  if (hasAttrs && hasPick)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Conflicting Query",
+            "'attrs' and 'pick' are mutually exclusive ('attrs' is deprecated; use 'pick')");
+    return true;
+  }
+
+  // Filter whitelist. 501 anything we haven't implemented — EXCEPT `q` if
+  // it arrives alongside attrs/pick (use attrs/pick as the entity
+  // selector and treat the q-half of the synonym as noise).
   for (int i = 0; i < swRest.in.uriParamCount; i++)
   {
     const char* key = swRest.in.uriParamV[i].key;
+    if (key != NULL && strcmp(key, "q") == 0 && (hasAttrs || hasPick))
+      continue;
     if (paramSupported(key) == false)
     {
       ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
-              "Context Source Registration discovery filter '%s' is not implemented; only type/id/idPattern/limit/offset/count are honored",
+              "Context Source Registration discovery filter '%s' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), limit, offset, count",
               key);
       return true;
     }
   }
 
-  //
-  // § 5.10.2.4: at least one of type / attrs / q / geoQ. In v1 only
-  // type satisfies that.
-  //
+  // q on its own is still 501.
+  if (hasQ && !hasAttrs && !hasPick)
+  {
+    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+            "Context Source Registration discovery with 'q' as sole filter is not implemented");
+    return true;
+  }
+
+  // § 5.10.2.4: at least one of type / attrs / q / geoQ. In v1 type or
+  // an attribute-name list (pick or attrs) satisfies that.
   bool hasType = (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL);
-  if (!hasType)
+  if (!hasType && !hasAttrs && !hasPick)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Too Wide Query",
-            "at least one of 'type', 'attrs', 'q' or the geo-query quadruple is required");
+            "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required");
     return true;
   }
 
@@ -100,10 +118,13 @@ bool getCsourceRegistrations(void)
     const char* entityIdFilter = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
                                  ? swNgsild.idV[0] : NULL;
 
+    // attrs wins when supplied (deprecated but honoured); otherwise pick.
+    char** attrsFilter = hasAttrs ? swNgsild.attrsV : (hasPick ? swNgsild.pickV : NULL);
+
     LdRegCacheItem** matchV = NULL;
     int matchN = ldRegCacheMatchForDiscovery(cacheP, swNgsild.typeV,
                                               entityIdFilter, swNgsild.idPattern,
-                                              &matchV);
+                                              attrsFilter, &matchV);
 
     int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
     int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : matchN;
