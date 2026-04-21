@@ -58,6 +58,10 @@
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "swNgsild/LdProblem.h"                      // LD_ERROR_ALREADY_EXISTS, LD_ERROR_CONFLICT
 
+#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
+#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -787,7 +791,10 @@ bool postEntityBatchCreate(void)
     int* resultsV = (int*) kaAlloc(&swRest.kalloc, sizeof(int) * localN);
     db.entityBulkCreate(tenantP, localArr, resultsV);
 
-    for (int k = 0; k < localN; k++)
+    LdSubCache* subCacheP = (tenantP != NULL) ? (LdSubCache*) tenantP->subCacheP : NULL;
+
+    KjNode* entP = localArr->value.firstChildP;
+    for (int k = 0; k < localN; k++, entP = (entP != NULL) ? entP->next : NULL)
     {
       int origIdx = localIdxV[k];
       const char* eid = eligIdV[origIdx];
@@ -795,6 +802,8 @@ bool postEntityBatchCreate(void)
       {
         case DB_OK:
           anySuccessV[origIdx] = true;
+          if (subCacheP != NULL && entP != NULL)
+            ldNotifyDefer(subCacheP, entP, LdNotifyEntityCreate, NULL);
           break;
         case DB_ALREADY_EXISTS:
           addBatchError(errorsP, eid,

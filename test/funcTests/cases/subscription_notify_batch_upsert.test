@@ -1,0 +1,168 @@
+#
+# FILE            subscription_notify_batch_upsert.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Upsert (§ 5.6.9) with a subscription.
+# Verifies:
+#   - Create branch: first fragment for a non-existing entity yields
+#     LdNotifyEntityCreate (data[] entry is the created state).
+#   - Update branch (replace): first fragment for existing entity
+#     yields LdNotifyEntityUpdate.
+#   - Update branch (?options=update): first fragment merges yields
+#     LdNotifyEntityUpdate.
+#
+--NAME--
+Batch Entity Upsert — notifications per fragment (create vs update)
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Sub S1 (Vehicle)"
+echo "===================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "02. Upsert new V1 + V2 (both created)"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
+]'
+echo
+echo
+
+
+echo "03. Dump ftClient — data[] has V1, V2 (creates)"
+echo "==============================================="
+ftClientDump
+echo
+echo
+
+
+echo "04. Reset ftClient"
+echo "=================="
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "05. Upsert existing V1 (replace mode) — V1.color=red"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}
+]'
+echo
+echo
+
+
+echo "06. Dump ftClient — data[] has V1 (update: replace state)"
+echo "========================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Sub S1 (Vehicle)
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Upsert new V1 + V2 (both created)
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2"
+  ]
+}
+
+
+
+03. Dump ftClient — data[] has V1, V2 (creates)
+===============================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 10
+          },
+          "type": "Vehicle"
+        },
+        {
+          "id": "urn:V2",
+          "speed": {
+            "type": "Property",
+            "value": 20
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "288",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. Reset ftClient
+==================
+done
+
+
+05. Upsert existing V1 (replace mode) — V1.color=red
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Dump ftClient — data[] has V1 (update: replace state)
+=========================================================
+[]
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

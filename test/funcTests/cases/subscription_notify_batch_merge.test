@@ -1,0 +1,195 @@
+#
+# FILE            subscription_notify_batch_merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Merge (§ 5.6.10) with a subscription.
+# Verifies:
+#   - Surgical merge produces per-fragment data[] entries.
+#   - urn:ngsi-ld:null delete still fires a notification (attrDeleted).
+#
+--NAME--
+Batch Entity Merge — per-fragment notifications with data[]
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1, V2"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
+]'
+echo
+echo
+
+
+echo "02. Sub S1 (Vehicle)"
+echo "===================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "03. Batch Merge V1.size=large + V2.color=blue"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","size":{"type":"Property","value":"large"}},
+  {"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "04. Dump ftClient — data[] has post-merge V1 + V2 states"
+echo "========================================================"
+ftClientDump
+echo
+echo
+
+
+echo "05. Reset ftClient"
+echo "=================="
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "06. Batch Merge delete V1.color via urn:ngsi-ld:null"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+  {"id":"urn:V1","type":"Vehicle","color":"urn:ngsi-ld:null"}
+]'
+echo
+echo
+
+
+echo "07. Dump ftClient — notification fires (attributeDeleted in report)"
+echo "==================================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1, V2
+===============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2"
+  ]
+}
+
+
+
+02. Sub S1 (Vehicle)
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Batch Merge V1.size=large + V2.color=blue
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Dump ftClient — data[] has post-merge V1 + V2 states
+========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "color": {
+            "type": "Property",
+            "value": "red"
+          },
+          "id": "urn:V1",
+          "size": {
+            "type": "Property",
+            "value": "large"
+          },
+          "speed": {
+            "type": "Property",
+            "value": 10
+          },
+          "type": "Vehicle"
+        },
+        {
+          "color": {
+            "type": "Property",
+            "value": "blue"
+          },
+          "id": "urn:V2",
+          "speed": {
+            "type": "Property",
+            "value": 20
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "416",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. Reset ftClient
+==================
+done
+
+
+06. Batch Merge delete V1.color via urn:ngsi-ld:null
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. Dump ftClient — notification fires (attributeDeleted in report)
+===================================================================
+[]
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

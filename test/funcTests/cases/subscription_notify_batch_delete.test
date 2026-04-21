@@ -1,0 +1,160 @@
+#
+# FILE            subscription_notify_batch_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Delete (§ 5.6.11) with a subscription that has
+# entityDeleted in its triggers. Verifies:
+#   - ONE data[] entry per successfully-deleted entity, with the
+#     pre-delete snapshot.
+#   - Missing ids don't appear in data[] (they produce errors in
+#     the BatchOperationResult response).
+#
+--NAME--
+Batch Entity Delete — entityDeleted notifications, pre-delete snapshots
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1, V2, V3"
+echo "==================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "02. Sub S1 (Vehicle) with entityDeleted trigger"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["entityDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "03. Batch Delete [V1, V2, VX] — 207 partial"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V2","urn:VX"]'
+echo
+echo
+
+
+echo "04. Dump ftClient — data[] = [V1 pre-delete, V2 pre-delete]"
+echo "==========================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1, V2, V3
+===================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+02. Sub S1 (Vehicle) with entityDeleted trigger
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Batch Delete [V1, V2, VX] — 207 partial
+===========================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 278
+
+{
+  "errors": [
+    {
+      "entityId": "urn:VX",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": [
+    "urn:V1",
+    "urn:V2"
+  ]
+}
+
+
+
+04. Dump ftClient — data[] = [V1 pre-delete, V2 pre-delete]
+===========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 10
+          },
+          "type": "Vehicle"
+        },
+        {
+          "id": "urn:V2",
+          "speed": {
+            "type": "Property",
+            "value": 20
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "288",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

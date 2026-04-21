@@ -1,0 +1,165 @@
+#
+# FILE            subscription_notify_batch_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Create (§ 5.6.7) with active subscriptions.
+# Verifies:
+#   - ONE notification per matching subscription (data[] batched).
+#   - Filter by type: non-matching entities don't appear in data[].
+#   - Two independent subscriptions each get their own notification.
+#
+--NAME--
+Batch Entity Create — notifications batched per subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Sub S1 (Vehicle only) + S2 (Temperature only)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Temperature"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "02. Batch Create 2 Vehicles + 1 Temperature"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:T1","type":"Temperature","temp":{"type":"Property","value":22}}
+]'
+echo
+echo
+
+
+echo "03. Dump ftClient — S1 sees [V1,V2]; S2 sees [T1]"
+echo "================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Sub S1 (Vehicle only) + S2 (Temperature only)
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Batch Create 2 Vehicles + 1 Temperature
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:T1"
+  ]
+}
+
+
+
+03. Dump ftClient — S1 sees [V1,V2]; S2 sees [T1]
+=================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 10
+          },
+          "type": "Vehicle"
+        },
+        {
+          "id": "urn:V2",
+          "speed": {
+            "type": "Property",
+            "value": 20
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "288",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:T1",
+          "temp": {
+            "type": "Property",
+            "value": 22
+          },
+          "type": "Temperature"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S2",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "219",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

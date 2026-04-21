@@ -1,0 +1,253 @@
+#
+# FILE            subscription_notify_batch_update.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Update (§ 5.6.8) with an active subscription.
+# Verifies:
+#   - Each matching fragment produces one data[] entry on the sub's
+#     single HTTP notification.
+#   - Multi-instance same id: each merged intermediate state is a
+#     separate data[] entry (per-fragment cadence).
+#   - Missing entity is excluded from data[] (error surfaces in the
+#     BatchOperationResult response, not as a notification).
+#
+--NAME--
+Batch Entity Update — per-fragment notifications with data[]
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1, V2"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
+]'
+echo
+echo
+
+
+echo "02. Sub S1 (Vehicle)"
+echo "===================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "03. Batch Update V1 + V2 + VX (missing)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":11}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":22}},
+  {"id":"urn:VX","type":"Vehicle","speed":{"type":"Property","value":999}}
+]'
+echo
+echo
+
+
+echo "04. Dump ftClient — data[] = [V1 state, V2 state]"
+echo "================================================="
+ftClientDump
+echo
+echo
+
+
+echo "05. Reset ftClient"
+echo "=================="
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "06. Multi-instance V1 — 3 fragments, 3 data[] entries"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}
+]'
+echo
+echo
+
+
+echo "07. Dump ftClient — 3 data[] entries (speed=100, 200, 300)"
+echo "=========================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1, V2
+===============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2"
+  ]
+}
+
+
+
+02. Sub S1 (Vehicle)
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Batch Update V1 + V2 + VX (missing)
+=======================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 278
+
+{
+  "errors": [
+    {
+      "entityId": "urn:VX",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": [
+    "urn:V1",
+    "urn:V2"
+  ]
+}
+
+
+
+04. Dump ftClient — data[] = [V1 state, V2 state]
+=================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 11
+          },
+          "type": "Vehicle"
+        },
+        {
+          "id": "urn:V2",
+          "speed": {
+            "type": "Property",
+            "value": 22
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "288",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. Reset ftClient
+==================
+done
+
+
+06. Multi-instance V1 — 3 fragments, 3 data[] entries
+=====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. Dump ftClient — 3 data[] entries (speed=100, 200, 300)
+==========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 100
+          },
+          "type": "Vehicle"
+        },
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 200
+          },
+          "type": "Vehicle"
+        },
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 300
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "363",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
