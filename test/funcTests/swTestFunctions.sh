@@ -108,13 +108,14 @@ swBrokerStop() {
 
   swRoleLookup "$role" || return 1
 
-  if [ -f "$SW_ROLE_PID_FILE" ]; then
-    local pid=$(cat "$SW_ROLE_PID_FILE")
-    kill $pid 2>/dev/null
-    sleep 0.1
-    kill -0 $pid 2>/dev/null && kill -9 $pid 2>/dev/null
-    \rm -f "$SW_ROLE_PID_FILE"
-  fi
+  # Port-based kill so orphans from aborted prior runs (with no live pid
+  # file) are still caught. Matches any swBroker whose cmdline carries
+  # "--port <port>".
+  pkill -f "swBroker.*--port $SW_ROLE_PORT( |\$)" 2>/dev/null
+  sleep 0.1
+  pkill -9 -f "swBroker.*--port $SW_ROLE_PORT( |\$)" 2>/dev/null
+
+  \rm -f "$SW_ROLE_PID_FILE"
 }
 
 
@@ -209,6 +210,12 @@ ftClientStart() {
 # ftClientStop [--port P]
 #
 # Stops the ftClient on --port (default 7701). Safe to call when not running.
+# Kills by port (pkill -f), not by pid file — a prior aborted test run may
+# have left an orphan ftClient whose pid file was since cleaned up;
+# relying on the pid file would miss it and the new ftClientStart would
+# silently fail to bind the port, letting the orphan handle requests
+# with the wrong --status. See the distops tests (ftClient status=503
+# ended up served by a stale --status=201 instance).
 #
 ftClientStop() {
   local port=$FT_CLIENT_PORT
@@ -220,14 +227,13 @@ ftClientStop() {
     shift
   done
 
-  local pidFile=/tmp/ftClient.$port.pid
-  if [ -f "$pidFile" ]; then
-    local pid=$(cat "$pidFile")
-    kill $pid 2>/dev/null
-    sleep 0.1
-    kill -0 $pid 2>/dev/null && kill -9 $pid 2>/dev/null
-    \rm -f "$pidFile"
-  fi
+  # Port-based kill — matches any ftClient whose cmdline carries
+  # "--port <port>". Harmless when no match.
+  pkill -f "ftClient.*--port $port( |\$)" 2>/dev/null
+  sleep 0.1
+  pkill -9 -f "ftClient.*--port $port( |\$)" 2>/dev/null
+
+  \rm -f /tmp/ftClient.$port.pid
 }
 
 
