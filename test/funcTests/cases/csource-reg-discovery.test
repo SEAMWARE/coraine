@@ -1,0 +1,342 @@
+#
+# FILE            csource-reg-discovery.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.10.2 Query Context Source Registrations — the Discovery endpoint.
+# Verifies:
+#   - no filter -> 400 BadRequestData (§ 5.10.2.4 "too wide query")
+#   - ?type=X -> array of CSRs whose information[].entities[].type matches
+#   - ?type=X&id=... -> narrower AND match
+#   - ?attrs=... -> 501 (deferred)
+#   - ?q=... -> 501 (deferred)
+#
+--NAME--
+CSR Discovery (§ 5.10.2) — type filter
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. No filter — 400 too-wide-query"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations
+echo
+echo
+
+
+echo "02. Register CSR-A (Vehicle)"
+echo "============================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. Register CSR-B (Temperature)"
+echo "================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}]}]}'
+echo
+echo
+
+
+echo "04. Register CSR-C (Vehicle, id=urn:V1 only)"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}]}]}'
+echo
+echo
+
+
+echo "05. Discovery ?type=Vehicle — CSR-A + CSR-C"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
+echo
+echo
+
+
+echo "06. Discovery ?type=Temperature — only CSR-B"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Temperature'
+echo
+echo
+
+
+echo "07. Discovery ?type=Building — empty array"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building'
+echo
+echo
+
+
+echo "08. Discovery ?type=Vehicle&id=urn:V1 — CSR-A + CSR-C"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&id=urn:V1'
+echo
+echo
+
+
+echo "09. Discovery ?type=Vehicle&id=urn:V9 — only CSR-A"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&id=urn:V9'
+echo
+echo
+
+
+echo "10. Discovery ?attrs=speed — 501 (deferred)"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed'
+echo
+echo
+
+
+echo "11. Discovery ?q=speed%3E10 — 501 (deferred)"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?q=speed%3E10'
+echo
+echo
+
+
+--EXPECT--
+01. No filter — 400 too-wide-query
+==================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 187
+
+{
+  "detail": "at least one of 'type', 'attrs', 'q' or the geo-query quadruple is required",
+  "title": "Too Wide Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Register CSR-A (Vehicle)
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Register CSR-B (Temperature)
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+04. Register CSR-C (Vehicle, id=urn:V1 only)
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:C
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+05. Discovery ?type=Vehicle — CSR-A + CSR-C
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 561
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://cp3.example",
+    "id": "urn:CSR:C",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:V1",
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+06. Discovery ?type=Temperature — only CSR-B
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 272
+
+[
+  {
+    "endpoint": "http://cp2.example",
+    "id": "urn:CSR:B",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Temperature"
+          }
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+07. Discovery ?type=Building — empty array
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+08. Discovery ?type=Vehicle&id=urn:V1 — CSR-A + CSR-C
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 561
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://cp3.example",
+    "id": "urn:CSR:C",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:V1",
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+09. Discovery ?type=Vehicle&id=urn:V9 — only CSR-A
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 268
+
+[
+  {
+    "endpoint": "http://cp1.example",
+    "id": "urn:CSR:A",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "mode": "inclusive",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+10. Discovery ?attrs=speed — 501 (deferred)
+===========================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 246
+
+{
+  "detail": "Context Source Registration discovery filter 'attrs' is not implemented; only type/id/idPattern/limit/offset/count are honored",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+11. Discovery ?q=speed%3E10 — 501 (deferred)
+============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 242
+
+{
+  "detail": "Context Source Registration discovery filter 'q' is not implemented; only type/id/idPattern/limit/offset/count are honored",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
