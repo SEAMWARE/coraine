@@ -1,0 +1,208 @@
+#
+# FILE            subscription_notif_attr_deleted.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Default trigger mask is historically compatible with NGSIv2: it
+# does NOT include attributeDeleted. This test verifies that a sub
+# with an explicit notificationTrigger including attributeDeleted
+# DOES fire a notification when a merge removes an attribute via
+# urn:ngsi-ld:null.
+#
+--NAME--
+attributeDeleted trigger — notification fires when explicitly subscribed
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1 {speed=10, color=red}"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Sub with notificationTrigger=[attributeDeleted]"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "03. PATCH V1 attrs with color=null (attrDeleted)"
+echo "================================================"
+# Using the single-entity Merge endpoint to delete V1.color via
+# urn:ngsi-ld:null; subscription should fire.
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload '{"type":"Vehicle","color":"urn:ngsi-ld:null"}'
+echo
+echo
+
+
+echo "04. Dump ftClient — notification fires with V1 post-delete state"
+echo "================================================================"
+ftClientDump
+echo
+echo
+
+
+echo "05. Reset + verify ATTR_MODIFIED-only sub does NOT fire on pure delete"
+echo "======================================================================"
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "06. Sub S2 with notificationTrigger=[attributeModified] only"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeModified"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "07. PATCH V1 delete speed via urn:ngsi-ld:null"
+echo "=============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload '{"type":"Vehicle","speed":"urn:ngsi-ld:null"}'
+echo
+echo
+
+
+echo "08. Dump ftClient — S1 fires (attributeDeleted), S2 silent"
+echo "=========================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 {speed=10, color=red}
+=================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Sub with notificationTrigger=[attributeDeleted]
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. PATCH V1 attrs with color=null (attrDeleted)
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Dump ftClient — notification fires with V1 post-delete state
+================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 10
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "216",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. Reset + verify ATTR_MODIFIED-only sub does NOT fire on pure delete
+======================================================================
+done
+
+
+06. Sub S2 with notificationTrigger=[attributeModified] only
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+07. PATCH V1 delete speed via urn:ngsi-ld:null
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. Dump ftClient — S1 fires (attributeDeleted), S2 silent
+==========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "177",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
