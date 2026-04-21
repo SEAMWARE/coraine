@@ -1,0 +1,348 @@
+#
+# FILE            entity_batch_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Delete (§ 5.6.11). Local-only semantics covering:
+#
+#   - all-existing              -> 204 No Content
+#   - mix existing + missing    -> 207 Multi-Status
+#   - all missing               -> 409 Conflict
+#   - non-string entry          -> per-entity 400
+#   - empty array / null entry / non-array body -> 400
+#
+--NAME--
+POST /entityOperations/delete — Batch Entity Delete (§ 5.6.11)
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed — V1, V2, V3"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
+]'
+echo
+echo
+
+
+echo "02. Delete V1 + V2 → 204"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V2"]'
+echo
+echo
+
+
+echo "03. GET V1 → 404"
+echo "================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "04. GET V2 → 404"
+echo "================"
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+echo "05. GET V3 → 200 (still there)"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
+echo
+echo
+
+
+echo "06. Delete V3 + VX (VX missing) → 207 partial"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V3","urn:VX"]'
+echo
+echo
+
+
+echo "07. GET V3 → 404"
+echo "================"
+swCurl --url /ngsi-ld/v1/entities/urn:V3
+echo
+echo
+
+
+echo "08. Delete two missing → 409"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:missingA","urn:missingB"]'
+echo
+echo
+
+
+echo "09. Non-string entry → 400 per-entity (partial)"
+echo "==============================================="
+# V4 seeded inline so we have a success to pair with the bad entry.
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":40}}'
+echo
+echo
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V4", 123]'
+echo
+echo
+
+
+echo "10. Empty array → 400"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '[]'
+echo
+echo
+
+
+echo "11. null element → 400"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1",null]'
+echo
+echo
+
+
+echo "12. Non-array body → 400"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '"urn:V1"'
+echo
+echo
+
+
+--EXPECT--
+01. Seed — V1, V2, V3
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "errors": [],
+  "success": [
+    "urn:V1",
+    "urn:V2",
+    "urn:V3"
+  ]
+}
+
+
+
+02. Delete V1 + V2 → 204
+========================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET V1 → 404
+================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. GET V2 → 404
+================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V2' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. GET V3 → 200 (still there)
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V3",
+  "speed": 30,
+  "type": "Vehicle"
+}
+
+
+
+06. Delete V3 + VX (VX missing) → 207 partial
+=============================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 264
+
+{
+  "errors": [
+    {
+      "entityId": "urn:VX",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": [
+    "urn:V3"
+  ]
+}
+
+
+
+07. GET V3 → 404
+================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V3' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. Delete two missing → 409
+============================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 470
+
+{
+  "errors": [
+    {
+      "entityId": "urn:missingA",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    },
+    {
+      "entityId": "urn:missingB",
+      "error": {
+        "detail": "entity does not exist",
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+09. Non-string entry → 400 per-entity (partial)
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V4
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 263
+
+{
+  "errors": [
+    {
+      "entityId": "",
+      "error": {
+        "detail": "entry must be a URI string",
+        "title": "Bad Request",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": [
+    "urn:V4"
+  ]
+}
+
+
+
+10. Empty array → 400
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "detail": "Batch Entity Delete: input array is empty",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. null element → 400
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Batch Entity Delete: null entry at position 1",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. Non-array body → 400
+========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Batch Entity Delete body must be a JSON array",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

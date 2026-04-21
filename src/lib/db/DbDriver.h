@@ -132,6 +132,21 @@ typedef int  (*DbEntityBulkMergeFunc)(Tenant* tenantP, KjNode* fragmentsArr,
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
+
+//
+// DbEntityBulkDeleteFunc - batch delete (§ 5.6.11) of N entity ids.
+//
+// idV is a caller-provided char*[N]; resultsV[N] is populated per id
+// with DB_OK / DB_NOT_FOUND / DB_ERR. snapshotsV[N] is populated on
+// DB_OK with the pre-delete entity (request-arena lifetime via the
+// broker's active allocator) so the service can fire delete
+// notifications without an extra retrieve.
+//
+// mongoc impl does one $in fetch + one bulk_write of delete_one ops
+// (2 round-trips total). fwRamDB just loops.
+//
+typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
+                                       int* resultsV, KjNode** snapshotsV);
 typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode* fragmentDb,
                                   uint64_t ts, LdMergeReport* reportP);
 typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
@@ -218,6 +233,7 @@ typedef struct DbDriver
   DbEntityBulkCreateFunc  entityBulkCreate;
   DbEntityBulkUpdateFunc  entityBulkUpdate;
   DbEntityBulkMergeFunc   entityBulkMerge;
+  DbEntityBulkDeleteFunc  entityBulkDelete;
   DbEntityRetrieveFunc    entityRetrieve;
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;

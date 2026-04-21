@@ -1,0 +1,207 @@
+#
+# FILE            entity_batch_delete_distops_exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Delete (§ 5.6.11) — exclusive CSR mode.
+#
+# Exclusive registration routes the delete to CSR. Local delete still
+# attempts (may 404 locally but the distop succeeds → overall success
+# per id).
+#
+--NAME--
+Batch Entity Delete — exclusive CSR, delete forwarded
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 only on CP1 (CB has no V1)"
+echo "======================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "02. Seed V2 on both CB and CP1"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+echo
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 exclusive (Vehicle, deleteBatch)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["deleteBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "04. Batch Delete [V1, V2] → 204 (V1 forwarded; V2 deleted locally + forwarded)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V2"]'
+echo
+echo
+
+
+echo "05. GET CB V1 local-only → 404 (never existed locally)"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true'
+echo
+echo
+
+
+echo "06. GET CP1 V1 → 404 (deleted via forward)"
+echo "=========================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "07. GET CB V2 local-only → 404 (deleted locally)"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V2?local=true'
+echo
+echo
+
+
+echo "08. GET CP1 V2 → 404 (deleted via forward)"
+echo "=========================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 only on CP1 (CB has no V1)
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Seed V2 on both CB and CP1
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 exclusive (Vehicle, deleteBatch)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+04. Batch Delete [V1, V2] → 204 (V1 forwarded; V2 deleted locally + forwarded)
+==============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET CB V1 local-only → 404 (never existed locally)
+======================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. GET CP1 V1 → 404 (deleted via forward)
+==========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET CB V2 local-only → 404 (deleted locally)
+================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V2' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. GET CP1 V2 → 404 (deleted via forward)
+==========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 134
+
+{
+  "detail": "entity 'urn:V2' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
