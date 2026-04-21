@@ -384,7 +384,7 @@ bool purgeEntities(void)
           {
             kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
             if (tenantP != NULL && tenantP->subCacheP != NULL && preImage != NULL)
-              ldNotifyDefer((LdSubCache*) tenantP->subCacheP, preImage, LdNotifyEntityDelete, NULL);
+              ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, preImage, swRest.requestStartTime);
           }
           else if (dr != DB_NOT_FOUND)
           {

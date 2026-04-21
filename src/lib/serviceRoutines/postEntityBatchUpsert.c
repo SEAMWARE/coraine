@@ -705,6 +705,38 @@ bool postEntityBatchUpsert(void)
         // Replace mode: first fragment becomes the new state.
         // Existing attrs not in fragment disappear. Subsequent frags merge.
         finalP = kjClone(swRest.kjsonP, fragP);
+
+        // Synthesise a merge report so the notification subsystem can
+        // match attr-level triggers. Diff existingDb against fragP:
+        //   - attr in existingDb, not in fragP  → attributeDeleted
+        //   - attr in fragP, not in existingDb  → attributeCreated
+        //   - attr in both                       → attributeModified
+        //
+        report.changes = kjArray(swRest.kjsonP, NULL);
+        for (KjNode* eAttr = existingDb->value.firstChildP; eAttr != NULL; eAttr = eAttr->next)
+        {
+          if (eAttr->name == NULL || eAttr->name[0] == '@')     continue;
+          if (strcmp(eAttr->name, "id")   == 0)                  continue;
+          if (strcmp(eAttr->name, "type") == 0)                  continue;
+          if (kjLookup(fragP, eAttr->name) != NULL)              continue;
+          KjNode* chg = kjObject(swRest.kjsonP, NULL);
+          kjChildAdd(chg, kjString(swRest.kjsonP, "attr",   (char*) eAttr->name));
+          kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) "attributeDeleted"));
+          kjChildAdd(report.changes, chg);
+        }
+        for (KjNode* fAttr = fragP->value.firstChildP; fAttr != NULL; fAttr = fAttr->next)
+        {
+          if (fAttr->name == NULL || fAttr->name[0] == '@')     continue;
+          if (strcmp(fAttr->name, "id")   == 0)                  continue;
+          if (strcmp(fAttr->name, "type") == 0)                  continue;
+          const char* reason = (kjLookup(existingDb, fAttr->name) != NULL)
+                               ? "attributeModified"
+                               : "attributeCreated";
+          KjNode* chg = kjObject(swRest.kjsonP, NULL);
+          kjChildAdd(chg, kjString(swRest.kjsonP, "attr",   (char*) fAttr->name));
+          kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) reason));
+          kjChildAdd(report.changes, chg);
+        }
       }
       else
       {

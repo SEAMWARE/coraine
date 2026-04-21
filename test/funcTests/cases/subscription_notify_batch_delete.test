@@ -6,14 +6,15 @@
 # Copyright 2026 Seamware
 #
 # Batch Entity Delete (§ 5.6.11) with a subscription that has
-# entityDeleted in its triggers. Verifies:
-#   - ONE data[] entry per successfully-deleted entity, with the
+# entityDeleted in its triggers. Verifies (§ 5.8.6):
+#   - ONE data[] entry per successfully-deleted entity.
+#   - data[] entry shape is {id, type, deletedAt} — NOT the full
 #     pre-delete snapshot.
 #   - Missing ids don't appear in data[] (they produce errors in
 #     the BatchOperationResult response).
 #
 --NAME--
-Batch Entity Delete — entityDeleted notifications, pre-delete snapshots
+Batch Entity Delete — {id,type,deletedAt} payload (§ 5.8.6)
 
 --INIT--
 swDbDrop
@@ -47,8 +48,8 @@ echo
 echo
 
 
-echo "04. Dump ftClient — data[] = [V1 pre-delete, V2 pre-delete]"
-echo "==========================================================="
+echo "04. Dump ftClient — data[] = [{V1, deletedAt}, {V2, deletedAt}]"
+echo "================================================================"
 ftClientDump
 echo
 echo
@@ -113,26 +114,20 @@ Content-Length: 278
 
 
 
-04. Dump ftClient — data[] = [V1 pre-delete, V2 pre-delete]
-===========================================================
+04. Dump ftClient — data[] = [{V1, deletedAt}, {V2, deletedAt}]
+================================================================
 [
   {
     "body": {
       "data": [
         {
+          "deletedAt": "REGEX(.*)",
           "id": "urn:V1",
-          "speed": {
-            "type": "Property",
-            "value": 10
-          },
           "type": "Vehicle"
         },
         {
+          "deletedAt": "REGEX(.*)",
           "id": "urn:V2",
-          "speed": {
-            "type": "Property",
-            "value": 20
-          },
           "type": "Vehicle"
         }
       ],

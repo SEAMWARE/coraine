@@ -9,8 +9,9 @@
 # Verifies:
 #   - Create branch: first fragment for a non-existing entity yields
 #     LdNotifyEntityCreate (data[] entry is the created state).
-#   - Update branch (replace): first fragment for existing entity
-#     yields LdNotifyEntityUpdate.
+#   - Replace branch: first fragment for existing entity yields
+#     LdNotifyEntityUpdate. A synthesised merge report (existingDb
+#     vs fragP diff) lets default-trigger subs match the change.
 #   - Update branch (?options=update): first fragment merges yields
 #     LdNotifyEntityUpdate.
 #
@@ -160,7 +161,37 @@ Content-Type: application/json
 
 06. Dump ftClient — data[] has V1 (update: replace state)
 =========================================================
-[]
+[
+  {
+    "body": {
+      "data": [
+        {
+          "color": {
+            "type": "Property",
+            "value": "red"
+          },
+          "id": "urn:V1",
+          "speed": "urn:ngsi-ld:null",
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "246",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
 
 --TEARDOWN--
 swBrokerStop

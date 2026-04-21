@@ -185,7 +185,7 @@ bool deleteEntity(void)
     anySucceeded = true;
 
     if (tenantP != NULL && tenantP->subCacheP != NULL && entityP != NULL)
-      ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityDelete, NULL);
+      ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, entityP, swRest.requestStartTime);
   }
   else if (r != DB_NOT_FOUND)
   {

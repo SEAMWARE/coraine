@@ -491,7 +491,7 @@ bool postEntityBatchDelete(void)
         anySuccessV[i] = true;
 
         if (subCacheP != NULL && snapshotsV[i] != NULL)
-          ldNotifyDefer(subCacheP, snapshotsV[i], LdNotifyEntityDelete, NULL);
+          ldNotifyDeferDelete(subCacheP, snapshotsV[i], swRest.requestStartTime);
         break;
       }
       case DB_NOT_FOUND:

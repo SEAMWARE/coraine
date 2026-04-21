@@ -121,6 +121,7 @@ Content-Type: application/json
     "body": {
       "data": [
         {
+          "color": "urn:ngsi-ld:null",
           "id": "urn:V1",
           "speed": {
             "type": "Property",
@@ -135,7 +136,7 @@ Content-Type: application/json
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "216",
+      "Content-Length": "243",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -181,6 +182,7 @@ Content-Type: application/json
       "data": [
         {
           "id": "urn:V1",
+          "speed": "urn:ngsi-ld:null",
           "type": "Vehicle"
         }
       ],
@@ -190,7 +192,7 @@ Content-Type: application/json
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "177",
+      "Content-Length": "204",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",

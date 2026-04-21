@@ -1,0 +1,119 @@
+#
+# FILE            subscription_notif_sysattrs_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# notification.sysAttrs (§ 5.2.14.1 / § 5.8.6): delete notifications
+# with sysAttrs=true include createdAt and modifiedAt alongside the
+# mandatory deletedAt.
+#
+--NAME--
+notification.sysAttrs on delete — createdAt/modifiedAt/deletedAt
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1"
+echo "==========="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "02. Sub S1 entityDeleted + sysAttrs=true"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["entityDeleted"],"notification":{"sysAttrs":true,"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "03. DELETE V1"
+echo "============="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "04. Dump ftClient — {id, type, deletedAt, createdAt, modifiedAt}"
+echo "================================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1
+===========
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: urn:V1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+02. Sub S1 entityDeleted + sysAttrs=true
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+03. DELETE V1
+=============
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Dump ftClient — {id, type, deletedAt, createdAt, modifiedAt}
+================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "createdAt": REGEX(.*),
+          "deletedAt": "REGEX(.*)",
+          "id": "urn:V1",
+          "modifiedAt": REGEX(.*),
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "273",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
