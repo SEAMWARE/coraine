@@ -27,6 +27,8 @@
 #include "swNgsild/LdOp.h"                           // LdOpCreateRegistration
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheItemAdd
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegCreate
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -456,8 +458,14 @@ bool postCsourceRegistration(void)
 
   // Add to per-tenant registration cache
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  LdRegCacheItem* regItemP = NULL;
   if (tenantP->regCacheP != NULL)
-    ldRegCacheItemAdd((LdRegCache*) tenantP->regCacheP, regP);
+    regItemP = ldRegCacheItemAdd((LdRegCache*) tenantP->regCacheP, regP);
+
+  // § 5.11.7 — fan out "newlyMatching" CsourceNotifications to any CSR-
+  // sub whose filter matches this new registration.
+  if (regItemP != NULL && tenantP->regSubCacheP != NULL)
+    ldCsrSubOnRegCreate((LdSubCache*) tenantP->regSubCacheP, regItemP);
 
   // 201 Created — set Location and Link headers, no body
   swRest.out.httpStatusCode = 201;
