@@ -11,8 +11,10 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemRemove
+#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemRemove, ldRegCacheItemLookup
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegDelete
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -50,8 +52,21 @@ bool deleteCsourceRegistration(void)
   }
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+
+  //
+  // § 5.11.7 — fan out "noLongerMatching" CsourceNotifications to
+  // any CSR-sub that matched the CSR being deleted. Must happen
+  // BEFORE the cache remove because the matcher walks the reg item's
+  // pre-parsed fields, which ldRegCacheItemRemove frees.
+  //
   if (tenantP->regCacheP != NULL)
+  {
+    LdRegCacheItem* regItemP = ldRegCacheItemLookup((LdRegCache*) tenantP->regCacheP, regId);
+    if (regItemP != NULL && tenantP->regSubCacheP != NULL)
+      ldCsrSubOnRegDelete((LdSubCache*) tenantP->regSubCacheP, regItemP);
+
     ldRegCacheItemRemove((LdRegCache*) tenantP->regCacheP, regId);
+  }
 
   swRest.out.httpStatusCode = 204;
   return true;

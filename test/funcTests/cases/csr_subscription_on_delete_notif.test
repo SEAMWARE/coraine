@@ -1,0 +1,355 @@
+#
+# FILE            csr_subscription_on_delete_notif.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11.7 — when a CSR is deleted, each CSR-sub that MATCHED it
+# must receive a CsourceNotification carrying the (just-deleted)
+# CSR with triggerReason="noLongerMatching".
+#
+--NAME--
+CSR Subscription - noLongerMatching notification on CSR deletion
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Register CSR-A (Vehicle propertyNames=[speed])
+# 02. Register CSR-B (Device)
+# 03. Subscribe S1 watching Vehicle/speed — initial notif has CSR-A
+# 04. Dump ftClient — one notification (initial newlyMatching, CSR-A)
+# 05. Delete CSR-A — S1 should receive noLongerMatching with CSR-A
+# 06. Dump ftClient — two notifications
+# 07. Delete CSR-B (nothing matches) — no new notification
+# 08. Dump ftClient — still two notifications
+#
+
+echo "01. Register CSR-A (Vehicle propertyNames=[speed])"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Register CSR-B (Device)"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Device"}]}]}'
+echo
+echo
+
+
+echo "03. Subscribe S1 (Vehicle + watchedAttributes=[speed])"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
+echo
+echo
+
+
+echo "04. Dump ftClient — initial newlyMatching at /s1 with CSR-A"
+echo "==========================================================="
+ftClientDump
+echo
+echo
+
+
+echo "05. Delete CSR-A"
+echo "================"
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
+echo
+echo
+
+
+echo "06. Dump ftClient — initial + noLongerMatching at /s1 with CSR-A"
+echo "================================================================"
+ftClientDump
+echo
+echo
+
+
+echo "07. Delete CSR-B (didn't match S1)"
+echo "=================================="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+echo
+echo
+
+
+echo "08. Dump ftClient — still only two notifications"
+echo "================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR-A (Vehicle propertyNames=[speed])
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR-B (Device)
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Subscribe S1 (Vehicle + watchedAttributes=[speed])
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Dump ftClient — initial newlyMatching at /s1 with CSR-A
+===========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+05. Delete CSR-A
+================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Dump ftClient — initial + noLongerMatching at /s1 with CSR-A
+================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "noLongerMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+07. Delete CSR-B (didn't match S1)
+==================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. Dump ftClient — still only two notifications
+================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "noLongerMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
