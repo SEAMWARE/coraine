@@ -13,8 +13,10 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldCheckRegistration.h"            // ldCheckRegistration
 #include "swNgsild/LdOp.h"                           // LdOpUpdateRegistration
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemRemove, ldRegCacheItemAdd
+#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemLookup, ldRegCacheItemRemove, ldRegCacheItemAdd
+#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubMatchingSubIds, ldCsrSubOnRegUpdate
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -57,7 +59,22 @@ bool patchCsourceRegistration(void)
     return true;
   }
 
-  int r = db.registrationUpdate((Tenant*) swNgsild.tenantP, regId, fragment);
+  //
+  // § 5.11.7 — snapshot which CSR-subs match the CSR PRE-update. The
+  // old cache item's pre-parsed fields are freed by ldRegCacheItemRemove
+  // below, so the "was matching" set has to be captured now. Borrowed
+  // subId pointers are stable for the sub cache's lifetime.
+  //
+  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  char**  wasMatchingIds = NULL;
+  if (tenantP->regCacheP != NULL && tenantP->regSubCacheP != NULL)
+  {
+    LdRegCacheItem* oldItemP = ldRegCacheItemLookup((LdRegCache*) tenantP->regCacheP, regId);
+    if (oldItemP != NULL)
+      wasMatchingIds = ldCsrSubMatchingSubIds((LdSubCache*) tenantP->regSubCacheP, oldItemP, &swRest.kalloc);
+  }
+
+  int r = db.registrationUpdate(tenantP, regId, fragment);
 
   if (r == DB_NOT_FOUND)
   {
@@ -72,15 +89,21 @@ bool patchCsourceRegistration(void)
   }
 
   // Refresh the cache: remove old item, re-add merged tree from DB
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  LdRegCacheItem* newItemP = NULL;
   if (tenantP->regCacheP != NULL)
   {
     ldRegCacheItemRemove((LdRegCache*) tenantP->regCacheP, regId);
 
     KjNode* updatedRegP = NULL;
     if (db.registrationRetrieve != NULL && db.registrationRetrieve(tenantP, regId, &updatedRegP) == DB_OK && updatedRegP != NULL)
-      ldRegCacheItemAdd((LdRegCache*) tenantP->regCacheP, updatedRegP);
+      newItemP = ldRegCacheItemAdd((LdRegCache*) tenantP->regCacheP, updatedRegP);
   }
+
+  //
+  // Fan out updated / newlyMatching / noLongerMatching notifications.
+  //
+  if (newItemP != NULL && tenantP->regSubCacheP != NULL)
+    ldCsrSubOnRegUpdate((LdSubCache*) tenantP->regSubCacheP, newItemP, wasMatchingIds);
 
   swRest.out.httpStatusCode = 204;
   return true;
