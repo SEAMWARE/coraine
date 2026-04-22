@@ -1,0 +1,575 @@
+#
+# FILE            csr_subscription_on_sub_patch_notif.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11.3.4 — after a CSR-sub PATCH the broker MUST send "a
+# notification with all currently matching Context Source
+# Registrations". Reuses the initial-notify code path with
+# triggerReason="newlyMatching".
+#
+--NAME--
+CSR Subscription - notification on sub PATCH lists currently matching CSRs
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Register CSR-V (Vehicle/speed)
+# 02. Register CSR-T (Temperature/temperature)
+# 03. Subscribe S (Vehicle) — initial notif has CSR-V
+# 04. Dump — one notification (CSR-V, newlyMatching)
+# 05. PATCH S to entities=[Temperature] — post-patch matches CSR-T
+# 06. Dump — one new notification (CSR-T, newlyMatching)
+# 07. PATCH S to entities=[Vehicle, Temperature] — matches both
+# 08. Dump — one new notification with both CSRs (still newlyMatching)
+# 09. PATCH S to entities=[Device] — matches nothing → no notification
+# 10. Dump — empty (new accumulation window)
+#
+
+echo "01. Register CSR-V (Vehicle propertyNames=[speed])"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V","type":"ContextSourceRegistration","endpoint":"http://cpv.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Register CSR-T (Temperature propertyNames=[temperature])"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:T","type":"ContextSourceRegistration","endpoint":"http://cpt.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
+echo
+echo
+
+
+echo "03. Subscribe S (Vehicle)"
+echo "========================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s"}}}'
+echo
+echo
+
+
+echo "04. Dump - initial newlyMatching with CSR-V"
+echo "==========================================="
+ftClientDump
+echo
+echo
+
+
+echo "05. PATCH S -> entities=[Temperature]"
+echo "====================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceSubscriptions/urn:S --payload '{"entities":[{"type":"Temperature"}]}'
+echo
+echo
+
+
+echo "06. Dump - post-patch newlyMatching with CSR-T"
+echo "=============================================="
+ftClientDump
+echo
+echo
+
+
+echo "07. PATCH S -> entities=[Vehicle, Temperature]"
+echo "=============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceSubscriptions/urn:S --payload '{"entities":[{"type":"Vehicle"},{"type":"Temperature"}]}'
+echo
+echo
+
+
+echo "08. Dump - post-patch newlyMatching with CSR-V + CSR-T"
+echo "======================================================"
+ftClientDump
+echo
+echo
+
+
+echo "09. PATCH S -> entities=[Device] (matches nothing)"
+echo "=================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceSubscriptions/urn:S --payload '{"entities":[{"type":"Device"}]}'
+echo
+echo
+
+
+echo "10. Dump - no new notification"
+echo "=============================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR-V (Vehicle propertyNames=[speed])
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR-T (Temperature propertyNames=[temperature])
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:T
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Subscribe S (Vehicle)
+=========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:S
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Dump - initial newlyMatching with CSR-V
+===========================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpv.example",
+          "id": "urn:CSR:V",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  }
+]
+
+
+05. PATCH S -> entities=[Temperature]
+=====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Dump - post-patch newlyMatching with CSR-T
+==============================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpv.example",
+          "id": "urn:CSR:V",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpt.example",
+          "id": "urn:CSR:T",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Temperature"
+                }
+              ],
+              "propertyNames": [
+                "temperature"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  }
+]
+
+
+07. PATCH S -> entities=[Vehicle, Temperature]
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. Dump - post-patch newlyMatching with CSR-V + CSR-T
+======================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpv.example",
+          "id": "urn:CSR:V",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpt.example",
+          "id": "urn:CSR:T",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Temperature"
+                }
+              ],
+              "propertyNames": [
+                "temperature"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpv.example",
+          "id": "urn:CSR:V",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        },
+        {
+          "endpoint": "http://cpt.example",
+          "id": "urn:CSR:T",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Temperature"
+                }
+              ],
+              "propertyNames": [
+                "temperature"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  }
+]
+
+
+09. PATCH S -> entities=[Device] (matches nothing)
+==================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+10. Dump - no new notification
+==============================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpv.example",
+          "id": "urn:CSR:V",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpt.example",
+          "id": "urn:CSR:T",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Temperature"
+                }
+              ],
+              "propertyNames": [
+                "temperature"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cpv.example",
+          "id": "urn:CSR:V",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "speed"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        },
+        {
+          "endpoint": "http://cpt.example",
+          "id": "urn:CSR:T",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Temperature"
+                }
+              ],
+              "propertyNames": [
+                "temperature"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

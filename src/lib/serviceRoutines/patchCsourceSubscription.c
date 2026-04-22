@@ -32,6 +32,8 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheItemRemove, ldSubCacheItemAdd
+#include "swNgsild/LdRegCache.h"                     // LdRegCache
+#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -164,7 +166,16 @@ bool patchCsourceSubscription(void)
   //
   KjNode* newTree = kjClone(NULL, subTree);
   ldSubCacheItemRemove(cacheP, subId);
-  ldSubCacheItemAdd(cacheP, newTree, NULL);
+  LdSubCacheItem* newItemP = ldSubCacheItemAdd(cacheP, newTree, NULL);
+
+  //
+  // § 5.11.3.4 — "send a notification with all currently matching
+  // Context Source Registrations" after the PATCH. Reuses the
+  // initial-on-subscribe code path: one CsourceNotification with all
+  // matches under the new filter, triggerReason="newlyMatching".
+  //
+  if (newItemP != NULL && tenantP->regCacheP != NULL)
+    ldCsrSubInitialNotify((LdRegCache*) tenantP->regCacheP, newItemP);
 
   swRest.out.httpStatusCode = 204;
   return true;
