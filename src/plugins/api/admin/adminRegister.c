@@ -17,6 +17,7 @@
 #include "api/admin/adminLog.h"                   // adminGetLog, adminPutLog, adminPostLog, adminPatchLog, adminDeleteLog
 #include "api/admin/adminTenants.h"               // adminGetTenants
 #include "api/admin/adminPlugins.h"               // adminGetPlugins
+#include "api/admin/adminMetrics.h"               // adminGetMetrics
 
 
 
@@ -60,6 +61,7 @@ static SwRestServiceSimplified adminServices[] =
   { SwVerbGet,    "/admin/log",     adminGetLog,     0,                0 },
   { SwVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
   { SwVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
+  { SwVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
   // PUT
   { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST

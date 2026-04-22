@@ -80,7 +80,9 @@ PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
 
 FWD_SOURCES   = src/lib/forwarding/forwardingHttp.c
 
-ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES)
+METRICS_SOURCES = src/lib/metrics/metrics.c
+
+ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES) $(METRICS_SOURCES)
 ALL_OBJS      = $(ALL_SOURCES:.c=.o)
 
 #
@@ -134,7 +136,8 @@ RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 
 ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
                  $(ADMIN_DIR)/adminVersion.c $(ADMIN_DIR)/adminLog.c \
-                 $(ADMIN_DIR)/adminTenants.c $(ADMIN_DIR)/adminPlugins.c
+                 $(ADMIN_DIR)/adminTenants.c $(ADMIN_DIR)/adminPlugins.c \
+                 $(ADMIN_DIR)/adminMetrics.c
 ADMIN_OBJS     = $(ADMIN_SOURCES:.c=.o)
 
 MONGOC_DIR     = src/plugins/currentState/mongoc

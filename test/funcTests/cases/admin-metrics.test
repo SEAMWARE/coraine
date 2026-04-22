@@ -1,0 +1,82 @@
+#
+# FILE            admin-metrics.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Prometheus metrics — GET /admin/metrics.
+# Verifies counters move when matching requests are made.
+#
+--NAME--
+Admin metrics - per-LdOp counters + error counters + notification counters
+
+--INIT--
+swDbDrop
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+#
+# 01. GET /admin/metrics on a fresh broker — counters at 0
+# 02. POST 2 entities + retrieve one + bad-request (4xx) + duplicate (409)
+# 03. GET /admin/metrics — verify specific counters moved
+#
+# swCurl's REGEXPECT can't easily span a large metrics dump; we
+# grep a handful of interesting lines from /admin/metrics and
+# verify those.
+#
+
+echo "01. Initial metrics - entity_create should be 0"
+echo "==============================================="
+curl -sS "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/metrics" | grep -aE "^ngsild_entity_create_total|^ngsild_entity_retrieve_total|^ngsild_errors_4xx_total|^ngsild_notifications_sent_total" | sort
+echo
+echo
+
+
+echo "02. Two successful POSTs + one 415 (bad content-type)"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
+# Duplicate create -> 409 (still counts on entity_create_total, errors_4xx++)
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+# Retrieve one -> entity_retrieve_total++
+swCurl --url /ngsi-ld/v1/entities/urn:V1 | head -1
+echo
+echo
+
+
+echo "03. Metrics after requests"
+echo "=========================="
+curl -sS "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/metrics" | grep -aE "^ngsild_entity_create_total|^ngsild_entity_retrieve_total|^ngsild_errors_4xx_total|^ngsild_notifications_sent_total" | sort
+echo
+echo
+
+
+--EXPECT--
+01. Initial metrics - entity_create should be 0
+===============================================
+ngsild_entity_create_total 0
+ngsild_entity_retrieve_total 0
+ngsild_errors_4xx_total 0
+ngsild_notifications_sent_total 0
+
+
+02. Two successful POSTs + one 415 (bad content-type)
+=====================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+HTTP/1.1 200 OK
+
+
+03. Metrics after requests
+==========================
+ngsild_entity_create_total 3
+ngsild_entity_retrieve_total 1
+ngsild_errors_4xx_total 1
+ngsild_notifications_sent_total 0
+
+
+--TEARDOWN--
+swBrokerStop

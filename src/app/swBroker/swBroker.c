@@ -33,6 +33,7 @@
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
+#include "swNgsild/ldNotifyStatsHook.h"           // ldNotifyStatsHookSet
 #include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
 #include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
@@ -47,6 +48,8 @@
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
 
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
+
+#include "metrics/metrics.h"                      // metricsInit, metricsPreService, metricsPostResponse, metricsNotificationSent, metricsCsrNotificationSent
 
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
 
@@ -406,6 +409,48 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
 
 // -----------------------------------------------------------------------------
 //
+// brokerPreServiceHook - chain the tenant + metrics pre-service work
+//
+// Tenant hook goes first; on its failure we skip the metric bump — a
+// request that failed tenant resolution is effectively rejected before
+// it hits a service routine.
+//
+static bool brokerPreServiceHook(void)
+{
+  if (!tenantPreServiceHook())
+    return false;
+  metricsPreService();
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// brokerPostResponseHook - metrics first (captures status), then notify dispatch
+//
+static void brokerPostResponseHook(void)
+{
+  metricsPostResponse();
+  ldNotifyDispatchPending();
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// brokerNotifyStatsHook - called by swNgsild when any notification is POSTed
+//
+static void brokerNotifyStatsHook(bool csrSub, bool success)
+{
+  if (csrSub) metricsCsrNotificationSent(success);
+  else        metricsNotificationSent(success);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // main -
 //
 int main(int argC, char* argV[])
@@ -500,8 +545,10 @@ int main(int argC, char* argV[])
 
   apiPluginsInit();
   tenantInit("sw");
-  swRestSetPreServiceHook(tenantPreServiceHook);
-  swRestSetPostResponseHook(ldNotifyDispatchPending);
+  metricsInit();
+  ldNotifyStatsHookSet(brokerNotifyStatsHook);
+  swRestSetPreServiceHook(brokerPreServiceHook);
+  swRestSetPostResponseHook(brokerPostResponseHook);
 
   if (dbStart() != 0)
     KT_X(1, "dbStart failed");
