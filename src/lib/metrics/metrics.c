@@ -13,6 +13,7 @@
 #include <time.h>                                  // clock_gettime
 
 #include "kalloc/kaAlloc.h"                        // kaAlloc
+#include "kjson/KjNode.h"                          // KjNode, KjArray
 #include "kprom/kprom.h"                           // kprom*
 
 #include "swRest/SwRestState.h"                    // swRest
@@ -81,6 +82,17 @@ static double       requestLatencyBuckets[] = { 0.0005, 0.001, 0.002, 0.005, 0.0
 // tail coverage out to 5s to catch slow CPs. The +Inf bucket is added
 // by kprom automatically.
 static double distopLatencyBuckets[] = { 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0 };
+
+// Batch op item count — observed in metricsPreService when the op is
+// one of the six /entityOperations/* batch ops and the payload tree
+// is a JSON array.
+static KpromMetric* batchItemCount;
+static double       batchItemCountBuckets[] = { 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500 };
+
+// Mask of LdOp bits for the six /entityOperations/* batch ops
+// (bits 12..17: create, upsert, update, delete, merge, query).
+#define LD_OPS_BATCH_MASK ( (1ULL << 12) | (1ULL << 13) | (1ULL << 14) | \
+                            (1ULL << 15) | (1ULL << 16) | (1ULL << 17) )
 
 
 
@@ -198,6 +210,11 @@ bool metricsInit(void)
                                              requestLatencyBuckets,
                                              sizeof(requestLatencyBuckets) / sizeof(requestLatencyBuckets[0]));
 
+  batchItemCount      = kpromHistogramCreate("ngsild_batch_item_count",
+                                             "Number of items per /entityOperations batch request",
+                                             batchItemCountBuckets,
+                                             sizeof(batchItemCountBuckets) / sizeof(batchItemCountBuckets[0]));
+
   initialized = true;
   return true;
 }
@@ -263,6 +280,18 @@ bool metricsPreService(void)
   int bit = __builtin_ctzll(op);
   if (bit >= 0 && bit < 64 && reqCounterByOp[bit] != NULL)
     kpromCounterInc(reqCounterByOp[bit]);
+
+  // For batch ops, observe the array length so we can size payloads
+  // in dashboards.
+  if ((op & LD_OPS_BATCH_MASK) != 0 &&
+      swRest.in.requestTree != NULL &&
+      swRest.in.requestTree->type == KjArray)
+  {
+    int n = 0;
+    for (KjNode* c = swRest.in.requestTree->value.firstChildP; c != NULL; c = c->next)
+      n++;
+    kpromHistogramObserve(batchItemCount, (double) n);
+  }
 
   return true;
 }
