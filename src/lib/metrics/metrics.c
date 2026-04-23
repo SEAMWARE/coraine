@@ -10,6 +10,7 @@
 #include <stdbool.h>                               // bool
 #include <stddef.h>                                // NULL
 #include <string.h>                                // strlen
+#include <time.h>                                  // clock_gettime
 
 #include "kalloc/kaAlloc.h"                        // kaAlloc
 #include "kprom/kprom.h"                           // kprom*
@@ -68,6 +69,13 @@ static KpromMetric* gEntityMapStoreSize;
 static KpromMetric* distopForwarded;
 static KpromMetric* distopForwardFailed;
 static KpromMetric* distopLatency;
+
+// End-to-end request latency — observed in the post-response hook.
+// Buckets cover intra-DC HTTP roundtrips typical for entity ops
+// (fast path sub-ms) and outliers out to a few seconds for distops
+// and large batches.
+static KpromMetric* requestLatency;
+static double       requestLatencyBuckets[] = { 0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5 };
 
 // Buckets in seconds. Tuned for typical intra-DC HTTP roundtrips with
 // tail coverage out to 5s to catch slow CPs. The +Inf bucket is added
@@ -185,6 +193,11 @@ bool metricsInit(void)
                                              distopLatencyBuckets,
                                              sizeof(distopLatencyBuckets) / sizeof(distopLatencyBuckets[0]));
 
+  requestLatency      = kpromHistogramCreate("ngsild_request_latency_seconds",
+                                             "End-to-end request latency — service-routine processing time (seconds)",
+                                             requestLatencyBuckets,
+                                             sizeof(requestLatencyBuckets) / sizeof(requestLatencyBuckets[0]));
+
   initialized = true;
   return true;
 }
@@ -267,6 +280,19 @@ void metricsPostResponse(void)
     kpromCounterInc(errors5xx);
   else if (sc >= 400 && sc < 500)
     kpromCounterInc(errors4xx);
+
+  // End-to-end request latency. requestStartTimeMono is CLOCK_MONOTONIC
+  // nanoseconds (set by swRest on request entry — the SwRestState.h
+  // comment that says "microseconds" is wrong; see swRestInit.c:384).
+  // Guard the "never observed" case where the start time is 0.
+  if (swRest.requestStartTimeMono != 0)
+  {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint64_t nowNs   = (uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec;
+    double   latency = (double) (nowNs - swRest.requestStartTimeMono) / 1e9;
+    kpromHistogramObserve(requestLatency, latency);
+  }
 }
 
 
