@@ -9,7 +9,7 @@
 datasetId filter on entity with multiple attributes - partial match and no-default
 
 --TAGS--
-datasetid url-param
+datasetid multi-attr url-param
 
 --INIT--
 swDbDrop

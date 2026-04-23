@@ -247,11 +247,20 @@ ftClientStop() {
 }
 
 
-# ftClientDump - retrieve accumulated notifications
+# ftClientDump [--port P] - retrieve accumulated notifications
 #
 ftClientDump() {
+  local port=$FT_CLIENT_PORT
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      shift
+    fi
+    shift
+  done
+
   local raw
-  raw=$(curl -s http://localhost:$FT_CLIENT_PORT/dump)
+  raw=$(curl -s "http://localhost:$port/dump")
 
   if [ -n "$KJSON" ] && [ -n "$raw" ] && [ "$raw" != "[]" ]; then
     echo "$raw" | $KJSON -sort | head -c -1
@@ -261,10 +270,18 @@ ftClientDump() {
 }
 
 
-# ftClientReset - clear accumulated notifications
+# ftClientReset [--port P] - clear accumulated notifications
 #
 ftClientReset() {
-  curl -s -X DELETE http://localhost:$FT_CLIENT_PORT/dump > /dev/null
+  local port=$FT_CLIENT_PORT
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      shift
+    fi
+    shift
+  done
+  curl -s -X DELETE "http://localhost:$port/dump" > /dev/null
 }
 
 

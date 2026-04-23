@@ -98,7 +98,7 @@ echo
 
 echo "05. ftClient dump → one forward for speed"
 echo "========================================="
-curl -s http://localhost:7711/dump | python3 -c "
+ftClientDump --port 7711 | python3 -c "
 import sys,json
 d = json.load(sys.stdin)
 print(len(d), 'request(s)')

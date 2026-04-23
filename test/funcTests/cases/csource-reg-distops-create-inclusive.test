@@ -77,7 +77,7 @@ echo
 
 echo "04. ftClient dump → shows the forwarded POST"
 echo "============================================="
-curl -s http://localhost:7711/dump | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d), 'request(s)'); [print('  -', e['verb'], e['url']) for e in d]"
+ftClientDump --port 7711 | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d), 'request(s)'); [print('  -', e['verb'], e['url']) for e in d]"
 echo
 echo
 

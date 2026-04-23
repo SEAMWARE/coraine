@@ -9,7 +9,7 @@
 POST /ngsi-ld/v1/entities - Multi-type entity creation and retrieval
 
 --TAGS--
-create entity
+create entity multi-entity-type
 
 --INIT--
 swDbDrop

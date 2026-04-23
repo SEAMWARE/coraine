@@ -9,7 +9,7 @@
 POST entity with multi-attribute (array of instances) returns 201
 
 --TAGS--
-create entity
+create entity multi-attr
 
 --INIT--
 swDbDrop

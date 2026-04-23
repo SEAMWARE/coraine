@@ -9,7 +9,7 @@
 GET entity with multi-attribute returns array with datasetId
 
 --TAGS--
-entity retrieve
+entity multi-attr retrieve
 
 --INIT--
 swDbDrop
