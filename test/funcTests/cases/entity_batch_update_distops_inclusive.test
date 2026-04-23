@@ -15,6 +15,9 @@
 --NAME--
 Batch Entity Update — inclusive CSR, local + forwarded
 
+--TAGS--
+batch entity update
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

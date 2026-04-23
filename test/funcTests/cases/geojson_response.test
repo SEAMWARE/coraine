@@ -8,6 +8,9 @@
 --NAME--
 GeoJSON response format (Accept: application/geo+json)
 
+--TAGS--
+format geo geojson
+
 --INIT--
 swDbDrop
 swBrokerStart

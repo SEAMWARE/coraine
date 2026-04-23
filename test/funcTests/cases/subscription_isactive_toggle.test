@@ -8,6 +8,9 @@
 --NAME--
 Subscription isActive toggle via PATCH — pause/resume notifications
 
+--TAGS--
+subscription
+
 --INIT--
 swDbDrop
 ftClientStart

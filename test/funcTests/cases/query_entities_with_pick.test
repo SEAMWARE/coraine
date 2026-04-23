@@ -8,6 +8,9 @@
 --NAME--
 GET /entities?pick= returns only specified attributes
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swBrokerStart

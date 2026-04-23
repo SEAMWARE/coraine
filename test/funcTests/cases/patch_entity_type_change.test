@@ -8,6 +8,9 @@
 --NAME--
 PATCH /entities/{id} - attribute type change is forbidden (§ 5.6.4.4)
 
+--TAGS--
+entity patch
+
 --INIT--
 swDbDrop
 swBrokerStart

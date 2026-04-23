@@ -8,6 +8,9 @@
 --NAME--
 POST /entities/{id}/attrs - Append Attributes (§ 5.6.3)
 
+--TAGS--
+entity
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 Multi-tenant support via NGSILD-Tenant header
 
+--TAGS--
+tenant
+
 --INIT--
 swDbDrop
 swDbDrop -tenant t1

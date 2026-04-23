@@ -13,6 +13,9 @@
 --NAME--
 Context Source Registration persistence + cache rehydrate (mongoc)
 
+--TAGS--
+mongoc persist registration
+
 --INIT--
 swDbDrop
 swBrokerStart

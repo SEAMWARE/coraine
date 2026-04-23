@@ -8,6 +8,9 @@
 --NAME--
 GET /entities with limit, offset, and count pagination
 
+--TAGS--
+entity pagination query
+
 --INIT--
 swDbDrop
 swBrokerStart

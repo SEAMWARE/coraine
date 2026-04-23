@@ -8,6 +8,9 @@
 --NAME--
 GET /entities?id=x,y filters by multiple entity ids
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 GET /nonexistent - 404 Not Found
 
+--TAGS--
+error http
+
 --INIT--
 swBrokerStart
 

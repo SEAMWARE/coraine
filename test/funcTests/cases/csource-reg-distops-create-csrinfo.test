@@ -8,6 +8,9 @@
 --NAME--
 DistOps - contextSourceInfo headers are emitted on forwarded createEntity
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

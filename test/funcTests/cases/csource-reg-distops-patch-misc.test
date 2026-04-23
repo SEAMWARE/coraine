@@ -8,6 +8,9 @@
 --NAME--
 DistOps - patchEntity (Merge): redirect, inclusive, ?local bypass, loop skip (real CP1)
 
+--TAGS--
+distops patch registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

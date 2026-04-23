@@ -8,6 +8,9 @@
 --NAME--
 PUT /entities/{id} - Replace Entity (§ 5.6.16)
 
+--TAGS--
+entity replace
+
 --INIT--
 swDbDrop
 swBrokerStart

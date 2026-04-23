@@ -8,6 +8,9 @@
 --NAME--
 POST /entityOperations/query — Batch Query (§ 6.23)
 
+--TAGS--
+batch entity
+
 --INIT--
 swDbDrop
 swBrokerStart

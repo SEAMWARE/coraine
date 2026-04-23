@@ -13,6 +13,9 @@
 --NAME--
 CSR Subscription CRUD - create, retrieve, query, update, delete
 
+--TAGS--
+csr-sub subscription
+
 --INIT--
 swDbDrop
 swBrokerStart

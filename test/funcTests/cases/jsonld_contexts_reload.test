@@ -13,6 +13,9 @@
 --NAME--
 DELETE /jsonldContexts/{id}?reload=true actually refreshes the body
 
+--TAGS--
+context
+
 --INIT--
 swDbDrop
 swDbDrop -db swBroker

@@ -8,6 +8,9 @@
 --NAME--
 DistOps - per-CSR management.timeout triggers notCreated on slow forward
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

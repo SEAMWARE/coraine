@@ -8,6 +8,9 @@
 --NAME--
 DistOps - patchEntity error modes (ftClient mocks): excl-no-op → 409, dead+live → 207
 
+--TAGS--
+distops error patch registration
+
 --INIT--
 swDbDrop
 swBrokerStart

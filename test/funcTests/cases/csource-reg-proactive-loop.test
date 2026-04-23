@@ -8,6 +8,9 @@
 --NAME--
 DistOps - proactive loop detect via /info/sourceIdentity probe
 
+--TAGS--
+registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

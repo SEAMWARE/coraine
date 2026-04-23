@@ -8,6 +8,9 @@
 --NAME--
 DistOps - deleteEntity forwarded to exclusive registration
 
+--TAGS--
+delete distops registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

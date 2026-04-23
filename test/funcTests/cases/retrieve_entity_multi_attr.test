@@ -8,6 +8,9 @@
 --NAME--
 GET entity with multi-attribute returns array with datasetId
 
+--TAGS--
+entity retrieve
+
 --INIT--
 swDbDrop
 swBrokerStart

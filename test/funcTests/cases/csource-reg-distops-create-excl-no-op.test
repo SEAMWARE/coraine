@@ -8,6 +8,9 @@
 --NAME--
 DistOps - exclusive registration without createEntity in operations yields partial success
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

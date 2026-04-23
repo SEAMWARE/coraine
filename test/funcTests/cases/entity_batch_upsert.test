@@ -21,6 +21,9 @@
 --NAME--
 POST /entityOperations/upsert — Batch Entity Upsert (§ 5.6.9)
 
+--TAGS--
+batch entity
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 DistOps - CSR scope filter on createEntity
 
+--TAGS--
+create distops registration scope
+
 --INIT--
 swDbDrop
 swBrokerStart

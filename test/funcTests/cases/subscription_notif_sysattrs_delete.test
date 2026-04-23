@@ -12,6 +12,9 @@
 --NAME--
 notification.sysAttrs on delete — createdAt/modifiedAt/deletedAt
 
+--TAGS--
+delete subscription sysattrs
+
 --INIT--
 swDbDrop
 ftClientStart

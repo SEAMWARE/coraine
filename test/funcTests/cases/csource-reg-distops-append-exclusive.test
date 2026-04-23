@@ -8,6 +8,9 @@
 --NAME--
 DistOps - POST /entities/{id}/attrs forwarded to exclusive registration
 
+--TAGS--
+distops registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

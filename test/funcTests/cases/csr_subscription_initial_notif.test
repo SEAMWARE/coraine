@@ -15,6 +15,9 @@
 --NAME--
 CSR Subscription - initial newlyMatching notification on subscribe
 
+--TAGS--
+csr-sub subscription
+
 --INIT--
 swDbDrop
 ftClientStart

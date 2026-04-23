@@ -9,6 +9,9 @@
 --NAME--
 Subscription persistence — survives broker restart (mongoc)
 
+--TAGS--
+subscription
+
 --INIT--
 swDbDrop
 ftClientStart

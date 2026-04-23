@@ -8,6 +8,9 @@
 --NAME--
 GET entity with single attribute with datasetId returns object with datasetId
 
+--TAGS--
+datasetid entity retrieve
+
 --INIT--
 swDbDrop
 swBrokerStart

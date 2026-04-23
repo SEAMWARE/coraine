@@ -13,6 +13,9 @@
 --NAME--
 Batch Entity Upsert — exclusive CSR without upsertBatch (409 / 207 conflict)
 
+--TAGS--
+batch entity
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

@@ -8,6 +8,9 @@
 --NAME--
 Subscription with scopeQ filter
 
+--TAGS--
+scope subscription
+
 --INIT--
 swDbDrop
 ftClientStart

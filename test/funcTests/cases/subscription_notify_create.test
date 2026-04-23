@@ -8,6 +8,9 @@
 --NAME--
 Subscription notification on entity create
 
+--TAGS--
+create notification subscription
+
 --INIT--
 swDbDrop
 ftClientStart

@@ -13,6 +13,9 @@
 --NAME--
 Batch Entity Merge — exclusive CSR without mergeBatch op (409 / 207 conflict)
 
+--TAGS--
+batch entity merge
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

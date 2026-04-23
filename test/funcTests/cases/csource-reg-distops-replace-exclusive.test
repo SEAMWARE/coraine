@@ -8,6 +8,9 @@
 --NAME--
 DistOps - replaceEntity (PUT) forwarded to exclusive registration
 
+--TAGS--
+distops registration replace
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

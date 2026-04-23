@@ -13,6 +13,9 @@
 --NAME--
 CSR Subscription - notification on sub PATCH lists currently matching CSRs
 
+--TAGS--
+csr-sub patch subscription
+
 --INIT--
 swDbDrop
 ftClientStart

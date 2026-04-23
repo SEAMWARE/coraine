@@ -8,6 +8,9 @@
 --NAME--
 DistOps - retrieveEntity forwarded to a single exclusive registered context source
 
+--TAGS--
+distops registration retrieve
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

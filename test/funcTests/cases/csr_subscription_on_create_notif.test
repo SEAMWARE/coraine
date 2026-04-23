@@ -12,6 +12,9 @@
 --NAME--
 CSR Subscription - notification on CSR creation
 
+--TAGS--
+create csr-sub subscription
+
 --INIT--
 swDbDrop
 ftClientStart

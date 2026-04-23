@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities - format parameter (normalized, concise, simplified, keyValues)
 
+--TAGS--
+entity format query
+
 --INIT--
 swDbDrop
 swBrokerStart

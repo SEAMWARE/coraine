@@ -8,6 +8,9 @@
 --NAME--
 DistOps - expired CSRs are ignored by createEntity dispatch
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

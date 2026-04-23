@@ -8,6 +8,9 @@
 --NAME--
 Subscription notificationTrigger — all trigger types
 
+--TAGS--
+subscription
+
 --INIT--
 swDbDrop
 ftClientStart

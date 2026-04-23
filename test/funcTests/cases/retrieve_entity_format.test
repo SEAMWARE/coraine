@@ -8,6 +8,9 @@
 --NAME--
 GET /entities/{id} with format param (simplified, concise, normalized, keyValues)
 
+--TAGS--
+entity format retrieve
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 DistOps - createEntity 409 Conflict when every forward fails and nothing else succeeds
 
+--TAGS--
+create distops error registration
+
 --INIT--
 swDbDrop
 swBrokerStart

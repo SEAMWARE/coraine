@@ -8,6 +8,9 @@
 --NAME--
 POST /ngsi-ld/v1/entities - all JSON value types (BSON round-trip)
 
+--TAGS--
+create entity
+
 --INIT--
 swDbDrop
 swBrokerStart

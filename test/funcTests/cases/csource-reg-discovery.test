@@ -20,6 +20,9 @@
 --NAME--
 CSR Discovery (§ 5.10.2) — type / id / idPattern / attrs / pick
 
+--TAGS--
+discovery query registration
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities - Type Selection Language (OR, AND, mixed)
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swBrokerStart

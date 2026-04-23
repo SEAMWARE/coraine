@@ -8,6 +8,9 @@
 --NAME--
 POST / DELETE /jsonldContexts (§ 5.13.2, 5.13.3)
 
+--TAGS--
+context
+
 --INIT--
 swDbDrop
 swDbDrop -db swBroker

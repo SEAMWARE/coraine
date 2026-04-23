@@ -8,6 +8,9 @@
 --NAME--
 POST /ngsi-ld/v1/entities - Multi-type entity creation and retrieval
 
+--TAGS--
+create entity
+
 --INIT--
 swDbDrop
 swBrokerStart

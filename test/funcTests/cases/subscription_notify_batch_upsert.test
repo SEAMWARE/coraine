@@ -18,6 +18,9 @@
 --NAME--
 Batch Entity Upsert — notifications per fragment (create vs update)
 
+--TAGS--
+batch notification subscription
+
 --INIT--
 swDbDrop
 ftClientStart

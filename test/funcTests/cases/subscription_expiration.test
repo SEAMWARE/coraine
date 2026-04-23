@@ -8,6 +8,9 @@
 --NAME--
 Subscription expiration — past expiresAt rejected, dynamic expiration
 
+--TAGS--
+expiration subscription
+
 --INIT--
 swDbDrop
 ftClientStart

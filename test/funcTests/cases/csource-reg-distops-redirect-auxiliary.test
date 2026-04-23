@@ -8,6 +8,9 @@
 --NAME--
 DistOps - redirect and auxiliary mode forwarding for retrieveEntity
 
+--TAGS--
+distops registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities/{id} - pick and omit params
 
+--TAGS--
+entity retrieve
+
 --INIT--
 swDbDrop
 swBrokerStart

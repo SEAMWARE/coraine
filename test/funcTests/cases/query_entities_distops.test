@@ -11,6 +11,9 @@
 --NAME--
 Distributed queryEntities (comprehensive, no-split mode)
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

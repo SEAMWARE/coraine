@@ -8,6 +8,9 @@
 --NAME--
 Subscription notification on entity update (PATCH) and delete
 
+--TAGS--
+delete notification subscription update
+
 --INIT--
 swDbDrop
 ftClientStart

@@ -11,6 +11,9 @@
 --NAME--
 GET /entityMaps — Create EntityMap for Query (§ 5.14.4)
 
+--TAGS--
+create entity entitymap query
+
 --INIT--
 swDbDrop
 swBrokerStart

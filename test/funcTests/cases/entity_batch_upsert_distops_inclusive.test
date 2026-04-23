@@ -16,6 +16,9 @@
 --NAME--
 Batch Entity Upsert — inclusive CSR, local + forwarded
 
+--TAGS--
+batch entity
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

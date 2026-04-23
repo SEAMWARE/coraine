@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities/{id} - lang parameter reduces LanguageProperty
 
+--TAGS--
+entity retrieve
+
 --INIT--
 swDbDrop
 swBrokerStart

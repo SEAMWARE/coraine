@@ -8,6 +8,9 @@
 --NAME--
 HEAD requests (auto-generated from GET, no body, correct Content-Length)
 
+--TAGS--
+head
+
 --INIT--
 swDbDrop
 swBrokerStart

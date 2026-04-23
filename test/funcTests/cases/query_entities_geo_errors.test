@@ -8,6 +8,9 @@
 --NAME--
 Geo-query error handling (georel, geometry, coordinates validation)
 
+--TAGS--
+entity error geo query
+
 --INIT--
 swDbDrop
 swBrokerStart

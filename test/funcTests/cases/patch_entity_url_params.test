@@ -8,6 +8,9 @@
 --NAME--
 PATCH /entities/{id} - format/lang/observedAt URL params
 
+--TAGS--
+entity patch url-param
+
 --INIT--
 swDbDrop
 swBrokerStart

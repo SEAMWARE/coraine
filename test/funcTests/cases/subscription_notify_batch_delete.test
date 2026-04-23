@@ -16,6 +16,9 @@
 --NAME--
 Batch Entity Delete — {id,type,deletedAt} payload (§ 5.8.6)
 
+--TAGS--
+batch delete notification subscription
+
 --INIT--
 swDbDrop
 ftClientStart

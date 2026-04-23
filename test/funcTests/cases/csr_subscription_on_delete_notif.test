@@ -12,6 +12,9 @@
 --NAME--
 CSR Subscription - noLongerMatching notification on CSR deletion
 
+--TAGS--
+csr-sub delete subscription
+
 --INIT--
 swDbDrop
 ftClientStart

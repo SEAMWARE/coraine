@@ -8,6 +8,9 @@
 --NAME--
 DistOps - CSR location geo filter on createEntity (shared GEOS via db.geoMatchFunc)
 
+--TAGS--
+create distops geo registration
+
 --INIT--
 swDbDrop
 swBrokerStart

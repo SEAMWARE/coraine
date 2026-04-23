@@ -8,6 +8,9 @@
 --NAME--
 expandValues and jsonKeys URL parameters
 
+--TAGS--
+url-param
+
 --INIT--
 swDbDrop
 swBrokerStart

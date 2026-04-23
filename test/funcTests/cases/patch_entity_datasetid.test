@@ -8,6 +8,9 @@
 --NAME--
 PATCH /entities/{id} - Merge Entity with datasetId and simplified form
 
+--TAGS--
+datasetid entity patch
+
 --INIT--
 swDbDrop
 swBrokerStart

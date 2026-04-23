@@ -17,6 +17,9 @@
 --NAME--
 Batch Entity Update — per-fragment notifications with data[]
 
+--TAGS--
+batch notification subscription update
+
 --INIT--
 swDbDrop
 ftClientStart

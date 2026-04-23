@@ -8,6 +8,9 @@
 --NAME--
 POST entity with multi-attribute (array of instances) returns 201
 
+--TAGS--
+create entity
+
 --INIT--
 swDbDrop
 swBrokerStart

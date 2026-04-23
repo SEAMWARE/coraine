@@ -8,6 +8,9 @@
 --NAME--
 Query Entities with orderBy (§ 4.23)
 
+--TAGS--
+entity orderby query
+
 --INIT--
 swDbDrop
 swBrokerStart

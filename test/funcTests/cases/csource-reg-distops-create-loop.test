@@ -8,6 +8,9 @@
 --NAME--
 DistOps - createEntity loop detection via Via header (§ 5.7.5)
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

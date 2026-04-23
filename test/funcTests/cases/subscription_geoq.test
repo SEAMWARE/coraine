@@ -8,6 +8,9 @@
 --NAME--
 Subscription with geoQ filter — near point
 
+--TAGS--
+geo subscription
+
 --INIT--
 swDbDrop
 ftClientStart

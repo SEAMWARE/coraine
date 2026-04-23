@@ -8,6 +8,9 @@
 --NAME--
 OPTIONS requests - Allow header lists registered verbs
 
+--TAGS--
+http options
+
 --INIT--
 swBrokerStart
 

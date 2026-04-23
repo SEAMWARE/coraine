@@ -22,6 +22,9 @@
 --NAME--
 Batch Entity Update — exclusive CSR without updateBatch op (409 conflict)
 
+--TAGS--
+batch entity update
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

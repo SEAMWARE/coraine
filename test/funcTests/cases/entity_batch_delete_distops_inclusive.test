@@ -12,6 +12,9 @@
 --NAME--
 Batch Entity Delete — inclusive CSR, local + forwarded
 
+--TAGS--
+batch delete entity
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

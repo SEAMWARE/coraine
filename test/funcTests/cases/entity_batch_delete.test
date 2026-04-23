@@ -16,6 +16,9 @@
 --NAME--
 POST /entityOperations/delete — Batch Entity Delete (§ 5.6.11)
 
+--TAGS--
+batch delete entity
+
 --INIT--
 swDbDrop
 swBrokerStart

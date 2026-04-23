@@ -8,6 +8,9 @@
 --NAME--
 CORS headers (--corsOrigin __ALL)
 
+--TAGS--
+cors http
+
 --INIT--
 swBrokerStart --corsOrigin __ALL
 

@@ -15,6 +15,9 @@
 --NAME--
 CSR Subscription - updated / newlyMatching / noLongerMatching on CSR PATCH
 
+--TAGS--
+csr-sub subscription update
+
 --INIT--
 swDbDrop
 ftClientStart

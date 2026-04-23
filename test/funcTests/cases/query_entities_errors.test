@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities - Error handling
 
+--TAGS--
+entity error query
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities - idPattern regex filtering on entity IDs
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swBrokerStart

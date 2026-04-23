@@ -8,6 +8,9 @@
 --NAME--
 Context Source Registration - validation error coverage
 
+--TAGS--
+error registration
+
 --INIT--
 swDbDrop
 swBrokerStart

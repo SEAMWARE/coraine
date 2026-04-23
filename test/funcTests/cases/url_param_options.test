@@ -8,6 +8,9 @@
 --NAME--
 Deprecated ?options= URL param for format selection (keyValues, simplified, concise, normalized)
 
+--TAGS--
+url-param
+
 --INIT--
 swDbDrop
 swBrokerStart

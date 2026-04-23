@@ -18,6 +18,9 @@
 --NAME--
 GET / DELETE /jsonldContexts after LRU eviction (lazy reload)
 
+--TAGS--
+context
+
 --INIT--
 swDbDrop
 swDbDrop -db swBroker

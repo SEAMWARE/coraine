@@ -8,6 +8,9 @@
 --NAME--
 Subscription creation and patch error handling
 
+--TAGS--
+error subscription
+
 --INIT--
 swDbDrop
 swBrokerStart

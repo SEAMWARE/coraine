@@ -8,6 +8,9 @@
 --NAME--
 GET /entities?omit= excludes specified attributes
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swBrokerStart

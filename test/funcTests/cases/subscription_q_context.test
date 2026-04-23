@@ -8,6 +8,9 @@
 --NAME--
 Subscription q-filter with different @contexts for create and GET
 
+--TAGS--
+context q subscription
+
 --INIT--
 swDbDrop
 contextServerStart

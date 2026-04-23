@@ -8,6 +8,9 @@
 --NAME--
 DELETE /entities/{id} - delete entity, 404 on non-existing, 404 after delete
 
+--TAGS--
+delete entity
+
 --INIT--
 swDbDrop
 swBrokerStart

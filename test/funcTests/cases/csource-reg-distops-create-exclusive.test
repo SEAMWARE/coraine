@@ -8,6 +8,9 @@
 --NAME--
 DistOps - createEntity forwarded to exclusive registration, all attrs claimed
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

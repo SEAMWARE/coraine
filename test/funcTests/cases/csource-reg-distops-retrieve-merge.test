@@ -8,6 +8,9 @@
 --NAME--
 DistOps - retrieveEntity merges local non-registered attrs with single-exclusive forward
 
+--TAGS--
+distops merge registration retrieve
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

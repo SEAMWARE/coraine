@@ -8,6 +8,9 @@
 --NAME--
 Subscription notification.attributes filtering
 
+--TAGS--
+subscription
+
 --INIT--
 swDbDrop
 ftClientStart

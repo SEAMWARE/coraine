@@ -15,6 +15,9 @@
 --NAME--
 CSR + entity subscriptions — mixed persistence across broker restart (mongoc)
 
+--TAGS--
+csr-sub subscription
+
 --INIT--
 swDbDrop
 swBrokerStart

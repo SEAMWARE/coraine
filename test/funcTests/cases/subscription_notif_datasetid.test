@@ -12,6 +12,9 @@
 --NAME--
 Subscription notification datasetId filtering
 
+--TAGS--
+datasetid subscription
+
 --INIT--
 swDbDrop
 ftClientStart

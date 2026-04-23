@@ -11,6 +11,9 @@ DELETE /entities - Purge Entities (§ 5.6.21) — local (filters, drop, keep)
 swDbDrop
 swBrokerStart
 
+--TAGS--
+entity purge
+
 --RUN--
 
 #

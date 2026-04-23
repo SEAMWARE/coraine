@@ -8,6 +8,9 @@
 --NAME--
 DistOps - Via header on forward + loop detection on receive (NGSI-LD § 5.7.5)
 
+--TAGS--
+distops registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

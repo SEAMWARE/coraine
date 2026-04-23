@@ -8,6 +8,9 @@
 --NAME--
 POST /entityOperations/create — Batch Entity Creation (§ 5.6.7)
 
+--TAGS--
+batch create entity
+
 --INIT--
 swDbDrop
 swBrokerStart

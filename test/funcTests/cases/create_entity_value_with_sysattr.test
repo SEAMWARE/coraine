@@ -8,6 +8,9 @@
 --NAME--
 POST /entities with modifiedAt inside value object succeeds
 
+--TAGS--
+create entity sysattrs
+
 --INIT--
 swDbDrop
 swBrokerStart

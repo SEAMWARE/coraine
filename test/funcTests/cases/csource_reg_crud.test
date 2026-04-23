@@ -8,6 +8,9 @@
 --NAME--
 Context Source Registration CRUD - create, retrieve, query, update, delete
 
+--TAGS--
+create delete registration retrieve update
+
 --INIT--
 swDbDrop
 swBrokerStart

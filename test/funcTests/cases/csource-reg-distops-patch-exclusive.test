@@ -8,6 +8,9 @@
 --NAME--
 DistOps - patchEntity (Merge) forwarded to exclusive registration
 
+--TAGS--
+distops patch registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

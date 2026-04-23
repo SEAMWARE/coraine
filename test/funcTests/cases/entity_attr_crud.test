@@ -8,6 +8,9 @@
 --NAME--
 Per-attribute CRUD on /entities/{id}/attrs/{attrId} — § 5.6.4 / § 5.6.5 / § 5.6.19 + pre-emptive GET
 
+--TAGS--
+entity
+
 --INIT--
 swDbDrop
 swBrokerStart

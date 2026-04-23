@@ -8,6 +8,9 @@
 --NAME--
 Subscription CRUD - create, retrieve, query, update, delete
 
+--TAGS--
+subscription
+
 --INIT--
 swDbDrop
 swBrokerStart

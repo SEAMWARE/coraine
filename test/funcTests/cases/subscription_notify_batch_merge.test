@@ -13,6 +13,9 @@
 --NAME--
 Batch Entity Merge — per-fragment notifications with data[]
 
+--TAGS--
+batch merge notification subscription
+
 --INIT--
 swDbDrop
 ftClientStart

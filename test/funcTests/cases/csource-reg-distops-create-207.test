@@ -8,6 +8,9 @@
 --NAME--
 DistOps - createEntity 207 partial success when one redirect forward fails
 
+--TAGS--
+create distops error registration
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 DistOps - PATCH /entities/{id}/attrs forwarded to exclusive registration
 
+--TAGS--
+distops registration update
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

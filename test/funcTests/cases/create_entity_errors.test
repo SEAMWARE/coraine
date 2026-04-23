@@ -8,6 +8,9 @@
 --NAME--
 POST /ngsi-ld/v1/entities - key error cases
 
+--TAGS--
+create entity error
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 GET /jsonldContexts and /jsonldContexts/{id} (§ 5.13.4, 5.13.5)
 
+--TAGS--
+context
+
 --INIT--
 swDbDrop
 swDbDrop -db swBroker

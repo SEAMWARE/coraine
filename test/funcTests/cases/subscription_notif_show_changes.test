@@ -12,6 +12,9 @@
 --NAME--
 notification.showChanges — previousValue rendered
 
+--TAGS--
+subscription
+
 --INIT--
 swDbDrop
 ftClientStart

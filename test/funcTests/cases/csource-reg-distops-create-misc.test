@@ -8,6 +8,9 @@
 --NAME--
 DistOps - createEntity misc cases: ?local, dead endpoint, 2 exclusives, mixed excl+incl, overlapping redirects, multi-info CSR
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

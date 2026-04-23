@@ -8,6 +8,9 @@
 --NAME--
 PATCH /entityMaps/{id} — Update EntityMap (§ 5.14.2)
 
+--TAGS--
+entity entitymap patch query
+
 --INIT--
 swDbDrop
 swBrokerStart

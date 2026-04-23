@@ -8,6 +8,9 @@
 --NAME--
 Create entity and retrieve it
 
+--TAGS--
+create entity
+
 --INIT--
 swDbDrop
 swBrokerStart

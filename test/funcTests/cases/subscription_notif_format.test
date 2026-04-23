@@ -8,6 +8,9 @@
 --NAME--
 Subscription notification format — normalized, simplified, concise
 
+--TAGS--
+format subscription
+
 --INIT--
 swDbDrop
 ftClientStart

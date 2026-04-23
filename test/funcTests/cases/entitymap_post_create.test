@@ -11,6 +11,9 @@
 --NAME--
 POST /entityMaps — Create EntityMap via Query body (§ 6.34.3.2)
 
+--TAGS--
+create entity entitymap query
+
 --INIT--
 swDbDrop
 swBrokerStart

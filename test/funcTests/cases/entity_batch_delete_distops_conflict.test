@@ -12,6 +12,9 @@
 --NAME--
 Batch Entity Delete — exclusive CSR without deleteBatch op (207 conflict)
 
+--TAGS--
+batch delete entity
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

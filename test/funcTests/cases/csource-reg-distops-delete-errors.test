@@ -8,6 +8,9 @@
 --NAME--
 DistOps - deleteEntity error modes (ftClient mocks): excl-no-op → 409, dead+live → 207
 
+--TAGS--
+delete distops error registration
+
 --INIT--
 swDbDrop
 swBrokerStart

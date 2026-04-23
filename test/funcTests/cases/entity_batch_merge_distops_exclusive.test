@@ -18,6 +18,9 @@
 --NAME--
 Batch Entity Merge — exclusive CSR chops attrs, local keeps the rest
 
+--TAGS--
+batch entity merge
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

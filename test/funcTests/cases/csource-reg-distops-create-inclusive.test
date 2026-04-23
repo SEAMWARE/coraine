@@ -8,6 +8,9 @@
 --NAME--
 DistOps - createEntity inclusive forwards AND stores locally
 
+--TAGS--
+create distops registration
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -8,6 +8,9 @@
 --NAME--
 DistOps - tenant-scoped Via loop detection: broker forwards to itself with tenant rewrite
 
+--TAGS--
+create distops registration tenant
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -9,6 +9,9 @@
 --NAME--
 JSON-LD context persistence — survives broker restart (mongoc)
 
+--TAGS--
+context
+
 --INIT--
 swDbDrop
 swDbDrop -db swBroker

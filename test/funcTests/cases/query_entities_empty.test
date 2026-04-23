@@ -8,6 +8,9 @@
 --NAME--
 GET /ngsi-ld/v1/entities on empty database returns empty array
 
+--TAGS--
+entity query
+
 --INIT--
 swDbDrop
 swBrokerStart

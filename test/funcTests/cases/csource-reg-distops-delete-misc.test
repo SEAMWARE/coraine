@@ -8,6 +8,9 @@
 --NAME--
 DistOps - deleteEntity: redirect, inclusive, ?local bypass, loop skip (real CP1)
 
+--TAGS--
+delete distops registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

@@ -8,6 +8,9 @@
 --NAME--
 Geo-query filtering (georel, geometry, coordinates, geoproperty)
 
+--TAGS--
+entity geo query
+
 --INIT--
 swDbDrop
 swBrokerStart

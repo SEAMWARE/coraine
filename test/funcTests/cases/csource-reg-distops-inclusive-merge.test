@@ -9,6 +9,9 @@
 --NAME--
 DistOps - inclusive multi-source merge per § 4.5.5.3
 
+--TAGS--
+distops merge registration
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

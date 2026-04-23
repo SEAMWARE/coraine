@@ -16,6 +16,9 @@
 --NAME--
 Batch Entity Upsert — exclusive CSR, attrs chopped to CSR
 
+--TAGS--
+batch entity
+
 --INIT--
 swDbDrop
 swDbDrop -role CP1

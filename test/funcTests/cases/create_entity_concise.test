@@ -8,6 +8,9 @@
 --NAME--
 POST /ngsi-ld/v1/entities - concise input format
 
+--TAGS--
+create entity format
+
 --INIT--
 swDbDrop
 swBrokerStart

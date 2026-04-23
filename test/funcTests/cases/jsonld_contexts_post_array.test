@@ -12,6 +12,9 @@
 --NAME--
 POST /jsonldContexts with array @context (Hosted)
 
+--TAGS--
+context entity
+
 --INIT--
 swDbDrop
 swDbDrop -db swBroker

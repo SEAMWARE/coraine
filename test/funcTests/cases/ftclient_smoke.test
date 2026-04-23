@@ -8,6 +8,9 @@
 --NAME--
 ftClient smoke test - accumulate requests, dump, clear
 
+--TAGS--
+ftclient
+
 --INIT--
 ftClientStart
 

@@ -9,6 +9,9 @@
 --NAME--
 Multi-tenant persistence across broker restart
 
+--TAGS--
+tenant
+
 --INIT--
 swDbDrop
 swDbDrop -tenant t1

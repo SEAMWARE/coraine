@@ -13,6 +13,9 @@ swDbDrop -role CP1
 swBrokerStart
 swBrokerStart -role CP1
 
+--TAGS--
+distops purge registration
+
 --RUN--
 
 #

@@ -12,6 +12,9 @@
 --NAME--
 Periodic notification subscription (timeInterval)
 
+--TAGS--
+pernot subscription
+
 --INIT--
 swDbDrop
 ftClientStart

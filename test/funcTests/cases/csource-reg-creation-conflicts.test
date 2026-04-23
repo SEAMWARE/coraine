@@ -8,6 +8,9 @@
 --NAME--
 DistOps - CSR creation-time conflict checks (NGSI-LD § 5.9.2)
 
+--TAGS--
+conflict registration
+
 --INIT--
 swDbDrop
 swBrokerStart

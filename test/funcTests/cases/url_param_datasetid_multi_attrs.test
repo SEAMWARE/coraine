@@ -8,6 +8,9 @@
 --NAME--
 datasetId filter on entity with multiple attributes - partial match and no-default
 
+--TAGS--
+datasetid url-param
+
 --INIT--
 swDbDrop
 swBrokerStart

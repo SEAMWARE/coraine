@@ -8,6 +8,9 @@
 --NAME--
 Per-tenant geo-queries with NGSILD-Tenant header
 
+--TAGS--
+geo tenant
+
 --INIT--
 swDbDrop
 swDbDrop -tenant t1

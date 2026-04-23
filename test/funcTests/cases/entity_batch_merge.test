@@ -17,6 +17,9 @@
 --NAME--
 POST /entityOperations/merge — Batch Entity Merge (§ 5.6.10)
 
+--TAGS--
+batch entity merge
+
 --INIT--
 swDbDrop
 swBrokerStart

@@ -9,6 +9,9 @@
 --NAME--
 Per-tenant geo-query persistence across broker restart
 
+--TAGS--
+geo tenant
+
 --INIT--
 swDbDrop
 swDbDrop -tenant t1
