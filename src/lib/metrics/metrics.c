@@ -16,6 +16,12 @@
 
 #include "swRest/SwRestState.h"                    // swRest
 #include "swNgsild/LdOp.h"                         // LdOp*
+#include "swNgsild/LdSubCache.h"                   // LdSubCache, LdSubCacheItem
+#include "swNgsild/LdRegCache.h"                   // LdRegCache, LdRegCacheItem
+#include "swNgsild/LdPernotCache.h"                // LdPernotCache, LdPernotItem
+#include "swNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
+
+#include "db/Tenant.h"                             // tenant0, tenantList
 
 #include "metrics/metrics.h"                       // Own interface
 
@@ -43,6 +49,30 @@ static KpromMetric* notifSent;
 static KpromMetric* notifFailed;
 static KpromMetric* csrNotifSent;
 static KpromMetric* csrNotifFailed;
+
+//
+// Cache-size gauges. Populated on-demand at render time by walking
+// the per-tenant caches. Cheap: a few small linked-list counts per
+// scrape, negligible relative to the HTTP roundtrip.
+//
+static KpromMetric* gTenants;
+static KpromMetric* gSubCacheSize;
+static KpromMetric* gRegSubCacheSize;
+static KpromMetric* gRegCacheSize;
+static KpromMetric* gPernotCacheSize;
+static KpromMetric* gEntityMapStoreSize;
+
+//
+// Distop forwarding — counters + latency histogram.
+//
+static KpromMetric* distopForwarded;
+static KpromMetric* distopForwardFailed;
+static KpromMetric* distopLatency;
+
+// Buckets in seconds. Tuned for typical intra-DC HTTP roundtrips with
+// tail coverage out to 5s to catch slow CPs. The +Inf bucket is added
+// by kprom automatically.
+static double distopLatencyBuckets[] = { 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0 };
 
 
 
@@ -133,8 +163,73 @@ bool metricsInit(void)
   csrNotifFailed = kpromCounterCreate("ngsild_csource_notifications_failed_total",
                                       "CSR-subscription notifications that failed");
 
+  gTenants            = kpromGaugeCreate("ngsild_tenants_total",
+                                         "Number of tenants (including default)");
+  gSubCacheSize       = kpromGaugeCreate("ngsild_subscription_cache_size",
+                                         "Entity-subscriptions cached (sum across tenants)");
+  gRegSubCacheSize    = kpromGaugeCreate("ngsild_csource_subscription_cache_size",
+                                         "CSR-subscriptions cached (sum across tenants)");
+  gRegCacheSize       = kpromGaugeCreate("ngsild_csource_registration_cache_size",
+                                         "Context Source registrations cached (sum across tenants)");
+  gPernotCacheSize    = kpromGaugeCreate("ngsild_pernot_cache_size",
+                                         "Periodic-notification subscriptions cached (sum across tenants)");
+  gEntityMapStoreSize = kpromGaugeCreate("ngsild_entity_map_store_size",
+                                         "EntityMap store entries (sum across tenants)");
+
+  distopForwarded     = kpromCounterCreate("ngsild_distop_forwarded_total",
+                                           "Distributed-op forward attempts (every outbound request)");
+  distopForwardFailed = kpromCounterCreate("ngsild_distop_forward_failed_total",
+                                           "Distributed-op forwards that failed (transport error or non-2xx)");
+  distopLatency       = kpromHistogramCreate("ngsild_distop_forward_latency_seconds",
+                                             "Distributed-op forward round-trip latency (seconds)",
+                                             distopLatencyBuckets,
+                                             sizeof(distopLatencyBuckets) / sizeof(distopLatencyBuckets[0]));
+
   initialized = true;
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantCounts - walk each tenant's caches once per scrape and update gauges
+//
+static void tenantCounts(void)
+{
+  int tenants  = 0;
+  int subs     = 0;
+  int regSubs  = 0;
+  int regs     = 0;
+  int pernots  = 0;
+  int maps     = 0;
+
+  // tenant0 always exists
+  for (Tenant* tP = &tenant0;
+       tP != NULL;
+       tP = (tP == &tenant0) ? tenantList : tP->next)
+  {
+    tenants++;
+
+    LdSubCache*       sc   = (LdSubCache*)       tP->subCacheP;
+    LdSubCache*       rsc  = (LdSubCache*)       tP->regSubCacheP;
+    LdRegCache*       rc   = (LdRegCache*)       tP->regCacheP;
+    LdPernotCache*    pc   = (LdPernotCache*)    tP->pernotCacheP;
+    LdEntityMapStore* ems  = (LdEntityMapStore*) tP->entityMapStoreP;
+
+    if (sc != NULL)  for (LdSubCacheItem* i = sc->itemList;  i != NULL; i = i->next) subs++;
+    if (rsc != NULL) for (LdSubCacheItem* i = rsc->itemList; i != NULL; i = i->next) regSubs++;
+    if (rc != NULL)  for (LdRegCacheItem* i = rc->itemList;  i != NULL; i = i->next) regs++;
+    if (pc != NULL)  for (LdPernotItem*   i = pc->head;      i != NULL; i = i->next) pernots++;
+    if (ems != NULL) for (LdEntityMap*    i = ems->head;     i != NULL; i = i->next) maps++;
+  }
+
+  kpromGaugeSet(gTenants,            (double) tenants);
+  kpromGaugeSet(gSubCacheSize,       (double) subs);
+  kpromGaugeSet(gRegSubCacheSize,    (double) regSubs);
+  kpromGaugeSet(gRegCacheSize,       (double) regs);
+  kpromGaugeSet(gPernotCacheSize,    (double) pernots);
+  kpromGaugeSet(gEntityMapStoreSize, (double) maps);
 }
 
 
@@ -202,10 +297,26 @@ void metricsCsrNotificationSent(bool success)
 
 // -----------------------------------------------------------------------------
 //
+// metricsDistopForward -
+//
+void metricsDistopForward(double latencySec, bool success)
+{
+  kpromCounterInc(distopForwarded);
+  if (!success)
+    kpromCounterInc(distopForwardFailed);
+  kpromHistogramObserve(distopLatency, latencySec);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // metricsRender -
 //
 bool metricsRender(void)
 {
+  tenantCounts();
+
   int   bufSize = kpromRenderSize();
   char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
 

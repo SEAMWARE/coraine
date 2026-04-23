@@ -12,14 +12,17 @@
 //
 #include <stddef.h>                                    // NULL
 #include <string.h>                                    // strncpy
+#include <time.h>                                      // clock_gettime
 
 #include "ktrace/kTrace.h"                             // KT_E
 #include "kalloc/KAlloc.h"                             // KAlloc
 #include "kalloc/kaAlloc.h"                            // kaAlloc
-#include "swRest/swRestClient.h"                       // SwRestClientRequest, swRestClientSend, ...
 
+#include "swRest/swRestClient.h"                       // SwRestClientRequest, swRestClientSend, ...
 #include "swNgsild/LdForwarding.h"                     // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
 #include "swNgsild/ldForwarding.h"                     // ldForwardingRegister
+
+#include "metrics/metrics.h"                           // metricsDistopForward
 
 #include "forwarding/forwardingHttp.h"                 // Own interface
 
@@ -93,10 +96,18 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
   if (req->connectTimeoutMs > 0 || req->requestTimeoutMs > 0)
     swRestClientRequestTimeout(&cReq, req->connectTimeoutMs, req->requestTimeoutMs);
 
+  struct timespec t0;
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+
   int rc = swRestClientSend(&cReq, &cResp);
+
+  struct timespec t1;
+  clock_gettime(CLOCK_MONOTONIC, &t1);
+  double latency = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
 
   if (rc != 0 || cResp.error != 0)
   {
+    metricsDistopForward(latency, false);
     resp->error      = (cResp.error != 0) ? cResp.error : rc;
     resp->statusCode = 0;
     strncpy(resp->errorDetail, cResp.errorDetail[0] != 0 ? cResp.errorDetail : "http forwarding failed",
@@ -104,6 +115,8 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
     resp->errorDetail[sizeof(resp->errorDetail) - 1] = 0;
     return resp->error;
   }
+
+  metricsDistopForward(latency, cResp.statusCode >= 200 && cResp.statusCode < 300);
 
   resp->error      = 0;
   resp->statusCode = cResp.statusCode;

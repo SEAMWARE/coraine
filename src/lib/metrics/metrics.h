@@ -76,6 +76,19 @@ extern void metricsCsrNotificationSent(bool success);
 
 // -----------------------------------------------------------------------------
 //
+// metricsDistopForward - observe one distributed-op forwarding attempt
+//
+// Called by the forwarding layer after a forward POST completes.
+// Bumps ngsild_distop_forwarded_total (always), plus
+// ngsild_distop_forward_failed_total when success == false, and
+// observes latencySec into ngsild_distop_forward_latency_seconds.
+//
+extern void metricsDistopForward(double latencySec, bool success);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // metricsRender - Prometheus text-format output for /admin/metrics
 //
 // Service-routine style: uses swRest.out.payload etc. Sets Content-Type

@@ -53,6 +53,15 @@ echo
 echo
 
 
+echo "04. Cache gauges - add a sub + a CSR"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://x.example/n"}}}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:R1","type":"ContextSourceRegistration","endpoint":"http://r.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+curl -sS "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/metrics" | grep -aE "^ngsild_tenants_total|^ngsild_subscription_cache_size|^ngsild_csource_registration_cache_size|^ngsild_csource_subscription_cache_size|^ngsild_pernot_cache_size|^ngsild_entity_map_store_size" | sort
+echo
+echo
+
+
 --EXPECT--
 01. Initial metrics - entity_create should be 0
 ===============================================
@@ -76,6 +85,18 @@ ngsild_entity_create_total 3
 ngsild_entity_retrieve_total 1
 ngsild_errors_4xx_total 1
 ngsild_notifications_sent_total 0
+
+
+04. Cache gauges - add a sub + a CSR
+====================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+ngsild_csource_registration_cache_size 1
+ngsild_csource_subscription_cache_size 0
+ngsild_entity_map_store_size 0
+ngsild_pernot_cache_size 0
+ngsild_subscription_cache_size 1
+ngsild_tenants_total 1
 
 
 --TEARDOWN--
