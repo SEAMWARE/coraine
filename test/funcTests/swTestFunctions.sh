@@ -150,8 +150,18 @@ swDbDrop() {
         local db="$SW_ROLE_DB_PREFIX"
         if [ -n "$tenant" ]; then
           db="${db}-${tenant}"
+          mongosh --port $SW_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop()' "$db" > /dev/null 2>&1
+        else
+          # No tenant specified → drop default + all tenant-suffixed dbs.
+          # Tests that leave tenant state behind shouldn't bleed into later
+          # tests that assume ngsild_tenants_total == 1.
+          local prefix="$SW_ROLE_DB_PREFIX"
+          mongosh --port $SW_MONGO_PORT --quiet --eval \
+            "db.adminCommand('listDatabases').databases \
+              .map(d=>d.name) \
+              .filter(n=>n===\"$prefix\"||n.startsWith(\"$prefix-\")) \
+              .forEach(n=>db.getSiblingDB(n).dropDatabase())" > /dev/null 2>&1
         fi
-        mongosh --port $SW_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop()' "$db" > /dev/null 2>&1
       fi
       ;;
     ramdb|NONE)
