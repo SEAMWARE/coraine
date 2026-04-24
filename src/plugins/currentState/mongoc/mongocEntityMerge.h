@@ -10,12 +10,37 @@
 //
 #include <stdint.h>                                   // uint64_t
 
+#include <stdbool.h>                                  // bool
+
 #include <mongoc/mongoc.h>                            // mongoc_collection_t
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/Tenant.h"                                 // Tenant
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocEntityMergeBuildUpdate - merge fragmentDb into an already-fetched
+// target tree and build a $set/$unset bson body (without executing it).
+//
+// Used by the batch-merge path, which wants to stage many updates into a
+// single bulk operation — it has already fetched N current docs via one
+// $in query, so it doesn't want this helper to fetch again.
+//
+// On DB_OK, *updateDocOut is initialised with the update body.
+// *noChangesOut is set true when ldEntityMerge succeeded but produced no
+// writes (caller should skip the bulk op for this entity). Caller owns
+// bson_destroy(updateDocOut).
+//
+extern int mongocEntityMergeBuildUpdate(KjNode*              target,
+                                        KjNode*              fragmentDb,
+                                        uint64_t             ts,
+                                        LdMergeReport*       reportP,
+                                        bson_t*              updateDocOut,
+                                        bool*                noChangesOut);
 
 
 

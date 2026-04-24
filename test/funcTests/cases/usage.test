@@ -60,6 +60,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--userContext/-ctx <default user @context URL>]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
@@ -82,6 +83,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--userContext/-ctx <default user @context URL>]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Database (mongoc) plugin options:
@@ -114,6 +116,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--userContext/-ctx <default user @context URL>]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins

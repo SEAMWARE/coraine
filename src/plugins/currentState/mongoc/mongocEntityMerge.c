@@ -57,6 +57,136 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocEntityMergeOne -
 //
+// -----------------------------------------------------------------------------
+//
+// mongocEntityMergeBuildUpdate - merge the fragment into `target` in memory
+// and translate the merge report into a $set/$unset bson body.
+//
+// `target` must be the in-memory tree of the CURRENT document (the caller
+// has done the fetch — either a single find_one or a $in batch fetch).
+// Returns DB_OK if the update-doc was produced (even if empty — the merge
+// legitimately touched nothing and the caller should skip the bulk op).
+// Returns DB_OK with *noChangesP = true when there is nothing to write.
+//
+// On success: *updateDocOut is populated with { $set:..., $unset:... }.
+// Caller is responsible for bson_destroy(updateDocOut).
+//
+int mongocEntityMergeBuildUpdate(KjNode*              target,
+                                 KjNode*              fragmentDb,
+                                 uint64_t             ts,
+                                 LdMergeReport*       reportP,
+                                 bson_t*              updateDocOut,
+                                 bool*                noChangesOut)
+{
+  if (target == NULL || fragmentDb == NULL || updateDocOut == NULL)
+    return DB_ERR;
+
+  // Initialise updateDocOut up-front so the caller can always bson_destroy
+  // it, even on early returns.
+  bson_init(updateDocOut);
+
+  if (noChangesOut != NULL)
+    *noChangesOut = true;
+
+  //
+  // 1. Apply merge in memory. target and fragment are in the request arena
+  //    (swRest.kjsonP) — grafted nodes need matching lifetime.
+  //
+  if (ldEntityMerge(target, fragmentDb, reportP, ts, swRest.kjsonP) == false)
+    return DB_OK;  // ldError already set; service routine sees problemType
+
+  //
+  // 2. Build a surgical update document from the merge report.
+  //
+  //    { $set:   { attrA: <wrapper>, ... modifiedAt, type, scope },
+  //      $unset: { attrC: 1, attrD: 1 } }
+  //
+  bson_t setDoc;
+  bson_t unsetDoc;
+  bson_init(&setDoc);
+  bson_init(&unsetDoc);
+
+  bool hasSet   = false;
+  bool hasUnset = false;
+
+  if (reportP != NULL && reportP->changes != NULL)
+  {
+    for (KjNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
+    {
+      KjNode* attrNameP = kjLookup(change, "attr");
+      KjNode* reasonP   = kjLookup(change, "reason");
+
+      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != KjString || reasonP->type != KjString)
+        continue;
+
+      const char* attrName = attrNameP->value.s;
+      const char* reason   = reasonP->value.s;
+      const char* escaped  = mongocEscapeDotsInKey(attrName);
+
+      if (strcmp(reason, "attributeDeleted") == 0)
+      {
+        BSON_APPEND_INT32(&unsetDoc, escaped, 1);
+        hasUnset = true;
+      }
+      else
+      {
+        KjNode* attrWrapper = kjLookup(target, attrName);
+        if (attrWrapper == NULL)
+          continue;
+
+        mongocKjNodeAppend(&setDoc, escaped, attrWrapper);
+        hasSet = true;
+      }
+    }
+  }
+
+  //
+  // modifiedAt / type / scope refresh — whenever anything changed.
+  //
+  if (hasSet || hasUnset)
+  {
+    KjNode* modAtP = kjLookup(target, LD_VOCAB_MODIFIED_AT);
+    if (modAtP != NULL && modAtP->type == KjInt)
+    {
+      mongocKjNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
+      hasSet = true;
+    }
+
+    KjNode* typeP = kjLookup(target, "type");
+    if (typeP != NULL)
+    {
+      mongocKjNodeAppend(&setDoc, "type", typeP);
+      hasSet = true;
+    }
+
+    KjNode* scopeP = kjLookup(target, LD_VOCAB_SCOPE);
+    if (scopeP != NULL)
+    {
+      mongocKjNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
+      hasSet = true;
+    }
+  }
+
+  if (hasSet)
+    BSON_APPEND_DOCUMENT(updateDocOut, "$set", &setDoc);
+  if (hasUnset)
+    BSON_APPEND_DOCUMENT(updateDocOut, "$unset", &unsetDoc);
+
+  bson_destroy(&setDoc);
+  bson_destroy(&unsetDoc);
+
+  if (noChangesOut != NULL)
+    *noChangesOut = !(hasSet || hasUnset);
+
+  return DB_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocEntityMergeOne -
+//
 int mongocEntityMergeOne(mongoc_collection_t* collP,
                          const char*          entityId,
                          KjNode*              fragmentDb,
@@ -99,113 +229,20 @@ int mongocEntityMergeOne(mongoc_collection_t* collP,
   mongoc_cursor_destroy(cursorP);
 
   //
-  // 2. Apply merge in memory. Both target and fragment are in the request
-  //    arena (swRest.kjsonP) — grafted nodes need matching lifetime.
-  //
-  if (ldEntityMerge(target, fragmentDb, reportP, ts, swRest.kjsonP) == false)
-  {
-    bson_destroy(&filter);
-    return DB_OK;  // ldError already set; service routine sees problemType
-  }
-
-  //
-  // 3. Build a surgical update document from the merge report.
-  //
-  //    { $set:   { attrA: <wrapper>, attrB: <wrapper>, modifiedAt: <ns>, type: <array> },
-  //      $unset: { attrC: 1, attrD: 1 } }
-  //
-  //    Only attributes that the merge actually touched are written. The entity
-  //    modifiedAt is always written when anything changed. The entity type is
-  //    rewritten if it differs from the pre-merge value — cheapest way to do
-  //    that without another flag on the merge helper is to always set it when
-  //    the merge report has at least one change record, which costs ~30 bytes.
+  // 2. Apply merge + build surgical update (shared with batch-merge).
   //
   bson_t update;
-  bson_t setDoc;
-  bson_t unsetDoc;
-  bson_init(&update);
-  bson_init(&setDoc);
-  bson_init(&unsetDoc);
-
-  bool hasSet   = false;
-  bool hasUnset = false;
-
-  if (reportP != NULL && reportP->changes != NULL)
+  bool   noChanges = true;
+  int    rc = mongocEntityMergeBuildUpdate(target, fragmentDb, ts, reportP, &update, &noChanges);
+  if (rc != DB_OK)
   {
-    for (KjNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
-    {
-      KjNode* attrNameP = kjLookup(change, "attr");
-      KjNode* reasonP   = kjLookup(change, "reason");
-
-      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != KjString || reasonP->type != KjString)
-        continue;
-
-      const char* attrName = attrNameP->value.s;
-      const char* reason   = reasonP->value.s;
-      const char* escaped  = mongocEscapeDotsInKey(attrName);
-
-      if (strcmp(reason, "attributeDeleted") == 0)
-      {
-        BSON_APPEND_INT32(&unsetDoc, escaped, 1);
-        hasUnset = true;
-      }
-      else
-      {
-        // Created or Modified: $set the whole (possibly dataset-keyed) wrapper
-        KjNode* attrWrapper = kjLookup(target, attrName);
-        if (attrWrapper == NULL)
-          continue;
-
-        mongocKjNodeAppend(&setDoc, escaped, attrWrapper);
-        hasSet = true;
-      }
-    }
+    bson_destroy(&filter);
+    return rc;
   }
-
-  //
-  // Refresh the entity-level modifiedAt whenever anything changed.
-  //
-  // Note: the IRI-form LD_VOCAB_MODIFIED_AT contains '.' characters which,
-  // unescaped, mongo would interpret as nested-document path separators
-  // inside a $set. Use mongocKjNodeAppend / mongocEscapeDotsInKey to match
-  // the stored key shape.
-  //
-  if (hasSet || hasUnset)
-  {
-    KjNode* modAtP = kjLookup(target, LD_VOCAB_MODIFIED_AT);
-    if (modAtP != NULL && modAtP->type == KjInt)
-    {
-      mongocKjNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
-      hasSet = true;
-    }
-
-    //
-    // Entity-level type may have been extended via type-union during the
-    // merge. Rewriting it is cheap and avoids a separate tracking flag.
-    //
-    KjNode* typeP = kjLookup(target, "type");
-    if (typeP != NULL)
-    {
-      mongocKjNodeAppend(&setDoc, "type", typeP);
-      hasSet = true;
-    }
-
-    KjNode* scopeP = kjLookup(target, LD_VOCAB_SCOPE);
-    if (scopeP != NULL)
-    {
-      mongocKjNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
-      hasSet = true;
-    }
-  }
-
-  if (hasSet)
-    BSON_APPEND_DOCUMENT(&update, "$set", &setDoc);
-  if (hasUnset)
-    BSON_APPEND_DOCUMENT(&update, "$unset", &unsetDoc);
 
   int result = DB_OK;
 
-  if (hasSet || hasUnset)
+  if (!noChanges)
   {
     bson_error_t err;
     bool ok = mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err);
@@ -218,8 +255,6 @@ int mongocEntityMergeOne(mongoc_collection_t* collP,
   }
 
   bson_destroy(&update);
-  bson_destroy(&setDoc);
-  bson_destroy(&unsetDoc);
   bson_destroy(&filter);
 
   if (targetPP != NULL && result == DB_OK)
