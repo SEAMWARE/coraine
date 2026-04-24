@@ -11,9 +11,12 @@
 #include <stddef.h>                                  // NULL
 
 #include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
+#include "kjson/kjClone.h"                           // kjClone
 
-#include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
+#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemLookup
+
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/getCsourceRegistration.h"  // Own interface
@@ -24,34 +27,28 @@
 //
 // getCsourceRegistration -
 //
+// Served from the in-memory reg cache (companion to the list endpoint,
+// which already does the same). Cloning into the request arena so the
+// response path can compact without mutating cache.
+//
 bool getCsourceRegistration(void)
 {
   const char* regId = swRest.in.wildcard[0];
 
-  if (db.registrationRetrieve == NULL)
-  {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented", "registration CRUD not supported by this DB plugin");
-    return true;
-  }
+  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  LdRegCache* cacheP  = (tenantP != NULL) ? (LdRegCache*) tenantP->regCacheP : NULL;
 
-  KjNode* regP = NULL;
-  int     r    = db.registrationRetrieve((Tenant*) swNgsild.tenantP, regId, &regP);
+  LdRegCacheItem* itemP = (cacheP != NULL) ? ldRegCacheItemLookup(cacheP, regId) : NULL;
 
-  if (r == DB_NOT_FOUND)
+  if (itemP == NULL || itemP->regTree == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "registration '%s' not found", regId);
-    return true;
-  }
-
-  if (r != DB_OK)
-  {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error retrieving registration '%s'", regId);
     return true;
   }
 
   ldContextResolve();
 
   swNgsild.rawResponse    = true;
-  swRest.out.responseTree = regP;
+  swRest.out.responseTree = kjClone(swRest.kjsonP, itemP->regTree);
   return true;
 }

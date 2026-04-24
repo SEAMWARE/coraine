@@ -7,18 +7,16 @@
 //
 #include <stddef.h>                                  // NULL
 
-#include <string.h>                                  // strcmp
-
 #include "swRest/SwRestState.h"                      // swRest
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjChildRemove
+#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
+#include "kjson/kjClone.h"                           // kjClone
+
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
+#include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 
-#include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/getSubscriptions.h"        // Own interface
@@ -29,60 +27,53 @@
 //
 // getSubscriptions -
 //
+// Iterate the in-memory sub cache (regular subs) and pernot cache
+// (timeInterval-driven subs) together. Counters come live from the cache
+// item — so there's no DB round-trip AND stats are always up to date.
+//
 bool getSubscriptions(void)
 {
-  if (db.subscriptionQuery == NULL)
-  {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented", "subscription CRUD not supported by this DB plugin");
-    return true;
-  }
-
-  KjNode* arrayP = NULL;
-  int     r      = db.subscriptionQuery((Tenant*) swNgsild.tenantP, swNgsild.limit, swNgsild.offset, &arrayP);
-
-  if (r != DB_OK)
-  {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying subscriptions");
-    return true;
-  }
-
-  // Compact q-filter attr names in each subscription
-  // Resolve @context (may not be set yet for GET with no URL params)
   ldContextResolve();
 
-  Tenant*      tenantP  = (Tenant*) swNgsild.tenantP;
-  LdSubCache*  scP      = (LdSubCache*) tenantP->subCacheP;
+  Tenant*        tenantP   = (Tenant*) swNgsild.tenantP;
+  LdSubCache*    scP       = (tenantP != NULL) ? (LdSubCache*)    tenantP->subCacheP    : NULL;
+  LdPernotCache* pcP       = (tenantP != NULL) ? (LdPernotCache*) tenantP->pernotCacheP : NULL;
 
-  //
-  // Filter out CSR-subs (they share the same mongo collection, tagged
-  // with _subKind="csr") and strip the internal marker from the rest.
-  //
-  KjNode* subP = arrayP->value.firstChildP;
-  KjNode* nextP;
-  while (subP != NULL)
+  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
+
+  int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
+  int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : -1;  // -1 → unbounded
+  int seen  = 0;
+  int taken = 0;
+
+  if (scP != NULL)
   {
-    nextP = subP->next;
-
-    KjNode* kindP = kjLookup(subP, "_subKind");
-    if (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0)
+    for (LdSubCacheItem* it = scP->itemList; it != NULL && (limit < 0 || taken < limit); it = it->next)
     {
-      kjChildRemove(arrayP, subP);
-      subP = nextP;
-      continue;
+      if (it->subTree == NULL) continue;
+      if (seen++ < skip)       continue;
+
+      KjNode* subP = kjClone(swRest.kjsonP, it->subTree);
+      ldSubscriptionCompactQ(subP, it->qExpr, swNgsild.contextP, &swRest.kalloc);
+      ldSubscriptionCountersInject(subP, it);
+      kjChildAdd(arrayP, subP);
+      taken++;
     }
+  }
 
-    KjNode* idP = kjLookup(subP, "id");
-    LdSubCacheItem* cacheItem = (scP != NULL && idP != NULL && idP->type == KjString)
-      ? ldSubCacheItemLookup(scP, idP->value.s)
-      : NULL;
-    LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr : NULL;
-    ldSubscriptionCompactQ(subP, qExpr, swNgsild.contextP, &swRest.kalloc);
-    ldSubscriptionCountersInject(subP, cacheItem);
+  if (pcP != NULL)
+  {
+    for (LdPernotItem* it = pcP->head; it != NULL && (limit < 0 || taken < limit); it = it->next)
+    {
+      if (it->subTree == NULL) continue;
+      if (seen++ < skip)       continue;
 
-    if (kindP != NULL)
-      kjChildRemove(subP, kindP);
-
-    subP = nextP;
+      KjNode* subP = kjClone(swRest.kjsonP, it->subTree);
+      ldSubscriptionCompactQ(subP, it->qExpr, swNgsild.contextP, &swRest.kalloc);
+      ldPernotCountersInject(subP, it);
+      kjChildAdd(arrayP, subP);
+      taken++;
+    }
   }
 
   swNgsild.rawResponse    = true;
