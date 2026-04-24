@@ -1,0 +1,92 @@
+#
+# FILE            subscription_stats_periodic_flush.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --subStatsFlushInterval drives an internal timer thread that calls
+# the same flush walker as /admin/subStats/flush on a schedule. This
+# test verifies the timer fires without any admin-endpoint help:
+# we create a sub, fire 2 notifs, wait for the timer interval,
+# restart, and the stats survived.
+#
+# REQUIRE_DB: mongoc
+--NAME--
+Subscription stats periodic-flush timer survives broker restart (mongoc)
+
+--TAGS--
+subscription stats persist mongoc periodic
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart --subStatsFlushInterval 1
+
+--RUN--
+
+echo "01. Create sub + 2 matching entities (→ 2 notifs)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
+echo
+echo
+
+
+echo "02. Wait 2s — the 1s timer fires at least once"
+echo "=============================================="
+sleep 2
+echo "waited"
+echo
+echo
+
+
+echo "03. Restart broker (NO admin flush called — timer must have written)"
+echo "===================================================================="
+swBrokerStop
+swBrokerStart --subStatsFlushInterval 1
+echo "restarted"
+echo
+echo
+
+
+echo "04. GET sub → timesSent=2 (survived via periodic flush)"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+echo
+echo
+
+
+--EXPECT--
+01. Create sub + 2 matching entities (→ 2 notifs)
+=================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Wait 2s — the 1s timer fires at least once
+==============================================
+waited
+
+
+03. Restart broker (NO admin flush called — timer must have written)
+====================================================================
+restarted
+
+
+04. GET sub → timesSent=2 (survived via periodic flush)
+=======================================================
+    "timesSent": 2
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

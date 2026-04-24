@@ -80,7 +80,7 @@ PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
 
 FWD_SOURCES   = src/lib/forwarding/forwardingHttp.c
 
-METRICS_SOURCES = src/lib/metrics/metrics.c
+METRICS_SOURCES = src/lib/metrics/metrics.c src/lib/metrics/subStatsFlushAll.c
 
 ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES) $(METRICS_SOURCES)
 ALL_OBJS      = $(ALL_SOURCES:.c=.o)

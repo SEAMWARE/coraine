@@ -36,6 +36,8 @@
 #include "swNgsild/ldNotifyStatsHook.h"           // ldNotifyStatsHookSet
 #include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
 #include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
+#include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
+#include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
 
 #include "db/DbDriver.h"                          // db, DB_OK
@@ -180,6 +182,7 @@ int            corsMaxAge   = 86400;
 char*          userContext  = NULL;
 char*          csourceAlias = NULL;
 bool           noSplitEntities = false;
+int            subStatsFlushInterval = 60;  // seconds; 0 disables the timer
 
 static KArg kargV[] =
 {
@@ -194,6 +197,7 @@ static KArg kargV[] =
   { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
   { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
   { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
+  { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   KARGS_END
 };
@@ -568,6 +572,11 @@ int main(int argC, char* argV[])
   // Start pernot loop (periodic notification background thread)
   if (tenant0.pernotCacheP != NULL)
     ldPernotLoopStart((LdPernotCache*) tenant0.pernotCacheP, pernotQueryCallback);
+
+  // Start the sub-stats periodic flush loop. --subStatsFlushInterval
+  // defaults to 60s; 0 disables. The admin endpoint remains available
+  // regardless.
+  ldStatsFlushLoopStart(subStatsFlushInterval, subStatsFlushAll);
 
   //
   // Build combined service array (core + plugins) and start the REST server
