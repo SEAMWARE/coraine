@@ -166,19 +166,16 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:V1",
     "speed": 10,
     "type": "Vehicle"
   },
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:V2",
     "speed": 20,
     "type": "Vehicle"
   },
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:V3",
     "speed": 30,
     "type": "Vehicle"
@@ -227,25 +224,21 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:V1",
     "speed": 10,
     "type": "Vehicle"
   },
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:V2",
     "speed": 20,
     "type": "Vehicle"
   },
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:V3",
     "speed": 30,
     "type": "Vehicle"
   },
   {
-    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "id": "urn:B1",
     "speed": 50,
     "type": "Vehicle"
