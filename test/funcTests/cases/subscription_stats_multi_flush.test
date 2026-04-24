@@ -1,0 +1,121 @@
+#
+# FILE            subscription_stats_multi_flush.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Verify delta correctness: back-to-back flushes must not double-count.
+# The in-memory cache holds a "lastFlushed*" watermark so the second
+# flush only writes the delta accrued since the first flush.
+#
+# Flow:
+#  - Create sub, fire 2 notifs → timesSent=2
+#  - Flush #1 → mongo.timesSent=2
+#  - Fire 1 more notif → timesSent=3
+#  - Flush #2 → mongo.timesSent=2+1=3 (NOT 2+3=5)
+#  - Flush #3 with NO new notifs → mongo stays 3 (delta=0 is a no-op)
+#  - Restart broker — GET sub shows timesSent=3 (mongo state)
+#
+# REQUIRE_DB: mongoc
+--NAME--
+Subscription stats — back-to-back flushes use deltas, no double count
+
+--TAGS--
+subscription stats persist mongoc
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+echo "01. Create sub + 2 notifs"
+echo "========================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
+echo
+echo
+
+
+echo "02. Flush #1"
+echo "============"
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+echo
+echo
+
+
+echo "03. +1 notif"
+echo "============"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle"}' | head -1
+echo
+echo
+
+
+echo "04. Flush #2 (delta=1)"
+echo "======================"
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+echo
+echo
+
+
+echo "05. Flush #3 (delta=0, no-op)"
+echo "============================="
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+echo
+echo
+
+
+echo "06. Restart, GET sub → timesSent=3 (not 5, not 6)"
+echo "================================================="
+swBrokerStop
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+echo
+echo
+
+
+--EXPECT--
+01. Create sub + 2 notifs
+=========================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Flush #1
+============
+HTTP 204
+
+
+03. +1 notif
+============
+HTTP/1.1 201 Created
+
+
+04. Flush #2 (delta=1)
+======================
+HTTP 204
+
+
+05. Flush #3 (delta=0, no-op)
+=============================
+HTTP 204
+
+
+06. Restart, GET sub → timesSent=3 (not 5, not 6)
+=================================================
+    "timesSent": 3
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

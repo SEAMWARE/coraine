@@ -1,0 +1,144 @@
+#
+# FILE            csr_subscription_stats_persist.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.14 notification counters on /csourceSubscriptions must persist
+# across broker restart, same as for entity subs.
+#
+# A CSR-sub fires when a matching registration is created/updated/
+# deleted (§ 5.11.7). Test flow:
+#  - Create CSR-sub C1 matching Vehicle-type regs, endpoint=ftClient
+#  - Create 2 matching CSRs → 2 notifications fired to ftClient
+#  - timesSent = 2
+#  - Flush via POST /admin/subStats/flush
+#  - Restart broker
+#  - Stats survive (cache re-loaded from mongo with timesSent=2)
+#  - Create 1 more matching CSR → timesSent = 3 (accumulated)
+#
+# REQUIRE_DB: mongoc
+--NAME--
+CSR-subscription stats persist across broker restart (mongoc)
+
+--TAGS--
+subscription csr-sub stats persist mongoc
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+echo "01. Create CSR-sub C1 matching Vehicle-type regs → ftClient"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+  "id": "urn:C1",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}' | head -1
+echo
+echo
+
+
+echo "02. Create 2 matching CSRs → 2 notifs to C1"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["color"]}]}' | head -1
+echo
+echo
+
+
+echo "03. GET CSR-sub → timesSent=2"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
+echo
+echo
+
+
+echo "04. POST /admin/subStats/flush"
+echo "=============================="
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+echo
+echo
+
+
+echo "05. Restart broker (cache reload from mongo)"
+echo "============================================"
+swBrokerStop
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+echo "restarted"
+echo
+echo
+
+
+echo "06. GET CSR-sub after restart → timesSent=2 (persisted)"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
+echo
+echo
+
+
+echo "07. Create 1 more matching CSR → timesSent=3 (accumulated)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "08. GET CSR-sub → timesSent=3"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
+echo
+echo
+
+
+--EXPECT--
+01. Create CSR-sub C1 matching Vehicle-type regs → ftClient
+===========================================================
+HTTP/1.1 201 Created
+
+
+02. Create 2 matching CSRs → 2 notifs to C1
+===========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. GET CSR-sub → timesSent=2
+=============================
+    "timesSent": 2
+
+
+04. POST /admin/subStats/flush
+==============================
+HTTP 204
+
+
+05. Restart broker (cache reload from mongo)
+============================================
+restarted
+
+
+06. GET CSR-sub after restart → timesSent=2 (persisted)
+=======================================================
+    "timesSent": 2
+
+
+07. Create 1 more matching CSR → timesSent=3 (accumulated)
+==========================================================
+HTTP/1.1 201 Created
+
+
+08. GET CSR-sub → timesSent=3
+=============================
+    "timesSent": 3
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
