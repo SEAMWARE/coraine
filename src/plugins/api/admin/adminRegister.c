@@ -18,6 +18,7 @@
 #include "api/admin/adminTenants.h"               // adminGetTenants
 #include "api/admin/adminPlugins.h"               // adminGetPlugins
 #include "api/admin/adminMetrics.h"               // adminGetMetrics
+#include "api/admin/adminSubStats.h"              // adminPostSubStatsFlush
 
 
 
@@ -65,7 +66,8 @@ static SwRestServiceSimplified adminServices[] =
   // PUT
   { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
-  { SwVerbPost,   "/admin/log",     adminPostLog,    ADMIN_LOG_PARAMS, 0 },
+  { SwVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
+  { SwVerbPost,   "/admin/subStats/flush",  adminPostSubStatsFlush,   0,                0 },
   // DELETE
   { SwVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
   // PATCH

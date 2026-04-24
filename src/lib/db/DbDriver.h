@@ -207,6 +207,19 @@ typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, 
 typedef int  (*DbSubscriptionUpdateFunc)(Tenant* tenantP, const char* subId, KjNode* fragmentP);
 typedef int  (*DbSubscriptionDeleteFunc)(Tenant* tenantP, const char* subId);
 typedef KjNode* (*DbSubscriptionListFunc)(Tenant* tenantP);
+
+// Subscription stats flush — HA-safe: deltas are added via $inc (never
+// read-modify-write), "last*" timestamps are set unconditionally.
+//   deltaSent + deltaFailed: 0 is valid (will still update last* if set).
+//   lastNotification/Success/Failure: 0 means "don't update this field".
+typedef int  (*DbSubscriptionStatsFlushFunc)(Tenant*      tenantP,
+                                             const char*  subId,
+                                             int          deltaSent,
+                                             int          deltaFailed,
+                                             uint64_t     lastNotification,
+                                             uint64_t     lastSuccess,
+                                             uint64_t     lastFailure);
+
 typedef int  (*DbRegistrationCreateFunc)(Tenant* tenantP, const char* regId, KjNode* regP);
 typedef int  (*DbRegistrationRetrieveFunc)(Tenant* tenantP, const char* regId, KjNode** regPP);
 typedef int  (*DbRegistrationQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
@@ -248,6 +261,7 @@ typedef struct DbDriver
   DbSubscriptionUpdateFunc   subscriptionUpdate;
   DbSubscriptionDeleteFunc   subscriptionDelete;
   DbSubscriptionListFunc     subscriptionList;
+  DbSubscriptionStatsFlushFunc subscriptionStatsFlush; // NULL-allowed (e.g. ramdb)
   DbRegistrationCreateFunc   registrationCreate;
   DbRegistrationRetrieveFunc registrationRetrieve;
   DbRegistrationQueryFunc    registrationQuery;

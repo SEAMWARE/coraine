@@ -137,7 +137,7 @@ RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
                  $(ADMIN_DIR)/adminVersion.c $(ADMIN_DIR)/adminLog.c \
                  $(ADMIN_DIR)/adminTenants.c $(ADMIN_DIR)/adminPlugins.c \
-                 $(ADMIN_DIR)/adminMetrics.c
+                 $(ADMIN_DIR)/adminMetrics.c $(ADMIN_DIR)/adminSubStats.c
 ADMIN_OBJS     = $(ADMIN_SOURCES:.c=.o)
 
 MONGOC_DIR     = src/plugins/currentState/mongoc
@@ -157,7 +157,7 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocDotEscape.c \
                  $(MONGOC_DIR)/mongocSubscriptionCreate.c $(MONGOC_DIR)/mongocSubscriptionRetrieve.c \
                  $(MONGOC_DIR)/mongocSubscriptionQuery.c $(MONGOC_DIR)/mongocSubscriptionUpdate.c \
-                 $(MONGOC_DIR)/mongocSubscriptionDelete.c \
+                 $(MONGOC_DIR)/mongocSubscriptionDelete.c $(MONGOC_DIR)/mongocSubscriptionStatsFlush.c \
                  $(MONGOC_DIR)/mongocRegistrationCreate.c $(MONGOC_DIR)/mongocRegistrationRetrieve.c \
                  $(MONGOC_DIR)/mongocRegistrationQuery.c $(MONGOC_DIR)/mongocRegistrationUpdate.c \
                  $(MONGOC_DIR)/mongocRegistrationDelete.c \
