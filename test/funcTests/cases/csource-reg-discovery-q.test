@@ -1,0 +1,130 @@
+#
+# FILE            csource-reg-discovery-q.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.10.2 CSource discovery: the `q` filter matches against the
+# CSR's own user-Properties (NOT against target entity attributes).
+# Allowed alone or alongside type / pick.
+#
+--NAME--
+CSource registration discovery with q filter (on CSR user-properties)
+
+--TAGS--
+registration discovery q
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create 3 CSRs with different user-properties"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:A",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://a.example",
+  "mode": "inclusive",
+  "information": [{"entities":[{"type":"Vehicle"}]}],
+  "organization": {"type":"Property","value":"acme"},
+  "tier":         {"type":"Property","value":"gold"}
+}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:B",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://b.example",
+  "mode": "inclusive",
+  "information": [{"entities":[{"type":"Vehicle"}]}],
+  "organization": {"type":"Property","value":"acme"},
+  "tier":         {"type":"Property","value":"silver"}
+}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:C",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://c.example",
+  "mode": "inclusive",
+  "information": [{"entities":[{"type":"Vehicle"}]}],
+  "organization": {"type":"Property","value":"contoso"},
+  "tier":         {"type":"Property","value":"gold"}
+}' | head -1
+echo
+echo
+
+
+echo "02. q=tier==\"gold\" → A + C"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="gold"' | grep -E '"id"' | sort
+echo
+echo
+
+
+echo "03. q=organization==\"acme\" → A + B"
+echo "==================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=organization=="acme"' | grep -E '"id"' | sort
+echo
+echo
+
+
+echo "04. q=tier==\"gold\";organization==\"acme\" → A only"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="gold";organization=="acme"' | grep -E '"id"' | sort
+echo
+echo
+
+
+echo "05. q=tier==\"gold\" + type=Vehicle → A + C (combined filters)"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'type=Vehicle&q=tier=="gold"' | grep -E '"id"' | sort
+echo
+echo
+
+
+echo "06. q=tier==\"platinum\" → empty"
+echo "==============================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="platinum"' | grep -c '"id"'
+echo
+echo
+
+
+--EXPECT--
+01. Create 3 CSRs with different user-properties
+================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=tier=="gold" → A + C
+===========================
+    "id": "urn:CSR:A",
+    "id": "urn:CSR:C",
+
+
+03. q=organization=="acme" → A + B
+===================================
+    "id": "urn:CSR:A",
+    "id": "urn:CSR:B",
+
+
+04. q=tier=="gold";organization=="acme" → A only
+================================================
+    "id": "urn:CSR:A",
+
+
+05. q=tier=="gold" + type=Vehicle → A + C (combined filters)
+=============================================================
+    "id": "urn:CSR:A",
+    "id": "urn:CSR:C",
+
+
+06. q=tier=="platinum" → empty
+===============================
+0
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

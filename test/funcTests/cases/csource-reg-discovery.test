@@ -122,15 +122,15 @@ echo
 echo
 
 
-echo "14. ?q=speed%3E10 -> 501 (alone)"
-echo "================================"
+echo "14. ?q=speed%3E10 -> 200 (q filters CSR user-Properties; no match here)"
+echo "======================================================================"
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?q=speed%3E10'
 echo
 echo
 
 
-echo "15. ?attrs=speed&q=foo==1 -> 200 (q tolerated alongside attrs)"
-echo "=============================================================="
+echo "15. ?attrs=speed&q=foo==1 -> 200 (q filters CSR user-props; no CSR has foo)"
+echo "==========================================================================="
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed&q=foo==1'
 echo
 echo
@@ -536,49 +536,27 @@ Content-Length: 192
 
 
 
-14. ?q=speed%3E10 -> 501 (alone)
-================================
-HTTP/1.1 501 Not Implemented
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 200
-
-{
-  "detail": "Context Source Registration discovery with 'q' as sole filter is not implemented",
-  "title": "Not Implemented",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
-
-
-
-15. ?attrs=speed&q=foo==1 -> 200 (q tolerated alongside attrs)
-==============================================================
+14. ?q=speed%3E10 -> 200 (q filters CSR user-Properties; no match here)
+======================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 324
+Content-Length: 3
 
-[
-  {
-    "endpoint": "http://cp1.example",
-    "id": "urn:CSR:A",
-    "information": [
-      {
-        "entities": [
-          {
-            "type": "Vehicle"
-          }
-        ],
-        "propertyNames": [
-          "speed"
-        ]
-      }
-    ],
-    "mode": "inclusive",
-    "type": "ContextSourceRegistration"
-  }
-]
+[]
+
+
+
+15. ?attrs=speed&q=foo==1 -> 200 (q filters CSR user-props; no CSR has foo)
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
 
 
 
@@ -587,10 +565,10 @@ Content-Length: 324
 HTTP/1.1 501 Not Implemented
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 277
+Content-Length: 280
 
 {
-  "detail": "Context Source Registration discovery filter 'geoproperty' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), limit, offset, count",
+  "detail": "Context Source Registration discovery filter 'geoproperty' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), q, limit, offset, count",
   "title": "Not Implemented",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

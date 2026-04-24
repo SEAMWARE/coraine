@@ -33,6 +33,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForDiscovery
+#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -73,40 +74,35 @@ bool getCsourceRegistrations(void)
     return true;
   }
 
-  // Filter whitelist. 501 anything we haven't implemented — EXCEPT `q` if
-  // it arrives alongside attrs/pick (use attrs/pick as the entity
-  // selector and treat the q-half of the synonym as noise).
+  // Filter whitelist. 501 anything we haven't implemented.
   for (int i = 0; i < swRest.in.uriParamCount; i++)
   {
     const char* key = swRest.in.uriParamV[i].key;
-    if (key != NULL && strcmp(key, "q") == 0 && (hasAttrs || hasPick))
-      continue;
     if (paramSupported(key) == false)
     {
       ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
-              "Context Source Registration discovery filter '%s' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), limit, offset, count",
+              "Context Source Registration discovery filter '%s' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), q, limit, offset, count",
               key);
       return true;
     }
   }
 
-  // q on its own is still 501.
-  if (hasQ && !hasAttrs && !hasPick)
-  {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
-            "Context Source Registration discovery with 'q' as sole filter is not implemented");
-    return true;
-  }
-
-  // § 5.10.2.4: at least one of type / attrs / q / geoQ. In v1 type or
-  // an attribute-name list (pick or attrs) satisfies that.
+  // § 5.10.2.4: at least one of type / attrs / pick / q / geoQ.
   bool hasType = (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL);
-  if (!hasType && !hasAttrs && !hasPick)
+  if (!hasType && !hasAttrs && !hasPick && !hasQ)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Too Wide Query",
             "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required");
     return true;
   }
+
+  // Note: § 5.10.2 filters on the CSR's own user-Properties (organization,
+  // tier, etc.), not on target entities. ldEntityMatchQ walks the NGSI-LD
+  // Property shape { "type": "Property", "value": X } regardless of the
+  // host object, so CSRs with user-Properties work out of the box.
+  // swNgsild.qExpr is already parsed (with attrs expanded via the request
+  // @context) by ldUrlParams at pre-service time — just reuse it.
+  LdQNode* qExpr = hasQ ? swNgsild.qExpr : NULL;
 
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
   LdRegCache* cacheP  = (tenantP != NULL) ? (LdRegCache*) tenantP->regCacheP : NULL;
@@ -126,10 +122,23 @@ bool getCsourceRegistrations(void)
                                               entityIdFilter, swNgsild.idPattern,
                                               attrsFilter, &matchV);
 
-    int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : matchN;
+    // Post-filter by q (CSR's own user-Properties). Done in-place: anything
+    // that doesn't pass gets NULL'd and skipped by the emit loop.
+    int qPassN = matchN;
+    if (qExpr != NULL)
+    {
+      qPassN = 0;
+      for (int i = 0; i < matchN; i++)
+      {
+        if (matchV[i]->regTree != NULL && ldEntityMatchQ(matchV[i]->regTree, qExpr))
+          matchV[qPassN++] = matchV[i];
+      }
+    }
 
-    for (int i = skip; i < matchN && (i - skip) < limit; i++)
+    int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
+    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : qPassN;
+
+    for (int i = skip; i < qPassN && (i - skip) < limit; i++)
     {
       if (matchV[i]->regTree != NULL)
         kjChildAdd(arrayP, kjClone(swRest.kjsonP, matchV[i]->regTree));

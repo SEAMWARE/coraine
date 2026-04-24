@@ -818,8 +818,8 @@ echo
 echo
 
 
-echo "51. GET with discovery filter q=foo==1 - 501"
-echo "============================================"
+echo "51. GET with discovery filter q=foo==1 - 200 (empty: no CSR has 'foo')"
+echo "======================================================================"
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?q=foo==1'
 echo
 echo
@@ -1562,18 +1562,15 @@ Content-Length: 3
 
 
 
-51. GET with discovery filter q=foo==1 - 501
-============================================
-HTTP/1.1 501 Not Implemented
+51. GET with discovery filter q=foo==1 - 200 (empty: no CSR has 'foo')
+======================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
-{
-  "detail": "Context Source Registration discovery with 'q' as sole filter is not implemented",
-  "title": "Not Implemented",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
+[]
 
 
 
