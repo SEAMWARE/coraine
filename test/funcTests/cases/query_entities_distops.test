@@ -185,7 +185,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
+Location: /ngsi-ld/v1/entities/urn:V1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -194,7 +194,7 @@ Content-Length: 0
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V3
+Location: /ngsi-ld/v1/entities/urn:V3
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -203,7 +203,7 @@ Content-Length: 0
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V2
+Location: /ngsi-ld/v1/entities/urn:V2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -212,7 +212,7 @@ Content-Length: 0
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V4
+Location: /ngsi-ld/v1/entities/urn:V4
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -221,7 +221,7 @@ Content-Length: 0
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V5
+Location: /ngsi-ld/v1/entities/urn:V5
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -444,7 +444,7 @@ Content-Length: 345
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:V1
+Location: /ngsi-ld/v1/entities/urn:V1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -494,7 +494,7 @@ Content-Length: 318
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:S1
+Location: /ngsi-ld/v1/entities/urn:S1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 
@@ -530,7 +530,7 @@ Content-Length: 69
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:C1
+Location: /ngsi-ld/v1/entities/urn:C1
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
 

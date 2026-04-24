@@ -113,7 +113,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:conc:E1
+Location: /ngsi-ld/v1/entities/urn:conc:E1
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -149,7 +149,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:conc:E2
+Location: /ngsi-ld/v1/entities/urn:conc:E2
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -186,7 +186,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:conc:E3
+Location: /ngsi-ld/v1/entities/urn:conc:E3
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 

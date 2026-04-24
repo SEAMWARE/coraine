@@ -165,7 +165,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vehicle:car:001
+Location: /ngsi-ld/v1/entities/urn:vehicle:car:001
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -177,7 +177,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vehicle:car:002
+Location: /ngsi-ld/v1/entities/urn:vehicle:car:002
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -189,7 +189,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vehicle:truck:001
+Location: /ngsi-ld/v1/entities/urn:vehicle:truck:001
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -201,7 +201,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:sensor:temp:001
+Location: /ngsi-ld/v1/entities/urn:sensor:temp:001
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -213,7 +213,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:sensor:humidity:001
+Location: /ngsi-ld/v1/entities/urn:sensor:humidity:001
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 

@@ -1,0 +1,118 @@
+#
+# FILE            pernot_stats_persist.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Periodic-notification subscription counters must persist too.
+# A pernot sub with timeInterval=1 fires every second; we wait 2s,
+# flush, restart, and verify the counter survived.
+#
+# Exact timesSent depends on timing — assert only that the field is
+# present before and after restart (what we care about is that the
+# flush path walks the pernot cache in addition to the entity/CSR
+# caches).
+#
+# REQUIRE_DB: mongoc
+--NAME--
+Pernot subscription stats persist across broker restart (mongoc)
+
+--TAGS--
+subscription pernot stats persist mongoc
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+echo "01. Create a matching entity + pernot sub (timeInterval=1)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:P1",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "timeInterval": 1,
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}' | head -1
+echo
+echo
+
+
+echo "02. Wait 2s → at least 1 tick fires"
+echo "==================================="
+sleep 2
+echo "waited"
+echo
+echo
+
+
+echo "03. GET pernot — timesSent field present"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
+echo
+echo
+
+
+echo "04. POST /admin/subStats/flush"
+echo "=============================="
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+echo
+echo
+
+
+echo "05. Restart broker"
+echo "=================="
+swBrokerStop
+swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+echo "restarted"
+echo
+echo
+
+
+echo "06. GET pernot after restart — timesSent STILL present"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
+echo
+echo
+
+
+--EXPECT--
+01. Create a matching entity + pernot sub (timeInterval=1)
+==========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Wait 2s → at least 1 tick fires
+===================================
+waited
+
+
+03. GET pernot — timesSent field present
+========================================
+1
+
+
+04. POST /admin/subStats/flush
+==============================
+HTTP 204
+
+
+05. Restart broker
+==================
+restarted
+
+
+06. GET pernot after restart — timesSent STILL present
+======================================================
+1
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

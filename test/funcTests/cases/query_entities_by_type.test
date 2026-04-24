@@ -70,7 +70,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:v1
+Location: /ngsi-ld/v1/entities/urn:v1
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -82,7 +82,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:b1
+Location: /ngsi-ld/v1/entities/urn:b1
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 

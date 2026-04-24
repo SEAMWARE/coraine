@@ -767,8 +767,15 @@ bool postEntities(void)
     SwRestKeyValue* hV = swRest.out.headerV;
     int ix = swRest.out.headerCount;
 
+    // Per § 5.6.1 the Location must be a URI identifying the created resource.
+    // That means the full API path /ngsi-ld/v1/entities/{id}, not just the id.
+    const char* prefix  = "/ngsi-ld/v1/entities/";
+    int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
+    char*       locBuf  = kaAlloc(&swRest.kalloc, locLen);
+    strcpy(locBuf, prefix);
+    strcat(locBuf, idP->value.s);
     hV[ix].key   = "Location";
-    hV[ix].value = idP->value.s;
+    hV[ix].value = locBuf;
     ix++;
 
     SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();

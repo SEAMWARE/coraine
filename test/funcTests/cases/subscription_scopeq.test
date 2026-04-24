@@ -117,7 +117,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:ngsi-ld:Park:PN
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Park:PN
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -168,7 +168,7 @@ done
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:ngsi-ld:Park:Centro
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Park:Centro
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 

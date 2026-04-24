@@ -258,7 +258,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E1
+Location: /ngsi-ld/v1/entities/urn:vt:E1
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -289,7 +289,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E2
+Location: /ngsi-ld/v1/entities/urn:vt:E2
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -320,7 +320,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E3
+Location: /ngsi-ld/v1/entities/urn:vt:E3
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -381,7 +381,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E5
+Location: /ngsi-ld/v1/entities/urn:vt:E5
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -412,7 +412,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E6
+Location: /ngsi-ld/v1/entities/urn:vt:E6
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -443,7 +443,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E7
+Location: /ngsi-ld/v1/entities/urn:vt:E7
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -477,7 +477,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E8
+Location: /ngsi-ld/v1/entities/urn:vt:E8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -512,7 +512,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-Location: urn:vt:E9
+Location: /ngsi-ld/v1/entities/urn:vt:E9
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
