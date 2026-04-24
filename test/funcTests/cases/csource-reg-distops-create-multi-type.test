@@ -1,0 +1,139 @@
+#
+# FILE            csource-reg-distops-create-multi-type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.1: Entity 'type' is one OR MORE types — string or array of strings.
+# A CSR registered for type T must match an entity whose type array
+# CONTAINS T (not only when type is a single-string equal to T).
+#
+--NAME--
+DistOps - multi-type entity dispatched to CSR matching ANY of its types
+
+--TAGS--
+create distops registration multi-entity-type
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+ftClientStart --port 7712 --status 201
+
+--RUN--
+
+#
+# Two CSRs, one for type "Building" (port 7711) and one for type
+# "Sensor" (port 7712). POST an entity with type ["Building", "Sensor"] —
+# both CSRs should receive the forwarded create.
+#
+
+echo "01. Register CSR_B (inclusive, type=Building) -> ftClient@7711"
+echo "==============================================================="
+payload='{
+  "id": "urn:CSR:B",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "inclusive",
+  "operations": ["createEntity"],
+  "information": [ { "entities": [ { "type": "Building" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CSR_S (inclusive, type=Sensor) -> ftClient@7712"
+echo "============================================================="
+payload='{
+  "id": "urn:CSR:S",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7712",
+  "mode": "inclusive",
+  "operations": ["createEntity"],
+  "information": [ { "entities": [ { "type": "Sensor" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. POST entity E1 with type [\"Building\", \"Sensor\"] -> 201; both CSRs receive"
+echo "================================================================================"
+payload='{
+  "id": "urn:entity:E1",
+  "type": ["Building", "Sensor"],
+  "name": { "type": "Property", "value": "Lab" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. ftClient@7711 received forwarded POST"
+echo "=========================================="
+ftClientDump --port 7711 | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d), 'request(s)'); [print('  -', e['verb'], e['url']) for e in d]"
+echo
+echo
+
+
+echo "05. ftClient@7712 received forwarded POST"
+echo "=========================================="
+ftClientDump --port 7712 | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d), 'request(s)'); [print('  -', e['verb'], e['url']) for e in d]"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_B (inclusive, type=Building) -> ftClient@7711
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR_S (inclusive, type=Sensor) -> ftClient@7712
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:S
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. POST entity E1 with type ["Building", "Sensor"] -> 201; both CSRs receive
+================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:entity:E1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. ftClient@7711 received forwarded POST
+==========================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities
+
+
+05. ftClient@7712 received forwarded POST
+==========================================
+1 request(s)
+  - POST /ngsi-ld/v1/entities
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

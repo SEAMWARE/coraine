@@ -436,11 +436,32 @@ bool postEntities(void)
 
   if (swNgsild.local == false && tenantP != NULL && tenantP->regCacheP != NULL)
   {
-    // Type vector built from the entity's "type" (single value at this stage)
-    KjNode* typeP = kjLookup(entityP, "type");
-    char*   typeArr[2] = { NULL, NULL };
-    if (typeP != NULL && typeP->type == KjString)
-      typeArr[0] = typeP->value.s;
+    // Type vector built from the entity's "type" — string or array per § 4.5.1.
+    KjNode* typeP        = kjLookup(entityP, "type");
+    char*   typeBuf1[2]  = { NULL, NULL };  // KjString case
+    char**  typeArr      = typeBuf1;
+    if (typeP != NULL)
+    {
+      if (typeP->type == KjString)
+      {
+        typeBuf1[0] = typeP->value.s;
+      }
+      else if (typeP->type == KjArray)
+      {
+        int n = 0;
+        for (KjNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
+          if (t->type == KjString) n++;
+        if (n > 0)
+        {
+          typeArr = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
+          int ix = 0;
+          for (KjNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
+            if (t->type == KjString)
+              typeArr[ix++] = t->value.s;
+          typeArr[ix] = NULL;
+        }
+      }
+    }
 
     //
     // Scope vector from the entity's top-level "scope" field (§ 4.18).
