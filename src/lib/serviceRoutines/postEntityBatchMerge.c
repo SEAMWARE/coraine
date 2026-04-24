@@ -58,6 +58,7 @@
 #include "swNgsild/LdNormalizeInput.h"               // ldNormalizeInput
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
+#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/LdProblem.h"                      // LD_ERROR_RESOURCE_NOT_FOUND, LD_ERROR_CONFLICT, LD_ERROR_INTERNAL_ERROR
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
@@ -179,7 +180,11 @@ static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
   if (respBody != NULL && respBodyLen > 0)
   {
     KjNode* treeP = kjParse(swRest.kjsonP, respBody);
-    if (treeP != NULL) *respTreePP = treeP;
+    if (treeP != NULL)
+    {
+      ldStripAtContext(treeP);
+      *respTreePP = treeP;
+    }
   }
 
   return status;

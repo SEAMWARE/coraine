@@ -24,6 +24,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
+#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
@@ -174,6 +175,8 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
   bodyCopy[resp.bodyLen] = 0;
 
   KjNode* treeP = kjParse(swRest.kjsonP, bodyCopy);
+  if (treeP != NULL)
+    ldStripAtContext(treeP);
   return treeP;  // KjArray of entities (in API format)
 }
 
@@ -226,6 +229,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
     return NULL;
 
   swldExpandTree(treeP, &swRest.kalloc);
+  ldStripAtContext(treeP);
   apiAttrToStorageWrap(treeP);
   return treeP;
 }

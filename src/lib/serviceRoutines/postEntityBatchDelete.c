@@ -47,6 +47,7 @@
 #include "swNgsild/LdOp.h"                           // LdOpBatchDelete
 #include "swNgsild/LdProblem.h"                      // LD_ERROR_*
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
+#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 
@@ -208,7 +209,11 @@ static int forwardBatchToCSR(LdRegCacheItem* csr, const char** idV, int N,
   if (respBody != NULL && respBodyLen > 0)
   {
     KjNode* treeP = kjParse(swRest.kjsonP, respBody);
-    if (treeP != NULL) *respTreePP = treeP;
+    if (treeP != NULL)
+    {
+      ldStripAtContext(treeP);
+      *respTreePP = treeP;
+    }
   }
 
   return status;

@@ -29,6 +29,7 @@
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
@@ -542,6 +543,7 @@ static int forwardAndParse(LdRegCacheItem* csr,
   }
 
   swldExpandTree(treeP, &swRest.kalloc);
+  ldStripAtContext(treeP);
 
   // Convert upstream's API form into the storage format the renderHook
   // (ldEntityToApi) expects, so the merge result can flow through the
