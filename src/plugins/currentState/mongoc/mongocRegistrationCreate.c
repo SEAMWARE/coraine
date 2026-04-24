@@ -13,6 +13,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
 #include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjTreeToBson
+#include "currentState/mongoc/mongocInjectType.h"    // mongocStripTypeDecouple, mongocStripTypeRestore
 #include "currentState/mongoc/mongocRegistrationCreate.h"  // Own interface
 
 
@@ -33,7 +34,15 @@ int mongocRegistrationCreate(Tenant* tenantP, const char* regId, KjNode* regP)
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "registrations");
   bson_t                bson;
 
+  // `type` is the fixed JSON-LD constant "ContextSourceRegistration" —
+  // redundant in DB. Strip around BSON emission, preserving the tree.
+  KjNode* typeP     = NULL;
+  KjNode* typePrevP = NULL;
+  mongocStripTypeDecouple(regP, &typeP, &typePrevP);
+
   mongocKjTreeToBson(regP, &bson);
+
+  mongocStripTypeRestore(regP, typeP, typePrevP);
 
   bson_error_t error;
   bool ok = mongoc_collection_insert_one(collP, &bson, NULL, NULL, &error);

@@ -14,6 +14,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
+#include "currentState/mongoc/mongocInjectType.h"    // mongocInjectTypeAfterId
 #include "currentState/mongoc/mongocRegistrationRetrieve.h"  // Own interface
 
 
@@ -43,6 +44,8 @@ int mongocRegistrationRetrieve(Tenant* tenantP, const char* regId, KjNode** regP
   if (mongoc_cursor_next(cursorP, &doc))
   {
     *regPP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    // `type` was stripped at insert — put back the JSON-LD constant.
+    mongocInjectTypeAfterId(*regPP, "ContextSourceRegistration");
     result = DB_OK;
   }
   else

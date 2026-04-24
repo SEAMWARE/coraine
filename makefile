@@ -162,6 +162,7 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocRegistrationQuery.c $(MONGOC_DIR)/mongocRegistrationUpdate.c \
                  $(MONGOC_DIR)/mongocRegistrationDelete.c \
                  $(MONGOC_DIR)/mongocContext.c \
+                 $(MONGOC_DIR)/mongocInjectType.c \
                  src/plugins/shared/geoMatch.c
 MONGOC_OBJS    = $(MONGOC_SOURCES:.c=.o)
 MONGOC_CFLAGS  = $(shell pkg-config --cflags mongoc2)

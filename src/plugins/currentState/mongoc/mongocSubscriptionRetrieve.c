@@ -14,6 +14,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
+#include "currentState/mongoc/mongocInjectType.h"    // mongocInjectTypeAfterId
 #include "currentState/mongoc/mongocSubscriptionRetrieve.h"  // Own interface
 
 
@@ -47,6 +48,8 @@ int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subP
   if (mongoc_cursor_next(cursorP, &doc))
   {
     *subPP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    // `type` was stripped at insert — put back the JSON-LD constant.
+    mongocInjectTypeAfterId(*subPP, "Subscription");
     result = DB_OK;
   }
   else

@@ -13,6 +13,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
 #include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjTreeToBson
+#include "currentState/mongoc/mongocInjectType.h"    // mongocStripTypeDecouple, mongocStripTypeRestore
 #include "currentState/mongoc/mongocSubscriptionCreate.h"  // Own interface
 
 
@@ -35,7 +36,15 @@ int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, KjNode* subP)
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "subscriptions");
   bson_t                bson;
 
+  // `type` is the fixed JSON-LD constant "Subscription" — redundant in DB.
+  // Strip it around BSON emission, preserving the caller's tree.
+  KjNode* typeP     = NULL;
+  KjNode* typePrevP = NULL;
+  mongocStripTypeDecouple(subP, &typeP, &typePrevP);
+
   mongocKjTreeToBson(subP, &bson);
+
+  mongocStripTypeRestore(subP, typeP, typePrevP);
 
   bson_error_t error;
   bool ok = mongoc_collection_insert_one(collP, &bson, NULL, NULL, &error);

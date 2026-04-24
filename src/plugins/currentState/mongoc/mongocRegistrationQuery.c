@@ -15,6 +15,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
+#include "currentState/mongoc/mongocInjectType.h"    // mongocInjectTypeAfterId
 #include "currentState/mongoc/mongocRegistrationQuery.h"  // Own interface
 
 
@@ -52,7 +53,10 @@ int mongocRegistrationQuery(Tenant* tenantP, int limit, int offset, KjNode** arr
   {
     KjNode* regP = mongocBsonToKjTree(&swRest.kalloc, doc);
     if (regP != NULL)
+    {
+      mongocInjectTypeAfterId(regP, "ContextSourceRegistration");
       kjChildAdd(resultArray, regP);
+    }
   }
 
   bson_error_t error;

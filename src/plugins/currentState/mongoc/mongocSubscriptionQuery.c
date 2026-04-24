@@ -15,6 +15,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
+#include "currentState/mongoc/mongocInjectType.h"    // mongocInjectTypeAfterId
 #include "currentState/mongoc/mongocSubscriptionQuery.h"  // Own interface
 
 
@@ -62,7 +63,10 @@ int mongocSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arr
   {
     KjNode* subP = mongocBsonToKjTree(&swRest.kalloc, doc);
     if (subP != NULL)
+    {
+      mongocInjectTypeAfterId(subP, "Subscription");
       kjChildAdd(resultArray, subP);
+    }
   }
 
   bson_error_t error;
