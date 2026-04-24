@@ -1,0 +1,212 @@
+#
+# FILE            context_embedded.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Embedded @context is forbidden by NGSI-LD § 4.5.1 ("Attributes shall not
+# contain any embedded @context") and § 5.5.7 (user @context shall not be
+# embedded into Attributes and shall not contain Scoped Contexts, because
+# scoped contexts could rebind Core terms).
+#
+# @context is permitted at exactly two positions in a payload:
+#   - root of a JSON object body
+#   - first-level of each JSON object element in an array body (batch ops)
+#
+# Any other placement — inside an attribute, a sub-attribute, a hasValue,
+# a nested object — must be rejected with 400 BadRequestData.
+#
+--NAME--
+Embedded @context is rejected (§ 4.5.1 / § 5.5.7)
+
+--TAGS--
+context create entity error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. @context inside an attribute → 400"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 10,
+    "@context": "https://example.org/mycontext.jsonld"
+  }
+}'
+echo
+echo
+
+
+echo "02. @context inside a sub-attribute → 400"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 10,
+    "accuracy": {
+      "type": "Property",
+      "value": 0.9,
+      "@context": "https://example.org/mycontext.jsonld"
+    }
+  }
+}'
+echo
+echo
+
+
+echo "03. @context inside hasValue (structured value) → 400"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V3",
+  "type": "Vehicle",
+  "address": {
+    "type": "Property",
+    "value": {
+      "street": "Main",
+      "@context": "https://example.org/mycontext.jsonld"
+    }
+  }
+}'
+echo
+echo
+
+
+echo "04. Batch: @context nested inside one element's attribute → 400"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":1}},
+  {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":2,"@context":"https://example.org/mycontext.jsonld"}}
+]'
+echo
+echo
+
+
+echo "05. @context at root (object body) is fine — 201"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities \
+  --header 'Content-Type: application/ld+json' \
+  --payload '{
+  "id": "urn:V6",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":60},
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+}'
+echo
+echo
+
+
+echo "06. @context on each batch element is fine — 201"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/create \
+  --header 'Content-Type: application/ld+json' \
+  --payload '[
+  {"id":"urn:V7","type":"Vehicle","speed":{"type":"Property","value":70},"@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"},
+  {"id":"urn:V8","type":"Vehicle","speed":{"type":"Property","value":80},"@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}
+]'
+echo
+echo
+
+
+--EXPECT--
+01. @context inside an attribute → 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "@context is only allowed at the top of an entity (root for an object body, first-level of each element for a batch array) — embedding it inside an attribute, sub-attribute, or value is forbidden by § 4.5.1 / § 5.5.7",
+  "title": "Embedded @context",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. @context inside a sub-attribute → 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "@context is only allowed at the top of an entity (root for an object body, first-level of each element for a batch array) — embedding it inside an attribute, sub-attribute, or value is forbidden by § 4.5.1 / § 5.5.7",
+  "title": "Embedded @context",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. @context inside hasValue (structured value) → 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "@context is only allowed at the top of an entity (root for an object body, first-level of each element for a batch array) — embedding it inside an attribute, sub-attribute, or value is forbidden by § 4.5.1 / § 5.5.7",
+  "title": "Embedded @context",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Batch: @context nested inside one element's attribute → 400
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "@context is only allowed at the top of an entity (root for an object body, first-level of each element for a batch array) — embedding it inside an attribute, sub-attribute, or value is forbidden by § 4.5.1 / § 5.5.7",
+  "title": "Embedded @context",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. @context at root (object body) is fine — 201
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V6
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 0
+
+
+
+
+06. @context on each batch element is fine — 201
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "errors": [],
+  "success": [
+    "urn:V7",
+    "urn:V8"
+  ]
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
