@@ -10,7 +10,8 @@
 #include "swRest/SwRestState.h"                       // swRest
 
 #include "swNgsild/LdSubCache.h"                      // LdSubCache
-#include "swNgsild/ldSubStatsFlush.h"                 // ldSubStatsFlush
+#include "swNgsild/LdPernotCache.h"                   // LdPernotCache
+#include "swNgsild/ldSubStatsFlush.h"                 // ldSubStatsFlush, ldPernotStatsFlush
 
 #include "db/DbDriver.h"                              // db (DbDriver)
 #include "db/Tenant.h"                                // tenant0, tenantList
@@ -47,7 +48,7 @@ static int dbFlushAdapter(void*        tenantP,
 //
 bool adminPostSubStatsFlush(void)
 {
-  // Walk every tenant (default + linked list) and flush both caches
+  // Walk every tenant (default + linked list) and flush all three sub caches
   for (Tenant* tP = &tenant0;
        tP != NULL;
        tP = (tP == &tenant0) ? tenantList : tP->next)
@@ -57,6 +58,9 @@ bool adminPostSubStatsFlush(void)
 
     if (tP->regSubCacheP != NULL)
       ldSubStatsFlush(tP, (LdSubCache*) tP->regSubCacheP, dbFlushAdapter);
+
+    if (tP->pernotCacheP != NULL)
+      ldPernotStatsFlush(tP, (LdPernotCache*) tP->pernotCacheP, dbFlushAdapter);
   }
 
   swRest.out.httpStatusCode = 204;
