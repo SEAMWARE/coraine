@@ -23,13 +23,32 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
 #include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldDistSub.h"                      // ldDistSubCascadePatch
+#include "swNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/patchSubscription.h"       // Own interface
+
+
+
+//
+// distSubPersist - JSON-merge-patch _subordinates onto the sub doc
+//
+static void distSubPersist(LdSubCacheItem* itemP, void* userData)
+{
+  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
+    return;
+
+  Tenant* tP    = (Tenant*) userData;
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  if (fragP == NULL)
+    return;
+
+  db.subscriptionUpdate(tP, itemP->subId, fragP);
+}
 
 
 
@@ -207,12 +226,15 @@ bool patchSubscription(void)
         savedSubordinateP          = NULL;   // ownership transferred
       }
 
-      // § 5.8.1.4 PATCH cascade — propagate the user's fragment to every
-      // remote derivative. Best-effort: failures don't roll back local state.
-      if (newItemP != NULL && newItemP->subordinateP != NULL && tenantP->regCacheP != NULL)
+      // § 5.8.1.4 — reconcile the subordinate set against the patched
+      // entity filter: PATCH still-matching derivatives, DELETE the
+      // ones whose CSR no longer overlaps, and fan out new matches.
+      // Best-effort — remote failures don't roll back local state.
+      if (newItemP != NULL && tenantP->regCacheP != NULL && !ldLocalOnly)
       {
         const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
-        ldDistSubCascadePatch(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias);
+        ldDistSubReconcile(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias,
+                           distSubPersist, tenantP);
       }
     }
   }

@@ -1,0 +1,207 @@
+#
+# FILE            distsub_patch_reconcile.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — PATCH on a parent sub recomputes overlap with every CSR.
+# When entities[] changes, derivatives whose CSR no longer matches are
+# DELETE'd remotely + unlinked locally; CSRs that newly match get a
+# fresh fanout. Still-matching CSRs receive the merge-patch verbatim.
+#
+--NAME--
+DistSub - PATCH overlap-recompute (delete stale + fanout new)
+
+--TAGS--
+patch distops subscription distsub
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01-02. Two CSRs on CB → CP1: one for Vehicle, one for Sensor.
+# 03.    Sub urn:S1 starts with entities=[Vehicle] — fanned out only
+#        to the Vehicle CSR.
+# 04.    GET on CP1 — single derivative urn:S1:1 (Vehicle).
+# 05.    PATCH urn:S1: replace entities with [Sensor].
+# 06.    GET on CP1 — Vehicle derivative gone, new Sensor derivative
+#        urn:S1:2 present.
+#
+
+echo "01. CSR-Veh — Vehicle → CP1 (with createSubscription/deleteSubscription)"
+echo "========================================================================"
+payload='{
+  "id": "urn:CSR:Veh",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription", "updateSubscription", "deleteSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. CSR-Sen — Sensor → CP1"
+echo "=========================="
+payload='{
+  "id": "urn:CSR:Sen",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription", "updateSubscription", "deleteSubscription"],
+  "information": [
+    { "entities": [ { "type": "Sensor" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. Create sub urn:S1 (entities=[Vehicle]) on CB"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "04. GET on CP1 — only Vehicle derivative"
+echo "========================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "05. PATCH urn:S1 — switch entities to [Sensor]"
+echo "=============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"entities":[{"type":"Sensor"}]}'
+echo
+echo
+
+
+echo "06. GET on CP1 — Vehicle deriv gone; new Sensor derivative present"
+echo "=================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. CSR-Veh — Vehicle → CP1 (with createSubscription/deleteSubscription)
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Veh
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. CSR-Sen — Sensor → CP1
+==========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Sen
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Create sub urn:S1 (entities=[Vehicle]) on CB
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. GET on CP1 — only Vehicle derivative
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+05. PATCH urn:S1 — switch entities to [Sensor]
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET on CP1 — Vehicle deriv gone; new Sensor derivative present
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Sensor"
+      }
+    ],
+    "id": "urn:S1:2",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
