@@ -1,0 +1,224 @@
+#
+# FILE            distsub_reg_reactions.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — entity-sub side reactions to CSR create/delete.
+#
+# Sister of csr_subscription_on_create_notif.test (which covers the
+# CSR-sub side). Two scenarios in one file:
+#
+#   A. Sub created BEFORE the CSR. When a matching CSR is registered,
+#      the broker walks the entity-sub cache and forwards a derived
+#      sub to the new CSR.
+#
+#   B. Deleting the CSR cleans up its derivative subs — the remote
+#      receives DELETE and the local subordinate mapping is dropped.
+#
+--NAME--
+DistSub - reg-create + reg-delete reactions on entity-subs
+
+--TAGS--
+create delete distops registration subscription distsub
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Sub urn:S1 (Vehicle) on CB — no CSRs yet, no fanout
+# 02. GET on CP1 — empty
+# 03. Register CSR (Vehicle, with createSubscription) → CB reacts and
+#     fans out a derivative to CP1
+# 04. GET on CP1 — derived urn:S1:1 visible
+# 05. DELETE the CSR on CB → cascade DELETE on CP1
+# 06. GET on CP1 — empty again
+# 07. GET sub urn:S1 on CB — local sub still present (not affected)
+#
+
+echo "01. Create sub urn:S1 on CB (no CSRs yet)"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "02. GET /subscriptions on CP1 — no derivative yet"
+echo "================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "03. Register CSR urn:CSR:Vehicle (createSubscription) → CB fans out"
+echo "==================================================================="
+payload='{
+  "id": "urn:CSR:Vehicle",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription", "deleteSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /subscriptions on CP1 — derived urn:S1:1 now present"
+echo "============================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "05. DELETE the CSR on CB → cleanup derivatives"
+echo "=============================================="
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+echo
+echo
+
+
+echo "06. GET /subscriptions on CP1 — derivative gone"
+echo "==============================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "07. GET /subscriptions on CB — local sub still there"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Create sub urn:S1 on CB (no CSRs yet)
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. GET /subscriptions on CP1 — no derivative yet
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+03. Register CSR urn:CSR:Vehicle (createSubscription) → CB fans out
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. GET /subscriptions on CP1 — derived urn:S1:1 now present
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+05. DELETE the CSR on CB → cleanup derivatives
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET /subscriptions on CP1 — derivative gone
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+07. GET /subscriptions on CB — local sub still there
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://example.com/notify/s1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

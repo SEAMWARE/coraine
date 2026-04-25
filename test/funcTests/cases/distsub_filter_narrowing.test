@@ -1,0 +1,267 @@
+#
+# FILE            distsub_filter_narrowing.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — derived subs are narrowed to the slice each CSR claims.
+#
+# Local sub urn:S1 wants ALL Vehicles. CSR-A claims a single id
+# urn:V1; CSR-B claims a different id urn:V2. The forwarded subs on
+# each CSR must reflect the CSR's restriction (id-narrowed), not the
+# parent's full filter — otherwise we'd ask CSR-A for entities it
+# doesn't own, and CSR-A would notify on changes outside its scope.
+#
+# Also covers the disjoint case: parent restricts to urn:V1; CSR-B
+# claims only urn:V2 — narrowing is empty, no derivative on CSR-B.
+#
+--NAME--
+DistSub - filter narrowing intersects parent.entities × reg.information
+
+--TAGS--
+create distops subscription distsub
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01-02. CSR-A (Vehicle id=urn:V1) and CSR-B (Vehicle id=urn:V2), both → CP1
+# 03.    Sub urn:S1 (all Vehicles) — fanned out twice with narrowed ids
+# 04.    GET on CP1 — two derived subs, each with a single id
+# 05.    Sub urn:S2 (Vehicle id=urn:V1 only) — disjoint with CSR-B
+# 06.    GET on CP1 — derived for S2 only on CSR-A (urn:V1)
+#
+
+echo "01. CSR-A — Vehicle id=urn:V1 → CP1"
+echo "==================================="
+payload='{
+  "id": "urn:CSR:A",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription"],
+  "information": [
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. CSR-B — Vehicle id=urn:V2 → CP1"
+echo "==================================="
+payload='{
+  "id": "urn:CSR:B",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription"],
+  "information": [
+    { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. Sub urn:S1 (all Vehicles) on CB — two derivatives, narrowed"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "04. GET on CP1 — urn:S1:1 narrowed to urn:V1; urn:S1:2 narrowed to urn:V2"
+echo "========================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "05. Sub urn:S2 (Vehicle id=urn:V1) on CB — disjoint with CSR-B"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"id":"urn:V1","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
+echo
+echo
+
+
+echo "06. GET on CP1 — only urn:S2:1 on CSR-A; CSR-B skipped (disjoint)"
+echo "================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. CSR-A — Vehicle id=urn:V1 → CP1
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. CSR-B — Vehicle id=urn:V2 → CP1
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Sub urn:S1 (all Vehicles) on CB — two derivatives, narrowed
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. GET on CP1 — urn:S1:1 narrowed to urn:V1; urn:S1:2 narrowed to urn:V2
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "id": "urn:V1",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "id": "urn:V2",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:2",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+05. Sub urn:S2 (Vehicle id=urn:V1) on CB — disjoint with CSR-B
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. GET on CP1 — only urn:S2:1 on CSR-A; CSR-B skipped (disjoint)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "id": "urn:V1",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "id": "urn:V2",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:2",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "id": "urn:V1",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S2:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S2"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

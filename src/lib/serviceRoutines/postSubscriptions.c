@@ -27,11 +27,37 @@
 #include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
 #include "swNgsild/ldQParse.h"                       // ldQParse
 #include "swNgsild/ldQRender.h"                      // ldQRender
+#include "swNgsild/LdRegCache.h"                     // LdRegCache
+#include "swNgsild/ldDistSub.h"                      // ldDistSubFanout
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// distSubPersist - persist subordinate mapping after a fanout mutation
+//
+// LdDistSubPersistFunc callback invoked from ldDistSub.c whenever an
+// itemP->subordinateP list changes. JSON-merge-patch onto the sub doc
+// so the mapping survives a broker restart.
+//
+static void distSubPersist(LdSubCacheItem* itemP, void* userData)
+{
+  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
+    return;
+
+  Tenant* tP    = (Tenant*) userData;
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  if (fragP == NULL)
+    return;
+
+  db.subscriptionUpdate(tP, itemP->subId, fragP);
+}
 
 
 
@@ -231,8 +257,21 @@ bool postSubscriptions(void)
   }
   else
   {
+    LdSubCacheItem* cachedP = NULL;
     if (tenantP->subCacheP != NULL)
-      ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, subP, qExprForCache);
+      cachedP = ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, subP, qExprForCache);
+
+    //
+    // § 5.8.1.4 — fan derived subs out to matching CSRs.
+    // Skipped silently when --httpEndpoint is unset (ldBrokerHttpEndpoint == NULL),
+    // when the tenant has no reg cache, or when --localOnly is in effect.
+    //
+    if (cachedP != NULL && tenantP->regCacheP != NULL && !ldLocalOnly)
+    {
+      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+      ldDistSubFanout(cachedP, (LdRegCache*) tenantP->regCacheP, ownAlias,
+                      distSubPersist, tenantP);
+    }
   }
 
   //

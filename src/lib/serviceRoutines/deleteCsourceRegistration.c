@@ -15,11 +15,34 @@
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheItemRemove, ldRegCacheItemLookup
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegDelete
+#include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegDelete
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#include "kjson/KjNode.h"                              // KjNode
+
 #include "serviceRoutines/deleteCsourceRegistration.h" // Own interface
+
+
+
+//
+// distSubPersist - persist subordinate mapping after on-reg-delete cleanup
+//
+static void distSubPersist(LdSubCacheItem* itemP, void* userData)
+{
+  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
+    return;
+
+  Tenant* tP    = (Tenant*) userData;
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  if (fragP == NULL)
+    return;
+
+  db.subscriptionUpdate(tP, itemP->subId, fragP);
+}
 
 
 
@@ -64,6 +87,16 @@ bool deleteCsourceRegistration(void)
     LdRegCacheItem* regItemP = ldRegCacheItemLookup((LdRegCache*) tenantP->regCacheP, regId);
     if (regItemP != NULL && tenantP->regSubCacheP != NULL)
       ldCsrSubOnRegDelete((LdSubCache*) tenantP->regSubCacheP, regItemP);
+
+    // § 5.8.1.4 — drop any subordinate (derived) subs that were forwarded
+    // to this CSR. Best-effort remote DELETE is sent before unlinking the
+    // local mapping. Must run before ldRegCacheItemRemove.
+    if (regItemP != NULL && tenantP->subCacheP != NULL && !ldLocalOnly)
+    {
+      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+      ldDistSubOnRegDelete((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,
+                           distSubPersist, tenantP);
+    }
 
     ldRegCacheItemRemove((LdRegCache*) tenantP->regCacheP, regId);
   }

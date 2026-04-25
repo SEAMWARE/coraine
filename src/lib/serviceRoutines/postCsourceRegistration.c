@@ -29,11 +29,32 @@
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheItemAdd
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegCreate
+#include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegCreate
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postCsourceRegistration.h" // Own interface
+
+
+
+//
+// distSubPersist - persist subordinate mapping after on-reg-create fanout
+//
+static void distSubPersist(LdSubCacheItem* itemP, void* userData)
+{
+  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
+    return;
+
+  Tenant* tP    = (Tenant*) userData;
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  if (fragP == NULL)
+    return;
+
+  db.subscriptionUpdate(tP, itemP->subId, fragP);
+}
 
 
 
@@ -466,6 +487,17 @@ bool postCsourceRegistration(void)
   // sub whose filter matches this new registration.
   if (regItemP != NULL && tenantP->regSubCacheP != NULL)
     ldCsrSubOnRegCreate((LdSubCache*) tenantP->regSubCacheP, regItemP);
+
+  // § 5.8.1.4 — entity-sub side: scan the entity-sub cache and forward
+  // a derived sub to the new CSR for every existing local sub whose
+  // filter overlaps. Symmetrical to the create-time fanout that runs
+  // when the sub is created BEFORE the CSR.
+  if (regItemP != NULL && tenantP->subCacheP != NULL && !ldLocalOnly)
+  {
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    ldDistSubOnRegCreate((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,
+                         distSubPersist, tenantP);
+  }
 
   // 201 Created — set Location and Link headers, no body
   swRest.out.httpStatusCode = 201;

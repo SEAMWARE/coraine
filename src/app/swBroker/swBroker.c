@@ -181,6 +181,7 @@ char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          userContext  = NULL;
 char*          csourceAlias = NULL;
+char*          httpEndpoint = NULL;
 bool           noSplitEntities = false;
 int            subStatsFlushInterval = 60;  // seconds; 0 disables the timer
 
@@ -196,6 +197,7 @@ static KArg kargV[] =
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
   { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
+  { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: http://localhost:<port>)" },
   { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
   { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
@@ -504,6 +506,21 @@ int main(int argC, char* argV[])
   }
   else
     ldCsourceAliasBase = csourceAlias;
+
+  //
+  // Externally-reachable HTTP base URL — used as the callback root in
+  // notification.endpoint.uri of derived (distributed) subscriptions
+  // (§ 5.8.1.4). Defaults to http://localhost:<port> for tests; real
+  // multi-host setups override via --httpEndpoint.
+  //
+  if (httpEndpoint != NULL)
+    ldBrokerHttpEndpoint = httpEndpoint;
+  else
+  {
+    static char defaultEndpoint[64];
+    snprintf(defaultEndpoint, sizeof(defaultEndpoint), "http://localhost:%u", (unsigned) port);
+    ldBrokerHttpEndpoint = defaultEndpoint;
+  }
 
   int r = ktInit("swBroker", NULL, true, NULL, NULL, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)

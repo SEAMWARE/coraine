@@ -1,0 +1,222 @@
+#
+# FILE            distsub_patch_cascade.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — PATCH cascade for distributed subscriptions.
+#
+# When a local subscription has subordinate (derived) subs on remote
+# Context Sources, a PATCH on the parent must propagate (verbatim
+# JSON-merge-patch) to every CSR. This slice does NOT recompute
+# reg overlap — the remote derivative keeps the same scope and
+# is patched in place.
+#
+--NAME--
+DistSub - PATCH cascade to remote derivatives
+
+--TAGS--
+patch distops subscription distsub
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Register CSR on CB → CP1 with the full sub op set
+# 02. Create local sub urn:S1 (Vehicle, no watchedAttributes)
+# 03. GET on CP1 — derived urn:S1:1 has no watchedAttributes
+# 04. PATCH urn:S1 on CB to add watchedAttributes=[speed]
+# 05. GET on CP1 — derived sub now has watchedAttributes=[speed]
+# 06. GET on CB — local sub also has watchedAttributes=[speed]
+#
+
+echo "01. Register CSR urn:CSR:Vehicle (full sub ops) → CP1"
+echo "====================================================="
+payload='{
+  "id": "urn:CSR:Vehicle",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription", "updateSubscription", "deleteSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Create local sub urn:S1 on CB → fans out urn:S1:1 to CP1"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "03. GET /subscriptions on CP1 — derived sub, no watchedAttributes yet"
+echo "====================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. PATCH urn:S1 on CB — add watchedAttributes=[speed]"
+echo "======================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"watchedAttributes":["speed"]}'
+echo
+echo
+
+
+echo "05. GET /subscriptions on CP1 — derived sub now has watchedAttributes"
+echo "====================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "06. GET /subscriptions on CB — local sub has watchedAttributes"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR urn:CSR:Vehicle (full sub ops) → CP1
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Create local sub urn:S1 on CB → fans out urn:S1:1 to CP1
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. GET /subscriptions on CP1 — derived sub, no watchedAttributes yet
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+04. PATCH urn:S1 on CB — add watchedAttributes=[speed]
+======================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET /subscriptions on CP1 — derived sub now has watchedAttributes
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "speed"
+    ]
+  }
+]
+
+
+
+06. GET /subscriptions on CB — local sub has watchedAttributes
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://example.com/notify/s1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "speed"
+    ]
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

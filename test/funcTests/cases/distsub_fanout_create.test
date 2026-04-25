@@ -1,0 +1,297 @@
+#
+# FILE            distsub_fanout_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — distributed subscription fan-out at create time.
+#
+# When a local subscription's entity-filter overlaps a registered
+# Context Source whose operations[] include createSubscription, the
+# broker forwards a derived sub to that CSR. The derived sub:
+#   * id           = "<parent>:<runNo>"
+#   * notification = http://<our-broker>/ngsi-ld/ex/v1/notifications/<parent>
+#   * filter       = unchanged (this slice does not narrow yet)
+#
+# CSRs that don't declare createSubscription, or that match no part of
+# the sub's entity types, must NOT receive a forwarded sub.
+#
+--NAME--
+DistSub - create-time fanout to matching CSR
+
+--TAGS--
+create distops subscription distsub
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01-02  Two CSRs on CB:
+#          urn:CSR:Vehicle  → CP1, type Vehicle, with createSubscription op
+#          urn:CSR:Device   → CP1, type Device, no createSubscription op
+# 03     POST sub urn:S1 on CB filtering type=Vehicle.
+#          Expected: derived sub urn:S1:1 created on CP1.
+# 04     GET CP1 /subscriptions — derived urn:S1:1 visible, with the
+#          callback URL rewritten to point back to CB.
+# 05     POST sub urn:S2 filtering type=Sensor.
+#          Expected: nothing forwarded (no CSR matches Sensor).
+# 06     GET CP1 /subscriptions — still only urn:S1:1.
+# 07     POST sub urn:S3 filtering type=Device.
+#          The Device CSR doesn't declare createSubscription so it
+#          must be skipped — no forward.
+# 08     GET CP1 /subscriptions — still only urn:S1:1.
+#
+
+echo "01. Register CSR urn:CSR:Vehicle (with createSubscription op) → CP1"
+echo "==================================================================="
+payload='{
+  "id": "urn:CSR:Vehicle",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CSR urn:CSR:Device (no createSubscription op) → CP1"
+echo "================================================================"
+payload='{
+  "id": "urn:CSR:Device",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    { "entities": [ { "type": "Device" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. Create sub urn:S1 (type Vehicle) on CB → forwarded to CP1"
+echo "============================================================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://example.com/notify/s1" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /subscriptions on CP1 — derived urn:S1:1 with rewritten callback"
+echo "========================================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "05. Create sub urn:S2 (type Sensor) on CB → no CSR matches"
+echo "=========================================================="
+payload='{
+  "id": "urn:S2",
+  "type": "Subscription",
+  "entities": [ { "type": "Sensor" } ],
+  "notification": { "endpoint": { "uri": "http://example.com/notify/s2" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "06. GET /subscriptions on CP1 — still only urn:S1:1"
+echo "==================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "07. Create sub urn:S3 (type Device) on CB → CSR lacks op, skipped"
+echo "================================================================="
+payload='{
+  "id": "urn:S3",
+  "type": "Subscription",
+  "entities": [ { "type": "Device" } ],
+  "notification": { "endpoint": { "uri": "http://example.com/notify/s3" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "08. GET /subscriptions on CP1 — still only urn:S1:1"
+echo "==================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR urn:CSR:Vehicle (with createSubscription op) → CP1
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR urn:CSR:Device (no createSubscription op) → CP1
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Device
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Create sub urn:S1 (type Vehicle) on CB → forwarded to CP1
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. GET /subscriptions on CP1 — derived urn:S1:1 with rewritten callback
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+05. Create sub urn:S2 (type Sensor) on CB → no CSR matches
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. GET /subscriptions on CP1 — still only urn:S1:1
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+07. Create sub urn:S3 (type Device) on CB → CSR lacks op, skipped
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. GET /subscriptions on CP1 — still only urn:S1:1
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

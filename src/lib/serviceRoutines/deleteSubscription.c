@@ -13,10 +13,13 @@
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/KjNode.h"                            // KjNode
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove
 #include "swNgsild/LdPernotCache.h"                  // LdPernotCache
 #include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemRemove
+#include "swNgsild/LdRegCache.h"                     // LdRegCache
+#include "swNgsild/ldDistSub.h"                      // ldDistSubCascadeDelete
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -69,9 +72,25 @@ bool deleteSubscription(void)
   }
 
   //
-  // Remove from subscription cache
+  // § 5.8.1.4 — DELETE cascade. Walk subordinateP and DELETE each
+  // remote derivative before freeing the cache item; failures don't
+  // block the local delete.
   //
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+
+  if (tenantP->subCacheP != NULL && tenantP->regCacheP != NULL)
+  {
+    LdSubCacheItem* itemP = ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId);
+    if (itemP != NULL && itemP->subordinateP != NULL)
+    {
+      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+      ldDistSubCascadeDelete(itemP, (LdRegCache*) tenantP->regCacheP, ownAlias);
+    }
+  }
+
+  //
+  // Remove from subscription cache
+  //
   if (tenantP->subCacheP != NULL)
     ldSubCacheItemRemove((LdSubCache*) tenantP->subCacheP, subId);
   if (tenantP->pernotCacheP != NULL)

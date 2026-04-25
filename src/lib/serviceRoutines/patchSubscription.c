@@ -7,6 +7,7 @@
 //
 
 #include <stddef.h>                                  // NULL
+#include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp
 
 #include "swRest/SwRestState.h"                      // swRest
@@ -19,8 +20,11 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/LdPernotCache.h"                  // LdPernotCache
 #include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
+#include "swNgsild/LdRegCache.h"                     // LdRegCache
+#include "swNgsild/ldDistSub.h"                      // ldDistSubCascadePatch
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -142,10 +146,24 @@ bool patchSubscription(void)
 
   //
   // Update subscription cache: remove old entry, re-add from DB
-  // (re-add retrieves the merged subscription and re-parses all fields)
+  // (re-add retrieves the merged subscription and re-parses all fields).
   //
+  // The subordinate-sub mapping (§ 5.8.1.4) lives only on the cache item;
+  // it would be lost on remove. Detach + reattach across the rebuild.
+  //
+  LdSubSubordinate* savedSubordinateP    = NULL;
+  int               savedSubordinateRunNo = 0;
+
   if (tenantP->subCacheP != NULL)
   {
+    LdSubCacheItem* oldItemP = ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId);
+    if (oldItemP != NULL)
+    {
+      savedSubordinateP     = oldItemP->subordinateP;
+      savedSubordinateRunNo = oldItemP->subordinateRunNo;
+      oldItemP->subordinateP = NULL;   // detach so cache-free won't release
+    }
+
     ldSubCacheItemRemove((LdSubCache*) tenantP->subCacheP, subId);
 
     KjNode* updatedSubP = NULL;
@@ -179,7 +197,39 @@ bool patchSubscription(void)
       kjChildAdd(statusFragment, kjString(NULL, LD_VOCAB_STATUS, newStatus));
       db.subscriptionUpdate(tenantP, subId, statusFragment);
 
-      ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, updatedSubP, NULL);
+      LdSubCacheItem* newItemP = ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, updatedSubP, NULL);
+
+      // Reattach the subordinate mapping that survived the cache rebuild.
+      if (newItemP != NULL && savedSubordinateP != NULL)
+      {
+        newItemP->subordinateP     = savedSubordinateP;
+        newItemP->subordinateRunNo = savedSubordinateRunNo;
+        savedSubordinateP          = NULL;   // ownership transferred
+      }
+
+      // § 5.8.1.4 PATCH cascade — propagate the user's fragment to every
+      // remote derivative. Best-effort: failures don't roll back local state.
+      if (newItemP != NULL && newItemP->subordinateP != NULL && tenantP->regCacheP != NULL)
+      {
+        const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+        ldDistSubCascadePatch(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias);
+      }
+    }
+  }
+
+  // If the cache rebuild bailed before re-adding (DB retrieve failure),
+  // the saved subordinate list still needs freeing — its ownership was
+  // detached from the now-removed cache item.
+  if (savedSubordinateP != NULL)
+  {
+    LdSubSubordinate* sub = savedSubordinateP;
+    while (sub != NULL)
+    {
+      LdSubSubordinate* next = sub->next;
+      free(sub->remoteSubId);
+      free(sub->regId);
+      free(sub);
+      sub = next;
     }
   }
 
