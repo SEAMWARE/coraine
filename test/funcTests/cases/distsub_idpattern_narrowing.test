@@ -1,0 +1,276 @@
+#
+# FILE            distsub_idpattern_narrowing.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — narrowing for idPattern on either side.
+#
+# narrowEntities now respects regex restrictions:
+#   * parent type-only  + reg idPattern → derived carries reg's pattern
+#   * parent idPattern  + reg type-only → derived carries parent's pattern
+#   * parent.id matched by reg.idPattern → derived has parent's id
+#   * parent.id NOT matched → no fanout to that CSR
+#
+--NAME--
+DistSub - idPattern intersection narrows the derivative
+
+--TAGS--
+create distops subscription distsub
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. CSR-V — Vehicle idPattern=^urn:V[0-9]+$ → CP1
+# 02. Sub urn:S1 (type-only Vehicle) — derivative narrowed by idPattern
+# 03. GET on CP1 — urn:S1:1 carries idPattern=^urn:V[0-9]+$
+# 04. Sub urn:S2 (id=urn:V42) — matches the reg's pattern → derived has id
+# 05. GET on CP1 — urn:S2:1 carries id=urn:V42 (no pattern)
+# 06. Sub urn:S3 (id=urn:Bus99) — does NOT match reg's pattern → no fanout
+# 07. GET on CP1 — still only urn:S1:1 + urn:S2:1, no urn:S3:*
+#
+
+echo "01. CSR-V — Vehicle idPattern=^urn:V[0-9]+\$ → CP1"
+echo "==================================================="
+payload='{
+  "id": "urn:CSR:V",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "createSubscription", "retrieveSubscription"],
+  "information": [
+    { "entities": [ { "idPattern": "^urn:V[0-9]+$", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Sub urn:S1 (Vehicle, no id constraint)"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "03. GET on CP1 — urn:S1:1 carries reg's idPattern"
+echo "================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. Sub urn:S2 (Vehicle id=urn:V42) — within reg's pattern"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"id":"urn:V42","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
+echo
+echo
+
+
+echo "05. GET on CP1 — urn:S2:1 narrowed to id=urn:V42"
+echo "================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "06. Sub urn:S3 (Vehicle id=urn:Bus99) — outside reg's pattern"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S3","type":"Subscription","entities":[{"id":"urn:Bus99","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s3"}}}'
+echo
+echo
+
+
+echo "07. GET on CP1 — urn:S3 NOT fanned out (id outside pattern)"
+echo "==========================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. CSR-V — Vehicle idPattern=^urn:V[0-9]+$ → CP1
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Sub urn:S1 (Vehicle, no id constraint)
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. GET on CP1 — urn:S1:1 carries reg's idPattern
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "idPattern": "^urn:V[0-9]+$",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+04. Sub urn:S2 (Vehicle id=urn:V42) — within reg's pattern
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. GET on CP1 — urn:S2:1 narrowed to id=urn:V42
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "idPattern": "^urn:V[0-9]+$",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "id": "urn:V42",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S2:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S2"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+06. Sub urn:S3 (Vehicle id=urn:Bus99) — outside reg's pattern
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. GET on CP1 — urn:S3 NOT fanned out (id outside pattern)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "idPattern": "^urn:V[0-9]+$",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "id": "urn:V42",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S2:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S2"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
