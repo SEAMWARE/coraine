@@ -45,6 +45,7 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/getSubscription.c    \
                 src/lib/serviceRoutines/patchSubscription.c  \
                 src/lib/serviceRoutines/deleteSubscription.c \
+                src/lib/serviceRoutines/postExNotification.c \
                 src/lib/serviceRoutines/getJsonldContexts.c  \
                 src/lib/serviceRoutines/getJsonldContext.c   \
                 src/lib/serviceRoutines/postJsonldContexts.c \

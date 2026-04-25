@@ -35,6 +35,7 @@
 #include "serviceRoutines/getSubscription.h"     // getSubscription
 #include "serviceRoutines/patchSubscription.h"   // patchSubscription
 #include "serviceRoutines/deleteSubscription.h"  // deleteSubscription
+#include "serviceRoutines/postExNotification.h"  // postExNotification
 #include "serviceRoutines/getJsonldContexts.h"   // getJsonldContexts
 #include "serviceRoutines/getJsonldContext.h"    // getJsonldContext
 #include "serviceRoutines/postJsonldContexts.h"  // postJsonldContexts
@@ -99,6 +100,11 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbGet,    "/ngsi-ld/v1/subscriptions/*", getSubscription,     LD_PARAMS_GET_SUBSCRIPTION,     LdOpRetrieveSubscription },
   { SwVerbPatch,  "/ngsi-ld/v1/subscriptions/*", patchSubscription,   LD_PARAMS_PATCH_SUBSCRIPTION,   LdOpUpdateSubscription   },
   { SwVerbDelete, "/ngsi-ld/v1/subscriptions/*", deleteSubscription,  LD_PARAMS_DELETE_SUBSCRIPTION,  LdOpDeleteSubscription   },
+
+  // Distributed-subscription notification receiver (§ 5.8.1.4) — invoked
+  // by remote Context Sources when a derived sub fires; the body is
+  // re-dispatched to the original local sub's notification endpoint.
+  { SwVerbPost,   "/ngsi-ld/ex/v1/notifications/*", postExNotification, 0, LdOpNone },
 
   { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS, LdOpNone },
   { SwVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT,  LdOpNone },

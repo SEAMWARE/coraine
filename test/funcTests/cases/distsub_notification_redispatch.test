@@ -1,0 +1,198 @@
+#
+# FILE            distsub_notification_redispatch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 — distributed subscription notification re-dispatch.
+#
+# End-to-end:
+#   * CB has CSR pointing to CP1 with createSubscription op + Vehicle.
+#   * CB has local sub S1 (Vehicle, watchedAttrs=[speed]) whose
+#     notification.endpoint.uri lives on ftClient.
+#   * Local-sub creation forwards a derived sub urn:S1:1 to CP1, with
+#     callback URL → CB's /ngsi-ld/ex/v1/notifications/urn:S1.
+#   * Entity write on CP1 fires the derived sub, which POSTs the
+#     notification to CB. CB looks up urn:S1, rewrites the body's
+#     subscriptionId from "urn:S1:1" back to "urn:S1", and re-POSTs
+#     to ftClient.
+# Verify: ftClient received exactly one notification with
+#         subscriptionId="urn:S1" and the entity payload.
+#
+--NAME--
+DistSub - end-to-end notification re-dispatch
+
+--TAGS--
+create distops subscription distsub notification
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+ftClientStart
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Register CSR on CB → CP1 (Vehicle, with createSubscription)
+# 02. Create sub urn:S1 on CB targeting ftClient/s1 — fans out to CP1
+# 03. Verify derived sub on CP1
+# 04. POST Vehicle entity on CP1 — fires derived sub → notif to CB → re-dispatch
+# 05. ftClientDump shows the re-dispatched notification with parent's id
+#
+
+echo "01. Register CSR urn:CSR:Vehicle (with createSubscription) → CP1"
+echo "================================================================"
+payload='{
+  "id": "urn:CSR:Vehicle",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "updateEntity", "appendAttrs", "createSubscription", "retrieveSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Create local sub urn:S1 on CB → ftClient/s1"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
+echo
+echo
+
+
+echo "03. GET /subscriptions on CP1 — derived urn:S1:1 visible"
+echo "========================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. POST Vehicle urn:V1 on CP1 — fires derived sub"
+echo "=================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "05. ftClientDump — one notification at /s1 with subscriptionId=urn:S1"
+echo "====================================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR urn:CSR:Vehicle (with createSubscription) → CP1
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Create local sub urn:S1 on CB → ftClient/s1
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. GET /subscriptions on CP1 — derived urn:S1:1 visible
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:REGEX(\d+)/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "status": "active",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "speed"
+    ]
+  }
+]
+
+
+
+04. POST Vehicle urn:V1 on CP1 — fires derived sub
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. ftClientDump — one notification at /s1 with subscriptionId=urn:S1
+=====================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 42
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": REGEX(".*"),
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+ftClientStop
+swDbDrop
+swDbDrop -role CP1
