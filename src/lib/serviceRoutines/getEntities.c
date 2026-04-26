@@ -26,6 +26,7 @@
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
+#include "swNgsild/ldQAttrs.h"                       // ldQAttrs
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -99,6 +100,204 @@ static void applyLinkedQPostFilter(KjNode* arrayP)
 
     entityP = nextP;
   }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// computeWantedAttrs - the set of attrs the broker needs back from each CSR
+//
+// Returns NULL when the user has no `pick` (they want every attribute the
+// CSR has). Returns a NULL-terminated array of expanded attr IRIs otherwise:
+//
+//   user.pick                      ∪
+//   q-referenced attrs             ∪   (so a local re-eval of q after merge stays sound)
+//   geo property (if hasGeoQ)      ∪   (so a local re-eval of geoQ stays sound)
+//   geometry property (if Accept   )   (so the geo+json renderer has the geometry)
+//      application/geo+json
+//
+// Allocated in the request arena. Strings are borrowed where possible
+// (pickV and ldQAttrs results are already in the arena), expanded on
+// demand for the geo property short-name fallback.
+//
+static char** computeWantedAttrs(KAlloc* kaP)
+{
+  if (swNgsild.pickV == NULL)
+    return NULL;
+
+  // Worst-case capacity: pickV count + q-attr count + 2 (geo + geometry)
+  int pickN = 0;
+  while (swNgsild.pickV[pickN] != NULL)
+    pickN++;
+
+  char** qV   = ldQAttrs(swNgsild.qExpr, kaP);
+  int    qN   = 0;
+  if (qV != NULL)
+    while (qV[qN] != NULL)
+      qN++;
+
+  bool hasGeoQ        = (swNgsild.georel != NULL);
+  bool acceptGeoJson  = (swRest.in.accept != NULL && strstr(swRest.in.accept, "application/geo+json") != NULL);
+
+  int cap = pickN + qN + 2;
+  char** wanted = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
+  int    n      = 0;
+
+  // Helper: append if not already present (linear dedupe; n always small)
+  #define WANT_ADD(x) do {                                                   \
+    const char* _x = (x);                                                     \
+    if (_x == NULL) break;                                                    \
+    bool _dup = false;                                                        \
+    for (int _i = 0; _i < n; _i++) if (strcmp(wanted[_i], _x) == 0) { _dup = true; break; } \
+    if (!_dup) wanted[n++] = (char*) _x;                                      \
+  } while (0)
+
+  for (int i = 0; i < pickN; i++)
+    WANT_ADD(swNgsild.pickV[i]);
+
+  for (int i = 0; i < qN; i++)
+    WANT_ADD(qV[i]);
+
+  if (hasGeoQ)
+  {
+    const char* gp = swNgsild.geoproperty
+                     ? swNgsild.geoproperty
+                     : swldExpand(swNgsild.contextP, "location", kaP, NULL, NULL);
+    WANT_ADD(gp);
+  }
+
+  if (acceptGeoJson && swNgsild.geometryProperty != NULL)
+  {
+    char* gmp = swldExpand(swNgsild.contextP, swNgsild.geometryProperty, kaP, NULL, NULL);
+    WANT_ADD(gmp);
+  }
+
+  #undef WANT_ADD
+
+  wanted[n] = NULL;
+  return wanted;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// buildPickParam - render a pick=A,B,C URL fragment from an IRI vector
+//
+// vec is NULL-terminated, IRIs preferred (compactable via core context get
+// the short form, others stay as IRI). Returns "" if vec is NULL or empty.
+// Allocates in kaP.
+//
+static const char* buildPickParam(char** vec, KAlloc* kaP)
+{
+  if (vec == NULL || vec[0] == NULL)
+    return "";
+
+  int totalLen = 0, cnt = 0;
+  for (int i = 0; vec[i] != NULL; i++)
+  {
+    const char* c = swldCompact(swldCoreContext(), vec[i]);
+    totalLen += strlen(c ? c : vec[i]) + 1;
+    cnt++;
+  }
+
+  char* buf = (char*) kaAlloc(kaP, 6 + totalLen + 1);
+  strcpy(buf, "&pick=");
+  int pos = 6;
+  for (int i = 0; vec[i] != NULL; i++)
+  {
+    if (pos > 6) buf[pos++] = ',';
+    const char* c = swldCompact(swldCoreContext(), vec[i]);
+    const char* n = c ? c : vec[i];
+    strcpy(buf + pos, n);
+    pos += strlen(n);
+  }
+  buf[pos] = 0;
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// intersectAndPick - intersect `wanted` with reg.exports, render pick param
+//
+// riP        : RegistrationInfo (its propertyNamesV + relationshipNamesV
+//              are the reg's "exports" set; both NULL means exports
+//              everything)
+// wanted     : NULL = user wants every attr the reg has, char** = the
+//              IRI set the broker needs back
+// kaP        : output allocator
+// outSkipP   : *outSkipP set to true if user.pick was set AND the
+//              intersection is empty (caller must skip this CSR)
+//
+// Returns the rendered "&pick=A,B,C" fragment, "" when no pick should
+// be sent (reg exports everything AND user wants everything).
+//
+static const char* intersectAndPick(LdRegInfo* riP, char** wanted, KAlloc* kaP, bool* outSkipP)
+{
+  *outSkipP = false;
+
+  bool regRestricts = (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL);
+
+  if (wanted == NULL)
+  {
+    // User wants everything.
+    if (!regRestricts)
+      return "";  // reg exports all → no pick
+
+    // Reg restricts → forward reg.exports as pick (avoids overquery on attrs the reg won't deliver)
+    int    cap = 0;
+    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
+    for (int li = 0; lists[li] != NULL; li++)
+      for (int a = 0; lists[li][a] != NULL; a++)
+        cap++;
+
+    char** vec = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
+    int    n   = 0;
+    for (int li = 0; lists[li] != NULL; li++)
+      for (int a = 0; lists[li][a] != NULL; a++)
+        vec[n++] = lists[li][a];
+    vec[n] = NULL;
+    return buildPickParam(vec, kaP);
+  }
+
+  // User has pick: intersect(wanted, reg.exports).
+  if (!regRestricts)
+    return buildPickParam(wanted, kaP);  // reg exports all → forward wanted as-is
+
+  int wantedN = 0;
+  while (wanted[wantedN] != NULL)
+    wantedN++;
+
+  char** narrowed = (char**) kaAlloc(kaP, (wantedN + 1) * sizeof(char*));
+  int    nN       = 0;
+
+  for (int w = 0; w < wantedN; w++)
+  {
+    bool found = false;
+
+    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
+    for (int li = 0; lists[li] != NULL && !found; li++)
+      for (int a = 0; lists[li][a] != NULL; a++)
+      {
+        if (strcmp(wanted[w], lists[li][a]) == 0) { found = true; break; }
+      }
+
+    if (found)
+      narrowed[nN++] = wanted[w];
+  }
+  narrowed[nN] = NULL;
+
+  if (nN == 0)
+  {
+    // Nothing the user wants is exported by this reg — skip.
+    *outSkipP = true;
+    return "";
+  }
+
+  return buildPickParam(narrowed, kaP);
 }
 
 
@@ -644,8 +843,9 @@ bool getEntities(void)
     if (tP != NULL && tP->regCacheP != NULL)
     {
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
-      const char* baseQs = NULL;
+      const char* baseQs   = NULL;
       const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
+      char**      pickWanted = computeWantedAttrs(&swRest.kalloc);
 
       for (int m = 0; m < 4; m++)
       {
@@ -696,17 +896,24 @@ bool getEntities(void)
 
           if (splitMode)
           {
-            // Split: forward with no filters — get all entities from this CSR
+            // Split: forward with no filters — get all entities from this CSR.
+            // The per-attr discovery phase intentionally collects every attr
+            // the CSR will return; pick narrowing for split-mode targeted
+            // retrieves is a separate concern.
             fullQs = baseQs;  // empty string
           }
           else
           {
-            // No-split: per-RegistrationInfo dispatch
-            // For simplicity, forward once per CSR with base query + combined pick
-            // (the per-info-entry logic applies type + pick constraints)
+            // No-split: per-RegistrationInfo dispatch.
+            // pickWanted (computed once per request, hoisted above the loop)
+            // = NULL if user has no `pick`, else the union of
+            // user.pick ∪ qAttrs ∪ geoproperty ∪ geometryProperty.
+            // For each matching info entry: intersect with that info's
+            // exports; skip the CSR when user.pick yielded an empty
+            // intersection.
             fullQs = baseQs;
+            bool csrSkipped = false;
 
-            // Build per-info pick for the first matching info entry
             for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
             {
               // Type check
@@ -723,45 +930,24 @@ bool getEntities(void)
                 if (!typeMatch) continue;
               }
 
-              // Build pick param
-              const char* pickParam = "";
-              if (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL)
+              bool        skip      = false;
+              const char* pickParam = intersectAndPick(riP, pickWanted, &swRest.kalloc, &skip);
+              if (skip)
               {
-                int totalLen = 0, cnt = 0;
-                char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
-                for (int li = 0; lists[li] != NULL; li++)
-                  for (int a = 0; lists[li][a] != NULL; a++)
-                  {
-                    const char* c = swldCompact(swldCoreContext(), lists[li][a]);
-                    totalLen += strlen(c ? c : lists[li][a]) + 1;
-                    cnt++;
-                  }
-                if (cnt > 0)
-                {
-                  char* buf = (char*) kaAlloc(&swRest.kalloc, 6 + totalLen + 1);
-                  strcpy(buf, "&pick=");
-                  int pos = 6;
-                  for (int li = 0; lists[li] != NULL; li++)
-                    for (int a = 0; lists[li][a] != NULL; a++)
-                    {
-                      if (pos > 6) buf[pos++] = ',';
-                      const char* c = swldCompact(swldCoreContext(), lists[li][a]);
-                      const char* n = c ? c : lists[li][a];
-                      strcpy(buf + pos, n);
-                      pos += strlen(n);
-                    }
-                  buf[pos] = 0;
-                  pickParam = buf;
-                }
+                csrSkipped = true;
+                break;
               }
 
-              int bLen = strlen(baseQs), pLen = strlen(pickParam);
+              int   bLen = strlen(baseQs), pLen = strlen(pickParam);
               char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
               strcpy(combined, baseQs);
               strcpy(combined + bLen, pickParam);
               fullQs = combined;
               break;  // use first matching info entry
             }
+
+            if (csrSkipped)
+              continue;
           }
 
           {

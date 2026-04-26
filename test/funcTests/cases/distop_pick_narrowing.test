@@ -1,0 +1,224 @@
+#
+# FILE            distop_pick_narrowing.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Forwarded GET /entities pick narrowing (§ 5.7.2 + § 4.5.5):
+#   - no user pick   + reg restricts        → forward reg.exports
+#   - user.pick      + reg restricts        → forward intersect(user.pick, reg.exports)
+#   - user.pick + q  + reg restricts        → forward intersect(user.pick ∪ qAttrs, reg.exports)
+#   - user.pick      + intersect empty      → skip CSR
+#
+--NAME--
+DistOp pick narrowing on forwarded GET /entities
+
+--TAGS--
+distops query pick
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+
+
+echo "01. Seed urn:V1 on CP1 (speed, color, engine, temp)"
+echo "==================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed":  {"type":"Property","value":42},
+  "color":  {"type":"Property","value":"red"},
+  "engine": {"type":"Property","value":"V8"},
+  "temp":   {"type":"Property","value":91}
+}'
+echo
+echo
+
+
+echo "02. Register CSR on CB → CP1 — exports ONLY speed + color"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Vehicles",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["queryEntity"],
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}],
+      "propertyNames": ["speed", "color"]
+    }
+  ]
+}'
+echo
+echo
+
+
+#
+# All queries below use splitEntities=false so the per-CSR pick-narrowing
+# code path is exercised. (split mode forwards with no filters and no
+# pick — the broker does all narrowing locally; that path is fine but
+# does not exercise this slice.)
+#
+
+echo "03. No pick + reg restricts → forward reg.exports"
+echo "================================================="
+echo "    GET /entities?type=Vehicle&splitEntities=false"
+echo "    Forwarded pick=speed,color (= reg.exports). V1 returns with speed+color only."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=false'
+echo
+echo
+
+
+echo "04. user.pick narrows reg.exports"
+echo "================================="
+echo "    GET /entities?type=Vehicle&pick=speed,engine&splitEntities=false"
+echo "    intersect({speed,engine}, {speed,color}) = {speed}. V1 returns with speed only."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed,engine&splitEntities=false'
+echo
+echo
+
+
+echo "05. q-attrs unioned into forwarded pick"
+echo "======================================="
+echo "    GET /entities?type=Vehicle&pick=speed&q=color>%22a%22&splitEntities=false"
+echo "    user.pick∪qAttrs = {speed,color}; reg.exports = {speed,color}; intersect = {speed,color}."
+echo "    Forwarded pick=speed,color so q can evaluate against the slice. Local pick keeps speed."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&q=color%3E%22a%22&splitEntities=false'
+echo
+echo
+
+
+echo "06. user.pick disjoint from reg.exports → CSR skipped"
+echo "====================================================="
+echo "    GET /entities?type=Vehicle&pick=engine,temp&splitEntities=false"
+echo "    Nothing the user wants is exported by the CSR → no forward. Empty result."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=engine,temp&splitEntities=false'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 on CP1 (speed, color, engine, temp)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR on CB → CP1 — exports ONLY speed + color
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicles
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. No pick + reg restricts → forward reg.exports
+=================================================
+    GET /entities?type=Vehicle&splitEntities=false
+    Forwarded pick=speed,color (= reg.exports). V1 returns with speed+color only.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 189
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. user.pick narrows reg.exports
+=================================
+    GET /entities?type=Vehicle&pick=speed,engine&splitEntities=false
+    intersect({speed,engine}, {speed,color}) = {speed}. V1 returns with speed only.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 120
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. q-attrs unioned into forwarded pick
+=======================================
+    GET /entities?type=Vehicle&pick=speed&q=color>%22a%22&splitEntities=false
+    user.pick∪qAttrs = {speed,color}; reg.exports = {speed,color}; intersect = {speed,color}.
+    Forwarded pick=speed,color so q can evaluate against the slice. Local pick keeps speed.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 120
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. user.pick disjoint from reg.exports → CSR skipped
+=====================================================
+    GET /entities?type=Vehicle&pick=engine,temp&splitEntities=false
+    Nothing the user wants is exported by the CSR → no forward. Empty result.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
