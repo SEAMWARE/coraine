@@ -1,0 +1,240 @@
+//
+// FILE            ldLinkedEntities.c
+//
+// AUTHOR          Ken Zangelin
+//
+// Copyright 2026 Seamware
+//
+// NGSI-LD § 4.5.23 — linked-entity retrieval (flat representation).
+//
+#include <stdlib.h>                                   // calloc, free
+#include <string.h>                                   // strcmp, strdup
+
+#include "kjson/KjNode.h"                             // KjNode
+#include "kjson/kjLookup.h"                           // kjLookup
+#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
+
+#include "swRest/SwRestState.h"                       // swRest
+
+#include "swNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
+
+#include "db/DbDriver.h"                              // db, DB_OK
+#include "db/Tenant.h"                                // Tenant
+
+#include "linkedEntities/ldLinkedEntities.h"          // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// VisitedNode - linked list of entity ids already added to the result
+//
+typedef struct VisitedNode
+{
+  const char*         id;       // borrowed pointer into the entity tree
+  struct VisitedNode* next;
+} VisitedNode;
+
+
+
+static bool visitedContains(VisitedNode* head, const char* id)
+{
+  for (VisitedNode* n = head; n != NULL; n = n->next)
+    if (n->id != NULL && strcmp(n->id, id) == 0)
+      return true;
+  return false;
+}
+
+
+
+static VisitedNode* visitedAppend(VisitedNode* head, const char* id)
+{
+  VisitedNode* n = (VisitedNode*) calloc(1, sizeof(VisitedNode));
+  n->id   = id;
+  n->next = head;
+  return n;
+}
+
+
+
+static void visitedFree(VisitedNode* head)
+{
+  while (head != NULL)
+  {
+    VisitedNode* next = head->next;
+    free(head);
+    head = next;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityIdOf - extract the "id" of an entity tree (borrowed pointer)
+//
+static const char* entityIdOf(KjNode* entityP)
+{
+  if (entityP == NULL || entityP->type != KjObject)
+    return NULL;
+
+  KjNode* idP = kjLookup(entityP, "id");
+  if (idP == NULL || idP->type != KjString)
+    return NULL;
+
+  return idP->value.s;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// collectRelationshipTargets - append target ids of every Relationship in entityP
+//
+// Storage layout (post-DB fetch, after ldApiEntityToDbModel):
+//   entityP ─ <attr-iri> ─ <datasetId>  ─ type:  "Relationship"
+//                                         value: "<uri>"
+//
+// Note: HAS_OBJECT is renamed to "value" by ldApiEntityToDbModel's
+// normalizeValueKey at write time, so we read "value" here. The
+// instance's type field disambiguates Relationship from Property
+// (which also stores a value).
+//
+// Top-level entity-level keys (id, type, createdAt, modifiedAt, scope)
+// are skipped. attribute containers are KjObjects; their children are
+// instance objects keyed by datasetId (or "@none" for the default).
+//
+static void collectRelationshipTargets(KjNode* entityP, const char*** outIdsP, int* outCountP, int* outCapP)
+{
+  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if (attrP->name == NULL)
+      continue;
+    if (attrP->name[0] == '@')                                    continue;
+    if (attrP->type != KjObject)                                  continue;
+    if (strcmp(attrP->name, "id")         == 0)                   continue;
+    if (strcmp(attrP->name, "type")       == 0)                   continue;
+    if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
+    if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
+    if (strcmp(attrP->name, "scope")      == 0)                   continue;
+
+    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    {
+      if (instP->type != KjObject)
+        continue;
+
+      KjNode* typeP = kjLookup(instP, "type");
+      if (typeP == NULL || typeP->type != KjString)               continue;
+      if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
+
+      KjNode* valP = kjLookup(instP, "value");
+      if (valP == NULL || valP->type != KjString || valP->value.s == NULL)
+        continue;
+
+      // Append (grow array if needed)
+      if (*outCountP >= *outCapP)
+      {
+        int newCap = (*outCapP == 0) ? 8 : (*outCapP) * 2;
+        const char** newArr = (const char**) realloc((void*) *outIdsP, newCap * sizeof(char*));
+        *outIdsP = newArr;
+        *outCapP = newCap;
+      }
+      (*outIdsP)[(*outCountP)++] = valP->value.s;
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesFlat -
+//
+KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
+{
+  KjNode* outArr = kjArray(swRest.kjsonP, NULL);
+  if (primaryP == NULL)
+    return outArr;
+
+  const char* primaryId = entityIdOf(primaryP);
+  if (primaryId == NULL)
+  {
+    kjChildAdd(outArr, primaryP);
+    return outArr;
+  }
+
+  kjChildAdd(outArr, primaryP);
+  VisitedNode* visited = visitedAppend(NULL, primaryId);
+
+  if (joinLevel < 1 || tenantP == NULL || db.entityRetrieve == NULL)
+    goto done;
+
+  // Two parallel arrays — current depth's frontier; next depth's accumulator.
+  // Rebuilt each level; cap grows in collectRelationshipTargets via realloc.
+  KjNode**     frontier      = NULL;
+  int          frontierCount = 0;
+  int          frontierCap   = 0;
+
+  // Seed with the primary
+  frontier      = (KjNode**) malloc(sizeof(KjNode*));
+  frontier[0]   = primaryP;
+  frontierCount = 1;
+  frontierCap   = 1;
+
+  for (int depth = 0; depth < joinLevel; depth++)
+  {
+    const char** targets    = NULL;
+    int          targetN    = 0;
+    int          targetCap  = 0;
+
+    for (int i = 0; i < frontierCount; i++)
+      collectRelationshipTargets(frontier[i], &targets, &targetN, &targetCap);
+
+    KjNode** nextFrontier      = NULL;
+    int      nextFrontierCount = 0;
+    int      nextFrontierCap   = 0;
+
+    for (int t = 0; t < targetN; t++)
+    {
+      const char* tid = targets[t];
+
+      if (visitedContains(visited, tid))
+        continue;
+
+      KjNode* targetEntityP = NULL;
+      int     r             = db.entityRetrieve(tenantP, tid, &targetEntityP);
+      if (r != DB_OK || targetEntityP == NULL)
+      {
+        // Per § 4.5.23: missing locally → skip silently. distOp lookup
+        // for cross-CSR targets is a follow-up slice.
+        visited = visitedAppend(visited, tid);  // mark anyway to avoid re-fetch
+        continue;
+      }
+
+      kjChildAdd(outArr, targetEntityP);
+      visited = visitedAppend(visited, entityIdOf(targetEntityP));
+
+      if (nextFrontierCount >= nextFrontierCap)
+      {
+        nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
+        nextFrontier    = (KjNode**) realloc(nextFrontier, nextFrontierCap * sizeof(KjNode*));
+      }
+      nextFrontier[nextFrontierCount++] = targetEntityP;
+    }
+
+    free(targets);
+    free(frontier);
+    frontier      = nextFrontier;
+    frontierCount = nextFrontierCount;
+    frontierCap   = nextFrontierCap;
+
+    if (frontierCount == 0)
+      break;
+  }
+
+  free(frontier);
+
+ done:
+  visitedFree(visited);
+  return outArr;
+}

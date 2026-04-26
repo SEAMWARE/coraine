@@ -39,6 +39,8 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesFlat
+
 #include "serviceRoutines/getEntity.h"               // Own interface
 
 
@@ -779,6 +781,16 @@ bool getEntity(void)
   // Apply pick/omit attribute projection
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
     ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+
+  // § 4.5.23 — when join=flat, expand to an array (primary + targets)
+  // bounded by joinLevel. join=inline ships in a follow-up slice;
+  // join=@none and absent leave the response as the single entity.
+  if (swNgsild.join != NULL && strcmp(swNgsild.join, "flat") == 0)
+  {
+    int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
+    swRest.out.responseTree = ldLinkedEntitiesFlat(entityP, level, (Tenant*) swNgsild.tenantP);
+    return true;
+  }
 
   swRest.out.responseTree = entityP;
   return true;

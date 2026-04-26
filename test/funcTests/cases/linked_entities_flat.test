@@ -1,0 +1,372 @@
+#
+# FILE            linked_entities_flat.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.23.3 — flat linked-entity retrieval. retrieveEntity with
+# `?join=flat&joinLevel=N` returns an array containing the primary
+# plus its Relationship targets walked up to N hops, deduped via a
+# visited-set so cycles terminate. Targets the broker doesn't hold
+# locally are skipped silently.
+#
+--NAME--
+Linked entities — flat retrieve, joinLevel depth + cycle guard
+
+--TAGS--
+retrieve linked-entities
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01-04. Seed:    V1 → P1 → P2 (chain) plus P3 → P3 (self-cycle) plus
+#                 V1 → MISSING (dangling).
+# 05.    GET V1 with no join — single entity, untouched.
+# 06.    GET V1 with join=flat&joinLevel=1 — V1 + P1.
+# 07.    GET V1 with join=flat&joinLevel=2 — V1 + P1 + P2.
+# 08.    GET V1 with join=flat&joinLevel=10 — same as level 2 (P2 has no rels).
+# 09.    GET P3 with join=flat&joinLevel=10 — P3 only (self-cycle stopped by visited-set).
+# 10.    GET V1 with join=@none — single entity (semantically inert).
+#
+
+echo "01. Seed P2 (leaf)"
+echo "=================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}'
+echo
+echo
+
+
+echo "02. Seed P1 → P2 (Relationship)"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"},"manager":{"type":"Relationship","object":"urn:P2"}}'
+echo
+echo
+
+
+echo "03. Seed V1 → P1 + dangling MISSING"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:P1"},"reportsTo":{"type":"Relationship","object":"urn:MISSING"}}'
+echo
+echo
+
+
+echo "04. Seed P3 → P3 (self-cycle)"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P3","type":"Person","mentor":{"type":"Relationship","object":"urn:P3"}}'
+echo
+echo
+
+
+echo "05. GET V1 with no join — single entity"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1'
+echo
+echo
+
+
+echo "06. GET V1 with join=flat&joinLevel=1 — V1 + P1"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=1'
+echo
+echo
+
+
+echo "07. GET V1 with join=flat&joinLevel=2 — V1 + P1 + P2"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=2'
+echo
+echo
+
+
+echo "08. GET V1 with join=flat&joinLevel=10 — same as level=2 (no further links)"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10'
+echo
+echo
+
+
+echo "09. GET P3 with join=flat&joinLevel=10 — only P3 (self-cycle)"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:P3?join=flat&joinLevel=10'
+echo
+echo
+
+
+echo "10. GET V1 with join=@none — single entity (inert)"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=@none'
+echo
+echo
+
+
+--EXPECT--
+01. Seed P2 (leaf)
+==================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:P2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed P1 → P2 (Relationship)
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:P1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Seed V1 → P1 + dangling MISSING
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Seed P3 → P3 (self-cycle)
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:P3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. GET V1 with no join — single entity
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "reportsTo": {
+    "object": "urn:MISSING",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. GET V1 with join=flat&joinLevel=1 — V1 + P1
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "owner": {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    "reportsTo": {
+      "object": "urn:MISSING",
+      "type": "Relationship"
+    },
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:P1",
+    "manager": {
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "name": {
+      "type": "Property",
+      "value": "Alice"
+    },
+    "type": "Person"
+  }
+]
+
+
+
+07. GET V1 with join=flat&joinLevel=2 — V1 + P1 + P2
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "owner": {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    "reportsTo": {
+      "object": "urn:MISSING",
+      "type": "Relationship"
+    },
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:P1",
+    "manager": {
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "name": {
+      "type": "Property",
+      "value": "Alice"
+    },
+    "type": "Person"
+  },
+  {
+    "id": "urn:P2",
+    "name": {
+      "type": "Property",
+      "value": "Bob"
+    },
+    "type": "Person"
+  }
+]
+
+
+
+08. GET V1 with join=flat&joinLevel=10 — same as level=2 (no further links)
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "owner": {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    "reportsTo": {
+      "object": "urn:MISSING",
+      "type": "Relationship"
+    },
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:P1",
+    "manager": {
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "name": {
+      "type": "Property",
+      "value": "Alice"
+    },
+    "type": "Person"
+  },
+  {
+    "id": "urn:P2",
+    "name": {
+      "type": "Property",
+      "value": "Bob"
+    },
+    "type": "Person"
+  }
+]
+
+
+
+09. GET P3 with join=flat&joinLevel=10 — only P3 (self-cycle)
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:P3",
+    "mentor": {
+      "object": "urn:P3",
+      "type": "Relationship"
+    },
+    "type": "Person"
+  }
+]
+
+
+
+10. GET V1 with join=@none — single entity (inert)
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "reportsTo": {
+    "object": "urn:MISSING",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

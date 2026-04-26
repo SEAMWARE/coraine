@@ -106,20 +106,16 @@ Content-Type: application/json
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
-{
-  "createdAt": REGEX(\d+),
-  "id": "urn:V1",
-  "modifiedAt": REGEX(\d+),
-  "speed": {
-    "@none": {
-      "createdAt": REGEX(\d+),
-      "modifiedAt": REGEX(\d+),
+[
+  {
+    "id": "urn:V1",
+    "speed": {
       "type": "Property",
       "value": 42
-    }
-  },
-  "type": "Vehicle"
-}
+    },
+    "type": "Vehicle"
+  }
+]
 
 
 
@@ -132,16 +128,10 @@ Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": REGEX(\d+),
   "id": "urn:V1",
-  "modifiedAt": REGEX(\d+),
   "speed": {
-    "@none": {
-      "createdAt": REGEX(\d+),
-      "modifiedAt": REGEX(\d+),
-      "type": "Property",
-      "value": 42
-    }
+    "type": "Property",
+    "value": 42
   },
   "type": "Vehicle"
 }
@@ -157,16 +147,10 @@ Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": REGEX(\d+),
   "id": "urn:V1",
-  "modifiedAt": REGEX(\d+),
   "speed": {
-    "@none": {
-      "createdAt": REGEX(\d+),
-      "modifiedAt": REGEX(\d+),
-      "type": "Property",
-      "value": 42
-    }
+    "type": "Property",
+    "value": 42
   },
   "type": "Vehicle"
 }
@@ -243,16 +227,10 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "createdAt": REGEX(\d+),
     "id": "urn:V1",
-    "modifiedAt": REGEX(\d+),
     "speed": {
-      "@none": {
-        "createdAt": REGEX(\d+),
-        "modifiedAt": REGEX(\d+),
-        "type": "Property",
-        "value": 42
-      }
+      "type": "Property",
+      "value": 42
     },
     "type": "Vehicle"
   }
