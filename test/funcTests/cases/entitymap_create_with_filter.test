@@ -1,0 +1,257 @@
+#
+# FILE            entitymap_create_with_filter.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.2.4 — symmetric case to entitymap_paginate_with_filter.
+#
+# When a query carries `?entityMap=true` AND filter URL params (q, geoQ,
+# scopeQ, type), the resulting EntityMap shall reflect ONLY entities
+# matching the filters. Subsequent paginations of that map page through
+# the filtered set; filters re-apply on each page (§ 5.7.2.4) but the
+# map's frozen entry list is itself the filtered subset, not the
+# unfiltered universe.
+#
+--NAME--
+EntityMap creation — filter params shape the map at create time
+
+--TAGS--
+entitymap query pagination distops
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed urn:V1 (color=red)"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Seed urn:V2 (color=blue)"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+echo
+echo
+
+
+echo "03. Seed urn:V3 (color=green)"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
+echo
+echo
+
+
+echo "04. Seed urn:V4 (color=blue) — second blue, expect both in filtered map"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+echo
+echo
+
+
+echo "05a. Create EntityMap with q=color==\"blue\" — page 1 = V2 + V4 only"
+echo "==================================================================="
+echo "     Response is page 1 of the filtered set; the map being created"
+echo "     is the filtered set, NOT the universe of Vehicles."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&q=color%3D%3D%22blue%22'
+echo
+echo
+
+
+echo "05b. Capture the EntityMap id from the same request (separate call)"
+echo "==================================================================="
+MAP_ID=$(swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&q=color%3D%3D%22blue%22' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+if [ -n "$MAP_ID" ]; then echo "Map captured (id present): yes"; else echo "Map captured (id present): no"; fi
+echo
+echo
+
+
+echo "06. GET /entityMaps/<id> — map's entryList holds V2 + V4 only"
+echo "============================================================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID"
+echo
+echo
+
+
+echo "07. Paginate same map without any filter — V2 + V4 (the frozen filtered set)"
+echo "============================================================================"
+echo "    Map fixes the source mapping; filters from create-time are NOT remembered."
+echo "    But the map's entry set is already only V2 + V4 (red+green never made it in)."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&orderBy=id"
+echo
+echo
+
+
+echo "08. Paginate same map with q=color==\"red\" — empty"
+echo "================================================="
+echo "    Map only contains V2 + V4 (blue); current request's q filters that to nothing."
+echo "    Filter narrows; it cannot re-introduce V1 (red) — the map froze it out."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22red%22"
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 (color=red)
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed urn:V2 (color=blue)
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Seed urn:V3 (color=green)
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Seed urn:V4 (color=blue) — second blue, expect both in filtered map
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V4
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05a. Create EntityMap with q=color=="blue" — page 1 = V2 + V4 only
+===================================================================
+     Response is page 1 of the filtered set; the map being created
+     is the filtered set, NOT the universe of Vehicles.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: REGEX(.*)
+Link: REGEX(.*)
+Content-Length: 245
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "type": "Vehicle"
+  },
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V4",
+    "type": "Vehicle"
+  }
+]
+
+
+
+05b. Capture the EntityMap id from the same request (separate call)
+===================================================================
+Map captured (id present): yes
+
+
+06. GET /entityMaps/<id> — map's entryList holds V2 + V4 only
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 230
+
+{
+  "entityMap": {
+    "urn:V2": [
+      "@none"
+    ],
+    "urn:V4": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(.*)",
+  REGEX(.*EntityMap.*),
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+07. Paginate same map without any filter — V2 + V4 (the frozen filtered set)
+============================================================================
+    Map fixes the source mapping; filters from create-time are NOT remembered.
+    But the map's entry set is already only V2 + V4 (red+green never made it in).
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 245
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "type": "Vehicle"
+  },
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V4",
+    "type": "Vehicle"
+  }
+]
+
+
+
+08. Paginate same map with q=color=="red" — empty
+=================================================
+    Map only contains V2 + V4 (blue); current request's q filters that to nothing.
+    Filter narrows; it cannot re-introduce V1 (red) — the map froze it out.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
