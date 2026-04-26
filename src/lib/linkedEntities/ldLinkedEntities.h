@@ -59,4 +59,29 @@ extern KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* ten
 //
 extern KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesExpandArrayFlat - flat-expand every primary in arrayP
+//
+// In-place: appends fetched targets to the same KjArray. The visited-
+// set spans all primaries + all newly-fetched targets so a target
+// shared by two primaries lands in the array exactly once (per spec
+// § 4.5.23.3 — both linking and linked are joined into one array).
+//
+extern void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tenantP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesExpandArrayInline - inline-expand every primary in arrayP
+//
+// Each primary keeps its own visited-set so a target shared by two
+// primaries is correctly inlined under both. The array length stays
+// equal to the result count.
+//
+extern void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* tenantP);
+
 #endif  // LE_LDLINKEDENTITIES_H_

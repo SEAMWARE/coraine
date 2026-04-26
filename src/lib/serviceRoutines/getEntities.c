@@ -36,6 +36,8 @@
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
 
+#include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesExpandArrayFlat / Inline
+
 #include "serviceRoutines/getEntities.h"             // Own interface
 
 
@@ -458,6 +460,15 @@ bool getEntities(void)
     {
       for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
         ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
+    }
+
+    // § 4.5.23 — linked-entity expansion of each result.
+    if (swNgsild.join != NULL)
+    {
+      int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
+      Tenant* tP = (Tenant*) swNgsild.tenantP;
+      if      (strcmp(swNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
+      else if (strcmp(swNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
     }
 
     swRest.out.responseTree = arrayP;
@@ -957,6 +968,15 @@ bool getEntities(void)
   {
     for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+  }
+
+  // § 4.5.23 — linked-entity expansion of each result.
+  if (swNgsild.join != NULL)
+  {
+    int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
+    Tenant* tP = (Tenant*) swNgsild.tenantP;
+    if      (strcmp(swNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
+    else if (strcmp(swNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
 
   swRest.out.responseTree = arrayP;

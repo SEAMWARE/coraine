@@ -148,6 +148,83 @@ static void collectRelationshipTargets(KjNode* entityP, const char*** outIdsP, i
 
 // -----------------------------------------------------------------------------
 //
+// flatBfs - BFS body shared by single-primary and array expanders
+//
+// Seeded with `frontier`, BFS up to `joinLevel` hops; each newly-fetched
+// target is appended to `outArr` and tracked in **visitedPP. Caller owns
+// the initial frontier malloc; the helper frees it (and the per-level
+// next-frontier).
+//
+static void flatBfs(KjNode*          outArr,
+                    KjNode**         frontier,
+                    int              frontierCount,
+                    int              joinLevel,
+                    Tenant*          tenantP,
+                    VisitedNode**    visitedPP)
+{
+  if (frontier == NULL || frontierCount <= 0)
+    return;
+  if (joinLevel < 1 || tenantP == NULL || db.entityRetrieve == NULL)
+  {
+    free(frontier);
+    return;
+  }
+
+  for (int depth = 0; depth < joinLevel; depth++)
+  {
+    const char** targets   = NULL;
+    int          targetN   = 0;
+    int          targetCap = 0;
+
+    for (int i = 0; i < frontierCount; i++)
+      collectRelationshipTargets(frontier[i], &targets, &targetN, &targetCap);
+
+    KjNode** nextFrontier      = NULL;
+    int      nextFrontierCount = 0;
+    int      nextFrontierCap   = 0;
+
+    for (int t = 0; t < targetN; t++)
+    {
+      const char* tid = targets[t];
+
+      if (visitedContains(*visitedPP, tid))
+        continue;
+
+      KjNode* targetEntityP = NULL;
+      int     r             = db.entityRetrieve(tenantP, tid, &targetEntityP);
+      if (r != DB_OK || targetEntityP == NULL)
+      {
+        *visitedPP = visitedAppend(*visitedPP, tid);
+        continue;
+      }
+
+      kjChildAdd(outArr, targetEntityP);
+      *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+
+      if (nextFrontierCount >= nextFrontierCap)
+      {
+        nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
+        nextFrontier    = (KjNode**) realloc(nextFrontier, nextFrontierCap * sizeof(KjNode*));
+      }
+      nextFrontier[nextFrontierCount++] = targetEntityP;
+    }
+
+    free(targets);
+    free(frontier);
+    frontier      = nextFrontier;
+    frontierCount = nextFrontierCount;
+
+    if (frontierCount == 0)
+      break;
+  }
+
+  free(frontier);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // ldLinkedEntitiesFlat -
 //
 KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
@@ -164,79 +241,69 @@ KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
   }
 
   kjChildAdd(outArr, primaryP);
-  VisitedNode* visited = visitedAppend(NULL, primaryId);
 
-  if (joinLevel < 1 || tenantP == NULL || db.entityRetrieve == NULL)
-    goto done;
+  VisitedNode* visited     = visitedAppend(NULL, primaryId);
+  KjNode**     frontier    = (KjNode**) malloc(sizeof(KjNode*));
+  frontier[0]              = primaryP;
+  flatBfs(outArr, frontier, 1, joinLevel, tenantP, &visited);
 
-  // Two parallel arrays — current depth's frontier; next depth's accumulator.
-  // Rebuilt each level; cap grows in collectRelationshipTargets via realloc.
-  KjNode**     frontier      = NULL;
-  int          frontierCount = 0;
-  int          frontierCap   = 0;
-
-  // Seed with the primary
-  frontier      = (KjNode**) malloc(sizeof(KjNode*));
-  frontier[0]   = primaryP;
-  frontierCount = 1;
-  frontierCap   = 1;
-
-  for (int depth = 0; depth < joinLevel; depth++)
-  {
-    const char** targets    = NULL;
-    int          targetN    = 0;
-    int          targetCap  = 0;
-
-    for (int i = 0; i < frontierCount; i++)
-      collectRelationshipTargets(frontier[i], &targets, &targetN, &targetCap);
-
-    KjNode** nextFrontier      = NULL;
-    int      nextFrontierCount = 0;
-    int      nextFrontierCap   = 0;
-
-    for (int t = 0; t < targetN; t++)
-    {
-      const char* tid = targets[t];
-
-      if (visitedContains(visited, tid))
-        continue;
-
-      KjNode* targetEntityP = NULL;
-      int     r             = db.entityRetrieve(tenantP, tid, &targetEntityP);
-      if (r != DB_OK || targetEntityP == NULL)
-      {
-        // Per § 4.5.23: missing locally → skip silently. distOp lookup
-        // for cross-CSR targets is a follow-up slice.
-        visited = visitedAppend(visited, tid);  // mark anyway to avoid re-fetch
-        continue;
-      }
-
-      kjChildAdd(outArr, targetEntityP);
-      visited = visitedAppend(visited, entityIdOf(targetEntityP));
-
-      if (nextFrontierCount >= nextFrontierCap)
-      {
-        nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
-        nextFrontier    = (KjNode**) realloc(nextFrontier, nextFrontierCap * sizeof(KjNode*));
-      }
-      nextFrontier[nextFrontierCount++] = targetEntityP;
-    }
-
-    free(targets);
-    free(frontier);
-    frontier      = nextFrontier;
-    frontierCount = nextFrontierCount;
-    frontierCap   = nextFrontierCap;
-
-    if (frontierCount == 0)
-      break;
-  }
-
-  free(frontier);
-
- done:
   visitedFree(visited);
   return outArr;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesExpandArrayFlat -
+//
+void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tenantP)
+{
+  if (arrayP == NULL || arrayP->type != KjArray)
+    return;
+  if (arrayP->value.firstChildP == NULL)
+    return;
+
+  // Count primaries + seed visited-set with their ids
+  VisitedNode* visited      = NULL;
+  int          primaryCount = 0;
+  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+  {
+    const char* id = entityIdOf(eP);
+    if (id != NULL)
+      visited = visitedAppend(visited, id);
+    primaryCount++;
+  }
+
+  // Build a frontier snapshot (kjChildAdd inside the BFS would otherwise
+  // mutate the live ->next chain we're iterating).
+  KjNode** frontier = (KjNode**) malloc(primaryCount * sizeof(KjNode*));
+  int      idx      = 0;
+  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
+    frontier[idx++] = eP;
+
+  flatBfs(arrayP, frontier, primaryCount, joinLevel, tenantP, &visited);
+
+  visitedFree(visited);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesExpandArrayInline - inline-expand each primary in arrayP
+//
+// Each primary gets its own per-primary visited-set: a target shared by
+// two primaries is correctly inlined under both. (For flat the spec
+// dedupes globally; inline is per-linking-entity by design.)
+//
+void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* tenantP)
+{
+  if (arrayP == NULL || arrayP->type != KjArray)
+    return;
+
+  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+    ldLinkedEntitiesInline(eP, joinLevel, tenantP);
 }
 
 
