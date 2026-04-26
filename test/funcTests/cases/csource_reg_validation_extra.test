@@ -1,0 +1,385 @@
+#
+# FILE            csource_reg_validation_extra.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.9 / § 5.2.11 / § 5.2.34 — second-cut CSR validators:
+#   description / registrationName / contextSourceAlias / tenant   (non-empty strings)
+#   scope                                                          (string or string[])
+#   refreshRate                                                    (ISO 8601 duration)
+#   observationInterval / managementInterval                       (TimeInterval objects)
+#   management                                                     (RegistrationManagementInfo)
+#
+# Each step exercises one happy-path acceptance and one rejection
+# matching the spec's shape constraints.
+#
+--NAME--
+CSourceRegistration validation — extra fields
+
+--TAGS--
+registration error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+# Helper for happy-path: same minimal reg + a dynamic field overlay
+# All happy-path regs use a unique id so they don't conflict.
+
+echo "01. description: empty string → 400"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-desc",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "description": "",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "02. description: \"hello\" → 201"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:good-desc",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "description": "Smart City registration",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "03. registrationName: 42 (not a string) → 400"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-rn",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "registrationName": 42,
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "04. scope: empty array → 400"
+echo "============================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-scope",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "scope": [],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "05. scope: string array → 201"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:good-scope",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "scope": ["/Madrid/North", "/Madrid/East"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "06. refreshRate: \"5 minutes\" (free-form, not ISO 8601) → 400"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-rr",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "refreshRate": "5 minutes",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "07. refreshRate: \"PT5M\" → 201"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:good-rr",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "refreshRate": "PT5M",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "08. observationInterval: missing startAt → 400"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-oi",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "observationInterval": {"endAt": "2030-01-01T00:00:00Z"},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "09. observationInterval: endAt before startAt → 400"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-oi2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "observationInterval": {"startAt": "2030-01-01T00:00:00Z", "endAt": "2025-01-01T00:00:00Z"},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "10. observationInterval: startAt only → 201"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:good-oi",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "observationInterval": {"startAt": "2025-01-01T00:00:00Z"},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "11. management.cacheDuration: \"PT1H\" + management.timeout: 30 → 201"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:good-mgmt",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "management": {"cacheDuration": "PT1H", "timeout": 30, "localOnly": false},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "12. management.timeout: -5 → 400"
+echo "================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-mgmt",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "management": {"timeout": -5},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "13. management.localOnly: \"yes\" (not boolean) → 400"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:bad-mgmt2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "management": {"localOnly": "yes"},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+--EXPECT--
+01. description: empty string → 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 149
+
+{
+  "detail": "'description' must not be empty",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. description: "hello" → 201
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:good-desc
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. registrationName: 42 (not a string) → 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "'registrationName' must be a string",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. scope: empty array → 400
+============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 140
+
+{
+  "detail": "'scope' array must not be empty",
+  "title": "Empty Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. scope: string array → 201
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:good-scope
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. refreshRate: "5 minutes" (free-form, not ISO 8601) → 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "'refreshRate' must be an ISO 8601 duration string (e.g. PT5M, PT1H30M, P1D)",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. refreshRate: "PT5M" → 201
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:good-rr
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. observationInterval: missing startAt → 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "'observationInterval.startAt' is mandatory",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. observationInterval: endAt before startAt → 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 189
+
+{
+  "detail": "'observationInterval.endAt' must be after 'observationInterval.startAt'",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. observationInterval: startAt only → 201
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:good-oi
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+11. management.cacheDuration: "PT1H" + management.timeout: 30 → 201
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:good-mgmt
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+12. management.timeout: -5 → 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "'management.timeout' must be non-negative",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. management.localOnly: "yes" (not boolean) → 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "'management.localOnly' must be a boolean",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
