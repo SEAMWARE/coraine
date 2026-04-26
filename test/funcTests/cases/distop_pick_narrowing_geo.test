@@ -1,0 +1,145 @@
+#
+# FILE            distop_pick_narrowing_geo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.2.4 — DistOp pick narrowing: geo branch.
+#
+# When a query has a geo-query (georel + geometry + coordinates), the
+# `geoproperty` (default "location") must be in the forwarded pick so
+# the local re-merge / re-filter across CSRs can re-evaluate the geoQ.
+#
+# When `Accept: application/geo+json` is set with a `geometryProperty`
+# URL param, that geometry property must also be in the forwarded pick
+# so the geo+json renderer has the geometry data on hand.
+#
+# Both behaviours apply uniformly across split and no-split modes
+# (computeWantedAttrs is shared). We verify on the split-mode path
+# because ftClient lets us inspect the wire.
+#
+--NAME--
+DistOp pick narrowing — geoproperty + geometryProperty unioned into pick
+
+--TAGS--
+distops query pick geo ftclient
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Seed a local Vehicle so the geo-query DB index exists"
+echo "========================================================="
+echo "    (mongoc DB queries fail without ANY entity present when a geoRel is supplied;"
+echo "    this is a quirk of geo-index creation, unrelated to the test's assertion)"
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V0",
+  "type": "Vehicle",
+  "location": {"type":"GeoProperty","value":{"type":"Point","coordinates":[0,0]}}
+}'
+echo
+echo
+
+
+echo "02. Register CSR pointing ftClient — exports speed + location + altitude"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Vehicles",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "inclusive",
+  "operations": ["queryEntity"],
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}],
+      "propertyNames": ["speed", "location", "altitude"]
+    }
+  ]
+}'
+echo
+echo
+
+
+echo "03. geoQ active, default geoproperty=location → forwarded pick includes location"
+echo "================================================================================"
+echo "    (georel+geometry+coordinates triggers hasGeoQ; geoproperty defaults to 'location')"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&splitEntities=true&georel=near%3BmaxDistance%3D%3D1000&geometry=Point&coordinates=\[0,0\]' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    has_georel = 'georel' in p
+    print('  forwarded pick:', pick, ' georel forwarded (should be False):', has_georel)
+"
+ftClientReset --port 7711
+echo
+echo
+
+
+echo "04. Accept: application/geo+json + geometryProperty=location → forwarded pick includes location"
+echo "================================================================================================"
+echo "    (geometryProperty is the GeoProperty used by the geo+json renderer for the geometry field)"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&splitEntities=true&geometryProperty=location' \
+       -H 'Accept: application/geo+json' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    print('  forwarded pick:', pick)
+"
+ftClientReset --port 7711
+echo
+echo
+
+
+--EXPECT--
+01. Seed a local Vehicle so the geo-query DB index exists
+=========================================================
+    (mongoc DB queries fail without ANY entity present when a geoRel is supplied;
+    this is a quirk of geo-index creation, unrelated to the test's assertion)
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V0
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR pointing ftClient — exports speed + location + altitude
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicles
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. geoQ active, default geoproperty=location → forwarded pick includes location
+================================================================================
+    (georel+geometry+coordinates triggers hasGeoQ; geoproperty defaults to 'location')
+  forwarded pick: ['location', 'speed']  georel forwarded (should be False): False
+
+
+04. Accept: application/geo+json + geometryProperty=location → forwarded pick includes location
+================================================================================================
+    (geometryProperty is the GeoProperty used by the geo+json renderer for the geometry field)
+  forwarded pick: ['location', 'speed']
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop
