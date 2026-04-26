@@ -284,35 +284,35 @@ static const char* buildPickParam(char** vec, KAlloc* kaP)
 
 // -----------------------------------------------------------------------------
 //
-// intersectAndPick - intersect `wanted` with reg.exports, render pick param
+// intersectAndPick - intersect `wanted` with reg's exports, render pick param
 //
-// riP        : RegistrationInfo (its propertyNamesV + relationshipNamesV
-//              are the reg's "exports" set; both NULL means exports
-//              everything)
-// wanted     : NULL = user wants every attr the reg has, char** = the
+// propV/relV : NULL-terminated arrays of expanded IRIs that the source
+//              "exports". Either may be NULL. Both NULL means the source
+//              exports everything (no restriction).
+// wanted     : NULL = user wants every attr the source has, char** = the
 //              IRI set the broker needs back
 // kaP        : output allocator
 // outSkipP   : *outSkipP set to true if user.pick was set AND the
 //              intersection is empty (caller must skip this CSR)
 //
 // Returns the rendered "&pick=A,B,C" fragment, "" when no pick should
-// be sent (reg exports everything AND user wants everything).
+// be sent (source exports everything AND user wants everything).
 //
-static const char* intersectAndPick(LdRegInfo* riP, char** wanted, KAlloc* kaP, bool* outSkipP)
+static const char* intersectAndPick(char** propV, char** relV, char** wanted, KAlloc* kaP, bool* outSkipP)
 {
   *outSkipP = false;
 
-  bool regRestricts = (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL);
+  bool regRestricts = (propV != NULL || relV != NULL);
 
   if (wanted == NULL)
   {
     // User wants everything.
     if (!regRestricts)
-      return "";  // reg exports all → no pick
+      return "";  // exports everything → no pick
 
-    // Reg restricts → forward reg.exports as pick (avoids overquery on attrs the reg won't deliver)
+    // Reg restricts → forward exports as pick (avoids overquery on attrs the reg won't deliver)
     int    cap = 0;
-    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
+    char** lists[] = { propV, relV, NULL };
     for (int li = 0; lists[li] != NULL; li++)
       for (int a = 0; lists[li][a] != NULL; a++)
         cap++;
@@ -326,9 +326,9 @@ static const char* intersectAndPick(LdRegInfo* riP, char** wanted, KAlloc* kaP, 
     return buildPickParam(vec, kaP);
   }
 
-  // User has pick: intersect(wanted, reg.exports).
+  // User has pick: intersect(wanted, exports).
   if (!regRestricts)
-    return buildPickParam(wanted, kaP);  // reg exports all → forward wanted as-is
+    return buildPickParam(wanted, kaP);  // exports all → forward wanted as-is
 
   int wantedN = 0;
   while (wanted[wantedN] != NULL)
@@ -341,7 +341,7 @@ static const char* intersectAndPick(LdRegInfo* riP, char** wanted, KAlloc* kaP, 
   {
     bool found = false;
 
-    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
+    char** lists[] = { propV, relV, NULL };
     for (int li = 0; lists[li] != NULL && !found; li++)
       for (int a = 0; lists[li][a] != NULL; a++)
       {
@@ -355,12 +355,60 @@ static const char* intersectAndPick(LdRegInfo* riP, char** wanted, KAlloc* kaP, 
 
   if (nN == 0)
   {
-    // Nothing the user wants is exported by this reg — skip.
+    // Nothing the user wants is exported by this source — skip.
     *outSkipP = true;
     return "";
   }
 
   return buildPickParam(narrowed, kaP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// csrUnionExports - union of all infoV[*].propertyNamesV + relationshipNamesV
+//
+// Split-mode forwards are CSR-level (not per-RegistrationInfo), so the
+// "exports" set the broker should narrow against is the union across
+// every info entry of the CSR. Returns a NULL-terminated, deduped char**
+// allocated in kaP, or NULL when the CSR has no restriction at all
+// (every info entry has propertyNamesV == relationshipNamesV == NULL).
+//
+static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
+{
+  // Worst-case capacity
+  int cap = 0;
+  bool anyRestricts = false;
+  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+  {
+    if (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL)
+      anyRestricts = true;
+    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
+    for (int li = 0; lists[li] != NULL; li++)
+      for (int a = 0; lists[li][a] != NULL; a++)
+        cap++;
+  }
+
+  if (!anyRestricts)
+    return NULL;
+
+  char** out = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
+  int    n   = 0;
+  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+  {
+    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
+    for (int li = 0; lists[li] != NULL; li++)
+      for (int a = 0; lists[li][a] != NULL; a++)
+      {
+        bool dup = false;
+        for (int i = 0; i < n; i++)
+          if (strcmp(out[i], lists[li][a]) == 0) { dup = true; break; }
+        if (!dup) out[n++] = lists[li][a];
+      }
+  }
+  out[n] = NULL;
+  return out;
 }
 
 
@@ -968,11 +1016,32 @@ bool getEntities(void)
 
           if (splitMode)
           {
-            // Split: forward with no filters — get all entities from this CSR.
-            // The per-attr discovery phase intentionally collects every attr
-            // the CSR will return; pick narrowing for split-mode targeted
-            // retrieves is a separate concern.
-            fullQs = baseQs;  // empty string
+            // Split: forward with NO query filters (q/geoQ/scopeQ/type
+            // are stripped per § 5.7.2.4 — single source can't evaluate
+            // them on a partial entity). pick CAN be narrowed: intersect
+            // pickWanted against the union of all infoV[*] exports of
+            // this CSR. Skip the CSR entirely when user.pick is set and
+            // the intersection is empty.
+            char** csrExports = csrUnionExports(csr, &swRest.kalloc);
+            bool   skip       = false;
+            const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip);
+            if (skip)
+              continue;
+
+            int   pLen = strlen(pickParam);
+            char* combined = (char*) kaAlloc(&swRest.kalloc, pLen + 1);
+            // baseQs is "" in split mode; pickParam starts with "&pick=",
+            // so trim the leading "&" if combined would otherwise begin
+            // with "&" (no other params present).
+            if (pLen > 0 && pickParam[0] == '&')
+            {
+              strcpy(combined, pickParam + 1);
+            }
+            else
+            {
+              strcpy(combined, pickParam);
+            }
+            fullQs = combined;
           }
           else
           {
@@ -1003,7 +1072,8 @@ bool getEntities(void)
               }
 
               bool        skip      = false;
-              const char* pickParam = intersectAndPick(riP, pickWanted, &swRest.kalloc, &skip);
+              const char* pickParam = intersectAndPick(riP->propertyNamesV, riP->relationshipNamesV,
+                                                        pickWanted, &swRest.kalloc, &skip);
               if (skip)
               {
                 csrSkipped = true;

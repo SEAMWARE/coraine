@@ -1,0 +1,163 @@
+#
+# FILE            distop_pick_narrowing_split.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.2.4 — split-mode pick narrowing on the discovery dispatch.
+#
+# In split-entities mode the broker MUST strip filters (q/geoQ/scopeQ/
+# type) before forwarding to each CSR — a single source can't evaluate
+# filters that may need attrs from another source. But `pick` CAN be
+# narrowed: each CSR only contributes attrs from its registered exports
+# anyway, so forwarding pick = intersect(reg.exports, user.pick ∪ q-attrs
+# ∪ geo-attrs) avoids over-querying without losing soundness for the
+# local re-aggregation+re-filter step.
+#
+# We use ftClient as the CSR mock to inspect the forwarded URL directly
+# (real CP would only show the visible response, which is identical
+# whether or not pick is narrowed at the wire).
+#
+--NAME--
+DistOp pick narrowing — split-entities mode
+
+--TAGS--
+distops query pick ftclient
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Register CSR pointing ftClient — exports ONLY speed + color"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Vehicles",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "inclusive",
+  "operations": ["queryEntity"],
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}],
+      "propertyNames": ["speed", "color"]
+    }
+  ]
+}'
+echo
+echo
+
+
+echo "02. Query split + no user.pick — forwarded pick = reg.exports"
+echo "============================================================="
+echo "    (split mode forwards no filters; pick narrows to reg.exports"
+echo "    so only the registered slice is returned)"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    filters = [k for k in ('q','geometry','georel','coordinates','geoproperty','type','scopeQ') if k in p]
+    print('  forwarded pick:', pick, ' filters present (should be []):', filters)
+"
+ftClientReset --port 7711
+echo
+echo
+
+
+echo "03. Query split + user.pick=speed,engine — forwarded pick = {speed} only"
+echo "========================================================================"
+echo "    (intersect({speed,engine}, reg.exports={speed,color}) = {speed})"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=speed,engine' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    print('  forwarded pick:', pick)
+"
+ftClientReset --port 7711
+echo
+echo
+
+
+echo "04. Query split + user.pick=engine,temp — CSR skipped (intersect empty)"
+echo "======================================================================="
+echo "    Nothing the user wants is exported by the CSR → no forward."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=engine,temp' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('  forwarded request count (expect 0):', len(d))
+"
+ftClientReset --port 7711
+echo
+echo
+
+
+echo "05. Query split + user.pick=speed&q=color>%22a%22 — forwarded pick = {speed,color}"
+echo "==================================================================================="
+echo "    q-attrs unioned into wanted; intersect with reg.exports keeps both."
+echo "    q itself is NOT forwarded (split-mode strips filters)."
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=speed&q=color%3E%22a%22' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    print('  forwarded pick:', pick, ' q forwarded (should be False):', 'q' in p)
+"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR pointing ftClient — exports ONLY speed + color
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicles
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Query split + no user.pick — forwarded pick = reg.exports
+=============================================================
+    (split mode forwards no filters; pick narrows to reg.exports
+    so only the registered slice is returned)
+  forwarded pick: ['color', 'speed']  filters present (should be []): []
+
+
+03. Query split + user.pick=speed,engine — forwarded pick = {speed} only
+========================================================================
+    (intersect({speed,engine}, reg.exports={speed,color}) = {speed})
+  forwarded pick: ['speed']
+
+
+04. Query split + user.pick=engine,temp — CSR skipped (intersect empty)
+=======================================================================
+    Nothing the user wants is exported by the CSR → no forward.
+  forwarded request count (expect 0): 0
+
+
+05. Query split + user.pick=speed&q=color>%22a%22 — forwarded pick = {speed,color}
+===================================================================================
+    q-attrs unioned into wanted; intersect with reg.exports keeps both.
+    q itself is NOT forwarded (split-mode strips filters).
+  forwarded pick: ['color', 'speed']  q forwarded (should be False): False
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

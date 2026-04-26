@@ -246,18 +246,68 @@ static bool postAccumulate(void)
 
 // -----------------------------------------------------------------------------
 //
+// getAccumulate - GET /** — catch-all for forwarded queries (queryEntities,
+//                 retrieveEntity), accumulates the request and returns an
+//                 empty entity array. Honors --status like postAccumulate
+//                 so timeout / error simulations work for GETs too.
+//
+// /info/sourceIdentity is a discovery probe (broker learns the CSR's
+// alias for loop-detection at registration time) — infrastructure, not
+// a forwarded operation. Don't pollute the dump with it.
+//
+static bool getAccumulate(void)
+{
+  bool isProbe = (swRest.in.urlPath != NULL &&
+                  strcmp(swRest.in.urlPath, "/info/sourceIdentity") == 0);
+
+  if (!isProbe)
+    dumpAccumulate();
+  KT_T(1, "GET %s received (probe=%d total: %d, status=%u, delay=%ums)",
+       swRest.in.urlPath, isProbe, dumpCount, ftPostStatus, ftDelayMs);
+
+  if (ftDelayMs > 0)
+    usleep(ftDelayMs * 1000);
+
+  swRest.out.httpStatusCode = (ftPostStatus == 201) ? 200 : ftPostStatus;
+
+  if (ftPostStatus >= 400)
+  {
+    static char errBuf[256];
+    snprintf(errBuf, sizeof(errBuf),
+             "{\"type\":\"https://uri.etsi.org/ngsi-ld/errors/InternalError\","
+             "\"title\":\"Mock Error\","
+             "\"detail\":\"ftClient configured with --status %u\"}", ftPostStatus);
+    swRest.out.payload     = errBuf;
+    swRest.out.payloadSize = strlen(errBuf);
+  }
+  else
+  {
+    swRest.out.payload     = (char*) "[]";
+    swRest.out.payloadSize = 2;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Service table
 //
 static SwRestServiceSimplified ftServices[] =
 {
-  { SwVerbGet,    "/dump",  getDump,         0 },
-  { SwVerbDelete, "/dump",  deleteDump,      0 },
-  { SwVerbGet,    "/die",   getDie,          0 },
-  // Catch-all accumulators — every write verb lands here and honors --status.
-  { SwVerbPost,   "/**",    postAccumulate,  0 },
-  { SwVerbDelete, "/**",    postAccumulate,  0 },
-  { SwVerbPatch,  "/**",    postAccumulate,  0 },
-  { SwVerbPut,    "/**",    postAccumulate,  0 },
+  { SwVerbGet,    "/dump",  getDump,         0,                       0 },
+  { SwVerbDelete, "/dump",  deleteDump,      0,                       0 },
+  { SwVerbGet,    "/die",   getDie,          0,                       0 },
+  // Catch-all accumulators — every verb lands here and honors --status.
+  // supportedParams = ~0ULL: ftClient mocks any NGSI-LD endpoint and
+  // must accept whatever URL params the broker forwards, without 400ing.
+  { SwVerbGet,    "/**",    getAccumulate,   ~(uint64_t)0,            0 },
+  { SwVerbPost,   "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { SwVerbDelete, "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { SwVerbPatch,  "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { SwVerbPut,    "/**",    postAccumulate,  ~(uint64_t)0,            0 },
 };
 
 static int ftServiceCount = sizeof(ftServices) / sizeof(ftServices[0]);
