@@ -1,0 +1,265 @@
+#
+# FILE            url_param_join.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.23 — URL parameters `join` and `joinLevel` for linked-entity
+# retrieval. Slice A: validation only — the params are accepted on
+# retrieveEntity and queryEntities, rejected on bad values, and don't
+# alter the response shape yet (the walker lands in a later slice).
+#
+--NAME--
+join + joinLevel URL parameter validation
+
+--TAGS--
+url-param retrieve query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed an entity"
+echo "=================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. GET entity with join=flat — accepted"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat'
+echo
+echo
+
+
+echo "03. GET entity with join=inline&joinLevel=2 — accepted"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=2'
+echo
+echo
+
+
+echo "04. GET entity with join=@none — accepted (semantically inert)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=@none'
+echo
+echo
+
+
+echo "05. GET entity with join=garbage — 400"
+echo "======================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=garbage'
+echo
+echo
+
+
+echo "06. GET entity with joinLevel=0 — 400"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=0'
+echo
+echo
+
+
+echo "07. GET entity with joinLevel=-3 — 400"
+echo "======================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=-3'
+echo
+echo
+
+
+echo "08. GET entity with joinLevel=abc — 400"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=abc'
+echo
+echo
+
+
+echo "09. GET /entities (query) with join=flat&joinLevel=1 — accepted"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=1'
+echo
+echo
+
+
+--EXPECT--
+01. Seed an entity
+==================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. GET entity with join=flat — accepted
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": REGEX(\d+),
+  "id": "urn:V1",
+  "modifiedAt": REGEX(\d+),
+  "speed": {
+    "@none": {
+      "createdAt": REGEX(\d+),
+      "modifiedAt": REGEX(\d+),
+      "type": "Property",
+      "value": 42
+    }
+  },
+  "type": "Vehicle"
+}
+
+
+
+03. GET entity with join=inline&joinLevel=2 — accepted
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": REGEX(\d+),
+  "id": "urn:V1",
+  "modifiedAt": REGEX(\d+),
+  "speed": {
+    "@none": {
+      "createdAt": REGEX(\d+),
+      "modifiedAt": REGEX(\d+),
+      "type": "Property",
+      "value": 42
+    }
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. GET entity with join=@none — accepted (semantically inert)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": REGEX(\d+),
+  "id": "urn:V1",
+  "modifiedAt": REGEX(\d+),
+  "speed": {
+    "@none": {
+      "createdAt": REGEX(\d+),
+      "modifiedAt": REGEX(\d+),
+      "type": "Property",
+      "value": 42
+    }
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. GET entity with join=garbage — 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'join' must be 'flat', 'inline' or '@none'",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. GET entity with joinLevel=0 — 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'joinLevel' must be a positive integer",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. GET entity with joinLevel=-3 — 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'joinLevel' must be a positive integer",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET entity with joinLevel=abc — 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'joinLevel' must be a positive integer",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. GET /entities (query) with join=flat&joinLevel=1 — accepted
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "createdAt": REGEX(\d+),
+    "id": "urn:V1",
+    "modifiedAt": REGEX(\d+),
+    "speed": {
+      "@none": {
+        "createdAt": REGEX(\d+),
+        "modifiedAt": REGEX(\d+),
+        "type": "Property",
+        "value": 42
+      }
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
