@@ -8,15 +8,28 @@
 // NGSI-LD § 4.5.23 — linked-entity retrieval (flat representation).
 //
 #include <stdlib.h>                                   // calloc, free
-#include <string.h>                                   // strcmp, strdup
+#include <string.h>                                   // strcmp, strdup, memcpy
+
+#include "kalloc/kaAlloc.h"                           // kaAlloc
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
+#include "kjson/kjParse.h"                            // kjParse
 
 #include "swRest/SwRestState.h"                       // swRest
+#include "swRest/SwRestVerb.h"                        // SwVerbGet
 
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
+#include "swNgsild/SwNgsild.h"                        // ldLocalOnly
+#include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode
+#include "swNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieve
+#include "swNgsild/ldDistOp.h"                        // ldDistOpSendReceive, ldDistOpCsrWouldLoop
+#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
+#include "swNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
+#include "swNgsild/ldStripAtContext.h"                // ldStripAtContext
+
+#include "swJsonld/swldExpandTree.h"                  // swldExpandTree
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -148,6 +161,98 @@ static void collectRelationshipTargets(KjNode* entityP, const char*** outIdsP, i
 
 // -----------------------------------------------------------------------------
 //
+// linkedFetchOne - § 4.5.23 entity lookup, local DB first, then dist-op
+//
+// Tries db.entityRetrieve in storage shape first. On miss, walks the
+// tenant's reg-cache for any registration covering this id (across all
+// modes), forwards GET /entities/{id} via ldDistOpSendReceive, parses
+// the API-shape response, and converts to storage via
+// ldApiEntityToDbModel so the caller (walker / q-evaluator) sees one
+// consistent shape.
+//
+// Returns 0 on success and *entityPP set; non-zero on miss.
+//
+int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
+{
+  if (entityId == NULL || entityPP == NULL || tenantP == NULL)
+    return -1;
+
+  *entityPP = NULL;
+
+  if (db.entityRetrieve != NULL)
+  {
+    int r = db.entityRetrieve(tenantP, entityId, entityPP);
+    if (r == DB_OK && *entityPP != NULL)
+      return 0;
+  }
+
+  if (ldLocalOnly || tenantP->regCacheP == NULL)
+    return -1;
+
+  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
+  const char* ownAlias  = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+
+  static const LdRegMode modes[4] = { LdRegModeExclusive, LdRegModeRedirect,
+                                       LdRegModeInclusive, LdRegModeAuxiliary };
+
+  for (int m = 0; m < 4; m++)
+  {
+    LdRegCacheItem** matchV = NULL;
+    int matchN = ldRegCacheMatchForRetrieve(regCacheP, entityId, NULL, modes[m], &matchV);
+
+    for (int i = 0; i < matchN; i++)
+    {
+      LdRegCacheItem* csr = matchV[i];
+      if (csr->endpoint == NULL)                continue;
+      if (ldDistOpCsrWouldLoop(csr, ownAlias))  continue;
+
+      // Build "<endpoint>/ngsi-ld/v1/entities/<id>"
+      static const char* path = "/ngsi-ld/v1/entities/";
+      int   epLen   = (int) strlen(csr->endpoint);
+      int   pathLen = (int) strlen(path);
+      int   idLen   = (int) strlen(entityId);
+      char* url     = (char*) kaAlloc(&swRest.kalloc, epLen + pathLen + idLen + 1);
+      char* p       = url;
+      memcpy(p, csr->endpoint, epLen);  p += epLen;
+      memcpy(p, path,          pathLen); p += pathLen;
+      memcpy(p, entityId,      idLen + 1);
+
+      const char* errDetail = NULL;
+      char*       respBody  = NULL;
+      int         respLen   = 0;
+
+      int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
+                                       &errDetail, &respBody, &respLen);
+      if (status == 200 && respBody != NULL && respLen > 0)
+      {
+        KjNode* tree = kjParse(swRest.kjsonP, respBody);
+        if (tree != NULL && tree->type == KjObject)
+        {
+          // Remote payload arrives in API shape with short names. Expand
+          // attr names to IRIs (so q-evaluator's IRI lookups hit) and
+          // drop @context, then API → storage so the walker / q-evaluator
+          // reads (datasetId wrappers, "value" instead of "object") line
+          // up with the local-fetched shape.
+          swldExpandTree(tree, &swRest.kalloc);
+          ldStripAtContext(tree);
+          ldApiEntityToDbModel(tree, &swRest.kalloc);
+          *entityPP = tree;
+          if (matchV != NULL) free(matchV);
+          return 0;
+        }
+      }
+    }
+
+    if (matchV != NULL) free(matchV);
+  }
+
+  return -1;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // flatBfs - BFS body shared by single-primary and array expanders
 //
 // Seeded with `frontier`, BFS up to `joinLevel` hops; each newly-fetched
@@ -164,7 +269,7 @@ static void flatBfs(KjNode*          outArr,
 {
   if (frontier == NULL || frontierCount <= 0)
     return;
-  if (joinLevel < 1 || tenantP == NULL || db.entityRetrieve == NULL)
+  if (joinLevel < 1 || tenantP == NULL)
   {
     free(frontier);
     return;
@@ -191,8 +296,8 @@ static void flatBfs(KjNode*          outArr,
         continue;
 
       KjNode* targetEntityP = NULL;
-      int     r             = db.entityRetrieve(tenantP, tid, &targetEntityP);
-      if (r != DB_OK || targetEntityP == NULL)
+      int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+      if (r != 0 || targetEntityP == NULL)
       {
         *visitedPP = visitedAppend(*visitedPP, tid);
         continue;
@@ -358,8 +463,8 @@ static void inlineWalk(KjNode*       entityP,
         continue;
 
       KjNode* targetP = NULL;
-      int     r       = db.entityRetrieve(tenantP, tid, &targetP);
-      if (r != DB_OK || targetP == NULL)
+      int     r       = linkedFetchOne(tid, &targetP, tenantP);
+      if (r != 0 || targetP == NULL)
       {
         *visitedPP = visitedAppend(*visitedPP, tid);
         continue;
@@ -394,7 +499,7 @@ KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
     return NULL;
 
   const char* primaryId = entityIdOf(primaryP);
-  if (primaryId == NULL || joinLevel < 1 || tenantP == NULL || db.entityRetrieve == NULL)
+  if (primaryId == NULL || joinLevel < 1 || tenantP == NULL)
     return primaryP;
 
   VisitedNode* visited = visitedAppend(NULL, primaryId);

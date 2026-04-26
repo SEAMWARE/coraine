@@ -43,13 +43,15 @@
 
 
 //
-// linkedFetcher - LdQEntityFetchFunc wrapper around db.entityRetrieve
+// linkedFetcher - LdQEntityFetchFunc wrapper around linkedFetchOne
+//
+// linkedFetchOne tries local DB first, then walks the reg-cache for any
+// CSR covering the entity id and forwards a GET via dist-op. The result
+// is in storage shape, ready for the q-evaluator's reads.
 //
 static int linkedFetcher(const char* entityId, KjNode** entityPP, void* userData)
 {
-  if (db.entityRetrieve == NULL)
-    return -1;
-  return db.entityRetrieve((Tenant*) userData, entityId, entityPP);
+  return linkedFetchOne(entityId, entityPP, (Tenant*) userData);
 }
 
 

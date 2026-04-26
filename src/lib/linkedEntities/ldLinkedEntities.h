@@ -84,4 +84,15 @@ extern void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenan
 //
 extern void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* tenantP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// linkedFetchOne - single-entity lookup (local DB → reg-cache → dist-op GET)
+//
+// Returns 0 on success and *entityPP set to a storage-format tree
+// allocated in the request arena. Non-zero on miss.
+//
+extern int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP);
+
 #endif  // LE_LDLINKEDENTITIES_H_
