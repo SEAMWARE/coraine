@@ -106,6 +106,69 @@ static void applyLinkedQPostFilter(KjNode* arrayP)
 
 // -----------------------------------------------------------------------------
 //
+// applyResultFilters - apply type/q/scopeQ/geoQ on assembled entities
+//
+// Used by:
+//   * split-mode post-aggregation (§ 5.7.2.4 — filters were stripped before
+//     forwarding, must re-evaluate on the merged entity)
+//   * entityMap-paginated path (§ 5.7.2.4 — the map fixes which sources hold
+//     each entity, but the current request's filters still apply per the
+//     conditions list at lines 5586-5599 of the spec)
+//
+// q is evaluated with the linkedFetcher so § 4.9 sub-queries (q=rel{...})
+// resolve their Relationship target correctly. Entities are in storage
+// shape on entry (post-merge / post-apiAttrToStorageWrap).
+//
+static void applyResultFilters(KjNode* arrayP)
+{
+  if (arrayP == NULL || arrayP->type != KjArray)
+    return;
+
+  KjNode* entityP = arrayP->value.firstChildP;
+  while (entityP != NULL)
+  {
+    KjNode* nextP = entityP->next;
+    bool    keep  = true;
+
+    if (keep && swNgsild.typeExpr != NULL)
+    {
+      KjNode* typeP = kjLookup(entityP, "type");
+      if (!ldEntityMatchType(typeP, swNgsild.typeExpr))
+        keep = false;
+    }
+
+    if (keep && swNgsild.qExpr != NULL)
+    {
+      if (!ldEntityMatchQEx(entityP, swNgsild.qExpr, linkedFetcher, (Tenant*) swNgsild.tenantP))
+        keep = false;
+    }
+
+    if (keep && swNgsild.scopeExpr != NULL)
+    {
+      KjNode* scopeP = kjLookup(entityP, "scope");
+      if (!ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
+        keep = false;
+    }
+
+    if (keep && swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
+    {
+      if (!db.geoMatchFunc(entityP, swNgsild.geoRel, swNgsild.geometry,
+                           swNgsild.coordinates,
+                           swNgsild.geoproperty ? swNgsild.geoproperty : "location"))
+        keep = false;
+    }
+
+    if (!keep)
+      kjChildRemove(arrayP, entityP);
+
+    entityP = nextP;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // computeWantedAttrs - the set of attrs the broker needs back from each CSR
 //
 // Returns NULL when the user has no `pick` (they want every attribute the
@@ -689,6 +752,15 @@ bool getEntities(void)
       added++;
     }
 
+    // § 5.7.2.4 — even when paginating an existing map, the current
+    // request's filters still apply on the assembled entities. The map
+    // only fixes "which sources hold each entity"; q/geoQ/scopeQ/type
+    // re-evaluate against the current data, not against a frozen
+    // pass-list. A page may return < limit entries when filters strip
+    // some — § 5.5.9 explicitly allows this. Count stays at the map's
+    // total entry count (the size of the fixed source-mapping snapshot).
+    applyResultFilters(arrayP);
+
     // Count header
     if (swNgsild.count)
     {
@@ -1055,58 +1127,9 @@ bool getEntities(void)
       }
     }
 
-    //
-    // Split mode post-assembly: apply filters on assembled entities.
-    //
-    if (splitMode && arrayP != NULL)
-    {
-      KjNode* entityP = arrayP->value.firstChildP;
-      while (entityP != NULL)
-      {
-        KjNode* nextP = entityP->next;
-        bool keep = true;
-
-        // Type filter (using type expression for full selector support)
-        if (keep && swNgsild.typeExpr != NULL)
-        {
-          KjNode* typeP = kjLookup(entityP, "type");
-          if (!ldEntityMatchType(typeP, swNgsild.typeExpr))
-            keep = false;
-        }
-
-        // q-filter
-        if (keep && swNgsild.qExpr != NULL)
-        {
-          // Pass the linked fetcher so § 4.9 sub-queries can resolve
-          // their Relationship target. Sub-queries on remote-only
-          // targets fall through to false (distOp lookup is a follow-up).
-          if (!ldEntityMatchQEx(entityP, swNgsild.qExpr, linkedFetcher, (Tenant*) swNgsild.tenantP))
-            keep = false;
-        }
-
-        // scopeQ filter
-        if (keep && swNgsild.scopeExpr != NULL)
-        {
-          KjNode* scopeP = kjLookup(entityP, "scope");
-          if (!ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
-            keep = false;
-        }
-
-        // geoQ: use the DB driver's registered geo match callback
-        if (keep && swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
-        {
-          if (!db.geoMatchFunc(entityP, swNgsild.geoRel, swNgsild.geometry,
-                               swNgsild.coordinates,
-                               swNgsild.geoproperty ? swNgsild.geoproperty : "location"))
-            keep = false;
-        }
-
-        if (!keep)
-          kjChildRemove(arrayP, entityP);
-
-        entityP = nextP;
-      }
-    }
+    // Split mode post-assembly filters (§ 5.7.2.4).
+    if (splitMode)
+      applyResultFilters(arrayP);
   }
 
   //

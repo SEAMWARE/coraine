@@ -1,0 +1,256 @@
+#
+# FILE            entitymap_paginate_with_filter.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.2.4 — paginating an existing EntityMap with filter URL params.
+#
+# The EntityMap is a frozen "for entity X, here are the sources that
+# contribute to it" snapshot. The current request's q / geoQ / scopeQ /
+# type filters STILL APPLY on the assembled entities — the map only
+# fixes source selection, not the result set. A page may return < limit
+# entities when filters strip some (§ 5.5.9 allows this).
+#
+--NAME--
+EntityMap pagination — filter params re-apply per spec § 5.7.2.4
+
+--TAGS--
+entitymap query pagination distops
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed urn:V1 (color=red, speed=10)"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"},"speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "02. Seed urn:V2 (color=blue, speed=20)"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"},"speed":{"type":"Property","value":20}}'
+echo
+echo
+
+
+echo "03. Seed urn:V3 (color=green, speed=30)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"},"speed":{"type":"Property","value":30}}'
+echo
+echo
+
+
+echo "04. Create EntityMap from broad query (?entityMap=true)"
+echo "======================================================="
+MAP_ID=$(swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+if [ -n "$MAP_ID" ]; then echo "Map captured (id present): yes"; else echo "Map captured (id present): no"; fi
+echo
+echo
+
+
+echo "05. Paginate with q=color==\"blue\" — only V2 returned (V1, V3 filtered out)"
+echo "==========================================================================="
+echo "    Map has 3 entries; current request's q is re-applied per § 5.7.2.4."
+echo "    Page returns < limit because filters stripped 2 of 3 entries."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22blue%22"
+echo
+echo
+
+
+echo "06. Paginate with q=speed>15 — V2, V3 (V1 filtered out)"
+echo "======================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E15"
+echo
+echo
+
+
+echo "07. Paginate with q that matches none — empty array"
+echo "==================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22purple%22"
+echo
+echo
+
+
+echo "08. Paginate without filters — all 3 (sanity check)"
+echo "==================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID"
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 (color=red, speed=10)
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed urn:V2 (color=blue, speed=20)
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Seed urn:V3 (color=green, speed=30)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Create EntityMap from broad query (?entityMap=true)
+=======================================================
+Map captured (id present): yes
+
+
+05. Paginate with q=color=="blue" — only V2 returned (V1, V3 filtered out)
+===========================================================================
+    Map has 3 entries; current request's q is re-applied per § 5.7.2.4.
+    Page returns < limit because filters stripped 2 of 3 entries.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 190
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. Paginate with q=speed>15 — V2, V3 (V1 filtered out)
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 378
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  },
+  {
+    "color": {
+      "type": "Property",
+      "value": "green"
+    },
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "value": 30
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Paginate with q that matches none — empty array
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 3
+
+[]
+
+
+
+08. Paginate without filters — all 3 (sanity check)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 564
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 10
+    },
+    "type": "Vehicle"
+  },
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  },
+  {
+    "color": {
+      "type": "Property",
+      "value": "green"
+    },
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "value": 30
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
