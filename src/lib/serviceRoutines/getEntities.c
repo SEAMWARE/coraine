@@ -42,6 +42,65 @@
 
 
 
+//
+// linkedFetcher - LdQEntityFetchFunc wrapper around db.entityRetrieve
+//
+static int linkedFetcher(const char* entityId, KjNode** entityPP, void* userData)
+{
+  if (db.entityRetrieve == NULL)
+    return -1;
+  return db.entityRetrieve((Tenant*) userData, entityId, entityPP);
+}
+
+
+
+//
+// qHasLinked - true if a q-expression tree contains any LdQLinkedNode
+//
+static bool qHasLinked(LdQNode* nodeP)
+{
+  if (nodeP == NULL)
+    return false;
+  if (nodeP->type == LdQLinkedNode)
+    return true;
+  if (nodeP->type == LdQAndNode || nodeP->type == LdQOrNode)
+  {
+    for (int i = 0; i < nodeP->group.count; i++)
+      if (qHasLinked(nodeP->group.childV[i]))
+        return true;
+  }
+  return false;
+}
+
+
+
+//
+// applyLinkedQPostFilter - prune arrayP entries whose q-expression has
+// a LinkedNode that doesn't match (BSON layer can't evaluate it).
+//
+static void applyLinkedQPostFilter(KjNode* arrayP)
+{
+  if (arrayP == NULL || arrayP->type != KjArray)
+    return;
+  if (swNgsild.qExpr == NULL || !qHasLinked(swNgsild.qExpr))
+    return;
+
+  Tenant* tP = (Tenant*) swNgsild.tenantP;
+
+  KjNode* entityP = arrayP->value.firstChildP;
+  while (entityP != NULL)
+  {
+    KjNode* nextP = entityP->next;
+
+    if (!ldEntityMatchQEx(entityP, swNgsild.qExpr, linkedFetcher, tP))
+      kjChildRemove(arrayP, entityP);
+
+    entityP = nextP;
+  }
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // apiAttrToStorageWrap - wrap upstream API-format entity into storage format
@@ -462,6 +521,9 @@ bool getEntities(void)
         ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
     }
 
+    // § 4.9 LinkedEntityRelation — post-filter when q contains a sub-q.
+    applyLinkedQPostFilter(arrayP);
+
     // § 4.5.23 — linked-entity expansion of each result.
     if (swNgsild.join != NULL)
     {
@@ -827,7 +889,10 @@ bool getEntities(void)
         // q-filter
         if (keep && swNgsild.qExpr != NULL)
         {
-          if (!ldEntityMatchQ(entityP, swNgsild.qExpr))
+          // Pass the linked fetcher so § 4.9 sub-queries can resolve
+          // their Relationship target. Sub-queries on remote-only
+          // targets fall through to false (distOp lookup is a follow-up).
+          if (!ldEntityMatchQEx(entityP, swNgsild.qExpr, linkedFetcher, (Tenant*) swNgsild.tenantP))
             keep = false;
         }
 
@@ -969,6 +1034,9 @@ bool getEntities(void)
     for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
   }
+
+  // § 4.9 LinkedEntityRelation — post-filter when q contains a sub-q.
+  applyLinkedQPostFilter(arrayP);
 
   // § 4.5.23 — linked-entity expansion of each result.
   if (swNgsild.join != NULL)

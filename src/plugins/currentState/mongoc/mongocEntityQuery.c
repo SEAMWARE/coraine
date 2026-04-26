@@ -378,6 +378,15 @@ static void bsonAppendQNode(bson_t* docP, LdQNode* nodeP)
   {
     bsonAppendQTerm(docP, &nodeP->term);
   }
+  else if (nodeP->type == LdQLinkedNode)
+  {
+    // § 4.9 LinkedEntityRelation — sub-query targets a *different*
+    // entity, not this candidate. The DB filter can't evaluate it; we
+    // emit nothing here so the candidate set stays inclusive, and the
+    // service-routine post-filter (ldEntityMatchQEx with a fetcher)
+    // narrows down to the matches.
+    (void) docP;
+  }
   else if (nodeP->type == LdQAndNode)
   {
     bson_t andArray;
