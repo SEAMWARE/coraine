@@ -1,0 +1,342 @@
+#
+# FILE            linked_entities_inline.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.23.2 — inline linked-entity retrieval. retrieveEntity with
+# `?join=inline&joinLevel=N` keeps the response a single entity but
+# nests each Relationship's target under an `entity` sub-attribute,
+# recursively up to N hops. Same visited-set + missing-target rules
+# as the flat variant.
+#
+--NAME--
+Linked entities — inline retrieve, nested entity sub-attribute
+
+--TAGS--
+retrieve linked-entities
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01-04. Same seed as flat: V1 → P1 → P2 chain plus P3 → P3 self-cycle
+#                           plus V1 → MISSING dangling.
+# 05.    GET V1 with join=inline&joinLevel=1 — V1 with owner.entity=P1
+#                                              (P1.manager NOT yet expanded).
+# 06.    GET V1 with join=inline&joinLevel=2 — V1 with owner.entity=P1.manager.entity=P2.
+# 07.    GET V1 with join=inline&joinLevel=10 — same as level=2.
+# 08.    GET P3 with join=inline&joinLevel=10 — P3 with mentor (no entity, self-cycle).
+# 09.    GET V1 with join=inline&joinLevel=1 — reportsTo to MISSING has no `entity`.
+#
+
+echo "01. Seed P2 (leaf)"
+echo "=================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}'
+echo
+echo
+
+
+echo "02. Seed P1 → P2"
+echo "================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"},"manager":{"type":"Relationship","object":"urn:P2"}}'
+echo
+echo
+
+
+echo "03. Seed V1 → P1 + dangling MISSING"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:P1"},"reportsTo":{"type":"Relationship","object":"urn:MISSING"}}'
+echo
+echo
+
+
+echo "04. Seed P3 → P3 (self-cycle)"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P3","type":"Person","mentor":{"type":"Relationship","object":"urn:P3"}}'
+echo
+echo
+
+
+echo "05. GET V1 with join=inline&joinLevel=1 — owner.entity=P1, no nested expansion"
+echo "=============================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=1'
+echo
+echo
+
+
+echo "06. GET V1 with join=inline&joinLevel=2 — owner.entity=P1, P1.manager.entity=P2"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=2'
+echo
+echo
+
+
+echo "07. GET V1 with join=inline&joinLevel=10 — same as level=2"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=10'
+echo
+echo
+
+
+echo "08. GET P3 with join=inline&joinLevel=10 — self-cycle stops, no entity sub"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:P3?join=inline&joinLevel=10'
+echo
+echo
+
+
+echo "09. GET V1 with join=inline&joinLevel=1 — reportsTo (MISSING) has no entity"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=1'
+echo
+echo
+
+
+--EXPECT--
+01. Seed P2 (leaf)
+==================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:P2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed P1 → P2
+================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:P1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Seed V1 → P1 + dangling MISSING
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Seed P3 → P3 (self-cycle)
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:P3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. GET V1 with join=inline&joinLevel=1 — owner.entity=P1, no nested expansion
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "entity": {
+      "id": "urn:P1",
+      "manager": {
+        "object": "urn:P2",
+        "type": "Relationship"
+      },
+      "name": {
+        "type": "Property",
+        "value": "Alice"
+      },
+      "type": "Person"
+    },
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "reportsTo": {
+    "object": "urn:MISSING",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. GET V1 with join=inline&joinLevel=2 — owner.entity=P1, P1.manager.entity=P2
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "entity": {
+      "id": "urn:P1",
+      "manager": {
+        "entity": {
+          "id": "urn:P2",
+          "name": {
+            "type": "Property",
+            "value": "Bob"
+          },
+          "type": "Person"
+        },
+        "object": "urn:P2",
+        "type": "Relationship"
+      },
+      "name": {
+        "type": "Property",
+        "value": "Alice"
+      },
+      "type": "Person"
+    },
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "reportsTo": {
+    "object": "urn:MISSING",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+07. GET V1 with join=inline&joinLevel=10 — same as level=2
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "entity": {
+      "id": "urn:P1",
+      "manager": {
+        "entity": {
+          "id": "urn:P2",
+          "name": {
+            "type": "Property",
+            "value": "Bob"
+          },
+          "type": "Person"
+        },
+        "object": "urn:P2",
+        "type": "Relationship"
+      },
+      "name": {
+        "type": "Property",
+        "value": "Alice"
+      },
+      "type": "Person"
+    },
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "reportsTo": {
+    "object": "urn:MISSING",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+08. GET P3 with join=inline&joinLevel=10 — self-cycle stops, no entity sub
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:P3",
+  "mentor": {
+    "object": "urn:P3",
+    "type": "Relationship"
+  },
+  "type": "Person"
+}
+
+
+
+09. GET V1 with join=inline&joinLevel=1 — reportsTo (MISSING) has no entity
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "entity": {
+      "id": "urn:P1",
+      "manager": {
+        "object": "urn:P2",
+        "type": "Relationship"
+      },
+      "name": {
+        "type": "Property",
+        "value": "Alice"
+      },
+      "type": "Person"
+    },
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "reportsTo": {
+    "object": "urn:MISSING",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

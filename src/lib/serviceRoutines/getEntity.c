@@ -782,14 +782,23 @@ bool getEntity(void)
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
     ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
 
-  // § 4.5.23 — when join=flat, expand to an array (primary + targets)
-  // bounded by joinLevel. join=inline ships in a follow-up slice;
-  // join=@none and absent leave the response as the single entity.
-  if (swNgsild.join != NULL && strcmp(swNgsild.join, "flat") == 0)
+  // § 4.5.23 — linked-entity expansion. join=flat returns an array
+  // (primary + targets); join=inline nests targets as `entity` sub-
+  // attributes on the originating Relationship. @none and absent
+  // leave the response as the single entity.
+  if (swNgsild.join != NULL)
   {
     int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
-    swRest.out.responseTree = ldLinkedEntitiesFlat(entityP, level, (Tenant*) swNgsild.tenantP);
-    return true;
+    if (strcmp(swNgsild.join, "flat") == 0)
+    {
+      swRest.out.responseTree = ldLinkedEntitiesFlat(entityP, level, (Tenant*) swNgsild.tenantP);
+      return true;
+    }
+    if (strcmp(swNgsild.join, "inline") == 0)
+    {
+      swRest.out.responseTree = ldLinkedEntitiesInline(entityP, level, (Tenant*) swNgsild.tenantP);
+      return true;
+    }
   }
 
   swRest.out.responseTree = entityP;

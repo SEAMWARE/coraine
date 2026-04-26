@@ -41,4 +41,22 @@
 //
 extern KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesInline - § 4.5.23.2 inline representation
+//
+// Attaches each fetched target as an "entity" sub-attribute on the
+// originating Relationship instance, recursing up to joinLevel. Returns
+// the primary (mutated in place); the response stays a single object,
+// with linked targets nested. Visited-set + missing-target rules match
+// the flat variant.
+//
+// To keep ldEntityToApi (run by renderHook on the primary) idempotent,
+// the walker pre-converts every inlined target to API format itself —
+// the primary is left in storage so the renderHook converts it once.
+//
+extern KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP);
+
 #endif  // LE_LDLINKEDENTITIES_H_

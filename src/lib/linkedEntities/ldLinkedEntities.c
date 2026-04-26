@@ -238,3 +238,101 @@ KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
   visitedFree(visited);
   return outArr;
 }
+
+
+
+#include "swNgsild/ldEntityToApi.h"                   // ldEntityToApi
+
+
+
+// -----------------------------------------------------------------------------
+//
+// inlineWalk - recursive depth-bounded traversal for the inline shape
+//
+// Post-order: descend storage targets first (so the storage walker can
+// find their relationships), then call ldEntityToApi on each child
+// before attaching to its parent. The primary stays in storage; the
+// service routine's renderHook converts it.
+//
+static void inlineWalk(KjNode*       entityP,
+                       int           remaining,
+                       VisitedNode** visitedPP,
+                       Tenant*       tenantP)
+{
+  if (entityP == NULL || remaining <= 0)
+    return;
+
+  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if (attrP->name == NULL)                                      continue;
+    if (attrP->name[0] == '@')                                    continue;
+    if (attrP->type != KjObject)                                  continue;
+    if (strcmp(attrP->name, "id")         == 0)                   continue;
+    if (strcmp(attrP->name, "type")       == 0)                   continue;
+    if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
+    if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
+    if (strcmp(attrP->name, "scope")      == 0)                   continue;
+
+    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    {
+      if (instP->type != KjObject)
+        continue;
+
+      KjNode* typeP = kjLookup(instP, "type");
+      if (typeP == NULL || typeP->type != KjString)               continue;
+      if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
+
+      KjNode* valP = kjLookup(instP, "value");
+      if (valP == NULL || valP->type != KjString)                 continue;
+
+      const char* tid = valP->value.s;
+
+      if (visitedContains(*visitedPP, tid))
+        continue;
+
+      KjNode* targetP = NULL;
+      int     r       = db.entityRetrieve(tenantP, tid, &targetP);
+      if (r != DB_OK || targetP == NULL)
+      {
+        *visitedPP = visitedAppend(*visitedPP, tid);
+        continue;
+      }
+
+      *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetP));
+
+      // Recurse while target is still in storage so the storage
+      // walker can find its Relationships.
+      inlineWalk(targetP, remaining - 1, visitedPP, tenantP);
+
+      // Convert the target itself to API (post-order). Its inlined
+      // children are already API-converted from the recursion above.
+      ldEntityToApi(targetP, &swRest.kalloc);
+
+      // Attach to the originating Relationship instance as "entity".
+      targetP->name = "entity";
+      kjChildAdd(instP, targetP);
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesInline -
+//
+KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
+{
+  if (primaryP == NULL)
+    return NULL;
+
+  const char* primaryId = entityIdOf(primaryP);
+  if (primaryId == NULL || joinLevel < 1 || tenantP == NULL || db.entityRetrieve == NULL)
+    return primaryP;
+
+  VisitedNode* visited = visitedAppend(NULL, primaryId);
+  inlineWalk(primaryP, joinLevel, &visited, tenantP);
+  visitedFree(visited);
+
+  return primaryP;
+}
