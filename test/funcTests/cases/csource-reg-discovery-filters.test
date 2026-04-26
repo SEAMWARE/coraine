@@ -1,0 +1,278 @@
+#
+# FILE            csource-reg-discovery-filters.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.10.2 GET /csourceRegistrations — additional discovery filters:
+#   scopeQ  → match against CSR's scope
+#   csf     → alias of q (filters CSR's own user-Properties)
+#   omit    → strip listed members from each response item
+#   lang    → language reduction on user-Properties
+#
+# Still 501 (deferred to a later slice):
+#   georel/geometry/coordinates/geoproperty (geoQ on CSR location)
+#   timerel/timeAt/endTimeAt (temporal query on observationInterval)
+#
+--NAME--
+GET /csourceRegistrations — scopeQ / csf / omit / lang filters
+
+--TAGS--
+registration discovery query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Register CSR_North (scope=/Madrid/North, organization=Acme)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:North",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "scope": "/Madrid/North",
+  "organization": {"type": "Property", "value": "Acme"},
+  "secret": {"type": "Property", "value": "shhh"},
+  "information": [{"entities": [{"type": "Vehicle"}]}]
+}'
+echo
+echo
+
+
+echo "02. Register CSR_South (scope=/Madrid/South, organization=Beta)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:South",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9998",
+  "scope": "/Madrid/South",
+  "organization": {"type": "Property", "value": "Beta"},
+  "information": [{"entities": [{"type": "Vehicle"}]}]
+}'
+echo
+echo
+
+
+echo "03. ?type=Vehicle&scopeQ=/Madrid/North → only CSR:North"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&scopeQ=%2FMadrid%2FNorth'
+echo
+echo
+
+
+echo "04. ?type=Vehicle&csf=organization%3D%3D%22Acme%22 → only CSR:North"
+echo "==================================================================="
+echo "    csf is the spec-correct name for 'filter on CSR user-Properties'."
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&csf=organization%3D%3D%22Acme%22'
+echo
+echo
+
+
+echo "05. ?type=Vehicle&omit=secret → 'secret' stripped from each item"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&omit=secret'
+echo
+echo
+
+
+echo "06. ?type=Vehicle&geoproperty=location → 501 (deferred)"
+echo "======================================================="
+echo "    geoQ on CSR location/observationSpace/operationSpace not yet implemented."
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&geoproperty=location'
+echo
+echo
+
+
+echo "07. ?type=Vehicle&georel=near → 501 (geoQ on CSR location deferred)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&georel=near'
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR_North (scope=/Madrid/North, organization=Acme)
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:North
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR_South (scope=/Madrid/South, organization=Beta)
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:South
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. ?type=Vehicle&scopeQ=/Madrid/North → only CSR:North
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 428
+
+[
+  {
+    "endpoint": "http://localhost:9999",
+    "id": "urn:CSR:North",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "organization": {
+      "type": "Property",
+      "value": "Acme"
+    },
+    "scope": "/Madrid/North",
+    "secret": {
+      "type": "Property",
+      "value": "shhh"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+04. ?type=Vehicle&csf=organization%3D%3D%22Acme%22 → only CSR:North
+===================================================================
+    csf is the spec-correct name for 'filter on CSR user-Properties'.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 428
+
+[
+  {
+    "endpoint": "http://localhost:9999",
+    "id": "urn:CSR:North",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "organization": {
+      "type": "Property",
+      "value": "Acme"
+    },
+    "scope": "/Madrid/North",
+    "secret": {
+      "type": "Property",
+      "value": "shhh"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+05. ?type=Vehicle&omit=secret → 'secret' stripped from each item
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 711
+
+[
+  {
+    "endpoint": "http://localhost:9999",
+    "id": "urn:CSR:North",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "organization": {
+      "type": "Property",
+      "value": "Acme"
+    },
+    "scope": "/Madrid/North",
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9998",
+    "id": "urn:CSR:South",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ]
+      }
+    ],
+    "organization": {
+      "type": "Property",
+      "value": "Beta"
+    },
+    "scope": "/Madrid/South",
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+06. ?type=Vehicle&geoproperty=location → 501 (deferred)
+=======================================================
+    geoQ on CSR location/observationSpace/operationSpace not yet implemented.
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 323
+
+{
+  "detail": "Context Source Registration discovery filter 'geoproperty' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+07. ?type=Vehicle&georel=near → 501 (geoQ on CSR location deferred)
+===================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 318
+
+{
+  "detail": "Context Source Registration discovery filter 'georel' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

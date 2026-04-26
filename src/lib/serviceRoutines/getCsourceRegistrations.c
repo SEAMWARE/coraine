@@ -14,10 +14,25 @@
 // name list via EITHER `pick` (current) OR `attrs` (deprecated per
 // § 6.8.3.2 Table 6.8.3.2-1). Supplying both is rejected with 400.
 //
-// Deferred (501 when supplied alone): q, geoQ, csf, scopeQ, timerel,
-// lang, omit, geometryProperty. When q is supplied alongside attrs
-// or pick we proceed using attrs/pick — the value-filter role of q
-// is a separate future concern.
+// Implemented filters:
+//   - type / id / idPattern        : EntityInfo matching (§ 5.12)
+//   - pick (or deprecated attrs)   : at least one Property/Relationship in
+//                                    RegistrationInfo matches
+//   - q                            : matches CSR's own user-Properties
+//                                    (organization, tier, etc. — same as csf)
+//   - csf                          : alias of q above (§ 5.10.2.4)
+//   - scopeQ                       : matches CSR's scope (§ 5.10.2.4)
+//   - omit                         : strip listed members from the response
+//   - lang                         : language reduction on response
+//   - geometryProperty             : passthrough for Accept: geo+json renderer
+//   - limit / offset / count       : pagination (§ 5.5.9)
+//
+// Deferred (501): geoQ quadruple (georel/geometry/coordinates/geoproperty)
+//                 and the temporal query (timerel/timeAt/endTimeAt/
+//                 timeproperty). geoQ needs GEOS-aware matching against
+//                 the CSR's location/observationSpace/operationSpace and
+//                 temporal needs observationInterval/managementInterval
+//                 matching — both are non-trivial slices.
 //
 // Response: 200 OK + JSON-LD array of CSourceRegistration (§ 5.10.2.5).
 //
@@ -28,12 +43,15 @@
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
 #include "kjson/kjClone.h"                           // kjClone
+#include "kjson/kjLookup.h"                          // kjLookup
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForDiscovery
-#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ
+#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
+#include "swNgsild/ldPickOmit.h"                     // ldPickOmit
+#include "swNgsild/ldLangReduce.h"                   // ldLangReduce
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -44,16 +62,21 @@
 
 static bool paramSupported(const char* key)
 {
-  if (key == NULL)                       return true;
-  if (strcmp(key, "limit")     == 0)     return true;
-  if (strcmp(key, "offset")    == 0)     return true;
-  if (strcmp(key, "count")     == 0)     return true;
-  if (strcmp(key, "type")      == 0)     return true;
-  if (strcmp(key, "id")        == 0)     return true;
-  if (strcmp(key, "idPattern") == 0)     return true;
-  if (strcmp(key, "pick")      == 0)     return true;
-  if (strcmp(key, "attrs")     == 0)     return true;
-  if (strcmp(key, "q")         == 0)     return true;   // handled separately (501 alone, tolerated with attrs/pick)
+  if (key == NULL)                              return true;
+  if (strcmp(key, "limit")            == 0)     return true;
+  if (strcmp(key, "offset")           == 0)     return true;
+  if (strcmp(key, "count")            == 0)     return true;
+  if (strcmp(key, "type")             == 0)     return true;
+  if (strcmp(key, "id")               == 0)     return true;
+  if (strcmp(key, "idPattern")        == 0)     return true;
+  if (strcmp(key, "pick")             == 0)     return true;
+  if (strcmp(key, "attrs")            == 0)     return true;
+  if (strcmp(key, "omit")             == 0)     return true;
+  if (strcmp(key, "q")                == 0)     return true;
+  if (strcmp(key, "csf")              == 0)     return true;   // alias of q for CSR discovery
+  if (strcmp(key, "scopeQ")           == 0)     return true;
+  if (strcmp(key, "lang")             == 0)     return true;
+  if (strcmp(key, "geometryProperty") == 0)     return true;   // only meaningful with Accept: geo+json
   return false;
 }
 
@@ -81,7 +104,7 @@ bool getCsourceRegistrations(void)
     if (paramSupported(key) == false)
     {
       ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
-              "Context Source Registration discovery filter '%s' is not implemented; supported: type, id, idPattern, pick, attrs (deprecated), q, limit, offset, count",
+              "Context Source Registration discovery filter '%s' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
               key);
       return true;
     }
@@ -122,26 +145,55 @@ bool getCsourceRegistrations(void)
                                               entityIdFilter, swNgsild.idPattern,
                                               attrsFilter, &matchV);
 
-    // Post-filter by q (CSR's own user-Properties). Done in-place: anything
-    // that doesn't pass gets NULL'd and skipped by the emit loop.
-    int qPassN = matchN;
+    // Post-filters compact matchV in-place. Order: q (CSR user-Properties)
+    // then scopeQ (CSR's scope field). § 5.10.2.4 lists them as separate
+    // conjunctive conditions on the regs.
+    int passN = matchN;
+
     if (qExpr != NULL)
     {
-      qPassN = 0;
-      for (int i = 0; i < matchN; i++)
+      int n = 0;
+      for (int i = 0; i < passN; i++)
       {
         if (matchV[i]->regTree != NULL && ldEntityMatchQ(matchV[i]->regTree, qExpr))
-          matchV[qPassN++] = matchV[i];
+          matchV[n++] = matchV[i];
       }
+      passN = n;
+    }
+
+    if (swNgsild.scopeExpr != NULL)
+    {
+      int n = 0;
+      for (int i = 0; i < passN; i++)
+      {
+        KjNode* scopeP = (matchV[i]->regTree != NULL) ? kjLookup(matchV[i]->regTree, "scope") : NULL;
+        if (ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
+          matchV[n++] = matchV[i];
+      }
+      passN = n;
     }
 
     int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : qPassN;
+    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : passN;
 
-    for (int i = skip; i < qPassN && (i - skip) < limit; i++)
+    for (int i = skip; i < passN && (i - skip) < limit; i++)
     {
       if (matchV[i]->regTree != NULL)
-        kjChildAdd(arrayP, kjClone(swRest.kjsonP, matchV[i]->regTree));
+      {
+        KjNode* clone = kjClone(swRest.kjsonP, matchV[i]->regTree);
+
+        // omit strips listed members from the response (mirror of pick,
+        // applied on the OUTPUT side only — pick narrows reg matching;
+        // omit just trims the response).
+        if (swNgsild.omitV != NULL && swNgsild.omitV[0] != NULL)
+          ldPickOmit(clone, NULL, swNgsild.omitV);
+
+        // lang reduces LanguageProperty attrs on user-Properties.
+        if (swNgsild.lang != NULL)
+          ldLangReduce(clone, swNgsild.lang, &swRest.kalloc);
+
+        kjChildAdd(arrayP, clone);
+      }
     }
 
     if (matchV != NULL) free(matchV);
