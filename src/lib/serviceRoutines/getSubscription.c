@@ -39,8 +39,8 @@ bool getSubscription(void)
   const char* subId = swRest.in.wildcard[0];
 
   Tenant*         tenantP    = (Tenant*) swNgsild.tenantP;
-  LdSubCacheItem* cacheItem  = (tenantP != NULL && tenantP->subCacheP != NULL)    ? ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId)       : NULL;
-  LdPernotItem*   pernotItem = (tenantP != NULL && tenantP->pernotCacheP != NULL) ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) : NULL;
+  LdSubCacheItem* cacheItem  = (tenantP->subCacheP != NULL)    ? ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId)       : NULL;
+  LdPernotItem*   pernotItem = (tenantP->pernotCacheP != NULL) ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) : NULL;
   KjNode*         srcTree    = (cacheItem != NULL) ? cacheItem->subTree : (pernotItem != NULL) ? pernotItem->subTree : NULL;
 
   if (srcTree == NULL)

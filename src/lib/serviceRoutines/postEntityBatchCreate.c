@@ -719,12 +719,10 @@ bool postEntityBatchCreate(void)
   for (int i = 0; i < eligN; i++) anySuccessV[i] = false;
 
   Tenant*     tenantP  = (Tenant*) swNgsild.tenantP;
-  const char* ownAlias = (tenantP != NULL)
-                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
-                         : NULL;
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   bool dispatch = (swNgsild.local == false
-                   && tenantP != NULL
+                  
                    && tenantP->regCacheP != NULL);
 
   if (dispatch && ldDistOpLoopDetected(ownAlias))
@@ -795,7 +793,7 @@ bool postEntityBatchCreate(void)
     int* resultsV = (int*) kaAlloc(&swRest.kalloc, sizeof(int) * localN);
     db.entityBulkCreate(tenantP, localArr, resultsV);
 
-    LdSubCache* subCacheP = (tenantP != NULL) ? (LdSubCache*) tenantP->subCacheP : NULL;
+    LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;
 
     KjNode* entP = localArr->value.firstChildP;
     for (int k = 0; k < localN; k++, entP = (entP != NULL) ? entP->next : NULL)

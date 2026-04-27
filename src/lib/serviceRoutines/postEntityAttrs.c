@@ -329,12 +329,10 @@ bool postEntityAttrs(void)
   KjNode* updatedP    = kjArray(swRest.kjsonP, "updated");
   KjNode* notUpdatedP = kjArray(swRest.kjsonP, "notUpdated");
 
-  const char* ownAlias = (tenantP != NULL)
-                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
-                         : NULL;
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   bool dispatch = (swNgsild.local == false
-                   && tenantP != NULL
+                  
                    && tenantP->regCacheP != NULL);
 
   if (dispatch && ldDistOpLoopDetected(ownAlias))
@@ -476,7 +474,7 @@ bool postEntityAttrs(void)
       return true;
     }
 
-    if (r == DB_OK && tenantP != NULL && tenantP->subCacheP != NULL)
+    if (r == DB_OK && tenantP->subCacheP != NULL)
     {
       KjNode* mergedEntity = NULL;
       db.entityRetrieve(tenantP, entityId, &mergedEntity);

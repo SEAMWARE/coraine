@@ -32,7 +32,7 @@
 bool getCsourceSubscriptions(void)
 {
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
-  LdSubCache* cacheP  = (tenantP != NULL) ? (LdSubCache*) tenantP->regSubCacheP : NULL;
+  LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
   ldContextResolve();
 

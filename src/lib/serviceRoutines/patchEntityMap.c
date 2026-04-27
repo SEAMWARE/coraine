@@ -110,7 +110,7 @@ bool patchEntityMap(void)
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
-  if (tenantP == NULL || tenantP->entityMapStoreP == NULL)
+  if (tenantP->entityMapStoreP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "entity map '%s' not found", mapId);

@@ -294,12 +294,10 @@ bool replaceEntity(void)
   KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
-  const char* ownAlias = (tenantP != NULL)
-                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
-                         : NULL;
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   bool dispatch = (swNgsild.local == false
-                   && tenantP != NULL
+                  
                    && tenantP->regCacheP != NULL);
 
   if (dispatch && ldDistOpLoopDetected(ownAlias))

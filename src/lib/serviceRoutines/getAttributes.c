@@ -67,11 +67,11 @@ bool getAttributes(void)
     return true;
   }
 
-  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (!swNgsild.local && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentAttrs(aggregated, (LdRegCache*) tenantP->regCacheP, details);
 
   if (!swNgsild.local && !swNgsild.noForward &&
-      tenantP != NULL && tenantP->regCacheP != NULL &&
+      tenantP->regCacheP != NULL &&
       ldDiscoveryShouldForward())
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);

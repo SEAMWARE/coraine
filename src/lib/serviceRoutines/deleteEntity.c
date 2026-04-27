@@ -81,12 +81,10 @@ bool deleteEntity(void)
   bool    anySucceeded = false;
 
   bool dispatch = (swNgsild.local == false
-                   && tenantP != NULL
+                  
                    && tenantP->regCacheP != NULL);
 
-  const char* ownAlias = (tenantP != NULL)
-                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
-                         : NULL;
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   if (dispatch && ldDistOpLoopDetected(ownAlias))
     dispatch = false;   // forwards suppressed; local still runs below.
@@ -175,7 +173,7 @@ bool deleteEntity(void)
   // active so notifications have an entity body.
   //
   KjNode* entityP = NULL;
-  if (tenantP != NULL && tenantP->subCacheP != NULL)
+  if (tenantP->subCacheP != NULL)
     db.entityRetrieve(tenantP, entityId, &entityP);
 
   int r = db.entityDelete(tenantP, entityId);
@@ -184,7 +182,7 @@ bool deleteEntity(void)
   {
     anySucceeded = true;
 
-    if (tenantP != NULL && tenantP->subCacheP != NULL && entityP != NULL)
+    if (tenantP->subCacheP != NULL && entityP != NULL)
       ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, entityP, swRest.requestStartTime);
   }
   else if (r != DB_NOT_FOUND)

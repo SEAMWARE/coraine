@@ -255,12 +255,10 @@ bool purgeEntities(void)
   KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
 
   bool dispatch = (swNgsild.local == false
-                   && tenantP != NULL
+                  
                    && tenantP->regCacheP != NULL);
 
-  const char* ownAlias = (tenantP != NULL)
-                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
-                         : NULL;
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   if (dispatch && ldDistOpLoopDetected(ownAlias))
     dispatch = false;
@@ -376,14 +374,14 @@ bool purgeEntities(void)
         {
           // Pre-fetch for subscription notification
           KjNode* preImage = NULL;
-          if (tenantP != NULL && tenantP->subCacheP != NULL)
+          if (tenantP->subCacheP != NULL)
             db.entityRetrieve(tenantP, entityId, &preImage);
 
           int dr = db.entityDelete(tenantP, entityId);
           if (dr == DB_OK)
           {
             kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
-            if (tenantP != NULL && tenantP->subCacheP != NULL && preImage != NULL)
+            if (tenantP->subCacheP != NULL && preImage != NULL)
               ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, preImage, swRest.requestStartTime);
           }
           else if (dr != DB_NOT_FOUND)

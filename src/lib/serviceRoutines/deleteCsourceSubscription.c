@@ -27,7 +27,7 @@ bool deleteCsourceSubscription(void)
   const char* subId = swRest.in.wildcard[0];
 
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
-  LdSubCache* cacheP  = (tenantP != NULL) ? (LdSubCache*) tenantP->regSubCacheP : NULL;
+  LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
   if (cacheP == NULL || ldSubCacheItemLookup(cacheP, subId) == NULL)
   {

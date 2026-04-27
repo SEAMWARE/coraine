@@ -393,7 +393,7 @@ static void chopForMode(Tenant*      tenantP,
                          int*         aCapP,
                          const char*  ownAlias)
 {
-  if (tenantP == NULL || tenantP->regCacheP == NULL)
+  if (tenantP->regCacheP == NULL)
     return;
 
   LdRegCacheItem** matchV = NULL;
@@ -583,14 +583,12 @@ bool postEntityBatchUpsert(void)
   // chop, merge-in-order, defer notifications.
   //
   Tenant*      tenantP   = (Tenant*) swNgsild.tenantP;
-  LdSubCache*  subCacheP = (tenantP != NULL) ? (LdSubCache*) tenantP->subCacheP : NULL;
+  LdSubCache*  subCacheP = (LdSubCache*) tenantP->subCacheP;
 
-  const char* ownAlias = (tenantP != NULL)
-                         ? ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc)
-                         : NULL;
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   bool dispatch = (swNgsild.local == false
-                   && tenantP != NULL
+                  
                    && tenantP->regCacheP != NULL);
 
   if (dispatch && ldDistOpLoopDetected(ownAlias))

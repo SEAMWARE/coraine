@@ -238,7 +238,7 @@ bool getCsourceRegistrations(void)
   LdQNode* qExpr = hasQ ? swNgsild.qExpr : NULL;
 
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
-  LdRegCache* cacheP  = (tenantP != NULL) ? (LdRegCache*) tenantP->regCacheP : NULL;
+  LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
 
   KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
 

@@ -36,8 +36,8 @@ bool getSubscriptions(void)
   ldContextResolve();
 
   Tenant*        tenantP   = (Tenant*) swNgsild.tenantP;
-  LdSubCache*    scP       = (tenantP != NULL) ? (LdSubCache*)    tenantP->subCacheP    : NULL;
-  LdPernotCache* pcP       = (tenantP != NULL) ? (LdPernotCache*) tenantP->pernotCacheP : NULL;
+  LdSubCache*    scP       = (LdSubCache*)    tenantP->subCacheP   ;
+  LdPernotCache* pcP       = (LdPernotCache*) tenantP->pernotCacheP;
 
   KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
 

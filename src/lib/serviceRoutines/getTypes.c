@@ -84,7 +84,7 @@ bool getTypes(void)
   // Mode 2 (?noForward=true) or default (mode 3): augment with
   // CSR-declared types/attrs. Mode 1 (?local=true) stops at local data.
   //
-  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (!swNgsild.local && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentTypes(aggregated, (LdRegCache*) tenantP->regCacheP, details);
 
   //
@@ -92,7 +92,7 @@ bool getTypes(void)
   // every CSR supporting retrieveEntityType(s) and merge the results.
   //
   if (!swNgsild.local && !swNgsild.noForward &&
-      tenantP != NULL && tenantP->regCacheP != NULL &&
+      tenantP->regCacheP != NULL &&
       ldDiscoveryShouldForward())
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);

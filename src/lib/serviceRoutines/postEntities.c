@@ -435,7 +435,7 @@ bool postEntities(void)
   KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
-  if (swNgsild.local == false && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (swNgsild.local == false && tenantP->regCacheP != NULL)
   {
     // Type vector built from the entity's "type" — string or array per § 4.5.1.
     KjNode* typeP        = kjLookup(entityP, "type");
@@ -731,7 +731,7 @@ bool postEntities(void)
       if (idP->name[0] == '_')
         idP->name = "id";
 
-      if (tenantP != NULL && tenantP->subCacheP != NULL)
+      if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);
     }
     else

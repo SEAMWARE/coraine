@@ -36,7 +36,7 @@ bool getCsourceRegistration(void)
   const char* regId = swRest.in.wildcard[0];
 
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
-  LdRegCache* cacheP  = (tenantP != NULL) ? (LdRegCache*) tenantP->regCacheP : NULL;
+  LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
 
   LdRegCacheItem* itemP = (cacheP != NULL) ? ldRegCacheItemLookup(cacheP, regId) : NULL;
 

@@ -109,7 +109,7 @@ bool patchSubscription(void)
   //
   // Block patching of CSR-subs via this endpoint.
   //
-  if (tenantP != NULL && tenantP->regSubCacheP != NULL
+  if (tenantP->regSubCacheP != NULL
       && ldSubCacheItemLookup((LdSubCache*) tenantP->regSubCacheP, subId) != NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
