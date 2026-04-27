@@ -46,6 +46,10 @@
 #include "db/dbClose.h"                           // dbClose
 #include "db/Tenant.h"                            // tenantPreServiceHook
 
+#include "troe/TroeDriver.h"                      // troe
+#include "troe/troeInit.h"                        // troeStart, troeStop
+#include "troe/troeDispatch.h"                    // troeDispatchPending
+
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
 
@@ -172,6 +176,7 @@ static void contextCacheReload(void)
 //
 unsigned short port         = 1026;
 char*          dbName       = "mongoc";
+char*          troeName     = "none";
 char*          apiNames     = NULL;
 unsigned int   prettySpaces = 0;
 bool           localOnly    = false;
@@ -189,6 +194,7 @@ static KArg kargV[] =
 {
   { "--port",               "-p",           KaUShort, _vp &port,         KaOpt, _vp 1026,     _vp 1, _vp 65535, "TCP port to listen on" },
   { "--database",           "-db",          KaString, _vp &dbName,       KaOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
+  { "--troe",               "-troe",        KaString, _vp &troeName,     KaOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
@@ -254,6 +260,10 @@ static bool pluginsLoad(int argC, char* argV[])
   if (dbPeek == NULL)
     dbPeek = dbName;  // use default
 
+  char* troePeek = kargsPeek(argC, argV, kargV, "--troe");
+  if (troePeek == NULL)
+    troePeek = troeName;  // use default ("none")
+
   char* apiPeek = kargsPeek(argC, argV, kargV, "--apiPlugins");
 
   //
@@ -283,6 +293,31 @@ static bool pluginsLoad(int argC, char* argV[])
   }
 
   //
+  // Load TRoE plugin (dlopen + troeRegister, no connection yet)
+  //
+  {
+    char errBuf[1024];
+    if (pluginLoadTroe(troePeek, errBuf, sizeof(errBuf)) != 0)
+    {
+      fprintf(stderr, "%s\n", errBuf);
+      startupError = true;
+    }
+    else if (troe.args != NULL)
+    {
+      static char troeSepText[128];
+      if (troe.alias != NULL)
+        snprintf(troeSepText, sizeof(troeSepText), "TRoE (%s) plugin options:", troe.alias);
+      else
+        snprintf(troeSepText, sizeof(troeSepText), "TRoE plugin options:");
+
+      static KArg troeSepArgV[] = { KARGS_SEPARATOR(NULL), KARGS_END };
+      troeSepArgV[0].description = troeSepText;
+      kargsAdd(troeSepArgV);
+      kargsAdd(troe.args);
+    }
+  }
+
+  //
   // Load API plugins (dlopen + apiRegister for each)
   //
   if (apiPeek != NULL)
@@ -307,6 +342,7 @@ static bool pluginsLoad(int argC, char* argV[])
   // Add available-plugin info (shown in -u usage output)
   //
   swPluginArgUpdate("--database", "db/currentState");
+  swPluginArgUpdate("--troe", "troe/temporal");
   swPluginArgUpdate("--apiPlugins", "api");
 
   // Add footer showing plugin directory
@@ -439,6 +475,7 @@ static void brokerPostResponseHook(void)
 {
   metricsPostResponse();
   ldNotifyDispatchPending();
+  troeDispatchPending();
 }
 
 
@@ -573,6 +610,9 @@ int main(int argC, char* argV[])
 
   if (dbStart() != 0)
     KT_X(1, "dbStart failed");
+
+  if (troeStart() != 0)
+    KT_X(1, "troeStart failed");
 
   //
   // Load subscriptions from DB into cache.

@@ -32,4 +32,16 @@ extern int pluginLoadDb(const char* shortName, char* errorBuf, int errorBufSize)
 //
 extern int pluginLoadApi(const char* commaList, char* errorBuf, int errorBufSize);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginLoadTroe - load a TRoE plugin by short name or full path
+//
+// Short name "timescale" resolves to {baseDir}/troe/temporal/timescale.so.
+// "none" loads the no-op plugin (TRoE disabled).
+// On failure, writes error detail to errorBuf (if not NULL).
+//
+extern int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize);
+
 #endif  // PLUGIN_PLUGINLOADER_H_

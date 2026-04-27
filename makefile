@@ -77,6 +77,9 @@ DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
                 src/lib/db/tenant.c
 
+TROE_SOURCES  = src/lib/troe/troeInit.c                \
+                src/lib/troe/troeDispatch.c
+
 PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
 
 FWD_SOURCES   = src/lib/forwarding/forwardingHttp.c
@@ -85,7 +88,7 @@ LE_SOURCES    = src/lib/linkedEntities/ldLinkedEntities.c
 
 METRICS_SOURCES = src/lib/metrics/metrics.c src/lib/metrics/subStatsFlushAll.c
 
-ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES) $(LE_SOURCES) $(METRICS_SOURCES)
+ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(TROE_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES) $(LE_SOURCES) $(METRICS_SOURCES)
 ALL_OBJS      = $(ALL_SOURCES:.c=.o)
 
 #
@@ -117,6 +120,7 @@ SYS_LIBS      = -lmicrohttpd -lssl -lcrypto -lpthread -ldl -lm
 PLUGIN_DIR     = plugins
 RAMDB_DIR      = src/plugins/currentState/swRamDB
 ADMIN_DIR      = src/plugins/api/admin
+TROE_NONE_DIR  = src/plugins/temporal/none
 
 RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
@@ -142,6 +146,9 @@ ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
                  $(ADMIN_DIR)/adminTenants.c $(ADMIN_DIR)/adminPlugins.c \
                  $(ADMIN_DIR)/adminMetrics.c $(ADMIN_DIR)/adminSubStats.c
 ADMIN_OBJS     = $(ADMIN_SOURCES:.c=.o)
+
+TROE_NONE_SOURCES = $(TROE_NONE_DIR)/noneRegister.c
+TROE_NONE_OBJS    = $(TROE_NONE_SOURCES:.c=.o)
 
 MONGOC_DIR     = src/plugins/currentState/mongoc
 MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
@@ -192,7 +199,7 @@ PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
 #
 # Targets
 #
-all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(FTCLIENT_BINARY)
+all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(PLUGIN_DIR)/troeNone.so $(FTCLIENT_BINARY)
 
 LDFLAGS   ?=
 
@@ -211,6 +218,13 @@ $(RAMDB_DIR)/%.o: $(RAMDB_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
 $(ADMIN_DIR)/%.o: $(ADMIN_DIR)/%.c
+	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
+
+$(PLUGIN_DIR)/troeNone.so: $(TROE_NONE_OBJS)
+	@mkdir -p $(PLUGIN_DIR)
+	$(CC) -shared -o $@ $(TROE_NONE_OBJS)
+
+$(TROE_NONE_DIR)/%.o: $(TROE_NONE_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
 $(PLUGIN_DIR)/mongoc.so: $(MONGOC_OBJS)
@@ -238,10 +252,12 @@ INSTALL_PLUGIN  = /opt/seamware/plugins
 install: all
 	@mkdir -p $(PREFIX)/bin
 	@mkdir -p $(INSTALL_PLUGIN)/db/currentState
+	@mkdir -p $(INSTALL_PLUGIN)/troe/temporal
 	@mkdir -p $(INSTALL_PLUGIN)/api
 	cat $(BINARY)                  > $(PREFIX)/bin/$(BINARY)         && chmod +x $(PREFIX)/bin/$(BINARY)
 	cat $(PLUGIN_DIR)/mongoc.so    > $(INSTALL_PLUGIN)/db/currentState/mongoc.so
 	cat $(PLUGIN_DIR)/swRamDB.so   > $(INSTALL_PLUGIN)/db/currentState/swRamDB.so
+	cat $(PLUGIN_DIR)/troeNone.so  > $(INSTALL_PLUGIN)/troe/temporal/none.so
 	cat $(PLUGIN_DIR)/admin.so     > $(INSTALL_PLUGIN)/api/admin.so
 
 i:   install
@@ -266,7 +282,7 @@ coverage:
 	@echo "Coverage report: file://$(CURDIR)/$(COV_DIR)/index.html"
 
 clean:
-	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(BINARY)
+	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(BINARY)
 	rm -f $(FTCLIENT_OBJS) $(FTCLIENT_BINARY)
 	rm -rf $(PLUGIN_DIR) $(COV_DIR)
 	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true

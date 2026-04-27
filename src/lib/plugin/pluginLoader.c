@@ -13,6 +13,7 @@
 #include "ktrace/kTrace.h"                            // KT_I
 
 #include "db/DbDriver.h"                              // DbDriver, DbRegisterFunc, db
+#include "troe/TroeDriver.h"                          // TroeDriver, TroeRegisterFunc, troe
 #include "plugin/ApiPlugin.h"                         // ApiPlugin, ApiRegisterFunc, apiPlugins
 #include "plugin/pluginLoader.h"                      // Own interface
 
@@ -125,5 +126,39 @@ int pluginLoadApi(const char* commaList, char* errorBuf, int errorBufSize)
     token = strtok_r(NULL, ",", &saveptr);
   }
 
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginLoadTroe - load a TRoE plugin
+//
+int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
+{
+  char path[512];
+
+  memset(&troe, 0, sizeof(TroeDriver));
+
+  swPluginResolve(swPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
+
+  char openErr[512];
+  TroeRegisterFunc registerFunc = (TroeRegisterFunc) swPluginOpen(path, "troeRegister", openErr, sizeof(openErr));
+  if (registerFunc == NULL)
+  {
+    if (errorBuf != NULL)
+    {
+      if (strchr(shortName, '/') == NULL)
+        snprintf(errorBuf, errorBufSize, "TRoE plugin '%s' (%s): %s", shortName, path, openErr);
+      else
+        snprintf(errorBuf, errorBufSize, "TRoE plugin '%s': %s", shortName, openErr);
+    }
+    return -1;
+  }
+
+  registerFunc(&troe);
+
+  KT_I("troe plugin loaded: %s", path);
   return 0;
 }
