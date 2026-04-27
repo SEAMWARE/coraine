@@ -47,6 +47,7 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
+#include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForDiscovery
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
@@ -81,13 +82,118 @@ static bool paramSupported(const char* key)
   if (strcmp(key, "geometry")         == 0)     return true;
   if (strcmp(key, "coordinates")      == 0)     return true;
   if (strcmp(key, "geoproperty")      == 0)     return true;
+  if (strcmp(key, "timerel")          == 0)     return true;   // temporal query — § 5.10.2.4
+  if (strcmp(key, "timeAt")           == 0)     return true;
+  if (strcmp(key, "endTimeAt")        == 0)     return true;
+  if (strcmp(key, "timeproperty")     == 0)     return true;
   return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// intervalNs - extract startAtNs / endAtNs from a CSR's TimeInterval object.
+// Returns true if startAt is present (valid interval).
+//
+// CSRs store the interval as { startAt: <DateTime>, endAt: <DateTime>? }
+// where endAt is optional ("interval still open"). Accept both KjString
+// (raw ISO) and KjInt (epoch-ns) shapes.
+//
+static bool intervalNs(KjNode* intervalP, uint64_t* startNsP, uint64_t* endNsP)
+{
+  *startNsP = 0;
+  *endNsP   = 0;
+
+  if (intervalP == NULL || intervalP->type != KjObject)
+    return false;
+
+  KjNode* startP = kjLookup(intervalP, "startAt");
+  if (startP == NULL)
+    return false;
+
+  if      (startP->type == KjString) *startNsP = ldIsoToNanoseconds(startP->value.s);
+  else if (startP->type == KjInt)    *startNsP = (uint64_t) startP->value.i;
+  else                               return false;
+
+  KjNode* endP = kjLookup(intervalP, "endAt");
+  if (endP != NULL)
+  {
+    if      (endP->type == KjString) *endNsP = ldIsoToNanoseconds(endP->value.s);
+    else if (endP->type == KjInt)    *endNsP = (uint64_t) endP->value.i;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// csrTemporalMatch - match the request's temporal query against a CSR
+// per § 5.10.2.4.
+//
+// timeproperty selects the relevant interval:
+//   observedAt (or default) → observationInterval
+//   createdAt/modifiedAt/deletedAt → managementInterval
+//
+// If the relevant interval is not present, no match.
+//
+// Match semantics (§ 5.10.2.4):
+//   - "before" / "after": timeAt is contained in or is an endpoint of the interval
+//   - "between": [timeAt, endTimeAt] overlaps with [startAt, endAt]
+//
+// `endNs == 0` means the interval is still open (no endAt). Treated as
+// "now or later" for overlap math: timeAt point matches if startNs ≤ timeAt;
+// "between" overlaps as long as endTimeAt ≥ startNs.
+//
+static bool csrTemporalMatch(KjNode* regTree)
+{
+  const char* tp = swNgsild.timeproperty;
+  bool isManagement = (tp != NULL && (strcmp(tp, "createdAt")  == 0 ||
+                                       strcmp(tp, "modifiedAt") == 0 ||
+                                       strcmp(tp, "deletedAt")  == 0));
+
+  // The cache holds the @context-expanded tree. Look up both the short
+  // name and the v1.9 expanded IRI for robustness.
+  const char* shortName    = isManagement ? "managementInterval" : "observationInterval";
+  const char* expandedName = isManagement ? "https://uri.etsi.org/ngsi-ld/managementInterval"
+                                          : "https://uri.etsi.org/ngsi-ld/observationInterval";
+  KjNode* intervalP = kjLookup(regTree, shortName);
+  if (intervalP == NULL)
+    intervalP = kjLookup(regTree, expandedName);
+
+  uint64_t startNs = 0, endNs = 0;
+  if (!intervalNs(intervalP, &startNs, &endNs))
+    return false;  // CSR has no relevant interval — no match per spec
+
+  if (strcmp(swNgsild.timerel, "between") == 0)
+  {
+    uint64_t qStart = swNgsild.timeAtNs;
+    uint64_t qEnd   = swNgsild.endTimeAtNs;
+    // Overlap test: max(qStart, startNs) ≤ min(qEnd, endNs); endNs=0 = open
+    uint64_t lo = (qStart > startNs) ? qStart : startNs;
+    if (endNs == 0)
+      return lo <= qEnd;
+    uint64_t hi = (qEnd < endNs) ? qEnd : endNs;
+    return lo <= hi;
+  }
+
+  // before / after: timeAt within the interval (inclusive endpoints).
+  uint64_t qAt = swNgsild.timeAtNs;
+  if (qAt < startNs) return false;
+  if (endNs == 0)    return true;   // open interval: anything ≥ startNs matches
+  return qAt <= endNs;
 }
 
 
 
 bool getCsourceRegistrations(void)
 {
+  // Early exit if paramHook already set an error (e.g. invalid timerel).
+  if (swRest.out.problemType != NULL)
+    return true;
+
   bool hasAttrs = (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL);
   bool hasPick  = (swNgsild.pickV  != NULL && swNgsild.pickV[0]  != NULL);
   bool hasQ     = (swNgsild.q      != NULL && swNgsild.q[0]      != 0);
@@ -173,6 +279,41 @@ bool getCsourceRegistrations(void)
         KjNode* scopeP = (matchV[i]->regTree != NULL) ? kjLookup(matchV[i]->regTree, "scope") : NULL;
         if (ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
           matchV[n++] = matchV[i];
+      }
+      passN = n;
+    }
+
+    // § 5.10.2.4 temporal query:
+    //   - When timerel is absent: only CSRs WITHOUT intervals (latest-info
+    //     sources) are kept.
+    //   - When timerel is present: only CSRs WITH the relevant interval
+    //     (per timeproperty) AND that satisfy the temporal predicate.
+    {
+      int n = 0;
+      for (int i = 0; i < passN; i++)
+      {
+        KjNode* tree = matchV[i]->regTree;
+        if (tree == NULL)
+          continue;
+
+        bool hasObs  = (kjLookup(tree, "observationInterval") != NULL ||
+                        kjLookup(tree, "https://uri.etsi.org/ngsi-ld/observationInterval") != NULL);
+        bool hasMgmt = (kjLookup(tree, "managementInterval")  != NULL ||
+                        kjLookup(tree, "https://uri.etsi.org/ngsi-ld/managementInterval")  != NULL);
+
+        if (swNgsild.timerel == NULL)
+        {
+          // No temporal query → keep only "latest-info" CSRs (no intervals).
+          if (!hasObs && !hasMgmt)
+            matchV[n++] = matchV[i];
+        }
+        else
+        {
+          // Temporal query present → keep only CSRs with the relevant
+          // interval AND that match the predicate.
+          if (csrTemporalMatch(tree))
+            matchV[n++] = matchV[i];
+        }
       }
       passN = n;
     }

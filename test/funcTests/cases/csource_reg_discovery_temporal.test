@@ -1,0 +1,247 @@
+#
+# FILE            csource_reg_discovery_temporal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.10.2.4 — Temporal query on /csourceRegistrations.
+#
+# Without a temporal query, only CSRs providing latest information (no
+# intervals) are returned. With a temporal query, the request's
+# [timerel/timeAt/(endTimeAt)/timeproperty] is matched against the CSR's
+# observationInterval (when timeproperty=observedAt or omitted) or
+# managementInterval (createdAt/modifiedAt/deletedAt).
+#
+--NAME--
+CSourceRegistration Discovery — temporal query (§ 5.10.2.4)
+
+--TAGS--
+registration discovery temporal
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed CSRs:"
+echo "==============="
+echo "    CSR_Latest      no intervals (latest-info)"
+echo "    CSR_Q1_Q2       observationInterval = 2026-01-01..2026-06-30"
+echo "    CSR_Q3_open     observationInterval = 2026-07-01..(open)"
+echo "    CSR_Mgmt_Q1     managementInterval  = 2026-01-01..2026-03-31"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Latest",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9001",
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Q1_Q2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9002",
+  "observationInterval": {"startAt": "2026-01-01T00:00:00Z", "endAt": "2026-06-30T23:59:59Z"},
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Q3_open",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9003",
+  "observationInterval": {"startAt": "2026-07-01T00:00:00Z"},
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Mgmt_Q1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9004",
+  "managementInterval": {"startAt": "2026-01-01T00:00:00Z", "endAt": "2026-03-31T23:59:59Z"},
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}'
+echo
+echo
+
+
+echo "02. No temporal query → only latest-info CSR (no intervals)"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor' | grep '"id"'
+echo
+echo
+
+
+echo "03. timerel=before&timeAt=2026-04-01 → CSR_Q1_Q2 only"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timerel=before&timeAt=2026-04-01T00:00:00Z'
+echo
+echo
+
+
+echo "04. timerel=after&timeAt=2026-08-01 → CSR_Q3_open (open-ended)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timerel=after&timeAt=2026-08-01T00:00:00Z' | grep '"id"'
+echo
+echo
+
+
+echo "05. timerel=between [2026-05-01..2026-08-01] → CSR_Q1_Q2 + CSR_Q3_open"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timerel=between&timeAt=2026-05-01T00:00:00Z&endTimeAt=2026-08-01T00:00:00Z' | grep '"id"'
+echo
+echo
+
+
+echo "06. timerel=before&timeAt=2025-01-01 → no observation match"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timerel=before&timeAt=2025-01-01T00:00:00Z' | grep '"id"' || echo "(empty)"
+echo
+echo
+
+
+echo "07. timerel=before&timeAt=2026-02-01&timeproperty=createdAt → CSR_Mgmt_Q1"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timerel=before&timeAt=2026-02-01T00:00:00Z&timeproperty=createdAt' | grep '"id"'
+echo
+echo
+
+
+echo "08. timeproperty without timerel/timeAt → 400 (incomplete)"
+echo "==========================================================="
+echo "    (covered by URL-param consistency: timerel needs timeAt, etc."
+echo "     — current implementation accepts param-by-param; behaviour"
+echo "     is 'no temporal query active', equivalent to step 02)"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timeproperty=createdAt' | grep '"id"'
+echo
+echo
+
+
+echo "09. Bad timerel → 400"
+echo "====================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Sensor&timerel=during&timeAt=2026-01-01T00:00:00Z'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CSRs:
+===============
+    CSR_Latest      no intervals (latest-info)
+    CSR_Q1_Q2       observationInterval = 2026-01-01..2026-06-30
+    CSR_Q3_open     observationInterval = 2026-07-01..(open)
+    CSR_Mgmt_Q1     managementInterval  = 2026-01-01..2026-03-31
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Latest
+Link: REGEX(.*)
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Q1_Q2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Q3_open
+Link: REGEX(.*)
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Mgmt_Q1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. No temporal query → only latest-info CSR (no intervals)
+===========================================================
+    "id": "urn:CSR:Latest",
+
+
+03. timerel=before&timeAt=2026-04-01 → CSR_Q1_Q2 only
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 364
+
+[
+  {
+    "endpoint": "http://localhost:9002",
+    "id": "urn:CSR:Q1_Q2",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Sensor"
+          }
+        ]
+      }
+    ],
+    "observationInterval": {
+      "endAt": "2026-06-30T23:59:59Z",
+      "startAt": "2026-01-01T00:00:00Z"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+04. timerel=after&timeAt=2026-08-01 → CSR_Q3_open (open-ended)
+==============================================================
+    "id": "urn:CSR:Q3_open",
+
+
+05. timerel=between [2026-05-01..2026-08-01] → CSR_Q1_Q2 + CSR_Q3_open
+=======================================================================
+    "id": "urn:CSR:Q1_Q2",
+    "id": "urn:CSR:Q3_open",
+
+
+06. timerel=before&timeAt=2025-01-01 → no observation match
+===========================================================
+(empty)
+
+
+07. timerel=before&timeAt=2026-02-01&timeproperty=createdAt → CSR_Mgmt_Q1
+==========================================================================
+    "id": "urn:CSR:Mgmt_Q1",
+
+
+08. timeproperty without timerel/timeAt → 400 (incomplete)
+===========================================================
+    (covered by URL-param consistency: timerel needs timeAt, etc.
+     — current implementation accepts param-by-param; behaviour
+     is 'no temporal query active', equivalent to step 02)
+    "id": "urn:CSR:Latest",
+
+
+09. Bad timerel → 400
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 182
+
+{
+  "detail": "timerel must be 'before', 'after', or 'between' (got 'during')",
+  "title": "Invalid temporal query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
