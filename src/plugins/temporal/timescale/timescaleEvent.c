@@ -5,22 +5,31 @@
 //
 // Copyright 2026 Seamware
 //
-// Skeleton write path. v1 stores entity-level metadata + attribute
-// metadata only; value extraction (v_text / v_number / v_geo / sub_attrs)
-// lands in the next slice. Even at this level the plugin gives us:
-//   - real rows in postgres for every write
-//   - an "alive entity?" check via the entity-level rows
-//   - a count + per-attr breakdown of what changed
-// which is enough to wire functests against and to validate the
-// dispatch path end-to-end.
+// Write path for the timescale TRoE plugin. Walks the attrSnapshot to
+// extract typed values into the v_text / v_number / v_bool / v_compound
+// columns and the sub_attrs JSONB. Single connection + mutex.
 //
 
 #include <stddef.h>                                       // NULL
 #include <stdio.h>                                        // snprintf
+#include <stdlib.h>                                       // free
+#include <string.h>                                       // strcmp
 #include <pthread.h>                                      // pthread_mutex_lock
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E
+
+#include "kjson/KjNode.h"                                 // KjNode
+#include "kjson/kjLookup.h"                               // kjLookup
+#include "kjson/kjBuilder.h"                              // kjObject, kjChildAdd
+#include "kjson/kjRender.h"                               // kjFastRender
+#include "kjson/kjRenderSize.h"                           // kjFastRenderSize
+#include "kalloc/kaAlloc.h"                               // kaAlloc
+#include "kalloc/kaStrdup.h"                              // kaStrdup
+
+#include "swRest/SwRestState.h"                           // swRest
+#include "swNgsild/LdAttrType.h"                          // LdAttr*
+#include "swNgsild/ldAttrTypeDetect.h"                    // ldAttrTypeDetect
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TroeOp*
 
@@ -54,12 +63,146 @@ static const char* opName(TroeOp op)
 //
 // nsToSqlTimestamp - epoch nanoseconds → "to_timestamp(<seconds>)" SQL fragment.
 //
-// Postgres's to_timestamp(double precision) keeps sub-second precision.
-//
 static void nsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
 {
   double secs = (double) ns / 1e9;
   snprintf(buf, bufSize, "to_timestamp(%.6f)", secs);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// AttrCols - column values extracted from one attribute snapshot.
+//
+// All `const char*` pointers — NULL means "DON'T BIND" (column stays
+// NULL in SQL via DEFAULT). Strings live in swRest.kalloc, no free.
+//
+typedef struct
+{
+  int          kind;                // 0..8 — LdAttrType cast to int
+  const char*  dsId;                // dataset_id ("" for default-instance)
+  const char*  observedAtIso;       // ISO string passed straight to postgres
+  const char*  v_text;
+  const char*  v_number;
+  const char*  v_bool;
+  const char*  v_datetime;
+  const char*  v_compound;          // JSONB text
+  const char*  sub_attrs;           // JSONB text
+} AttrCols;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// numberToText - render a number node as a decimal text string for v_number.
+//
+static const char* numberToText(KjNode* nP, KAlloc* allocP)
+{
+  char buf[64];
+  if (nP->type == KjInt)
+    snprintf(buf, sizeof(buf), "%lld", (long long) nP->value.i);
+  else
+    snprintf(buf, sizeof(buf), "%.17g", nP->value.f);
+  return kaStrdup(allocP, buf);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// renderJsonb - render a KjNode subtree as JSON text suitable for ::jsonb.
+//
+static const char* renderJsonb(KjNode* nP, KAlloc* allocP)
+{
+  int   sz  = kjFastRenderSize(nP) + 1;
+  char* buf = (char*) kaAlloc(allocP, sz);
+  kjFastRender(nP, buf);
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// extractCols - walk an attr DB-format snapshot and fill the AttrCols.
+//
+// Snapshot shape (DB-model, post ldApiEntityToDbModel):
+//   {
+//     "@none":     { "type": "Property", "value": 42, "observedAt": "..." },
+//     "urn:ds:1":  { ... }
+//   }
+//
+// For v1 we only emit a row for the first dataset entry. Multi-instance
+// expansion lands in a follow-up.
+//
+static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
+{
+  memset(cP, 0, sizeof(*cP));
+  cP->dsId = "";
+
+  if (attrSnapshot == NULL || attrSnapshot->type != KjObject)
+    return;
+
+  // First child = first dataset instance.
+  KjNode* instP = attrSnapshot->value.firstChildP;
+  if (instP == NULL || instP->type != KjObject)
+    return;
+
+  if (instP->name != NULL && strcmp(instP->name, "@none") != 0)
+    cP->dsId = instP->name;
+
+  // Detect attr-kind. ldAttrTypeDetect inspects the explicit "type" string
+  // and falls back to value-shape heuristics.
+  cP->kind = (int) ldAttrTypeDetect(instP);
+
+  // ldApiEntityToDbModel normalises all value-bearing keys (value/object/
+  // languageMap/vocab/valueList/objectList/json) to "value" in storage.
+  // Attr-kind already disambiguates; we only need to read the "value" field.
+  KjNode* valueP   = NULL;
+  KjNode* observP  = NULL;
+  KjNode* subAttrs = kjObject(swRest.kjsonP, NULL);
+
+  for (KjNode* fP = instP->value.firstChildP; fP != NULL; fP = fP->next)
+  {
+    if (fP->name == NULL) continue;
+
+    if (strcmp(fP->name, "type")       == 0) continue;
+    if (strcmp(fP->name, "value")      == 0) { valueP  = fP; continue; }
+    if (strcmp(fP->name, "observedAt") == 0) { observP = fP; continue; }
+    if (strcmp(fP->name, "createdAt")  == 0) continue;
+    if (strcmp(fP->name, "modifiedAt") == 0) continue;
+    if (strcmp(fP->name, "datasetId")  == 0) continue;
+
+    // Sub-attribute. Add a copy by name. (Plugin doesn't own the lifetime
+    // of the rendered JSON beyond this row write, so a shallow link is fine.)
+    KjNode* clone = fP;
+    kjChildAdd(subAttrs, clone);
+  }
+
+  // observedAt → ISO text straight through (column type TIMESTAMPTZ casts).
+  if (observP != NULL && observP->type == KjString)
+    cP->observedAtIso = observP->value.s;
+
+  // Value column selection.
+  if (valueP != NULL)
+  {
+    switch (valueP->type)
+    {
+      case KjString:  cP->v_text     = valueP->value.s; break;
+      case KjInt:
+      case KjFloat:   cP->v_number   = numberToText(valueP, &swRest.kalloc); break;
+      case KjBoolean: cP->v_bool     = valueP->value.b ? "t" : "f"; break;
+      case KjObject:
+      case KjArray:   cP->v_compound = renderJsonb(valueP, &swRest.kalloc); break;
+      case KjNull:    /* leave all NULL */ break;
+      default: break;
+    }
+  }
+
+  // sub_attrs only emitted if non-empty.
+  if (subAttrs->value.firstChildP != NULL)
+    cP->sub_attrs = renderJsonb(subAttrs, &swRest.kalloc);
 }
 
 
@@ -73,7 +216,6 @@ static int execEntityInsert(const TroeEvent* evP)
   char tsExpr[64];
   nsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
-  // Use parameterised query for entity_id / type to avoid quoting issues.
   const char* paramV[3];
   paramV[0] = evP->entityId   != NULL ? evP->entityId   : "";
   paramV[1] = evP->entityType != NULL ? evP->entityType : "";
@@ -102,28 +244,57 @@ static int execEntityInsert(const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
-// execAttrInsert - skeleton, no value extraction yet.
+// execAttrInsert -
 //
 static int execAttrInsert(const TroeEvent* evP)
 {
+  AttrCols cols;
+  extractCols((KjNode*) evP->attrSnapshot, &cols);
+
+  // For deletion events, attrSnapshot is the post-delete entity (attr is
+  // gone). Don't try to bind value cols.
+  if (evP->op == TroeOpAttrDeleted)
+    memset(&cols, 0, sizeof(cols));
+  cols.dsId = (cols.dsId != NULL) ? cols.dsId : "";
+
   char tsExpr[64];
   nsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
-  const char* paramV[5];
-  paramV[0] = evP->entityId   != NULL ? evP->entityId   : "";
-  paramV[1] = evP->entityType != NULL ? evP->entityType : "";
-  paramV[2] = evP->attrName   != NULL ? evP->attrName   : "";
-  paramV[3] = evP->datasetId  != NULL ? evP->datasetId  : "";
-  paramV[4] = opName(evP->op);
+  // Bind params:
+  //   $1 entity_id, $2 entity_type, $3 attr_name, $4 dataset_id,
+  //   $5 op, $6 attr_kind (text → SQL casts to smallint),
+  //   $7 observed_at iso (or NULL), $8 v_text, $9 v_number,
+  //   $10 v_bool, $11 v_datetime, $12 v_compound, $13 sub_attrs
+  const char* paramV[13];
+  char        kindBuf[16];
+  snprintf(kindBuf, sizeof(kindBuf), "%d", cols.kind);
 
-  char sql[512];
+  paramV[0]  = evP->entityId   != NULL ? evP->entityId   : "";
+  paramV[1]  = evP->entityType != NULL ? evP->entityType : "";
+  paramV[2]  = evP->attrName   != NULL ? evP->attrName   : "";
+  paramV[3]  = (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId;
+  paramV[4]  = opName(evP->op);
+  paramV[5]  = kindBuf;
+  paramV[6]  = cols.observedAtIso;
+  paramV[7]  = cols.v_text;
+  paramV[8]  = cols.v_number;
+  paramV[9]  = cols.v_bool;
+  paramV[10] = cols.v_datetime;
+  paramV[11] = cols.v_compound;
+  paramV[12] = cols.sub_attrs;
+
+  char sql[1024];
   snprintf(sql, sizeof(sql),
-           "INSERT INTO troe_attrs (entity_id, entity_type, attr_name, dataset_id, modified_at, op) "
-           "VALUES ($1, $2, $3, $4, %s, $5) "
+           "INSERT INTO troe_attrs ("
+           "  entity_id, entity_type, attr_name, dataset_id, modified_at, op, attr_kind, "
+           "  observed_at, v_text, v_number, v_bool, v_datetime, v_compound, sub_attrs) "
+           "VALUES ($1, $2, $3, $4, %s, $5, $6::smallint, "
+           "        $7::timestamptz, $8, $9::double precision, $10::boolean, $11::timestamptz, "
+           "        $12::jsonb, $13::jsonb) "
            "ON CONFLICT (entity_id, attr_name, dataset_id, modified_at, op) DO NOTHING",
            tsExpr);
 
-  PGresult* res = PQexecParams(timescaleConn, sql, 5, NULL, paramV, NULL, NULL, 0);
+  PGresult* res = PQexecParams(timescaleConn, sql, 13, NULL, paramV, NULL, NULL, 0);
   ExecStatusType st = PQresultStatus(res);
   if (st != PGRES_COMMAND_OK)
   {
@@ -172,11 +343,6 @@ int timescaleAttrEvent(const TroeEvent* evP)
 // -----------------------------------------------------------------------------
 //
 // timescaleEventList - drain a queue of events as one transaction.
-//
-// Faster than per-event commits when the request produced multiple
-// events; a single INSERT-many would be even faster but per-row INSERTs
-// inside one BEGIN/COMMIT keep the code simple while still amortising
-// fsync.
 //
 int timescaleEventList(const TroeEvent* listHead, int count)
 {

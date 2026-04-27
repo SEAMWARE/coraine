@@ -1,0 +1,71 @@
+#
+# FILE            troe_timescale_values.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE timescale value extraction: PATCH /attrs writes correct typed
+# columns (v_text / v_number / v_bool / v_compound), attr_kind, and
+# sub_attrs JSONB.
+#
+--NAME--
+TRoE timescale - value extraction into typed columns
+
+--TAGS--
+troe timescale postgres
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_vals" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_vals" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_vals --troeUser postgres
+
+--RUN--
+
+echo "01. POST entity urn:V1 + PATCH each attr type"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+# number
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":99,"unitCode":"km/h"}}' >/dev/null
+# string Property
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"color":{"type":"Property","value":"red"}}' >/dev/null
+# bool
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"running":{"type":"Property","value":true}}' >/dev/null
+# Relationship → v_text
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"owner":{"type":"Relationship","object":"urn:Person:1"}}' >/dev/null
+# GeoProperty → v_compound (GeoJSON object)
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1.2,3.4]}}}' >/dev/null
+sleep 0.2
+echo "done"
+echo
+echo
+
+
+echo "02. troe_attrs columns"
+echo "======================"
+psql -h localhost -p 5432 -U postgres -d sw_troe_vals -tA -F'|' \
+  -c "SELECT regexp_replace(attr_name, '.*/', ''), attr_kind, v_text, v_number, v_bool, (v_compound IS NOT NULL), sub_attrs FROM troe_attrs WHERE op='modified' OR op='created' ORDER BY modified_at"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity urn:V1 + PATCH each attr type
+=============================================
+done
+
+
+02. troe_attrs columns
+======================
+speed|1||99||f|{"unitCode": "km/h"}
+color|1|red|||f|
+running|1|||t|f|
+owner|2|urn:Person:1|||f|
+location|3||||t|
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_vals" >/dev/null 2>&1
