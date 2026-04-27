@@ -36,6 +36,9 @@
 #include "swNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 
+#include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
+#include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
+
 #include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
@@ -411,6 +414,49 @@ bool replaceEntity(void)
 
       if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityUpdate, NULL);
+
+      // TRoE: defer 1 entity-level "replaced" marker + N "attrReplaced"
+      // events, one per attr in the new body. Attrs that existed in the
+      // old body but aren't in the new body close implicitly via the
+      // entity-replaced marker (read-side scopes alive windows by it).
+      {
+        KjNode* typeNode = kjLookup(entityP, "type");
+        const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
+
+        TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+        memset(tevP, 0, sizeof(*tevP));
+        tevP->op             = TroeOpEntityReplaced;
+        tevP->tenantP        = tenantP;
+        tevP->entityId       = entityId;
+        tevP->entityType     = etype;
+        tevP->modifiedAtNs   = swRest.requestStartTime;
+        tevP->entitySnapshot = entityP;
+        troeDeferEntityEvent(tevP);
+
+        for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+        {
+          if (attrP->name == NULL)                       continue;
+          if (attrP->name[0] == '@')                     continue;
+          if (strcmp(attrP->name, "id")         == 0)    continue;
+          if (strcmp(attrP->name, "_id")        == 0)    continue;
+          if (strcmp(attrP->name, "type")       == 0)    continue;
+          if (strcmp(attrP->name, "scope")      == 0)    continue;
+          if (strcmp(attrP->name, "createdAt")  == 0)    continue;
+          if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
+
+          TroeEvent* aevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+          memset(aevP, 0, sizeof(*aevP));
+          aevP->op             = TroeOpAttrReplaced;
+          aevP->tenantP        = tenantP;
+          aevP->entityId       = entityId;
+          aevP->entityType     = etype;
+          aevP->attrName       = attrP->name;
+          aevP->modifiedAtNs   = swRest.requestStartTime;
+          aevP->attrSnapshot   = attrP;
+          aevP->entitySnapshot = entityP;
+          troeDeferAttrEvent(aevP);
+        }
+      }
     }
     else if (r != DB_NOT_FOUND)
     {

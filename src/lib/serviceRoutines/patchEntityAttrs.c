@@ -47,6 +47,8 @@
 #include "swNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 
+#include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
+
 #include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
@@ -379,12 +381,28 @@ bool patchEntityAttrs(void)
       return true;
     }
 
-    if (r == DB_OK && tenantP->subCacheP != NULL)
+    if (r == DB_OK)
     {
       KjNode* mergedEntity = NULL;
-      db.entityRetrieve(tenantP, entityId, &mergedEntity);
-      if (mergedEntity != NULL)
+      if (tenantP->subCacheP != NULL)
+        db.entityRetrieve(tenantP, entityId, &mergedEntity);
+
+      if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
+
+      // TRoE: defer one attr event per top-level attr in the merge report.
+      if (mergedEntity == NULL)
+        db.entityRetrieve(tenantP, entityId, &mergedEntity);
+      {
+        const char* etype = NULL;
+        if (mergedEntity != NULL)
+        {
+          KjNode* tn = kjLookup(mergedEntity, "type");
+          if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+        }
+        troeDeferAttrEventsFromMerge(tenantP, entityId, etype, mergedEntity, &report,
+                                     swRest.requestStartTime);
+      }
     }
   }
 
