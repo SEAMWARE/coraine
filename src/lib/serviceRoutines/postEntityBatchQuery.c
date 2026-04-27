@@ -31,9 +31,6 @@
 
 bool postEntityBatchQuery(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   KjNode* bodyP = swRest.in.requestTree;
 
   if (swRest.in.payload != NULL && bodyP == NULL)

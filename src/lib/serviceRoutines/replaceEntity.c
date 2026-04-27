@@ -195,12 +195,6 @@ static int forwardReplaceEntity(LdRegCacheItem* csr,
 //
 bool replaceEntity(void)
 {
-  //
-  // @context error detected in parseHook
-  //
-  if (swNgsild.contextError)
-    return true;
-
   const char* entityId = swRest.in.wildcard[0];
   KjNode*     entityP  = swRest.in.requestTree;
 

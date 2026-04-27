@@ -155,12 +155,6 @@ static int forwardMergeEntity(LdRegCacheItem* csr,
 //
 bool patchEntity(void)
 {
-  //
-  // @context error detected in parseHook
-  //
-  if (swNgsild.contextError)
-    return true;
-
   const char* entityId = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 

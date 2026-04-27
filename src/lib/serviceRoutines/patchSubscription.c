@@ -58,12 +58,6 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 bool patchSubscription(void)
 {
-  //
-  // @context error detected in parseHook
-  //
-  if (swNgsild.contextError)
-    return true;
-
   const char* subId    = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 

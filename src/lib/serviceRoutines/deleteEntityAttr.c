@@ -163,9 +163,6 @@ static bool applyLocalDelete(KjNode* entityP, const char* attrIri)
 //
 bool deleteEntityAttr(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   const char* entityId = swRest.in.wildcard[0];
   const char* attrWild = swRest.in.wildcard[1];
 

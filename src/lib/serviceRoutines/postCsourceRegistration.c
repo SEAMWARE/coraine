@@ -385,9 +385,6 @@ static LdRegMode modeOf(KjNode* regP)
 //
 bool postCsourceRegistration(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   KjNode* regP = swRest.in.requestTree;
 
   if (swRest.in.payload != NULL && regP == NULL)

@@ -548,11 +548,6 @@ static int forwardAndParse(LdRegCacheItem* csr,
 //
 bool getEntity(void)
 {
-  // Early exit if paramHook already set an error (e.g. invalid join /
-  // joinLevel / pick / omit / ...).
-  if (swRest.out.problemType != NULL)
-    return true;
-
   const char* entityId = swRest.in.wildcard[0];
 
   //

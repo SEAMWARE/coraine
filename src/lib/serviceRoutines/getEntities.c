@@ -717,12 +717,6 @@ static const char* buildQueryString(void)
 bool getEntities(void)
 {
   //
-  // Early exit if paramHook already set an error
-  //
-  if (swRest.out.problemType != NULL)
-    return true;
-
-  //
   // EntityMap-based pagination: if entityMap=<mapId>, fetch entities
   // from the frozen map instead of re-querying.
   //

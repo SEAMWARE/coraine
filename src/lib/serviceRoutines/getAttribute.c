@@ -47,9 +47,6 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 
 bool getAttribute(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   Tenant*     tenantP  = (Tenant*) swNgsild.tenantP;
   const char* attrWild = swRest.in.wildcard[0];
 

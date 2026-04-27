@@ -44,9 +44,6 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 
 bool getAttributes(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
   if (db.attrList == NULL)

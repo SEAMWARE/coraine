@@ -31,9 +31,6 @@
 //
 bool patchCsourceRegistration(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   const char* regId    = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 

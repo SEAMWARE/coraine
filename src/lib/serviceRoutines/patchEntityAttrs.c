@@ -204,9 +204,6 @@ static void recordFragmentAttrsUpdated(KjNode* targetP, KjNode* fragP)
 //
 bool patchEntityAttrs(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   const char* entityId = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 

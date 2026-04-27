@@ -60,9 +60,6 @@ static char* csrSubIdGenerate(KAlloc* allocP)
 
 bool postCsourceSubscriptions(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   KjNode* subP = swRest.in.requestTree;
 
   if (swRest.in.payload != NULL && subP == NULL)

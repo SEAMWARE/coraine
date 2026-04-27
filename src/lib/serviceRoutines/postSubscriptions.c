@@ -84,12 +84,6 @@ static char* subIdGenerate(KAlloc* allocP)
 //
 bool postSubscriptions(void)
 {
-  //
-  // @context error detected in parseHook
-  //
-  if (swNgsild.contextError)
-    return true;
-
   KjNode* subP = swRest.in.requestTree;
 
   //

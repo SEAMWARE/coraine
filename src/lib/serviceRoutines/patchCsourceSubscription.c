@@ -44,9 +44,6 @@
 
 bool patchCsourceSubscription(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   const char* subId    = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 

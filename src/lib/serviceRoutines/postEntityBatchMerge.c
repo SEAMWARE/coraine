@@ -387,9 +387,6 @@ static bool hasAnyNonKeywordAttr(KjNode* fragP)
 //
 bool postEntityBatchMerge(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   KjNode* bodyP = swRest.in.requestTree;
 
   if (swRest.in.payload != NULL && bodyP == NULL)

@@ -57,9 +57,6 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 //
 bool getTypes(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
   if (db.typeList == NULL)

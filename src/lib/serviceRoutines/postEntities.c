@@ -362,12 +362,6 @@ static int forwardCreateEntity(LdRegCacheItem* csr,
 //
 bool postEntities(void)
 {
-  //
-  // @context error detected in parseHook
-  //
-  if (swNgsild.contextError)
-    return true;
-
   KjNode* entityP = swRest.in.requestTree;
 
   //

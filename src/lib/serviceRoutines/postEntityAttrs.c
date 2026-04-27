@@ -289,9 +289,6 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
 //
 bool postEntityAttrs(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   const char* entityId = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 

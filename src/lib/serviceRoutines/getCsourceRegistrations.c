@@ -190,10 +190,6 @@ static bool csrTemporalMatch(KjNode* regTree)
 
 bool getCsourceRegistrations(void)
 {
-  // Early exit if paramHook already set an error (e.g. invalid timerel).
-  if (swRest.out.problemType != NULL)
-    return true;
-
   bool hasAttrs = (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL);
   bool hasPick  = (swNgsild.pickV  != NULL && swNgsild.pickV[0]  != NULL);
   bool hasQ     = (swNgsild.q      != NULL && swNgsild.q[0]      != 0);

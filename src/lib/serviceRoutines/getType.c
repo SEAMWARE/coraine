@@ -57,9 +57,6 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 //
 bool getType(void)
 {
-  if (swNgsild.contextError)
-    return true;
-
   Tenant*     tenantP    = (Tenant*) swNgsild.tenantP;
   const char* typeWild   = swRest.in.wildcard[0];    // url-decoded already
 
