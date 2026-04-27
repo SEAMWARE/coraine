@@ -1008,6 +1008,28 @@ bool getEntities(void)
           if (ldDistOpCsrWouldLoop(csr, ownAlias))
             continue;
 
+          // § 4.3.6 / § 5.7.1.4: when the request carries a geoQ, drop CSRs
+          // whose stored geo-coverage geometry can't overlap the query
+          // reference. Default geoproperty is "location"; "observationSpace"
+          // and "operationSpace" select the matching CSR field.
+          if (swNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
+          {
+            const char* prop = swNgsild.geoproperty;
+            KjNode* csrGeoP = csr->locationP;
+            if (prop != NULL)
+            {
+              if (strcmp(prop, "observationSpace") == 0 ||
+                  strcmp(prop, "https://uri.etsi.org/ngsi-ld/observationSpace") == 0)
+                csrGeoP = csr->observationSpaceP;
+              else if (strcmp(prop, "operationSpace") == 0 ||
+                       strcmp(prop, "https://uri.etsi.org/ngsi-ld/operationSpace") == 0)
+                csrGeoP = csr->operationSpaceP;
+            }
+            if (!((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc(csrGeoP, swNgsild.geoRel,
+                                                                 swNgsild.geometry, swNgsild.coordinates))
+              continue;
+          }
+
           //
           // Split mode: forward once per CSR (no filters, no per-info pick)
           // No-split: per-RegistrationInfo dispatch with type + pick
