@@ -42,6 +42,9 @@
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
+#include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrReplaced
+#include "troe/troeDispatch.h"                       // troeDeferAttrEvent
+
 #include "swNgsild/LdRegCache.h"                     // LdRegCache*, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -309,13 +312,34 @@ bool putEntityAttr(void)
         {
           anySucceeded = true;
 
+          KjNode* merged = NULL;
           if (tenantP->subCacheP != NULL)
-          {
-            KjNode* merged = NULL;
             db.entityRetrieve(tenantP, entityId, &merged);
+
+          if (tenantP->subCacheP != NULL && merged != NULL)
+            ldNotifyDefer((LdSubCache*) tenantP->subCacheP, merged,
+                          LdNotifyEntityUpdate, &report);
+
+          // TRoE: defer one attrReplaced event. PUT semantics are
+          // "wholesale replace this one attribute" — distinct from
+          // PATCH's surgical modify.
+          {
+            const char* etype = NULL;
             if (merged != NULL)
-              ldNotifyDefer((LdSubCache*) tenantP->subCacheP, merged,
-                            LdNotifyEntityUpdate, &report);
+            {
+              KjNode* tn = kjLookup(merged, "type");
+              if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+            }
+            TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+            memset(tevP, 0, sizeof(*tevP));
+            tevP->op             = TroeOpAttrReplaced;
+            tevP->tenantP        = tenantP;
+            tevP->entityId       = entityId;
+            tevP->entityType     = etype;
+            tevP->attrName       = attrIri;
+            tevP->modifiedAtNs   = swRest.requestStartTime;
+            tevP->entitySnapshot = merged;
+            troeDeferAttrEvent(tevP);
           }
         }
       }

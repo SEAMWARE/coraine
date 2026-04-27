@@ -39,6 +39,9 @@
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
+#include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrDeleted
+#include "troe/troeDispatch.h"                       // troeDeferAttrEvent
+
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -328,6 +331,26 @@ bool deleteEntityAttr(void)
             if (tenantP->subCacheP != NULL)
               ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
                             LdNotifyEntityUpdate, NULL);
+
+            // TRoE: defer one attrDeleted event.
+            {
+              const char* etype = NULL;
+              if (targetEntity != NULL)
+              {
+                KjNode* tn = kjLookup(targetEntity, "type");
+                if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+              }
+              TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+              memset(tevP, 0, sizeof(*tevP));
+              tevP->op             = TroeOpAttrDeleted;
+              tevP->tenantP        = tenantP;
+              tevP->entityId       = entityId;
+              tevP->entityType     = etype;
+              tevP->attrName       = attrIri;
+              tevP->modifiedAtNs   = swRest.requestStartTime;
+              tevP->entitySnapshot = targetEntity;
+              troeDeferAttrEvent(tevP);
+            }
           }
         }
       }
