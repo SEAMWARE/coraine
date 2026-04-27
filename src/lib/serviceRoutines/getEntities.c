@@ -26,6 +26,7 @@
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
+#include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
 #include "swNgsild/ldQAttrs.h"                       // ldQAttrs
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
@@ -1185,7 +1186,7 @@ bool getEntities(void)
                   }
                   else
                   {
-                    // Attr exists — merge per dsKey instance
+                    // Attr exists — merge per dsKey instance per § 4.5.5.3
                     for (KjNode* srcInstP = srcAttrP->value.firstChildP; srcInstP != NULL; )
                     {
                       KjNode* nextSrcInst = srcInstP->next;
@@ -1193,13 +1194,20 @@ bool getEntities(void)
 
                       if (destInstP == NULL)
                       {
-                        // dsKey not in dest — add
-                        srcInstP->next = NULL;
-                        kjChildAdd(destAttrP, srcInstP);
+                        // dsKey not in dest — add (still subject to expiry
+                        // — keep simple, drop expired instances entirely)
+                        if (!ldDistInstanceIsExpired(srcInstP, swRest.requestStartTime))
+                        {
+                          srcInstP->next = NULL;
+                          kjChildAdd(destAttrP, srcInstP);
+                        }
                       }
-                      // else: both have this dsKey — keep dest's (first wins
-                      // without timestamps; full § 4.5.5.3 would compare
-                      // observedAt/modifiedAt here)
+                      else if (ldDistInstanceShouldReplace(destInstP, srcInstP, swRest.requestStartTime))
+                      {
+                        // Replace destInstP with srcInstP in destAttrP
+                        srcInstP->next = NULL;
+                        kjChildReplace(destAttrP, destInstP, srcInstP);
+                      }
 
                       srcInstP = nextSrcInst;
                     }

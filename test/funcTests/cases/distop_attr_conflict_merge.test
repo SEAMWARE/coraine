@@ -1,0 +1,228 @@
+#
+# FILE            distop_attr_conflict_merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.5.3 — Processing of Conflicting Attributes during multi-source
+# merge. When the same (attrName, datasetId) arrives from several sources:
+#
+#   1. Discard expired (expiresAt in the past)
+#   2. If any candidate has observedAt → newest observedAt wins
+#      (instances without observedAt don't compete)
+#   3. Else → newest modifiedAt wins
+#
+# Three sources (CP1/CP2/CP3) each contribute the same urn:E1 entity
+# with controlled observedAt/modifiedAt/expiresAt patterns.
+#
+--NAME--
+DistOp multi-source attribute conflict resolution (§ 4.5.5.3)
+
+--TAGS--
+entity query distops merge
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swDbDrop -role CP3
+swBrokerStart
+swBrokerStart -role CP1
+swBrokerStart -role CP2
+swBrokerStart -role CP3
+
+--RUN--
+
+CB="http://localhost:${CB_PORT}"
+CP1="http://localhost:${CP1_PORT}"
+CP2="http://localhost:${CP2_PORT}"
+CP3="http://localhost:${CP3_PORT}"
+
+
+#
+# Layout per source for entity urn:E1 (type Sensor):
+#
+#   CP1:  attr1 obs=2026-01-01 val="A1-CP1"
+#         attr2 obs=2020-01-01 val="A2-CP1"  (only one with observedAt)
+#         attr3 val="A3-CP1"                 (oldest modifiedAt)
+#         attr4 val="A4-CP1" expiresAt=2020-01-01  (expired)
+#
+#   CP2:  attr1 obs=2026-01-02 val="A1-CP2"
+#         attr2 val="A2-CP2"                 (no observedAt)
+#         attr3 val="A3-CP2"                 (middle modifiedAt)
+#         attr4 val="A4-CP2"                 (not expired)
+#
+#   CP3:  attr1 obs=2026-01-03 val="A1-CP3"  (newest observedAt → wins)
+#         attr2 val="A2-CP3"                 (no observedAt)
+#         attr3 val="A3-CP3"                 (newest modifiedAt → wins)
+#
+# Expected at CB:
+#   attr1 = "A1-CP3"  (newest observedAt — Case A)
+#   attr2 = "A2-CP1"  (only observedAt-having — Case B)
+#   attr3 = "A3-CP3"  (newest modifiedAt — Case C)
+#   attr4 = "A4-CP2"  (CP1's expired, dropped — Case D bonus)
+#
+
+echo "01. Seed CP1 (created first → oldest modifiedAt for attr3)"
+echo "==========================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": "Sensor",
+  "attr1": {"type":"Property","value":"A1-CP1","observedAt":"2026-01-01T00:00:00Z"},
+  "attr2": {"type":"Property","value":"A2-CP1","observedAt":"2020-01-01T00:00:00Z"},
+  "attr3": {"type":"Property","value":"A3-CP1"},
+  "attr4": {"type":"Property","value":"A4-CP1","expiresAt":"2020-01-01T00:00:00Z"}
+}'
+echo
+echo
+
+
+echo "02. Seed CP2 (created after CP1 → newer modifiedAt)"
+echo "==================================================="
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": "Sensor",
+  "attr1": {"type":"Property","value":"A1-CP2","observedAt":"2026-01-02T00:00:00Z"},
+  "attr2": {"type":"Property","value":"A2-CP2"},
+  "attr3": {"type":"Property","value":"A3-CP2"},
+  "attr4": {"type":"Property","value":"A4-CP2"}
+}'
+echo
+echo
+
+
+echo "03. Seed CP3 (created last → newest modifiedAt)"
+echo "==============================================="
+swCurl --port $CP3_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": "Sensor",
+  "attr1": {"type":"Property","value":"A1-CP3","observedAt":"2026-01-03T00:00:00Z"},
+  "attr2": {"type":"Property","value":"A2-CP3"},
+  "attr3": {"type":"Property","value":"A3-CP3"}
+}'
+echo
+echo
+
+
+echo "04. Register CB→CP1 / CP2 / CP3 (inclusive, type=Sensor)"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP3","type":"ContextSourceRegistration","endpoint":"'"$CP3"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+echo
+echo
+
+
+echo "05. GET urn:E1 → merged per § 4.5.5.3"
+echo "====================================="
+echo "    attr1 = A1-CP3 (Case A: newest observedAt)"
+echo "    attr2 = A2-CP1 (Case B: only observedAt-having beats no-observedAt)"
+echo "    attr3 = A3-CP3 (Case C: no observedAt anywhere, newest modifiedAt wins)"
+echo "    attr4 = A4-CP2 (Case D: CP1 expired, dropped)"
+swCurl --url '/ngsi-ld/v1/entities/urn:E1?options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 (created first → oldest modifiedAt for attr3)
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Seed CP2 (created after CP1 → newer modifiedAt)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. Seed CP3 (created last → newest modifiedAt)
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. Register CB→CP1 / CP2 / CP3 (inclusive, type=Sensor)
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP2
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. GET urn:E1 → merged per § 4.5.5.3
+=====================================
+    attr1 = A1-CP3 (Case A: newest observedAt)
+    attr2 = A2-CP1 (Case B: only observedAt-having beats no-observedAt)
+    attr3 = A3-CP3 (Case C: no observedAt anywhere, newest modifiedAt wins)
+    attr4 = A4-CP2 (Case D: CP1 expired, dropped)
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 125
+
+{
+  "attr1": "A1-CP3",
+  "attr2": "A2-CP1",
+  "attr3": "A3-CP3",
+  "attr4": "A4-CP2",
+  "id": "urn:E1",
+  "type": "Sensor"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
+swBrokerStop -role CP3
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swDbDrop -role CP3
