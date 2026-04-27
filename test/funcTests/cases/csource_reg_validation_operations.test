@@ -1,0 +1,242 @@
+#
+# FILE            csource_reg_validation_operations.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.9 / § 4.20 — `operations` is an array of strings; each item must
+# be either an individual operation (Table 4.20-1) or an operation group
+# (Table 4.20-2). Auxiliary registrations are further restricted by
+# § 5.9.2 to retrieve-only.
+#
+--NAME--
+CSourceRegistration validation — operations (§ 5.2.9 / § 4.20)
+
+--TAGS--
+registration error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. operations: not an array → 400"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-not-array",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operations": "createEntity",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "02. operations: empty array → 400"
+echo "================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-empty",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operations": [],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "03. operations: unknown name → 400"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-bad",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operations": ["createEntity", "frobnicate"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "04. operations: known individual ops (inclusive mode) → 201"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-individual",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operations": ["createEntity", "updateEntity", "queryEntity"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "05. operations: known group name (federationOps) → 201"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-group",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operations": ["federationOps"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "06. operations: temporal op (known but not yet implemented) → 201"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-temporal",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operations": ["queryTemporal", "retrieveTemporal"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "07. auxiliary mode + non-retrieve op → 400"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-aux-bad",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "auxiliary",
+  "operations": ["queryEntity", "createEntity"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "08. auxiliary mode + retrieveOps group → 201"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:ops-aux-good",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "auxiliary",
+  "operations": ["retrieveOps"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+--EXPECT--
+01. operations: not an array → 400
+==================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "'operations' must be an array of strings",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. operations: empty array → 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 145
+
+{
+  "detail": "'operations' array must not be empty",
+  "title": "Empty Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. operations: unknown name → 400
+==================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "'operations' contains unknown operation or operation-group name 'frobnicate' (see § 4.20)",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. operations: known individual ops (inclusive mode) → 201
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-individual
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. operations: known group name (federationOps) → 201
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-group
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. operations: temporal op (known but not yet implemented) → 201
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-temporal
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. auxiliary mode + non-retrieve op → 400
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "auxiliary registration 'operations' must be one of: retrieveOps, retrieveEntity, queryEntity (got 'createEntity')",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. auxiliary mode + retrieveOps group → 201
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-aux-good
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
