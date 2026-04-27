@@ -1,0 +1,97 @@
+#
+# FILE            troe_timescale_basic.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE timescale plugin: end-to-end persistence to a real postgres
+# database. POST + PATCH + DELETE → rows in troe_entities / troe_attrs.
+#
+# Requires postgres running on localhost:5432 with a 'postgres' user
+# (passwordless, e.g. peer auth on Ubuntu).
+#
+--NAME--
+TRoE timescale - end-to-end postgres persistence
+
+--TAGS--
+troe timescale postgres
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_functest" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_functest" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_functest --troeUser postgres
+
+--RUN--
+
+echo "01. POST entity urn:V1"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+echo
+echo
+echo
+
+
+echo "02. PATCH /entities/urn:V1/attrs/speed"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' | head -1
+echo
+echo
+
+
+echo "03. DELETE /entities/urn:V1"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
+echo
+echo
+
+
+echo "04. troe_entities — 2 rows: created + deleted"
+echo "============================================="
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d sw_troe_functest -tA -F'|' \
+  -c "SELECT entity_id, op, regexp_replace(entity_type, '.*/', '') FROM troe_entities ORDER BY modified_at"
+echo
+echo
+
+
+echo "05. troe_attrs — 1 row: speed modified"
+echo "======================================"
+psql -h localhost -p 5432 -U postgres -d sw_troe_functest -tA -F'|' \
+  -c "SELECT entity_id, regexp_replace(attr_name, '.*/', ''), op FROM troe_attrs ORDER BY modified_at"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity urn:V1
+======================
+
+
+
+02. PATCH /entities/urn:V1/attrs/speed
+======================================
+HTTP/1.1 204 No Content
+
+
+03. DELETE /entities/urn:V1
+===========================
+HTTP/1.1 204 No Content
+
+
+04. troe_entities — 2 rows: created + deleted
+=============================================
+urn:V1|created|Vehicle
+urn:V1|deleted|Vehicle
+
+
+05. troe_attrs — 1 row: speed modified
+======================================
+urn:V1|speed|modified
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_functest" >/dev/null 2>&1

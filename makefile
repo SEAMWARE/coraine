@@ -123,6 +123,7 @@ RAMDB_DIR      = src/plugins/currentState/swRamDB
 ADMIN_DIR      = src/plugins/api/admin
 TROE_NONE_DIR  = src/plugins/temporal/none
 TROE_RAMDB_DIR = src/plugins/temporal/ramdb
+TROE_TIMESCALE_DIR = src/plugins/temporal/timescale
 
 RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
@@ -155,6 +156,15 @@ TROE_NONE_OBJS    = $(TROE_NONE_SOURCES:.c=.o)
 
 TROE_RAMDB_SOURCES = $(TROE_RAMDB_DIR)/ramdbRegister.c
 TROE_RAMDB_OBJS    = $(TROE_RAMDB_SOURCES:.c=.o)
+
+TROE_TIMESCALE_SOURCES = $(TROE_TIMESCALE_DIR)/timescaleGlobals.c \
+                         $(TROE_TIMESCALE_DIR)/timescaleInit.c    \
+                         $(TROE_TIMESCALE_DIR)/timescaleMigrate.c \
+                         $(TROE_TIMESCALE_DIR)/timescaleEvent.c   \
+                         $(TROE_TIMESCALE_DIR)/timescaleRegister.c
+TROE_TIMESCALE_OBJS    = $(TROE_TIMESCALE_SOURCES:.c=.o)
+TROE_TIMESCALE_CFLAGS  = $(shell pkg-config --cflags libpq)
+TROE_TIMESCALE_LDFLAGS = $(shell pkg-config --libs libpq)
 
 MONGOC_DIR     = src/plugins/currentState/mongoc
 MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
@@ -205,7 +215,7 @@ PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
 #
 # Targets
 #
-all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(PLUGIN_DIR)/troeNone.so $(PLUGIN_DIR)/troeRamdb.so $(FTCLIENT_BINARY)
+all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(PLUGIN_DIR)/troeNone.so $(PLUGIN_DIR)/troeRamdb.so $(PLUGIN_DIR)/troeTimescale.so $(FTCLIENT_BINARY)
 
 LDFLAGS   ?=
 
@@ -240,6 +250,13 @@ $(PLUGIN_DIR)/troeRamdb.so: $(TROE_RAMDB_OBJS)
 $(TROE_RAMDB_DIR)/%.o: $(TROE_RAMDB_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
+$(PLUGIN_DIR)/troeTimescale.so: $(TROE_TIMESCALE_OBJS)
+	@mkdir -p $(PLUGIN_DIR)
+	$(CC) -shared -o $@ $(TROE_TIMESCALE_OBJS) $(TROE_TIMESCALE_LDFLAGS)
+
+$(TROE_TIMESCALE_DIR)/%.o: $(TROE_TIMESCALE_DIR)/%.c
+	$(CC) $(PLUGIN_CFLAGS) $(TROE_TIMESCALE_CFLAGS) -c $< -o $@
+
 $(PLUGIN_DIR)/mongoc.so: $(MONGOC_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
 	$(CC) -shared -o $@ $(MONGOC_OBJS) $(MONGOC_LDFLAGS) -lgeos_c -lm
@@ -272,6 +289,7 @@ install: all
 	cat $(PLUGIN_DIR)/swRamDB.so   > $(INSTALL_PLUGIN)/db/currentState/swRamDB.so
 	cat $(PLUGIN_DIR)/troeNone.so  > $(INSTALL_PLUGIN)/troe/temporal/none.so
 	cat $(PLUGIN_DIR)/troeRamdb.so > $(INSTALL_PLUGIN)/troe/temporal/ramdb.so
+	cat $(PLUGIN_DIR)/troeTimescale.so > $(INSTALL_PLUGIN)/troe/temporal/timescale.so
 	cat $(PLUGIN_DIR)/admin.so     > $(INSTALL_PLUGIN)/api/admin.so
 
 i:   install
@@ -296,7 +314,7 @@ coverage:
 	@echo "Coverage report: file://$(CURDIR)/$(COV_DIR)/index.html"
 
 clean:
-	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(TROE_RAMDB_OBJS) $(BINARY)
+	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(TROE_RAMDB_OBJS) $(TROE_TIMESCALE_OBJS) $(BINARY)
 	rm -f $(FTCLIENT_OBJS) $(FTCLIENT_BINARY)
 	rm -rf $(PLUGIN_DIR) $(COV_DIR)
 	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true
