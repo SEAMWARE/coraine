@@ -1,0 +1,213 @@
+#
+# FILE            csource_reg_validation_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.9 — top-level `datasetId`: array of valid URIs, with the literal
+# "@none" accepted as a synonym for the default Attribute instance (§ 4.5.5).
+#
+--NAME--
+CSourceRegistration validation — datasetId (§ 5.2.9 / § 4.5.5)
+
+--TAGS--
+registration error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. datasetId: not an array → 400"
+echo "================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-not-array",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": "urn:dataset:1",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "02. datasetId: empty array → 400"
+echo "================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-empty",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": [],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "03. datasetId: non-string item → 400"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-nonstring",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": ["urn:dataset:1", 42],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "04. datasetId: invalid URI → 400"
+echo "================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-bad-uri",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": ["not a uri"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "05. datasetId: [\"urn:ds:1\", \"urn:ds:2\"] → 201"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-good",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": ["urn:ds:1", "urn:ds:2"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "06. datasetId: [\"@none\"] (default-instance sentinel) → 201"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-none",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": ["@none"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "07. datasetId: mix of @none and URIs → 201"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:dsi-mixed",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "datasetId": ["@none", "urn:ds:default-and-one"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+--EXPECT--
+01. datasetId: not an array → 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "detail": "'datasetId' must be a JSON array",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. datasetId: empty array → 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "detail": "'datasetId' array must not be empty",
+  "title": "Empty Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. datasetId: non-string item → 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "'datasetId' items must be strings",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. datasetId: invalid URI → 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 137
+
+{
+  "detail": "Not a valid URI: 'not a uri'",
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. datasetId: ["urn:ds:1", "urn:ds:2"] → 201
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-good
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. datasetId: ["@none"] (default-instance sentinel) → 201
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-none
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. datasetId: mix of @none and URIs → 201
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-mixed
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
