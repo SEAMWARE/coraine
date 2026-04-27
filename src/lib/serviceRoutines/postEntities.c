@@ -365,24 +365,8 @@ bool postEntities(void)
   KjNode* entityP = swRest.in.requestTree;
 
   //
-  // Unsupported Content-Type (payload present but not parsed as JSON)
-  //
-  if (swRest.in.payload != NULL && entityP == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  //
   // Must have a JSON payload
   //
-  if (entityP == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
   //
   // Validate the entity
   //

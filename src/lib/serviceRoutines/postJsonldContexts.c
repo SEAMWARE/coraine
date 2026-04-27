@@ -61,19 +61,6 @@ bool postJsonldContexts(void)
   //
   // Content-Type / payload checks
   //
-  if (swRest.in.payload != NULL && bodyP == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  if (bodyP == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
   if (bodyP->type != KjObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "payload must be a JSON object");

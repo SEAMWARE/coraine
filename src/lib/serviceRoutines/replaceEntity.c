@@ -199,22 +199,6 @@ bool replaceEntity(void)
   KjNode*     entityP  = swRest.in.requestTree;
 
   //
-  // Unsupported Content-Type (payload present but not parsed as JSON)
-  //
-  if (swRest.in.payload != NULL && entityP == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  if (entityP == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
-  //
   // Validate payload as a full entity (id + type mandatory, no null-marker).
   //
   if (ldCheckEntity(entityP, LdOpReplaceEntity, NULL, &swRest.kalloc) == false)

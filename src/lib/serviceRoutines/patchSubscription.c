@@ -62,22 +62,6 @@ bool patchSubscription(void)
   KjNode*     fragment = swRest.in.requestTree;
 
   //
-  // Unsupported Content-Type
-  //
-  if (swRest.in.payload != NULL && fragment == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  if (fragment == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
-  //
   // Validate the subscription fragment
   //
   if (ldCheckSubscription(fragment, LdOpUpdateSubscription, &swRest.kalloc) == false)

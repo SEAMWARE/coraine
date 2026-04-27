@@ -45,19 +45,6 @@ bool patchEntityMap(void)
   const char* mapId = swRest.in.wildcard[0];
   KjNode*     bodyP = swRest.in.requestTree;
 
-  if (swRest.in.payload != NULL && bodyP == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  if (bodyP == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
   if (bodyP->type != KjObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",

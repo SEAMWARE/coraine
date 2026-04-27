@@ -159,22 +159,6 @@ bool patchEntity(void)
   KjNode*     fragment = swRest.in.requestTree;
 
   //
-  // Unsupported Content-Type (payload present but not parsed as JSON)
-  //
-  if (swRest.in.payload != NULL && fragment == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  if (fragment == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
-  //
   // Validate the fragment. LdOpMergeEntity allows partial payloads (no
   // mandatory id/type) and permits "urn:ngsi-ld:null" at the top level as a
   // delete-marker.

@@ -87,24 +87,8 @@ bool postSubscriptions(void)
   KjNode* subP = swRest.in.requestTree;
 
   //
-  // Unsupported Content-Type
-  //
-  if (swRest.in.payload != NULL && subP == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  //
   // Must have a JSON payload
   //
-  if (subP == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
   //
   // Validate the subscription
   //

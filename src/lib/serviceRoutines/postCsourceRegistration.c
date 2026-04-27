@@ -387,19 +387,6 @@ bool postCsourceRegistration(void)
 {
   KjNode* regP = swRest.in.requestTree;
 
-  if (swRest.in.payload != NULL && regP == NULL)
-  {
-    ldError(415, LD_ERROR_INVALID_REQUEST, "Unsupported Media Type",
-            "supported Content-Types: application/json, application/ld+json");
-    return true;
-  }
-
-  if (regP == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "no payload");
-    return true;
-  }
-
   // Validate the registration
   if (ldCheckRegistration(regP, LdOpCreateRegistration, &swRest.kalloc) == false)
     return true;
