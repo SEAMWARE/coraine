@@ -290,3 +290,70 @@ bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
 
   return match;
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// csrGeoMatchOverlap - see header
+//
+// Conservative "possibly contains" filter for CSR Discovery and DistOp
+// dispatch. Compares the geoQ reference geometry against a CSR's stored
+// geo-coverage geometry. If the CSR has no geometry for the queried
+// property (csrGeoP NULL), the CSR is unconstrained: the function returns
+// true so the dispatcher keeps it as a candidate.
+//
+bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+{
+  if (geoRel == NULL || geometry == NULL || coordinates == NULL)
+    return true;  // no geo constraint
+  if (csrGeoP == NULL)
+    return true;  // CSR didn't declare this geo field — match by default
+
+  GEOSGeometry* refGeom = geojsonToGeos(geometry, coordinates);
+  if (refGeom == NULL)
+    return true;  // can't parse query geometry — be permissive
+
+  GEOSGeometry* csrGeom = entityGeoToGeos(csrGeoP);
+  if (csrGeom == NULL)
+  {
+    GEOSGeom_destroy_r(geosCtx, refGeom);
+    return true;  // CSR geometry malformed — pass through, downstream filter will catch
+  }
+
+  bool match = false;
+
+  if (geoRel->rel == LdGeoNear)
+  {
+    // For "near" we want any point of the CSR's region within maxDistance.
+    // GEOSDistance is planar (degrees) but the spec's maxDistance is meters,
+    // so we convert with an equator-scale 111320 m/degree factor — accuracy
+    // is not critical here (any false positive just costs an extra forward;
+    // the responding broker re-applies the precise filter).
+    double distanceDegrees = -1;
+    if (GEOSDistance_r(geosCtx, refGeom, csrGeom, &distanceDegrees) == 1)
+    {
+      if (geoRel->maxDistance >= 0)
+      {
+        double distanceMeters = distanceDegrees * 111320.0;
+        match = (distanceMeters <= geoRel->maxDistance);
+      }
+      else
+      {
+        match = true;  // no maxDistance bound — every CSR is a candidate
+      }
+    }
+  }
+  else
+  {
+    // Topological — every relation collapses to "intersects" for the
+    // dispatch filter. "directly matches" + "possibly contains" both end
+    // up wanting "the CSR's region overlaps the query's reference region".
+    match = (GEOSIntersects_r(geosCtx, refGeom, csrGeom) == 1);
+  }
+
+  GEOSGeom_destroy_r(geosCtx, csrGeom);
+  GEOSGeom_destroy_r(geosCtx, refGeom);
+
+  return match;
+}

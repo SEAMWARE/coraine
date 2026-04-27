@@ -1,0 +1,316 @@
+#
+# FILE            csource_reg_discovery_geoq.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.10.2.4 — geoQ on /csourceRegistrations matches against the CSR's
+# location/observationSpace/operationSpace. Conservative overlap test:
+# CSRs whose geometry doesn't overlap the query reference are filtered out.
+#
+--NAME--
+CSourceRegistration Discovery — geoQ overlap (§ 5.10.2.4)
+
+--TAGS--
+registration discovery geo
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed two CSRs: A around Madrid (Polygon), B around Barcelona (Polygon)"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:Madrid",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9001",
+  "location": {
+    "type": "Polygon",
+    "coordinates": [[[-4.0, 40.0],[-3.4, 40.0],[-3.4, 40.6],[-4.0, 40.6],[-4.0, 40.0]]]
+  },
+  "information": [{"entities": [{"type": "City"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:Barcelona",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9002",
+  "location": {
+    "type": "Polygon",
+    "coordinates": [[[2.0, 41.0],[2.4, 41.0],[2.4, 41.5],[2.0, 41.5],[2.0, 41.0]]]
+  },
+  "information": [{"entities": [{"type": "City"}]}]
+}'
+echo
+echo
+
+
+echo "02. Discovery with geoQ near Madrid (Point) → only Madrid CSR matches"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=near%3BmaxDistance==50000&geometry=Point&coordinates=%5B-3.7%2C40.4%5D'
+echo
+echo
+
+
+echo "03. Discovery with geoQ near Barcelona → only Barcelona CSR matches"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=near%3BmaxDistance==50000&geometry=Point&coordinates=%5B2.2%2C41.4%5D'
+echo
+echo
+
+
+echo "04. Discovery with geoQ near Lisbon (far from both) → empty array"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=near%3BmaxDistance==1&geometry=Point&coordinates=%5B-9.1%2C38.7%5D'
+echo
+echo
+
+
+echo "05. Discovery with geoQ within Iberia polygon → both CSRs match"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=within&geometry=Polygon&coordinates=%5B%5B%5B-10%2C36%5D%2C%5B5%2C36%5D%2C%5B5%2C44%5D%2C%5B-10%2C44%5D%2C%5B-10%2C36%5D%5D%5D'
+echo
+echo
+
+
+--EXPECT--
+01. Seed two CSRs: A around Madrid (Polygon), B around Barcelona (Polygon)
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:Madrid
+Link: REGEX(.*)
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:Barcelona
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Discovery with geoQ near Madrid (Point) → only Madrid CSR matches
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX([0-9]+)
+
+[
+  {
+    "endpoint": "http://localhost:9001",
+    "id": "urn:R:Madrid",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        [
+          [
+            -4,
+            40
+          ],
+          [
+            -3.4,
+            40
+          ],
+          [
+            -3.4,
+            40.6
+          ],
+          [
+            -4,
+            40.6
+          ],
+          [
+            -4,
+            40
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+03. Discovery with geoQ near Barcelona → only Barcelona CSR matches
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX([0-9]+)
+
+[
+  {
+    "endpoint": "http://localhost:9002",
+    "id": "urn:R:Barcelona",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        [
+          [
+            2,
+            41
+          ],
+          [
+            2.4,
+            41
+          ],
+          [
+            2.4,
+            41.5
+          ],
+          [
+            2,
+            41.5
+          ],
+          [
+            2,
+            41
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+04. Discovery with geoQ near Lisbon (far from both) → empty array
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 3
+
+[]
+
+
+
+05. Discovery with geoQ within Iberia polygon → both CSRs match
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: 1263
+
+[
+  {
+    "endpoint": "http://localhost:9001",
+    "id": "urn:R:Madrid",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        [
+          [
+            -4,
+            40
+          ],
+          [
+            -3.4,
+            40
+          ],
+          [
+            -3.4,
+            40.6
+          ],
+          [
+            -4,
+            40.6
+          ],
+          [
+            -4,
+            40
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9002",
+    "id": "urn:R:Barcelona",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        [
+          [
+            2,
+            41
+          ],
+          [
+            2.4,
+            41
+          ],
+          [
+            2.4,
+            41.5
+          ],
+          [
+            2,
+            41.5
+          ],
+          [
+            2,
+            41
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -60,6 +60,8 @@ void tenantInit(const char* prefix)
     ((LdSubCache*) tenant0.subCacheP)->geoMatchFunc = db.geoMatchFunc;
   tenant0.pernotCacheP    = ldPernotCacheCreate();
   tenant0.regCacheP       = ldRegCacheCreate();
+  if (tenant0.regCacheP != NULL && db.csrGeoMatchFunc != NULL)
+    ((LdRegCache*) tenant0.regCacheP)->csrGeoMatchFunc = db.csrGeoMatchFunc;
   tenant0.regSubCacheP    = ldSubCacheCreate();
   tenant0.entityMapStoreP = ldEntityMapStoreCreate();
   tenant0.next        = NULL;
@@ -130,6 +132,8 @@ Tenant* tenantGetOrCreate(const char* name)
     ((LdSubCache*) tP->subCacheP)->geoMatchFunc = db.geoMatchFunc;
   tP->pernotCacheP    = ldPernotCacheCreate();
   tP->regCacheP       = ldRegCacheCreate();
+  if (tP->regCacheP != NULL && db.csrGeoMatchFunc != NULL)
+    ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc = db.csrGeoMatchFunc;
   tP->regSubCacheP    = ldSubCacheCreate();
   tP->entityMapStoreP = ldEntityMapStoreCreate();
 

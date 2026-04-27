@@ -77,6 +77,10 @@ static bool paramSupported(const char* key)
   if (strcmp(key, "scopeQ")           == 0)     return true;
   if (strcmp(key, "lang")             == 0)     return true;
   if (strcmp(key, "geometryProperty") == 0)     return true;   // only meaningful with Accept: geo+json
+  if (strcmp(key, "georel")           == 0)     return true;   // geoQ quadruple — § 5.10.2.4
+  if (strcmp(key, "geometry")         == 0)     return true;
+  if (strcmp(key, "coordinates")      == 0)     return true;
+  if (strcmp(key, "geoproperty")      == 0)     return true;
   return false;
 }
 
@@ -168,6 +172,29 @@ bool getCsourceRegistrations(void)
       {
         KjNode* scopeP = (matchV[i]->regTree != NULL) ? kjLookup(matchV[i]->regTree, "scope") : NULL;
         if (ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
+          matchV[n++] = matchV[i];
+      }
+      passN = n;
+    }
+
+    // § 5.10.2.4 geoQ: filter by overlap with the CSR's geo-coverage field
+    // (location / observationSpace / operationSpace) selected by the
+    // request's geoproperty (default: location).
+    if (swNgsild.geoRel != NULL && cacheP->csrGeoMatchFunc != NULL)
+    {
+      const char* prop = swNgsild.geoproperty;
+      bool isObs = (prop != NULL) && (strcmp(prop, "observationSpace") == 0 ||
+                                      strcmp(prop, "https://uri.etsi.org/ngsi-ld/observationSpace") == 0);
+      bool isOp  = (prop != NULL) && (strcmp(prop, "operationSpace") == 0 ||
+                                      strcmp(prop, "https://uri.etsi.org/ngsi-ld/operationSpace") == 0);
+
+      int n = 0;
+      for (int i = 0; i < passN; i++)
+      {
+        KjNode* csrGeoP = isObs ? matchV[i]->observationSpaceP
+                          : isOp ? matchV[i]->operationSpaceP
+                          : matchV[i]->locationP;
+        if (cacheP->csrGeoMatchFunc(csrGeoP, swNgsild.geoRel, swNgsild.geometry, swNgsild.coordinates))
           matchV[n++] = matchV[i];
       }
       passN = n;

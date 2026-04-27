@@ -12,6 +12,7 @@
 #include "swNgsild/LdSubCache.h"                       // LdSubCacheItem
 #include "db/DbDriver.h"                               // DbDriver
 #include "db/DbQueryFilter.h"                          // DbQueryFilter
+#include "shared/geoMatch.h"                           // csrGeoMatchOverlap
 
 #include "currentState/swRamDB/ramdbGlobals.h"        // ramdbArgV
 #include "currentState/swRamDB/ramdbInit.h"           // ramdbInit
@@ -66,6 +67,17 @@ static bool ramdbGeoMatchCb(KjNode* entityP, LdGeoRel* geoRel, const char* geome
 
 // -----------------------------------------------------------------------------
 //
+// ramdbCsrGeoMatchCb - geoQ ↔ CSR geo-coverage match (§ 5.10.2.4)
+//
+static bool ramdbCsrGeoMatchCb(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+{
+  return csrGeoMatchOverlap(csrGeoP, geoRel, geometry, coordinates);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // ramdbTenantSetup - create the per-tenant store tree on first use
 //
 static int ramdbTenantSetup(Tenant* tenantP)
@@ -114,4 +126,5 @@ void dbRegister(DbDriver* driverP)
   driverP->registrationList     = ramdbRegistrations;
   driverP->tenantSetup     = ramdbTenantSetup;
   driverP->geoMatchFunc    = ramdbGeoMatchCb;
+  driverP->csrGeoMatchFunc = ramdbCsrGeoMatchCb;
 }

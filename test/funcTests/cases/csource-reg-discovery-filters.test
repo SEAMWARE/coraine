@@ -78,20 +78,9 @@ echo
 echo
 
 
-echo "06. ?type=Vehicle&geoproperty=location → 501 (deferred)"
-echo "======================================================="
-echo "    geoQ on CSR location/observationSpace/operationSpace not yet implemented."
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&geoproperty=location'
-echo
-echo
-
-
-echo "07. ?type=Vehicle&georel=near → 501 (geoQ on CSR location deferred)"
-echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&georel=near'
-echo
-echo
-
+# NOTE: geoQ on CSR Discovery is implemented and covered by
+# csource_reg_discovery_geoq.test. The previous "expect 501" cases are
+# no longer relevant.
 
 --EXPECT--
 01. Register CSR_North (scope=/Madrid/North, organization=Acme)
@@ -239,37 +228,6 @@ Content-Length: 711
     "type": "ContextSourceRegistration"
   }
 ]
-
-
-
-06. ?type=Vehicle&geoproperty=location → 501 (deferred)
-=======================================================
-    geoQ on CSR location/observationSpace/operationSpace not yet implemented.
-HTTP/1.1 501 Not Implemented
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 323
-
-{
-  "detail": "Context Source Registration discovery filter 'geoproperty' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
-  "title": "Not Implemented",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
-
-
-
-07. ?type=Vehicle&georel=near → 501 (geoQ on CSR location deferred)
-===================================================================
-HTTP/1.1 501 Not Implemented
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 318
-
-{
-  "detail": "Context Source Registration discovery filter 'georel' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
-  "title": "Not Implemented",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
 
 
 

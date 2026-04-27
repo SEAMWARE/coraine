@@ -136,8 +136,8 @@ echo
 echo
 
 
-echo "16. ?geoproperty=location -> 501 (unsupported)"
-echo "=============================================="
+echo "16. ?geoproperty=location alone -> 400 Too Wide Query"
+echo "====================================================="
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?geoproperty=location'
 echo
 echo
@@ -560,17 +560,17 @@ Content-Length: 3
 
 
 
-16. ?geoproperty=location -> 501 (unsupported)
-==============================================
-HTTP/1.1 501 Not Implemented
+16. ?geoproperty=location alone -> 400 Too Wide Query
+=====================================================
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 323
+Content-Length: 195
 
 {
-  "detail": "Context Source Registration discovery filter 'geoproperty' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
-  "title": "Not Implemented",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+  "detail": "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required",
+  "title": "Too Wide Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 

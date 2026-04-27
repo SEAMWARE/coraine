@@ -68,6 +68,17 @@ static bool mongocGeoMatchCb(KjNode* entityP, LdGeoRel* geoRel, const char* geom
 
 // -----------------------------------------------------------------------------
 //
+// mongocCsrGeoMatchCb - geoQ ↔ CSR geo-coverage match (§ 5.10.2.4)
+//
+static bool mongocCsrGeoMatchCb(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+{
+  return csrGeoMatchOverlap(csrGeoP, geoRel, geometry, coordinates);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // dbRegister -
 //
 void dbRegister(DbDriver* driverP)
@@ -100,6 +111,7 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionDelete    = mongocSubscriptionDelete;
   driverP->subscriptionStatsFlush = mongocSubscriptionStatsFlush;
   driverP->geoMatchFunc          = mongocGeoMatchCb;
+  driverP->csrGeoMatchFunc       = mongocCsrGeoMatchCb;
 
   driverP->registrationCreate    = mongocRegistrationCreate;
   driverP->registrationRetrieve  = mongocRegistrationRetrieve;

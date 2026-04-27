@@ -18,6 +18,7 @@
 
 #include "swNgsild/ldEntityMerge.h"                       // LdMergeReport
 #include "swNgsild/LdSubCache.h"                          // LdGeoMatchFunc
+#include "swNgsild/LdRegCache.h"                          // LdCsrGeoMatchFunc
 
 #include "db/DbQueryFilter.h"                             // DbQueryFilter
 #include "db/Tenant.h"                                    // Tenant
@@ -271,6 +272,7 @@ typedef struct DbDriver
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
   LdGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
+  LdCsrGeoMatchFunc    csrGeoMatchFunc; // geoQ ↔ CSR geo-coverage match (§ 5.10.2.4 / dispatch)
 
   // JSON-LD context persistence — optional; NULL means no persistence
   // (e.g. ramdb). The reserved DB name ("swBroker") is used internally.
