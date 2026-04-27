@@ -1,0 +1,169 @@
+#
+# FILE            subscription_stats_status.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.14.2 — notification.status: "ok" if the most recent attempt
+# succeeded, "failed" if it failed. Derived from the relative ordering
+# of lastSuccess vs lastFailure.
+#
+--NAME--
+Subscription notification.status (§ 5.2.14.2)
+
+--TAGS--
+subscription stats notification
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Create sub S1 pointing at ftClient (--status 200, success path)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:7711/notify"}}
+}'
+echo
+echo
+
+
+echo "02. Trigger a successful notification"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "03. GET S1 → notification.status = \"ok\""
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
+echo
+echo
+
+
+echo "04. Switch ftClient to --status 503 (force failure on next notification)"
+echo "========================================================================"
+ftClientStop --port 7711
+ftClientStart --port 7711 --status 503
+echo "  ftClient now returns 503 for every POST"
+echo
+echo
+
+
+echo "05. Trigger a failing notification"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}'
+echo
+echo
+
+
+echo "06. GET S1 → notification.status = \"failed\" (lastFailure now newer than lastSuccess)"
+echo "======================================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
+echo
+echo
+
+
+echo "07. Recover ftClient to --status 200, fire one more → status flips back to \"ok\""
+echo "================================================================================="
+ftClientStop --port 7711
+ftClientStart --port 7711 --status 200
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":50}}'
+echo
+echo
+
+
+echo "08. GET S1 → notification.status = \"ok\" again"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
+echo
+echo
+
+
+--EXPECT--
+01. Create sub S1 pointing at ftClient (--status 200, success path)
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Trigger a successful notification
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. GET S1 → notification.status = "ok"
+========================================
+    "lastSuccess": "REGEX(.*)",
+    "status": "ok",
+    "timesSent": 1
+  "status": "active",
+
+
+04. Switch ftClient to --status 503 (force failure on next notification)
+========================================================================
+  ftClient now returns 503 for every POST
+
+
+05. Trigger a failing notification
+==================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET S1 → notification.status = "failed" (lastFailure now newer than lastSuccess)
+======================================================================================
+    "lastFailure": "REGEX(.*)",
+    "lastSuccess": "REGEX(.*)",
+    "status": "failed",
+    "timesFailed": 1,
+    "timesSent": 2
+  "status": "active",
+
+
+07. Recover ftClient to --status 200, fire one more → status flips back to "ok"
+=================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET S1 → notification.status = "ok" again
+==============================================
+    "lastFailure": "REGEX(.*)",
+    "lastSuccess": "REGEX(.*)",
+    "status": "ok",
+    "timesFailed": 1,
+    "timesSent": 3
+  "status": "active",
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

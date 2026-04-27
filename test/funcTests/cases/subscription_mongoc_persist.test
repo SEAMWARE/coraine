@@ -164,6 +164,7 @@ Content-Length: REGEX(\d+)
     },
     "lastNotification": REGEX(".*"),
     "lastSuccess": REGEX(".*"),
+    "status": "ok",
     "timesSent": 1
   },
   "status": "active",
