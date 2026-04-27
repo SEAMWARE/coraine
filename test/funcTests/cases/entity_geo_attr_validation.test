@@ -1,0 +1,249 @@
+#
+# FILE            entity_geo_attr_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.7 — `location`, `observationSpace`, `operationSpace` are well-known
+# GeoProperty names. Entities MUST NOT use them for any other attribute
+# type. The validator runs always; the dispatch-side use is gated by
+# build-time feature flags (fw only).
+#
+--NAME--
+Entity attribute validation — location/observationSpace/operationSpace must be GeoProperty (§ 4.7)
+
+--TAGS--
+entity error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. location declared as Property → 400"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:1",
+  "type": "T",
+  "location": {"type": "Property", "value": "hello"}
+}'
+echo
+echo
+
+
+echo "02. location declared as Relationship → 400"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:2",
+  "type": "T",
+  "location": {"type": "Relationship", "object": "urn:other"}
+}'
+echo
+echo
+
+
+echo "03. location with no explicit type → accepted (implicit-type inference is a separate gap)"
+echo "==========================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:3",
+  "type": "T",
+  "location": {"value": {"type": "Point", "coordinates": [1, 2]}}
+}'
+echo
+echo
+
+
+echo "04. observationSpace declared as Property → 400"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:4",
+  "type": "T",
+  "observationSpace": {"type": "Property", "value": 42}
+}'
+echo
+echo
+
+
+echo "05. operationSpace declared as JsonProperty → 400"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:5",
+  "type": "T",
+  "operationSpace": {"type": "JsonProperty", "json": {"a": 1}}
+}'
+echo
+echo
+
+
+echo "06. location as proper GeoProperty → 201"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:6",
+  "type": "T",
+  "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [10, 20]}}
+}'
+echo
+echo
+
+
+echo "07. observationSpace + operationSpace as GeoProperty → 201"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:7",
+  "type": "T",
+  "observationSpace": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [11, 21]}},
+  "operationSpace":   {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [12, 22]}}
+}'
+echo
+echo
+
+
+echo "08. PATCH attempting to change location into a Property → 400"
+echo "============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E:6/attrs --payload '{
+  "location": {"type": "Property", "value": "no longer a geo"}
+}'
+echo
+echo
+
+
+echo "09. Free-form attribute named like one of these but NOT one of them → 201 (no false positive)"
+echo "=============================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E:9",
+  "type": "T",
+  "myLocation": {"type": "Property", "value": "free-form"}
+}'
+echo
+echo
+
+
+--EXPECT--
+01. location declared as Property → 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 209
+
+{
+  "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "title": "Invalid Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. location declared as Relationship → 400
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 213
+
+{
+  "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Relationship)",
+  "title": "Invalid Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. location with no explicit type → accepted (implicit-type inference is a separate gap)
+===========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E:3
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. observationSpace declared as Property → 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 217
+
+{
+  "detail": "Attribute 'observationSpace' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "title": "Invalid Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. operationSpace declared as JsonProperty → 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "detail": "Attribute 'operationSpace' is reserved by spec § 4.7 and must be of type GeoProperty (got JsonProperty)",
+  "title": "Invalid Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. location as proper GeoProperty → 201
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E:6
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. observationSpace + operationSpace as GeoProperty → 201
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E:7
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. PATCH attempting to change location into a Property → 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 209
+
+{
+  "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "title": "Invalid Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Free-form attribute named like one of these but NOT one of them → 201 (no false positive)
+==============================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E:9
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
