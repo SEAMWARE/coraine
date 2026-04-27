@@ -717,6 +717,13 @@ static const char* buildQueryString(void)
 bool getEntities(void)
 {
   //
+  // Cross-parameter validation (limit=0 requires count, etc.) — must run
+  // before any per-branch logic so a bad URL param can't get acted on.
+  //
+  if (ldParamsValidate())
+    return true;
+
+  //
   // EntityMap-based pagination: if entityMap=<mapId>, fetch entities
   // from the frozen map instead of re-querying.
   //
@@ -845,12 +852,6 @@ bool getEntities(void)
     swRest.out.responseTree = arrayP;
     return true;
   }
-
-  //
-  // Cross-parameter validation (limit=0 requires count, etc.)
-  //
-  if (ldParamsValidate())
-    return true;
 
   //
   // Geo-query inter-parameter validation
