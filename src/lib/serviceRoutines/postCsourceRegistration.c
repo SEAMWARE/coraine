@@ -19,6 +19,7 @@
 #include "kjson/KjNode.h"                            // KjNode
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kbase/kStringInArray.h"                    // kStringInArray
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 #include "swJsonld/SwldContext.h"                    // SwldContext
 #include "swJsonld/swldExpand.h"                     // swldExpand, swldAlreadyExpanded
@@ -75,22 +76,6 @@ static char* regIdGenerate(KAlloc* allocP)
 
 
 
-// -----------------------------------------------------------------------------
-//
-// strInList - true if string s is in the NULL-terminated array v
-//
-static bool strInList(const char* s, char** v)
-{
-  if (s == NULL || v == NULL)
-    return false;
-
-  for (int i = 0; v[i] != NULL; i++)
-  {
-    if (strcmp(s, v[i]) == 0)
-      return true;
-  }
-  return false;
-}
 
 
 
@@ -114,16 +99,16 @@ static bool attrSetsOverlap(char** propsA, char** relsA, char** propsB, char** r
   {
     for (int i = 0; propsA[i] != NULL; i++)
     {
-      if (strInList(propsA[i], propsB)) return true;
-      if (strInList(propsA[i], relsB))  return true;
+      if (kStringInArray(propsA[i], propsB)) return true;
+      if (kStringInArray(propsA[i], relsB))  return true;
     }
   }
   if (relsA != NULL)
   {
     for (int i = 0; relsA[i] != NULL; i++)
     {
-      if (strInList(relsA[i], propsB)) return true;
-      if (strInList(relsA[i], relsB))  return true;
+      if (kStringInArray(relsA[i], propsB)) return true;
+      if (kStringInArray(relsA[i], relsB))  return true;
     }
   }
   return false;
@@ -299,8 +284,8 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
     if (strcmp(attrP->name, "id") == 0)   continue;
     if (strcmp(attrP->name, "type") == 0) continue;
 
-    if (strInList(attrP->name, newProps)) return true;
-    if (strInList(attrP->name, newRels))  return true;
+    if (kStringInArray(attrP->name, newProps)) return true;
+    if (kStringInArray(attrP->name, newRels))  return true;
   }
   return false;
 }

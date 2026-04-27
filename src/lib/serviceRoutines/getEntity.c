@@ -16,6 +16,7 @@
 
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kbase/kStringInArray.h"                    // kStringInArray
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
 #include "kjson/kjChildReplace.h"                    // kjChildReplace
@@ -47,23 +48,6 @@
 
 // -----------------------------------------------------------------------------
 //
-// strInList - true if NULL-terminated array v contains s
-//
-static bool strInList(const char* s, char** v)
-{
-  if (s == NULL || v == NULL)
-    return false;
-
-  for (int i = 0; v[i] != NULL; i++)
-    if (strcmp(s, v[i]) == 0)
-      return true;
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // stripInfoAttrsFromLocal - remove from localP every attr covered by one RegistrationInfo
 //
 // For exclusive/redirect: the broker cannot hold registered attrs locally.
@@ -86,8 +70,8 @@ static void stripInfoAttrsFromLocal(KjNode* localP, LdRegInfo* riP)
         strcmp(curP->name, "id")   != 0 &&
         strcmp(curP->name, "type") != 0 &&
         (wildcard ||
-         strInList(curP->name, riP->propertyNamesV) ||
-         strInList(curP->name, riP->relationshipNamesV)))
+         kStringInArray(curP->name, riP->propertyNamesV) ||
+         kStringInArray(curP->name, riP->relationshipNamesV)))
     {
       kjChildRemove(localP, curP);
     }
