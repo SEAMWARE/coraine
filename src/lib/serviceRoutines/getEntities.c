@@ -714,6 +714,133 @@ static const char* buildQueryString(void)
 //
 // getEntities -
 //
+// -----------------------------------------------------------------------------
+//
+// entityMapPaginate - GET /entities?entityMap=<mapId> (§ 5.2.39 / § 5.7.2.4)
+//
+// Frozen-snapshot pagination: the map fixes "where each entity is" at
+// map-creation time; filters on the current request still re-evaluate
+// against the current data, but the candidate set is locked.
+//
+static bool entityMapPaginate(void)
+{
+  Tenant* tP = (Tenant*) swNgsild.tenantP;
+  if (tP == NULL || tP->entityMapStoreP == NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
+    return true;
+  }
+
+  LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, swNgsild.entityMapId);
+  if (mapP == NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", swNgsild.entityMapId);
+    return true;
+  }
+
+  // Build result array from map entries at [offset..offset+limit]
+  KjNode* arrayP = kjArray(NULL, NULL);
+  int offset = swNgsild.offset;
+  int limit  = (swNgsild.limit > 0) ? swNgsild.limit : 20;
+  int ix     = 0;
+  int added  = 0;
+
+  //
+  // Each map entry records a list of sources that contribute to the
+  // entity. Retrieve from each listed source — local "@none" via
+  // db.entityRetrieve, remote via HTTP GET on the CSR identified by
+  // regId. Do NOT consult the registration cache for routing — the
+  // whole point of the map is a stable snapshot, immune to later
+  // reg changes.
+  //
+  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
+
+  for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
+  {
+    if (ix < offset) { ix++; continue; }
+
+    KjNode* mergedEntity = NULL;
+
+    for (int s = 0; s < entryP->sourceCount; s++)
+    {
+      const char* src      = entryP->sourceIdV[s];
+      KjNode*     partialP = NULL;
+
+      if (strcmp(src, "@none") == 0)
+      {
+        db.entityRetrieve(tP, entryP->entityId, &partialP);
+      }
+      else if (tP->regCacheP != NULL)
+      {
+        LdRegCacheItem* csr = ldRegCacheItemLookup((LdRegCache*) tP->regCacheP, src);
+        if (csr != NULL)
+          partialP = retrieveEntityFromCSR(csr, entryP->entityId, ownAlias);
+      }
+      // Source not reachable / deleted / reg removed → skip silently;
+      // any other source that still resolves still contributes.
+
+      if (partialP == NULL)
+        continue;
+
+      if (mergedEntity == NULL)
+        mergedEntity = partialP;
+      else
+        mergeAttrsNonOverriding(mergedEntity, partialP);
+    }
+
+    if (mergedEntity != NULL)
+      kjChildAdd(arrayP, mergedEntity);
+    // else: all recorded sources failed — skip, client gets fewer
+    // results than requested (§ 5.5.9 allows this).
+
+    ix++;
+    added++;
+  }
+
+  // Filters on the assembled entities — § 5.7.2.4.
+  applyResultFilters(arrayP);
+
+  if (swNgsild.count)
+  {
+    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    snprintf(countStr, 32, "%d", mapP->entryCount);
+    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+  }
+
+  bool hasMore = (offset + added < mapP->entryCount);
+  if (hasMore)
+  {
+    char* nextUrl = (char*) kaAlloc(&swRest.kalloc, 256);
+    snprintf(nextUrl, 256, "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\"",
+             swNgsild.entityMapId, offset + limit, limit);
+    swRestOutHeaderAdd("Link", nextUrl);
+  }
+
+  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  {
+    for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+      ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
+  }
+
+  applyLinkedQPostFilter(arrayP);
+
+  if (swNgsild.join != NULL)
+  {
+    int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
+    if      (strcmp(swNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
+    else if (strcmp(swNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
+  }
+
+  swRest.out.responseTree = arrayP;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// getEntities -
+//
 bool getEntities(void)
 {
   //
@@ -724,134 +851,10 @@ bool getEntities(void)
     return true;
 
   //
-  // EntityMap-based pagination: if entityMap=<mapId>, fetch entities
-  // from the frozen map instead of re-querying.
+  // EntityMap-based pagination — separate flow, dedicated helper.
   //
   if (swNgsild.entityMapId != NULL)
-  {
-    Tenant* tP = (Tenant*) swNgsild.tenantP;
-    if (tP == NULL || tP->entityMapStoreP == NULL)
-    {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
-      return true;
-    }
-
-    LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, swNgsild.entityMapId);
-    if (mapP == NULL)
-    {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", swNgsild.entityMapId);
-      return true;
-    }
-
-    // Build result array from map entries at [offset..offset+limit]
-    KjNode* arrayP = kjArray(NULL, NULL);
-    int offset = swNgsild.offset;
-    int limit  = (swNgsild.limit > 0) ? swNgsild.limit : 20;
-    int ix     = 0;
-    int added  = 0;
-
-    //
-    // § 5.2.39 pagination: each map entry records a list of sources that
-    // contribute to the entity. Retrieve from each listed source — local
-    // "@none" via db.entityRetrieve, remote via HTTP GET on the CSR
-    // identified by regId. Do NOT consult the registration cache for
-    // routing — the whole point of the map is a stable snapshot of
-    // "where each entity is" at map-creation time, immune to later reg
-    // changes.
-    //
-    const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
-
-    for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
-    {
-      if (ix < offset) { ix++; continue; }
-
-      KjNode* mergedEntity = NULL;
-
-      for (int s = 0; s < entryP->sourceCount; s++)
-      {
-        const char* src      = entryP->sourceIdV[s];
-        KjNode*     partialP = NULL;
-
-        if (strcmp(src, "@none") == 0)
-        {
-          db.entityRetrieve(tP, entryP->entityId, &partialP);
-        }
-        else if (tP->regCacheP != NULL)
-        {
-          LdRegCacheItem* csr = ldRegCacheItemLookup((LdRegCache*) tP->regCacheP, src);
-          if (csr != NULL)
-            partialP = retrieveEntityFromCSR(csr, entryP->entityId, ownAlias);
-        }
-        // Source not reachable / deleted / reg removed → skip silently;
-        // any other source that still resolves still contributes.
-
-        if (partialP == NULL)
-          continue;
-
-        if (mergedEntity == NULL)
-          mergedEntity = partialP;
-        else
-          mergeAttrsNonOverriding(mergedEntity, partialP);
-      }
-
-      if (mergedEntity != NULL)
-        kjChildAdd(arrayP, mergedEntity);
-      // else: all recorded sources failed — skip, client gets fewer
-      // results than requested (§ 5.5.9 allows this).
-
-      ix++;
-      added++;
-    }
-
-    // § 5.7.2.4 — even when paginating an existing map, the current
-    // request's filters still apply on the assembled entities. The map
-    // only fixes "which sources hold each entity"; q/geoQ/scopeQ/type
-    // re-evaluate against the current data, not against a frozen
-    // pass-list. A page may return < limit entries when filters strip
-    // some — § 5.5.9 explicitly allows this. Count stays at the map's
-    // total entry count (the size of the fixed source-mapping snapshot).
-    applyResultFilters(arrayP);
-
-    // Count header
-    if (swNgsild.count)
-    {
-      char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
-      snprintf(countStr, 32, "%d", mapP->entryCount);
-      swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
-    }
-
-    // Pagination Link header
-    bool hasMore = (offset + added < mapP->entryCount);
-    if (hasMore)
-    {
-      char* nextUrl = (char*) kaAlloc(&swRest.kalloc, 256);
-      snprintf(nextUrl, 256, "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\"",
-               swNgsild.entityMapId, offset + limit, limit);
-      swRestOutHeaderAdd("Link", nextUrl);
-    }
-
-    // Apply pick/omit
-    if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
-    {
-      for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
-        ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
-    }
-
-    // § 4.9 LinkedEntityRelation — post-filter when q contains a sub-q.
-    applyLinkedQPostFilter(arrayP);
-
-    // § 4.5.23 — linked-entity expansion of each result.
-    if (swNgsild.join != NULL)
-    {
-      int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
-      Tenant* tP = (Tenant*) swNgsild.tenantP;
-      if      (strcmp(swNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
-      else if (strcmp(swNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
-    }
-
-    swRest.out.responseTree = arrayP;
-    return true;
-  }
+    return entityMapPaginate();
 
   //
   // Geo-query inter-parameter validation
