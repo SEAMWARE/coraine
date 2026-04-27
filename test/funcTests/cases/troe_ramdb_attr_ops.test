@@ -1,0 +1,96 @@
+#
+# FILE            troe_ramdb_attr_ops.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE: PATCH /entities/{id}/attrs/{attrId} defers one attrModified
+# event per touched top-level attr. DELETE /entities/{id} defers one
+# entityDeleted tombstone.
+#
+--NAME--
+TRoE - attr-modify and entity-delete events captured by troeRamdb
+
+--TAGS--
+troe patch delete
+
+--INIT--
+swDbDrop
+swBrokerStart --troe ramdb --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+echo "01. POST entity urn:V1 with one attr"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+echo
+echo
+echo
+
+
+echo "02. PATCH /entities/urn:V1/attrs/speed — value change"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' | head -1
+echo
+
+
+echo "03. DELETE /entities/urn:V1"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
+echo
+echo
+
+
+echo "04. GET /admin/troe/dump — three events: created, attrModified, deleted"
+echo "======================================================================="
+swCurl --url /admin/troe/dump | python3 -c "
+import sys, json, re
+hdr = ''
+body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '':
+        hdr = 'done'
+        continue
+    if hdr == 'done':
+        body += line
+d = json.loads(body) if body.strip() else {}
+events = d.get('events', [])
+print('  count:', len(events))
+for e in events:
+    t = e.get('entityType', '')
+    t = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', t)
+    a = e.get('attrName', '')
+    a = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', a)
+    print('  op=%s entityId=%s entityType=%s attrName=%s' % (e.get('op'), e.get('entityId'), t, a))
+"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity urn:V1 with one attr
+====================================
+
+
+
+02. PATCH /entities/urn:V1/attrs/speed — value change
+=====================================================
+HTTP/1.1 204 No Content
+
+03. DELETE /entities/urn:V1
+===========================
+HTTP/1.1 204 No Content
+
+
+04. GET /admin/troe/dump — three events: created, attrModified, deleted
+=======================================================================
+  count: 3
+  op=entityCreated entityId=urn:V1 entityType=Vehicle attrName=
+  op=attrModified entityId=urn:V1 entityType=Vehicle attrName=speed
+  op=entityDeleted entityId=urn:V1 entityType=Vehicle attrName=
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

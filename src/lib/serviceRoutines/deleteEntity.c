@@ -16,6 +16,7 @@
 
 #include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
 #include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjLookup.h"                          // kjLookup
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
@@ -24,6 +25,9 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityDeleted
+#include "troe/troeDispatch.h"                       // troeDeferEntityEvent
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
@@ -184,6 +188,27 @@ bool deleteEntity(void)
 
     if (tenantP->subCacheP != NULL && entityP != NULL)
       ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, entityP, swRest.requestStartTime);
+
+    // TRoE: entity-level tombstone. Attribute timelines are still
+    // queryable; the temporal-query reader joins this row to scope
+    // alive windows.
+    {
+      const char* etype = NULL;
+      if (entityP != NULL)
+      {
+        KjNode* tn = kjLookup(entityP, "type");
+        if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+      }
+      TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+      memset(tevP, 0, sizeof(*tevP));
+      tevP->op             = TroeOpEntityDeleted;
+      tevP->tenantP        = tenantP;
+      tevP->entityId       = entityId;
+      tevP->entityType     = etype;
+      tevP->modifiedAtNs   = swRest.requestStartTime;
+      tevP->entitySnapshot = entityP;     // pre-delete snapshot, NULL-safe
+      troeDeferEntityEvent(tevP);
+    }
   }
   else if (r != DB_NOT_FOUND)
   {
