@@ -63,6 +63,8 @@
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
@@ -665,6 +667,16 @@ bool postEntityBatchMerge(void)
           if (subCacheP != NULL && snapshotsV[k] != NULL)
             ldNotifyDefer(subCacheP, snapshotsV[k],
                           LdNotifyEntityUpdate, &reportsV[k]);
+
+          // TRoE: per-fragment attr events for the entities the bulk
+          // actually persisted.
+          if (snapshotsV[k] != NULL)
+          {
+            KjNode* tn = kjLookup(snapshotsV[k], "type");
+            const char* etype = (tn != NULL && tn->type == KjString) ? tn->value.s : NULL;
+            troeDeferAttrEventsFromMerge(tenantP, eid, etype, snapshotsV[k], &reportsV[k],
+                                         swRest.requestStartTime);
+          }
           break;
         }
         case DB_NOT_FOUND:

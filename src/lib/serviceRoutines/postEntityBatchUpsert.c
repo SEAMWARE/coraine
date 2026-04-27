@@ -69,6 +69,10 @@
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate, LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
+#include "troe/troeDispatch.h"                       // troeDeferEntityEvent
+#include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
@@ -742,6 +746,33 @@ bool postEntityBatchUpsert(void)
         KjNode* snapshot = kjClone(swRest.kjsonP, finalP);
         ldNotifyDefer(subCacheP, snapshot, notifyOp,
                       (notifyOp == LdNotifyEntityUpdate) ? &report : NULL);
+      }
+
+      // TRoE: optimistic per-fragment events. For created entities,
+      // emit one entityCreated; the per-attr breakdown comes from the
+      // ramdb plugin walking entitySnapshot at dispatch time. For
+      // update mode, emit per-attr events from the merge report.
+      {
+        KjNode* tn = kjLookup(finalP, "type");
+        const char* etype = (tn != NULL && tn->type == KjString) ? tn->value.s : NULL;
+
+        if (notifyOp == LdNotifyEntityCreate)
+        {
+          TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+          memset(tevP, 0, sizeof(*tevP));
+          tevP->op             = TroeOpEntityCreated;
+          tevP->tenantP        = tenantP;
+          tevP->entityId       = g->id;
+          tevP->entityType     = etype;
+          tevP->modifiedAtNs   = swRest.requestStartTime;
+          tevP->entitySnapshot = finalP;
+          troeDeferEntityEvent(tevP);
+        }
+        else
+        {
+          troeDeferAttrEventsFromMerge(tenantP, g->id, etype, finalP, &report,
+                                       swRest.requestStartTime);
+        }
       }
     }
 

@@ -61,6 +61,9 @@
 
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
+#include "troe/troeDispatch.h"                       // troeDeferEntityEvent
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
@@ -790,6 +793,22 @@ bool postEntityBatchCreate(void)
           anySuccessV[origIdx] = true;
           if (subCacheP != NULL && entP != NULL)
             ldNotifyDefer(subCacheP, entP, LdNotifyEntityCreate, NULL);
+
+          // TRoE: defer one entity-level created event per successful entity.
+          if (entP != NULL)
+          {
+            KjNode* tn = kjLookup(entP, "type");
+            const char* etype = (tn != NULL && tn->type == KjString) ? tn->value.s : NULL;
+            TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+            memset(tevP, 0, sizeof(*tevP));
+            tevP->op             = TroeOpEntityCreated;
+            tevP->tenantP        = tenantP;
+            tevP->entityId       = eid;
+            tevP->entityType     = etype;
+            tevP->modifiedAtNs   = swRest.requestStartTime;
+            tevP->entitySnapshot = entP;
+            troeDeferEntityEvent(tevP);
+          }
           break;
         case DB_ALREADY_EXISTS:
           addBatchError(errorsP, eid,

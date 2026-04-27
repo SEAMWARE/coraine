@@ -1,0 +1,107 @@
+#
+# FILE            troe_ramdb_batch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE: batch ops capture events per successful entity.
+#   POST /entityOperations/create → N entityCreated events
+#   POST /entityOperations/update → per-entity attr events from report
+#   POST /entityOperations/delete → N entityDeleted events
+#
+--NAME--
+TRoE - batch create / update / delete events captured
+
+--TAGS--
+troe batch
+
+--INIT--
+swDbDrop
+swBrokerStart --troe ramdb --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+echo "01. POST /entityOperations/create — 3 entities"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":50}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":60}}
+]' | head -1
+echo
+echo
+
+
+echo "02. POST /entityOperations/update — modify 2 entities"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":100}}
+]' | head -1
+echo
+echo
+
+
+echo "03. POST /entityOperations/delete — drop 2 entities"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V3"]' | head -1
+echo
+echo
+
+
+echo "04. GET /admin/troe/dump — 3 created + 2 attrModified + 2 deleted"
+echo "================================================================="
+swCurl --url /admin/troe/dump | python3 -c "
+import sys, json, re
+hdr = ''
+body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '':
+        hdr = 'done'
+        continue
+    if hdr == 'done':
+        body += line
+d = json.loads(body) if body.strip() else {}
+events = d.get('events', [])
+print('  count:', len(events))
+for e in events:
+    a = e.get('attrName', '')
+    a = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', a)
+    print('  op=%s entityId=%s attrName=%s' % (e.get('op'), e.get('entityId'), a))
+"
+echo
+echo
+
+
+--EXPECT--
+01. POST /entityOperations/create — 3 entities
+===============================================
+HTTP/1.1 201 Created
+
+
+02. POST /entityOperations/update — modify 2 entities
+=====================================================
+HTTP/1.1 204 No Content
+
+
+03. POST /entityOperations/delete — drop 2 entities
+===================================================
+HTTP/1.1 204 No Content
+
+
+04. GET /admin/troe/dump — 3 created + 2 attrModified + 2 deleted
+=================================================================
+  count: 7
+  op=entityCreated entityId=urn:V1 attrName=
+  op=entityCreated entityId=urn:V2 attrName=
+  op=entityCreated entityId=urn:V3 attrName=
+  op=attrModified entityId=urn:V1 attrName=speed
+  op=attrModified entityId=urn:V2 attrName=speed
+  op=entityDeleted entityId=urn:V1 attrName=
+  op=entityDeleted entityId=urn:V3 attrName=
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -49,6 +49,9 @@
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityDeleted
+#include "troe/troeDispatch.h"                       // troeDeferEntityEvent
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
@@ -479,6 +482,25 @@ bool postEntityBatchDelete(void)
 
         if (subCacheP != NULL && snapshotsV[i] != NULL)
           ldNotifyDeferDelete(subCacheP, snapshotsV[i], swRest.requestStartTime);
+
+        // TRoE: defer one entity-level deleted tombstone per successful id.
+        {
+          const char* etype = NULL;
+          if (snapshotsV[i] != NULL)
+          {
+            KjNode* tn = kjLookup(snapshotsV[i], "type");
+            if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+          }
+          TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+          memset(tevP, 0, sizeof(*tevP));
+          tevP->op             = TroeOpEntityDeleted;
+          tevP->tenantP        = tenantP;
+          tevP->entityId       = eid;
+          tevP->entityType     = etype;
+          tevP->modifiedAtNs   = swRest.requestStartTime;
+          tevP->entitySnapshot = snapshotsV[i];
+          troeDeferEntityEvent(tevP);
+        }
         break;
       }
       case DB_NOT_FOUND:

@@ -72,6 +72,8 @@
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+
+#include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
@@ -709,6 +711,16 @@ bool postEntityBatchUpdate(void)
       {
         KjNode* snapshot = kjClone(swRest.kjsonP, existingDb);
         ldNotifyDefer(subCacheP, snapshot, LdNotifyEntityUpdate, &report);
+      }
+
+      // TRoE: per-fragment attr events. Optimistic — fires regardless
+      // of the later bulk_update outcome (matches the notification
+      // dispatch's pre-existing optimism).
+      {
+        KjNode* tn = kjLookup(existingDb, "type");
+        const char* etype = (tn != NULL && tn->type == KjString) ? tn->value.s : NULL;
+        troeDeferAttrEventsFromMerge(tenantP, g->id, etype, existingDb, &report,
+                                     swRest.requestStartTime);
       }
     }
 
