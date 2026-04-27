@@ -14,6 +14,7 @@
 #include <stdio.h>                                        // snprintf
 #include <stdlib.h>                                       // free
 #include <string.h>                                       // strcmp
+#include <time.h>                                         // gmtime_r, time_t
 #include <pthread.h>                                      // pthread_mutex_lock
 #include <libpq-fe.h>                                     // PG*
 
@@ -180,9 +181,33 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
     kjChildAdd(subAttrs, clone);
   }
 
-  // observedAt → ISO text straight through (column type TIMESTAMPTZ casts).
-  if (observP != NULL && observP->type == KjString)
-    cP->observedAtIso = observP->value.s;
+  // observedAt:
+  //   - KjString: ISO text, pass through.
+  //   - KjInt:    epoch nanoseconds (ldApiEntityToDbModel normalises ISO → ns).
+  //               Format as fractional-seconds for postgres ::timestamptz cast.
+  if (observP != NULL)
+  {
+    if (observP->type == KjString)
+    {
+      cP->observedAtIso = observP->value.s;
+    }
+    else if (observP->type == KjInt)
+    {
+      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      double secs = (double) observP->value.i / 1e9;
+      // ::timestamptz accepts "epoch" floats via to_timestamp(); for direct
+      // cast we want an ISO string. Build it.
+      time_t t = (time_t) (observP->value.i / 1000000000LL);
+      long   ns = (long) (observP->value.i % 1000000000LL);
+      struct tm tmv;
+      gmtime_r(&t, &tmv);
+      snprintf(buf, 64, "%04d-%02d-%02dT%02d:%02d:%02d.%06ldZ",
+               tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday,
+               tmv.tm_hour, tmv.tm_min, tmv.tm_sec, ns / 1000);
+      cP->observedAtIso = buf;
+      (void) secs;
+    }
+  }
 
   // Value column selection.
   if (valueP != NULL)

@@ -8,19 +8,24 @@
 // GET /ngsi-ld/v1/temporal/entities/{id}
 // NGSI-LD § 5.7.4 — Retrieve Temporal Evolution of an Entity.
 //
-// v1: no filtering — returns all recorded history. timerel/timeAt/
-// endTimeAt/q/attrs/options=… come in a follow-up. The plugin's
-// TroeQueryFilter is currently empty; we pass NULL.
+// Filtering supported in this slice:
+//   ?timerel + ?timeAt (+ ?endTimeAt for between)
+//   ?timeproperty
+//   ?attrs (comma list, post-expansion)
+//   ?lastN (per-attribute instance cap)
+//
+// q / geoQ / Content-Range pagination — follow.
 //
 
 #include <stddef.h>                                  // NULL
+#include <string.h>                                  // strcmp, memset
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/KjNode.h"                            // KjNode
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*
+#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 
-#include "troe/TroeDriver.h"                         // troe
+#include "troe/TroeDriver.h"                         // troe, TroeQueryFilter
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -38,6 +43,25 @@ bool getEntityTemporal(void)
     return true;
   }
 
+  // timerel — optional for the single-entity GET (mandatory only for the
+  // multi-entity GET /temporal/entities, per § 6.18.3.2). When present,
+  // timeAt is mandatory; when timerel=between, endTimeAt is too.
+  if (swNgsild.timerel != NULL)
+  {
+    if (swNgsild.timeAt == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "missing required URL parameter 'timeAt' (timerel='%s')", swNgsild.timerel);
+      return true;
+    }
+    if (strcmp(swNgsild.timerel, "between") == 0 && swNgsild.endTimeAt == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "missing required URL parameter 'endTimeAt' for timerel='between'");
+      return true;
+    }
+  }
+
   if (troe.entityTemporalRetrieve == NULL)
   {
     ldError(501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
@@ -46,10 +70,19 @@ bool getEntityTemporal(void)
     return true;
   }
 
+  TroeQueryFilter filter;
+  memset(&filter, 0, sizeof(filter));
+  filter.timerel      = swNgsild.timerel;
+  filter.timeAtIso    = swNgsild.timeAt;
+  filter.endTimeAtIso = swNgsild.endTimeAt;
+  filter.timeproperty = swNgsild.timeproperty;
+  filter.attrV        = swNgsild.attrsV;
+  filter.lastN        = swNgsild.lastN;
+
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
   KjNode* result = NULL;
-  int     r      = troe.entityTemporalRetrieve(tenantP, entityId, NULL, &result);
+  int     r      = troe.entityTemporalRetrieve(tenantP, entityId, &filter, &result);
 
   if (r == TROE_NOT_FOUND || (r == TROE_OK && result == NULL))
   {
@@ -65,7 +98,7 @@ bool getEntityTemporal(void)
     return true;
   }
 
-  swRest.out.responseTree = result;
+  swRest.out.responseTree   = result;
   swRest.out.httpStatusCode = 200;
   return true;
 }

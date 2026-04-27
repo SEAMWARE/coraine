@@ -144,7 +144,7 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone },
 
   // Temporal Operations (§ 5.7.4 / § 6.18+)
-  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*", getEntityTemporal, 0, LdOpNone }
+  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*", getEntityTemporal, LD_PARAMS_GET_TEMPORAL_ENTITY, LdOpNone }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

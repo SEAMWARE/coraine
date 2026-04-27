@@ -1,0 +1,140 @@
+#
+# FILE            troe_timescale_temporal_filtered.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /temporal/entities/{id} with timerel + timeAt + endTimeAt + attrs + lastN.
+#
+--NAME--
+TRoE timescale - temporal GET with filtering (timerel/attrs/lastN)
+
+--TAGS--
+troe timescale postgres temporal lastN
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_filtered" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_filtered" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_filtered --troeUser postgres
+
+--RUN--
+
+#
+# Seed: POST entity, then PATCH speed 4 times + color twice. Each PATCH
+# carries an explicit observedAt so we can filter on it deterministically.
+#
+
+echo "01. Seed urn:V1 with speed history (observedAt: 09:00, 10:00, 11:00, 12:00) + color (10:30, 11:30)"
+echo "================================================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"color":{"type":"Property","value":"red","observedAt":"2026-04-28T10:30:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color -X PATCH --payload '{"value":"blue","observedAt":"2026-04-28T11:30:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. timerel=between 09:30..11:30 → speed[20,30] + color[red,blue]"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:30:00Z&endTimeAt=2026-04-28T11:30:00Z' | python3 -c "
+import sys, json, re
+hdr = ''; body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '': hdr = 'done'; continue
+    if hdr == 'done': body += line
+d = json.loads(body) if body.strip() else {}
+for k in sorted(d):
+    if k in ('id','type'): continue
+    short = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+    vals = sorted([str(inst.get('value')) for inst in d[k]])
+    print(f'  {short}: {vals}')
+"
+echo
+echo
+
+
+echo "03. timerel=after 11:00 + attrs=speed → speed[30,40], no color"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T11:00:00Z&attrs=speed' | python3 -c "
+import sys, json, re
+hdr = ''; body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '': hdr = 'done'; continue
+    if hdr == 'done': body += line
+d = json.loads(body) if body.strip() else {}
+keys = [re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', k) for k in d if k not in ('id','type')]
+print(f'  attrs present: {sorted(keys)}')
+for k in sorted(d):
+    if k in ('id','type'): continue
+    short = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+    vals = sorted([inst.get('value') for inst in d[k]])
+    print(f'  {short}: {vals}')
+"
+echo
+echo
+
+
+echo "04. lastN=2 (no time filter) → 2 most recent of each attr"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=2' | python3 -c "
+import sys, json, re
+hdr = ''; body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '': hdr = 'done'; continue
+    if hdr == 'done': body += line
+d = json.loads(body) if body.strip() else {}
+for k in sorted(d):
+    if k in ('id','type'): continue
+    short = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+    vals = [inst.get('value') for inst in d[k]]
+    print(f'  {short}: count={len(vals)} values={sorted([str(v) for v in vals])}')
+"
+echo
+echo
+
+
+echo "05. timerel=before with no timeAt → 400 Bad Request"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=before' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with speed history (observedAt: 09:00, 10:00, 11:00, 12:00) + color (10:30, 11:30)
+================================================================================================
+done
+
+
+02. timerel=between 09:30..11:30 → speed[20,30] + color[red,blue]
+=================================================================
+  color: ['blue', 'red']
+  speed: ['20', '30']
+
+
+03. timerel=after 11:00 + attrs=speed → speed[30,40], no color
+===============================================================
+  attrs present: ['speed']
+  speed: [30, 40]
+
+
+04. lastN=2 (no time filter) → 2 most recent of each attr
+=========================================================
+  color: count=2 values=['blue', 'red']
+  speed: count=2 values=['30', '40']
+
+
+05. timerel=before with no timeAt → 400 Bad Request
+===================================================
+HTTP/1.1 400 Bad Request
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_filtered" >/dev/null 2>&1

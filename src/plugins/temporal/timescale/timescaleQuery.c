@@ -147,24 +147,88 @@ static KjNode* makeValueNode(Kjson* kjsonP,
 // Returns TROE_OK with *resultPP set to a TemporalEntity tree, or
 // TROE_NOT_FOUND if the entity has no recorded events.
 //
+// -----------------------------------------------------------------------------
+//
+// timeColumn - per ?timeproperty=…, decide which column to filter on.
+//
+// "observedAt" (default) → observed_at.
+// "modifiedAt" / "createdAt" → modified_at (broker-receipt time; createdAt
+// gets an additional `op = 'created'` predicate via the caller).
+//
+static const char* timeColumn(const char* timeproperty)
+{
+  if (timeproperty == NULL)                          return "observed_at";
+  if (strcmp(timeproperty, "modifiedAt") == 0)       return "modified_at";
+  if (strcmp(timeproperty, "createdAt")  == 0)       return "modified_at";
+  return "observed_at";
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// attrsInClause - build " AND attr_name IN ('a','b',…)" or "" if no filter.
+//
+// attrV is a NULL-terminated array of expanded IRIs.
+//
+static const char* attrsInClause(char** attrV, KAlloc* allocP)
+{
+  if (attrV == NULL || attrV[0] == NULL)
+    return "";
+
+  // Compute size: " AND attr_name IN (" + per-item ('escaped',) + ")"
+  int needed = 32;
+  for (int i = 0; attrV[i] != NULL; i++)
+    needed += (int) strlen(attrV[i]) * 2 + 4;
+
+  char* buf = (char*) kaAlloc(allocP, needed);
+  int   p   = 0;
+  p += snprintf(buf + p, needed - p, " AND attr_name IN (");
+  for (int i = 0; attrV[i] != NULL; i++)
+  {
+    if (i > 0) buf[p++] = ',';
+    buf[p++] = '\'';
+    // Escape single quotes by doubling — PG SQL convention.
+    for (const char* s = attrV[i]; *s != 0; s++)
+    {
+      if (*s == '\'') buf[p++] = '\'';
+      buf[p++] = *s;
+    }
+    buf[p++] = '\'';
+  }
+  buf[p++] = ')';
+  buf[p]   = 0;
+  return buf;
+}
+
+
+
 int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
                                     TroeQueryFilter* fP, KjNode** resultPP)
 {
   (void) tenantP;
-  (void) fP;
 
   if (timescaleConn == NULL || entityId == NULL || resultPP == NULL)
     return TROE_ERR;
 
   *resultPP = NULL;
 
+  // Filter pieces.
+  const char* timerel       = (fP != NULL) ? fP->timerel       : NULL;
+  const char* timeAt        = (fP != NULL) ? fP->timeAtIso     : NULL;
+  const char* endTimeAt     = (fP != NULL) ? fP->endTimeAtIso  : NULL;
+  const char* timeProp      = (fP != NULL) ? fP->timeproperty  : NULL;
+  char**      attrV         = (fP != NULL) ? fP->attrV         : NULL;
+  int         lastN         = (fP != NULL) ? fP->lastN         : 0;
+
+  const char* tCol          = timeColumn(timeProp);
+  bool        createdAtOnly = (timeProp != NULL && strcmp(timeProp, "createdAt") == 0);
+  const char* opPred        = createdAtOnly ? " AND op = 'created'" : "";
+  const char* attrPred      = attrsInClause(attrV, &swRest.kalloc);
+
   pthread_mutex_lock(&timescaleMutex);
 
   // -------------------------------------------------------------------------
-  //
-  // Pull both:
-  //   - the most recent entity-level row (for entity_type)
-  //   - all attr rows
   //
   // entity_type comes from the latest entity-level row — captures replaces.
   //
@@ -188,15 +252,92 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
     entityType = kaStrdup(&swRest.kalloc, PQgetvalue(eRes, 0, 0));
   PQclear(eRes);
 
-  PGresult* aRes = PQexecParams(timescaleConn,
-    "SELECT attr_name, attr_kind, dataset_id, "
-    "       to_char(modified_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), "
-    "       to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), "
-    "       op, v_text, v_number, v_bool, v_compound, sub_attrs "
-    "FROM troe_attrs "
-    "WHERE entity_id = $1 "
-    "ORDER BY modified_at",
-    1, NULL, idParam, NULL, NULL, 0);
+  // -------------------------------------------------------------------------
+  //
+  // Build the attribute-rows query. Three timerel branches × two
+  // lastN modes (window-function for lastN, plain ORDER BY otherwise).
+  //
+  // Time predicate uses the caller's chosen column. tCol is hard-coded
+  // (not parameterised) — it's a column name, not data.
+  //
+  const char* timePred = "";
+  int         nParams  = 1;
+  const char* paramV[3];
+  paramV[0] = entityId;
+
+  if (timerel != NULL)
+  {
+    if (strcmp(timerel, "before") == 0)
+    {
+      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      snprintf(buf, 64, " AND %s <= $2::timestamptz", tCol);
+      timePred = buf;
+      paramV[1] = timeAt;
+      nParams   = 2;
+    }
+    else if (strcmp(timerel, "after") == 0)
+    {
+      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      snprintf(buf, 64, " AND %s >= $2::timestamptz", tCol);
+      timePred = buf;
+      paramV[1] = timeAt;
+      nParams   = 2;
+    }
+    else if (strcmp(timerel, "between") == 0)
+    {
+      char* buf = (char*) kaAlloc(&swRest.kalloc, 96);
+      snprintf(buf, 96, " AND %s >= $2::timestamptz AND %s <= $3::timestamptz", tCol, tCol);
+      timePred = buf;
+      paramV[1] = timeAt;
+      paramV[2] = endTimeAt;
+      nParams   = 3;
+    }
+  }
+
+  // Inner SELECT — to_char-formatted ISOs at positions 3,4 (consumed by
+  // the result builder by index); raw timestamps at the end so they're
+  // available by name for the outer ORDER BY when lastN wraps in a
+  // window.
+  const char* selectCols =
+    "attr_name, attr_kind, dataset_id, "
+    "to_char(modified_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS modified_at_iso, "
+    "to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS observed_at_iso, "
+    "op, v_text, v_number, v_bool, v_compound, sub_attrs, "
+    "modified_at, observed_at";
+
+  // Order-direction follows lastN: "backwards" (DESC) for lastN, otherwise
+  // ascending (chronological).
+  const char* orderDir = (lastN > 0) ? "DESC" : "ASC";
+
+  int   sqlSize = 4096;
+  char* sql     = (char*) kaAlloc(&swRest.kalloc, sqlSize);
+
+  if (lastN > 0)
+  {
+    // Window function: per (attr_name, dataset_id), keep only the lastN
+    // newest rows by tCol. Outer ORDER follows the same axis DESC so the
+    // response array reads "most recent first".
+    snprintf(sql, sqlSize,
+      "SELECT * FROM ("
+      "SELECT %s, "
+      "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s DESC) AS rn "
+      "FROM troe_attrs "
+      "WHERE entity_id = $1%s%s%s) sub "
+      "WHERE rn <= %d "
+      "ORDER BY attr_name, dataset_id, %s DESC",
+      selectCols, tCol, timePred, opPred, attrPred, lastN, tCol);
+  }
+  else
+  {
+    snprintf(sql, sqlSize,
+      "SELECT %s "
+      "FROM troe_attrs "
+      "WHERE entity_id = $1%s%s%s "
+      "ORDER BY attr_name, dataset_id, %s %s",
+      selectCols, timePred, opPred, attrPred, tCol, orderDir);
+  }
+
+  PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);
 
   if (PQresultStatus(aRes) != PGRES_TUPLES_OK)
   {

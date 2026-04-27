@@ -101,15 +101,20 @@ typedef struct TroeEvent
 typedef struct TroeQueryFilter
 {
   // Time window (§ 5.7.4.4 — timerel + timeAt + endTimeAt)
-  const char*  timerel;       // "before" | "after" | "between"
-  uint64_t     timeAtNs;
-  uint64_t     endTimeAtNs;
+  const char*  timerel;       // "before" | "after" | "between" — NULL = no time filter
+  const char*  timeAtIso;     // raw ISO8601 (parameterised into SQL as ::timestamptz)
+  const char*  endTimeAtIso;  // raw ISO8601 (only when timerel=between)
 
   // Which timestamp axis: "observedAt" (default) | "modifiedAt" | "createdAt"
   const char*  timeproperty;
 
-  // Selection (entity ids, types, attr names, q tree, geo)
-  // ... grows with the read path
+  // ?attrs= — NULL-terminated array of expanded IRIs, NULL when no filter
+  char**       attrV;
+
+  // ?lastN= per-attribute instance cap (0 = no cap)
+  int          lastN;
+
+  // q-tree, geo, ids, types — grow as the read path lands
   void*        opaque;
 } TroeQueryFilter;
 
