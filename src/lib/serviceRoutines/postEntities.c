@@ -38,6 +38,9 @@
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
+#include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
+#include "troe/troeDispatch.h"                       // troeDeferEntityEvent
+
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
@@ -711,6 +714,20 @@ bool postEntities(void)
 
       if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);
+
+      // TRoE: defer one entity-level "created" event. The plugin walks
+      // entitySnapshot at dispatch time to materialize per-attribute rows.
+      KjNode* typeNode = kjLookup(entityP, "type");
+      const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
+      TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+      memset(tevP, 0, sizeof(*tevP));
+      tevP->op             = TroeOpEntityCreated;
+      tevP->tenantP        = tenantP;
+      tevP->entityId       = idP->value.s;
+      tevP->entityType     = etype;
+      tevP->modifiedAtNs   = swRest.requestStartTime;
+      tevP->entitySnapshot = entityP;
+      troeDeferEntityEvent(tevP);
     }
     else
     {

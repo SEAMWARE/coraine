@@ -1,0 +1,76 @@
+#
+# FILE            troe_ramdb_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE: POST /entities defers an entityCreated event that the ramdb
+# plugin captures. /admin/troe/dump exposes the captured ring.
+#
+--NAME--
+TRoE - entity create captured by troeRamdb plugin
+
+--TAGS--
+troe create
+
+--INIT--
+swDbDrop
+swBrokerStart --troe ramdb --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+
+--RUN--
+
+echo "01. POST entity urn:V1"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. GET /admin/troe/dump — one entityCreated event"
+echo "=================================================="
+swCurl --url /admin/troe/dump | python3 -c "
+import sys, json, re
+hdr = ''
+body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '':
+        hdr = 'done'
+        continue
+    if hdr == 'done':
+        body += line
+d = json.loads(body) if body.strip() else {}
+events = d.get('events', [])
+print('  count:', len(events))
+for e in events:
+    # Strip nanoseconds (volatile) and the @vocab IRI prefix on entityType.
+    t = e.get('entityType', '')
+    t = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', t)
+    print('  op=%s entityId=%s entityType=%s' % (e.get('op'), e.get('entityId'), t))
+"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity urn:V1
+======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. GET /admin/troe/dump — one entityCreated event
+==================================================
+  count: 1
+  op=entityCreated entityId=urn:V1 entityType=Vehicle
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

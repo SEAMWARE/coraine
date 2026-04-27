@@ -147,6 +147,13 @@ typedef int  (*TroeEntityTemporalRetrieveFunc)(Tenant* tenantP, const char* enti
 
 typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
+//
+// Dev/test helper: dump recent events captured by the plugin (e.g. ramdb).
+// Production plugins (timescale, parquet) leave it NULL — admin route
+// returns 501. Allocates onto allocP, appends children to root.
+//
+typedef void (*TroeDumpInfoFunc)(KAlloc* allocP, KjNode* root);
+
 
 
 // -----------------------------------------------------------------------------
@@ -172,6 +179,7 @@ typedef struct TroeDriver
   TroeEntityTemporalRetrieveFunc    entityTemporalRetrieve;
 
   TroeVersionInfoFunc               versionInfo;
+  TroeDumpInfoFunc                  dumpInfo;       // dev/test only — NULL for prod plugins
 } TroeDriver;
 
 

@@ -121,6 +121,7 @@ PLUGIN_DIR     = plugins
 RAMDB_DIR      = src/plugins/currentState/swRamDB
 ADMIN_DIR      = src/plugins/api/admin
 TROE_NONE_DIR  = src/plugins/temporal/none
+TROE_RAMDB_DIR = src/plugins/temporal/ramdb
 
 RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
                  $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
@@ -144,11 +145,15 @@ RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
 ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
                  $(ADMIN_DIR)/adminVersion.c $(ADMIN_DIR)/adminLog.c \
                  $(ADMIN_DIR)/adminTenants.c $(ADMIN_DIR)/adminPlugins.c \
-                 $(ADMIN_DIR)/adminMetrics.c $(ADMIN_DIR)/adminSubStats.c
+                 $(ADMIN_DIR)/adminMetrics.c $(ADMIN_DIR)/adminSubStats.c \
+                 $(ADMIN_DIR)/adminTroeDump.c
 ADMIN_OBJS     = $(ADMIN_SOURCES:.c=.o)
 
 TROE_NONE_SOURCES = $(TROE_NONE_DIR)/noneRegister.c
 TROE_NONE_OBJS    = $(TROE_NONE_SOURCES:.c=.o)
+
+TROE_RAMDB_SOURCES = $(TROE_RAMDB_DIR)/ramdbRegister.c
+TROE_RAMDB_OBJS    = $(TROE_RAMDB_SOURCES:.c=.o)
 
 MONGOC_DIR     = src/plugins/currentState/mongoc
 MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
@@ -199,7 +204,7 @@ PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
 #
 # Targets
 #
-all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(PLUGIN_DIR)/troeNone.so $(FTCLIENT_BINARY)
+all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(PLUGIN_DIR)/troeNone.so $(PLUGIN_DIR)/troeRamdb.so $(FTCLIENT_BINARY)
 
 LDFLAGS   ?=
 
@@ -225,6 +230,13 @@ $(PLUGIN_DIR)/troeNone.so: $(TROE_NONE_OBJS)
 	$(CC) -shared -o $@ $(TROE_NONE_OBJS)
 
 $(TROE_NONE_DIR)/%.o: $(TROE_NONE_DIR)/%.c
+	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
+
+$(PLUGIN_DIR)/troeRamdb.so: $(TROE_RAMDB_OBJS)
+	@mkdir -p $(PLUGIN_DIR)
+	$(CC) -shared -o $@ $(TROE_RAMDB_OBJS)
+
+$(TROE_RAMDB_DIR)/%.o: $(TROE_RAMDB_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
 $(PLUGIN_DIR)/mongoc.so: $(MONGOC_OBJS)
@@ -258,6 +270,7 @@ install: all
 	cat $(PLUGIN_DIR)/mongoc.so    > $(INSTALL_PLUGIN)/db/currentState/mongoc.so
 	cat $(PLUGIN_DIR)/swRamDB.so   > $(INSTALL_PLUGIN)/db/currentState/swRamDB.so
 	cat $(PLUGIN_DIR)/troeNone.so  > $(INSTALL_PLUGIN)/troe/temporal/none.so
+	cat $(PLUGIN_DIR)/troeRamdb.so > $(INSTALL_PLUGIN)/troe/temporal/ramdb.so
 	cat $(PLUGIN_DIR)/admin.so     > $(INSTALL_PLUGIN)/api/admin.so
 
 i:   install
@@ -282,7 +295,7 @@ coverage:
 	@echo "Coverage report: file://$(CURDIR)/$(COV_DIR)/index.html"
 
 clean:
-	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(BINARY)
+	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(TROE_RAMDB_OBJS) $(BINARY)
 	rm -f $(FTCLIENT_OBJS) $(FTCLIENT_BINARY)
 	rm -rf $(PLUGIN_DIR) $(COV_DIR)
 	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true

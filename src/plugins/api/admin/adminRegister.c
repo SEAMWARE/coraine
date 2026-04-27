@@ -19,6 +19,7 @@
 #include "api/admin/adminPlugins.h"               // adminGetPlugins
 #include "api/admin/adminMetrics.h"               // adminGetMetrics
 #include "api/admin/adminSubStats.h"              // adminPostSubStatsFlush
+#include "api/admin/adminTroeDump.h"              // adminGetTroeDump
 
 
 
@@ -63,6 +64,7 @@ static SwRestServiceSimplified adminServices[] =
   { SwVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
   { SwVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
   { SwVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
+  { SwVerbGet,    "/admin/troe/dump", adminGetTroeDump, 0,             0 },
   // PUT
   { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
