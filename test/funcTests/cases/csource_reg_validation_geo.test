@@ -1,0 +1,305 @@
+#
+# FILE            csource_reg_validation_geo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.9 / § 4.7 — `location`, `observationSpace`, `operationSpace` are
+# GeoJSON geometries: type ∈ Point/LineString/Polygon/Multi*,
+# coordinates shape per type, lat/lon ranges, polygon ring closure.
+#
+--NAME--
+CSourceRegistration validation — location / observationSpace / operationSpace (§ 5.2.9 / § 4.7)
+
+--TAGS--
+registration error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. location: not an object → 400"
+echo "================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-not-obj",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": "Point",
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "02. location: missing type → 400"
+echo "================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-no-type",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {"coordinates": [10, 20]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "03. location: unknown geometry type → 400"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-bad-type",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {"type": "Square", "coordinates": [10, 20]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "04. location: Point with wrong coords shape → 400"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-bad-pt-coords",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {"type": "Point", "coordinates": [10]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "05. location: Point with out-of-range latitude → 400"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-bad-lat",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {"type": "Point", "coordinates": [10, 99]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "06. location: Polygon with unclosed ring → 400"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-unclosed",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {
+    "type": "Polygon",
+    "coordinates": [[[0,0],[1,0],[1,1],[0,1]]]
+  },
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "07. location: valid Point → 201"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-pt",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {"type": "Point", "coordinates": [-3.7, 40.4]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "08. location: valid Polygon (closed ring) → 201"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:loc-poly",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "location": {
+    "type": "Polygon",
+    "coordinates": [[[0,0],[1,0],[1,1],[0,1],[0,0]]]
+  },
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "09. observationSpace + operationSpace: both valid LineStrings → 201"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:obs-op-space",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "observationSpace": {"type": "LineString", "coordinates": [[0,0],[1,1],[2,2]]},
+  "operationSpace":   {"type": "LineString", "coordinates": [[5,5],[6,6]]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+echo "10. operationSpace: invalid (Polygon coords are not nested arrays) → 400"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R:opspace-bad",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "operationSpace": {"type": "Polygon", "coordinates": [0, 0, 1, 1]},
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+echo
+echo
+
+
+--EXPECT--
+01. location: not an object → 400
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "detail": "GeoJSON value must be an object",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. location: missing type → 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 152
+
+{
+  "detail": "GeoJSON must have a 'type' string field",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. location: unknown geometry type → 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 197
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Square'",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. location: Point with wrong coords shape → 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. location: Point with out-of-range latitude → 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 156
+
+{
+  "detail": "GeoJSON latitude must be in range [-90, 90]",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. location: Polygon with unclosed ring → 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "GeoJSON polygon ring must be closed (first == last position)",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. location: valid Point → 201
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:loc-pt
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. location: valid Polygon (closed ring) → 201
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:loc-poly
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+09. observationSpace + operationSpace: both valid LineStrings → 201
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:R:obs-op-space
+Link: REGEX(.*)
+Content-Length: 0
+
+
+
+
+10. operationSpace: invalid (Polygon coords are not nested arrays) → 400
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "detail": "GeoJSON polygon ring must be an array",
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
