@@ -1,0 +1,84 @@
+#
+# FILE            troe_timescale_temporal_get.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /ngsi-ld/v1/temporal/entities/{id} — retrieve full temporal
+# evolution. v1 = no filtering.
+#
+--NAME--
+TRoE timescale - GET temporal evolution of one entity
+
+--TAGS--
+troe timescale postgres temporal
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_temporal" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_temporal" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_temporal --troeUser postgres
+
+--RUN--
+
+echo "01. POST entity + 2 PATCHes"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' >/dev/null
+echo "done"
+echo
+echo
+
+
+echo "02. GET /temporal/entities/urn:V1 — id, type, 3 speed instances"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr = ''
+body = ''
+for line in sys.stdin:
+    if hdr == '' and line.strip() == '':
+        hdr = 'done'
+        continue
+    if hdr == 'done':
+        body += line
+d = json.loads(body) if body.strip() else {}
+print('  id        :', d.get('id'))
+t = d.get('type', '')
+t = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', t)
+print('  type      :', t)
+speed_attr = None
+for k, v in d.items():
+    if k in ('id', 'type'): continue
+    short = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+    if short == 'speed':
+      speed_attr = v
+      print('  speed.len :', len(v))
+      print('  speed.values:', sorted([inst.get('value') for inst in v if inst.get('value') is not None]))
+      print('  speed.types :', sorted(set(inst.get('type') for inst in v)))
+"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity + 2 PATCHes
+===========================
+done
+
+
+02. GET /temporal/entities/urn:V1 — id, type, 3 speed instances
+===============================================================
+  id        : urn:V1
+  type      : Vehicle
+  speed.len : 3
+  speed.values: [42, 80, 99]
+  speed.types : ['Property']
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_temporal" >/dev/null 2>&1

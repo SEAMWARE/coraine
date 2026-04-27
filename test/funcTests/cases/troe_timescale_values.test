@@ -58,6 +58,7 @@ done
 
 02. troe_attrs columns
 ======================
+speed|1||42||f|
 speed|1||99||f|{"unitCode": "km/h"}
 color|1|red|||f|
 running|1|||t|f|

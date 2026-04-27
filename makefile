@@ -71,7 +71,8 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postEntityBatchMerge.c      \
                 src/lib/serviceRoutines/postEntityBatchDelete.c     \
                 src/lib/serviceRoutines/postEntityBatchQuery.c      \
-                src/lib/serviceRoutines/getSourceIdentity.c
+                src/lib/serviceRoutines/getSourceIdentity.c \
+                src/lib/serviceRoutines/getEntityTemporal.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
@@ -161,6 +162,7 @@ TROE_TIMESCALE_SOURCES = $(TROE_TIMESCALE_DIR)/timescaleGlobals.c \
                          $(TROE_TIMESCALE_DIR)/timescaleInit.c    \
                          $(TROE_TIMESCALE_DIR)/timescaleMigrate.c \
                          $(TROE_TIMESCALE_DIR)/timescaleEvent.c   \
+                         $(TROE_TIMESCALE_DIR)/timescaleQuery.c   \
                          $(TROE_TIMESCALE_DIR)/timescaleRegister.c
 TROE_TIMESCALE_OBJS    = $(TROE_TIMESCALE_SOURCES:.c=.o)
 TROE_TIMESCALE_CFLAGS  = $(shell pkg-config --cflags libpq)

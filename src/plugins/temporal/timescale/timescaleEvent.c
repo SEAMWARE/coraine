@@ -310,6 +310,54 @@ static int execAttrInsert(const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
+// fanOutAttrsFromEntity - on entityCreated / entityReplaced, write a
+// per-attr row for each top-level attr in entitySnapshot.
+//
+// Service routines defer one entity-level event for create/replace
+// (vs N attr events, which would force every routine to walk its own
+// write). The timescale plugin owns the per-attr expansion at write
+// time so a temporal-query GET sees the initial state too.
+//
+static int fanOutAttrsFromEntity(const TroeEvent* evP)
+{
+  if (evP->entitySnapshot == NULL) return TROE_OK;
+
+  TroeOp attrOp = (evP->op == TroeOpEntityReplaced)
+                  ? TroeOpAttrReplaced
+                  : TroeOpAttrCreated;
+
+  for (KjNode* attrP = evP->entitySnapshot->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if (attrP->name == NULL)                       continue;
+    if (attrP->name[0] == '@')                     continue;
+    if (strcmp(attrP->name, "id")         == 0)    continue;
+    if (strcmp(attrP->name, "_id")        == 0)    continue;
+    if (strcmp(attrP->name, "type")       == 0)    continue;
+    if (strcmp(attrP->name, "scope")      == 0)    continue;
+    if (strcmp(attrP->name, "createdAt")  == 0)    continue;
+    if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
+
+    TroeEvent attrEv;
+    memset(&attrEv, 0, sizeof(attrEv));
+    attrEv.op             = attrOp;
+    attrEv.tenantP        = evP->tenantP;
+    attrEv.entityId       = evP->entityId;
+    attrEv.entityType     = evP->entityType;
+    attrEv.attrName       = attrP->name;
+    attrEv.modifiedAtNs   = evP->modifiedAtNs;
+    attrEv.attrSnapshot   = attrP;
+    attrEv.entitySnapshot = evP->entitySnapshot;
+
+    int r = execAttrInsert(&attrEv);
+    if (r != TROE_OK) return r;
+  }
+  return TROE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleEntityEvent -
 //
 int timescaleEntityEvent(const TroeEvent* evP)
@@ -318,6 +366,12 @@ int timescaleEntityEvent(const TroeEvent* evP)
 
   pthread_mutex_lock(&timescaleMutex);
   int r = execEntityInsert(evP);
+
+  // For entity-level create / replace, fan out into per-attr rows so
+  // the initial state is queryable on the temporal-attrs side.
+  if (r == TROE_OK && (evP->op == TroeOpEntityCreated || evP->op == TroeOpEntityReplaced))
+    r = fanOutAttrsFromEntity(evP);
+
   pthread_mutex_unlock(&timescaleMutex);
   return r;
 }
@@ -366,9 +420,18 @@ int timescaleEventList(const TroeEvent* listHead, int count)
   {
     int r;
     if (evP->op >= TroeOpAttrCreated)
+    {
       r = execAttrInsert(evP);
+    }
     else
+    {
       r = execEntityInsert(evP);
+
+      // Entity-level create / replace fan out into per-attr rows so
+      // the initial state is queryable on the temporal-attrs side.
+      if (r == TROE_OK && (evP->op == TroeOpEntityCreated || evP->op == TroeOpEntityReplaced))
+        r = fanOutAttrsFromEntity(evP);
+    }
 
     if (r != TROE_OK) { rc = r; break; }
   }

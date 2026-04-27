@@ -56,8 +56,8 @@ echo
 echo
 
 
-echo "05. troe_attrs — 1 row: speed modified"
-echo "======================================"
+echo "05. troe_attrs — 2 rows: speed created (entity-create fanout) + modified"
+echo "========================================================================"
 psql -h localhost -p 5432 -U postgres -d sw_troe_functest -tA -F'|' \
   -c "SELECT entity_id, regexp_replace(attr_name, '.*/', ''), op FROM troe_attrs ORDER BY modified_at"
 echo
@@ -86,8 +86,9 @@ urn:V1|created|Vehicle
 urn:V1|deleted|Vehicle
 
 
-05. troe_attrs — 1 row: speed modified
-======================================
+05. troe_attrs — 2 rows: speed created (entity-create fanout) + modified
+========================================================================
+urn:V1|speed|created
 urn:V1|speed|modified
 
 
