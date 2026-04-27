@@ -524,12 +524,16 @@ echo
 echo
 
 
-#
-# 31 (entities[].type empty string) is intentionally omitted —
-# @vocab expansion turns "" into the vocab prefix IRI before
-# validation runs, so empty strings slip past. Tracked in the
-# validation-gaps memory.
-#
+echo "31. POST entities[].type empty string - 400"
+echo "============================================"
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [{"entities": [{"type": ""}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
 
 
 echo "32. POST entities[].type not a string or array - 400"
@@ -1274,6 +1278,21 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'entities[].idPattern' must be a regex string",
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+31. POST entities[].type empty string - 400
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "'entities[].type' must not be empty",
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
