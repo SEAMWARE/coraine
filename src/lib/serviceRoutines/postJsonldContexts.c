@@ -21,6 +21,7 @@
 #include <string.h>                                   // strlen, strcpy, strcat
 
 #include "swRest/SwRestState.h"                       // swRest
+#include "swRest/swRestOutHeader.h"                   // swRestOutHeaderAdd
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kalloc/kaStrdup.h"                          // kaStrdup
 #include "kjson/kjLookup.h"                           // kjLookup
@@ -218,11 +219,7 @@ bool postJsonldContexts(void)
     strcpy(locBuf, prefix);
     strcat(locBuf, location);
 
-    SwRestKeyValue* hV = swRest.out.headerV;
-    int             ix = swRest.out.headerCount;
-    hV[ix].key   = "Location";
-    hV[ix].value = locBuf;
-    swRest.out.headerCount++;
+    swRestOutHeaderAdd("Location", locBuf);
   }
 
   return true;

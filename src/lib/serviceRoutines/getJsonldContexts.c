@@ -22,6 +22,7 @@
 #include <string.h>                                    // strcmp
 
 #include "swRest/SwRestState.h"                        // swRest
+#include "swRest/swRestOutHeader.h"                   // swRestOutHeaderAdd
 #include "kalloc/kaAlloc.h"                            // kaAlloc
 #include "kjson/kjBuilder.h"                           // kjObject, kjArray, kjString, kjInteger, kjChildAdd
 #include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
@@ -98,11 +99,7 @@ bool getJsonldContexts(void)
     char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
     snprintf(countStr, 32, "%d", totalCount);
 
-    SwRestKeyValue* hV = swRest.out.headerV;
-    int             ix = swRest.out.headerCount;
-    hV[ix].key   = "NGSILD-Results-Count";
-    hV[ix].value = countStr;
-    swRest.out.headerCount++;
+    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
   //

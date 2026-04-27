@@ -17,6 +17,7 @@
 #include "kjson/kjChildReplace.h"                    // kjChildReplace
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/swRestClient.h"                     // SwRestClientRequest, swRestClientSend
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 #include "swJsonld/swldExpand.h"                     // swldExpand
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 #include "swJsonld/swldCompact.h"                    // swldCompact
@@ -815,11 +816,7 @@ bool getEntities(void)
     {
       char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
       snprintf(countStr, 32, "%d", mapP->entryCount);
-      SwRestKeyValue* hV = swRest.out.headerV;
-      int hix = swRest.out.headerCount;
-      hV[hix].key   = "NGSILD-Results-Count";
-      hV[hix].value = countStr;
-      swRest.out.headerCount++;
+      swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
     }
 
     // Pagination Link header
@@ -829,11 +826,7 @@ bool getEntities(void)
       char* nextUrl = (char*) kaAlloc(&swRest.kalloc, 256);
       snprintf(nextUrl, 256, "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\"",
                swNgsild.entityMapId, offset + limit, limit);
-      SwRestKeyValue* hV = swRest.out.headerV;
-      int hix = swRest.out.headerCount;
-      hV[hix].key   = "Link";
-      hV[hix].value = nextUrl;
-      swRest.out.headerCount++;
+      swRestOutHeaderAdd("Link", nextUrl);
     }
 
     // Apply pick/omit
@@ -1295,11 +1288,7 @@ bool getEntities(void)
       char* mapUrl = (char*) kaAlloc(&swRest.kalloc, 128);
       snprintf(mapUrl, 128, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
 
-      SwRestKeyValue* hV = swRest.out.headerV;
-      int ix = swRest.out.headerCount;
-      hV[ix].key   = "NGSILD-EntityMap";
-      hV[ix].value = mapUrl;
-      swRest.out.headerCount++;
+      swRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
 
       //
       // GET / POST /entityMaps (§ 6.34.3): return the EntityMap itself
@@ -1324,11 +1313,7 @@ bool getEntities(void)
     char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
     snprintf(countStr, 32, "%ld", (long) filter.totalCount);
 
-    SwRestKeyValue* hV = swRest.out.headerV;
-    int ix = swRest.out.headerCount;
-    hV[ix].key   = "NGSILD-Results-Count";
-    hV[ix].value = countStr;
-    swRest.out.headerCount++;
+    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
   //

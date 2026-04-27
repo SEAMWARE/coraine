@@ -14,6 +14,7 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/SwRestVerb.h"                       // SwVerbPost
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjClone.h"                           // kjClone
@@ -785,9 +786,6 @@ bool postEntities(void)
     // 201 Created -- set Location and Link headers, no body
     swRest.out.httpStatusCode = 201;
 
-    SwRestKeyValue* hV = swRest.out.headerV;
-    int ix = swRest.out.headerCount;
-
     // Per § 5.6.1 the Location must be a URI identifying the created resource.
     // That means the full API path /ngsi-ld/v1/entities/{id}, not just the id.
     const char* prefix  = "/ngsi-ld/v1/entities/";
@@ -795,9 +793,7 @@ bool postEntities(void)
     char*       locBuf  = kaAlloc(&swRest.kalloc, locLen);
     strcpy(locBuf, prefix);
     strcat(locBuf, idP->value.s);
-    hV[ix].key   = "Location";
-    hV[ix].value = locBuf;
-    ix++;
+    swRestOutHeaderAdd("Location", locBuf);
 
     SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
     const char*  ctxUrl = ctxP->url;
@@ -811,12 +807,8 @@ bool postEntities(void)
       strcpy(linkBuf, "<");
       strcat(linkBuf, ctxUrl);
       strcat(linkBuf, suffix);
-      hV[ix].key   = "Link";
-      hV[ix].value = linkBuf;
-      ix++;
+      swRestOutHeaderAdd("Link", linkBuf);
     }
-
-    swRest.out.headerCount = ix;
 
     return true;
   }
