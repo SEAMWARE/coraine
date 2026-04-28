@@ -548,17 +548,24 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 
   // Reset all value columns then apply the supplied ones — a Modify that
   // only carries "value" cleanly clears any prior compound/bool of that row.
-  // modified_at is bumped to now() per § 5.6.14.4.
-  PGresult* res = PQexecParams(timescaleConn,
+  // modified_at is bumped to the broker's request-start time per § 5.6.14.4
+  // (faster than a postgres-side now() and consistent with the INSERT path).
+  char tsExpr[64];
+  timescaleNsToSqlTimestamp(swRest.requestStartTime, tsExpr, sizeof(tsExpr));
+
+  char sql[1024];
+  snprintf(sql, sizeof(sql),
     "UPDATE troe_attrs "
     "   SET v_text     = $4, "
     "       v_number   = $5::double precision, "
     "       v_bool     = $6::boolean, "
     "       v_compound = $7::jsonb, "
     "       observed_at = COALESCE($8::timestamptz, observed_at), "
-    "       modified_at = now() "
+    "       modified_at = %s "
     " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3",
-    8, NULL, paramV, NULL, NULL, 0);
+    tsExpr);
+
+  PGresult* res = PQexecParams(timescaleConn, sql, 8, NULL, paramV, NULL, NULL, 0);
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {

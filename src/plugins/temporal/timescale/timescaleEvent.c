@@ -62,9 +62,12 @@ static const char* opName(TroeOp op)
 
 // -----------------------------------------------------------------------------
 //
-// nsToSqlTimestamp - epoch nanoseconds → "to_timestamp(<seconds>)" SQL fragment.
+// timescaleNsToSqlTimestamp - epoch nanoseconds → "to_timestamp(<seconds>)"
+// SQL fragment. Exposed so timescaleHistoryWrite can format the broker's
+// request-start timestamp into UPDATE statements without duplicating the
+// conversion.
 //
-static void nsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
+void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
 {
   double secs = (double) ns / 1e9;
   snprintf(buf, bufSize, "to_timestamp(%.6f)", secs);
@@ -240,7 +243,7 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
 int timescaleExecEntityInsertLocked(const TroeEvent* evP)
 {
   char tsExpr[64];
-  nsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
+  timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
   const char* paramV[3];
   paramV[0] = evP->entityId   != NULL ? evP->entityId   : "";
@@ -285,7 +288,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   cols.dsId = (cols.dsId != NULL) ? cols.dsId : "";
 
   char tsExpr[64];
-  nsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
+  timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
   // Bind params:
   //   $1 entity_id, $2 entity_type, $3 attr_name, $4 dataset_id,

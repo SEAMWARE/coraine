@@ -27,4 +27,10 @@ extern int timescaleEventList  (const TroeEvent* listHead, int count);
 extern int timescaleExecEntityInsertLocked(const TroeEvent* evP);
 extern int timescaleExecAttrInsertLocked  (const TroeEvent* evP);
 
+//
+// Format epoch nanoseconds as a postgres "to_timestamp(<seconds>)" SQL
+// fragment for inlining into INSERT/UPDATE statements.
+//
+extern void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize);
+
 #endif  // TIMESCALE_TIMESCALEEVENT_H_
