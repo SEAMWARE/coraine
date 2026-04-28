@@ -1,0 +1,130 @@
+#
+# FILE            troe_timescale_temporal_query_post.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# POST /temporal/entityOperations/query (§ 5.7.4 / § 6.24.3.1).
+# Body-form alias for GET /temporal/entities — same filters, same response.
+# The body is a § 5.2.23 Query object with a § 5.2.21 TemporalQuery
+# sub-object carrying timerel/timeAt/endTimeAt/lastN/timeproperty.
+#
+--NAME--
+TRoE timescale - POST /temporal/entityOperations/query (§ 6.24.3.1)
+
+--TAGS--
+troe timescale postgres temporal query post
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_qpost" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_qpost" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_qpost --troeUser postgres
+
+--RUN--
+
+echo "01. Seed: V1 (Vehicle), V2 (Vehicle), P1 (Person)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"alice","observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. POST query body { type=Query, entities=[Vehicle], temporalQ={timerel:after,timeAt} } → V1 + V2"
+echo "================================================================================================="
+swCurl -X POST --url /ngsi-ld/v1/temporal/entityOperations/query --payload '{
+  "type": "Query",
+  "entities": [{"type": "Vehicle"}],
+  "temporalQ": {"timerel": "after", "timeAt": "2026-01-01T00:00:00Z"}
+}' | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+arr = json.loads(body) if body.strip() else []
+print(f'  count: {len(arr)}')
+for e in sorted(arr, key=lambda x: x.get('id','')):
+  print(f\"    id={e.get('id')} type={e.get('type')}\")"
+echo
+echo
+
+
+echo "03. POST query body with q:speed>50 → only V2"
+echo "============================================="
+swCurl -X POST --url /ngsi-ld/v1/temporal/entityOperations/query --payload '{
+  "type": "Query",
+  "entities": [{"type": "Vehicle"}],
+  "q": "speed>50",
+  "temporalQ": {"timerel": "after", "timeAt": "2026-01-01T00:00:00Z"}
+}' | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+arr = json.loads(body) if body.strip() else []
+print(f'  count: {len(arr)}')
+for e in arr:
+  print(f\"    id={e.get('id')}\")"
+echo
+echo
+
+
+echo "04. POST without type=Query → 400"
+echo "================================="
+swCurl -X POST --url /ngsi-ld/v1/temporal/entityOperations/query --payload '{
+  "entities": [{"type": "Vehicle"}]
+}' | head -1
+echo
+echo
+
+
+echo "05. POST without temporalQ.timerel → 400 (timerel mandatory on multi-entity)"
+echo "============================================================================"
+swCurl -X POST --url /ngsi-ld/v1/temporal/entityOperations/query --payload '{
+  "type": "Query",
+  "entities": [{"type": "Vehicle"}]
+}' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed: V1 (Vehicle), V2 (Vehicle), P1 (Person)
+=================================================
+done
+
+
+02. POST query body { type=Query, entities=[Vehicle], temporalQ={timerel:after,timeAt} } → V1 + V2
+=================================================================================================
+  count: 2
+    id=urn:V1 type=Vehicle
+    id=urn:V2 type=Vehicle
+
+
+03. POST query body with q:speed>50 → only V2
+=============================================
+  count: 1
+    id=urn:V2
+
+
+04. POST without type=Query → 400
+=================================
+HTTP/1.1 400 Bad Request
+
+
+05. POST without temporalQ.timerel → 400 (timerel mandatory on multi-entity)
+============================================================================
+HTTP/1.1 400 Bad Request
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_qpost" >/dev/null 2>&1
