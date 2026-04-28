@@ -1,0 +1,176 @@
+#
+# FILE            troe_timescale_temporal_geoq.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ?georel + ?geometry + ?coordinates on the multi-entity temporal GET
+# (§ 4.10 / § 6.18.3.2). Same approach as scopeQ: filter by the entity's
+# CURRENT geo location from the current-state DB. Temporal entities whose
+# current state is gone can't satisfy a current-state filter and are
+# dropped.
+#
+# geoQ is NOT in § 6.19.3.1's URL-param table (single-entity retrieve)
+# so this test only covers the multi-entity GET.
+#
+--NAME--
+TRoE timescale - temporal geoQ filter
+
+--TAGS--
+troe timescale postgres temporal geo
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_geo" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_geo" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_geo --troeUser postgres
+
+--RUN--
+
+echo "01. Seed three Vehicles at known coords (M=Madrid, P=Paris, B=Berlin)"
+echo "====================================================================="
+payload='{
+  "id":"urn:M",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":50,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[-3.7038, 40.4168]}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:P",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":60,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[2.3522, 48.8566]}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:B",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":70,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[13.4050, 52.5200]}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. ?georel=near;maxDistance==600000 around Madrid → only urn:M"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed&georel=near;maxDistance==600000&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
+echo
+echo
+
+
+echo "03. ?georel=near;maxDistance==1500000 around Madrid → urn:M + urn:P"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed&georel=near;maxDistance==1500000&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
+echo
+echo
+
+
+echo "04. ?georel=near;maxDistance==500 around Madrid (tiny radius) → only urn:M (at Madrid)"
+echo "======================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed&georel=near;maxDistance==500&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
+echo
+echo
+
+
+--EXPECT--
+01. Seed three Vehicles at known coords (M=Madrid, P=Paris, B=Berlin)
+=====================================================================
+done
+
+
+02. ?georel=near;maxDistance==600000 around Madrid → only urn:M
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:M",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 50
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. ?georel=near;maxDistance==1500000 around Madrid → urn:M + urn:P
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:M",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 50
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:P",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 60
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. ?georel=near;maxDistance==500 around Madrid (tiny radius) → only urn:M (at Madrid)
+=======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:M",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 50
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_geo" >/dev/null 2>&1

@@ -1,0 +1,164 @@
+#
+# FILE            troe_timescale_temporal_scopeq.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ?scopeQ on the multi-entity temporal GET (§ 4.18 / § 6.18.3.2).
+#
+# Semantics chosen here: scopeQ filters by the entity's CURRENT scope
+# (looked up from the current-state DB at query time). Temporal entities
+# whose current state is gone — and entities without a scope attribute —
+# can't satisfy a current-scope filter and are dropped.
+#
+# scopeQ is NOT in § 6.19.3.1's URL-param table (single-entity retrieve)
+# so this test only covers the multi-entity GET.
+#
+--NAME--
+TRoE timescale - temporal scopeQ filter
+
+--TAGS--
+troe timescale postgres temporal scope
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_scope" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_scope" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_scope --troeUser postgres
+
+--RUN--
+
+echo "01. Seed three Vehicles with different scopes"
+echo "============================================="
+payload='{
+  "id":    "urn:V1",
+  "type":  "Vehicle",
+  "scope": "/EU/Spain",
+  "speed": {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":    "urn:V2",
+  "type":  "Vehicle",
+  "scope": "/EU/France",
+  "speed": {"type":"Property","value":20,"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":    "urn:V3",
+  "type":  "Vehicle",
+  "speed": {"type":"Property","value":30,"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. ?scopeQ=/EU/Spain — only V1"
+echo "==============================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/EU/Spain&pick=speed'
+echo
+echo
+
+
+echo "03. ?scopeQ=/EU/+ — V1 + V2 (V3 has no scope, dropped)"
+echo "======================================================"
+# '+' is the single-level scope wildcard (MQTT-style); '/#' is multi-level.
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/EU/%2B&pick=speed'
+echo
+echo
+
+
+echo "04. ?scopeQ=/Asia — no match → 200 + empty array"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/Asia&pick=speed'
+echo
+echo
+
+
+--EXPECT--
+01. Seed three Vehicles with different scopes
+=============================================
+done
+
+
+02. ?scopeQ=/EU/Spain — only V1
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 10
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. ?scopeQ=/EU/+ — V1 + V2 (V3 has no scope, dropped)
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 10
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 20
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. ?scopeQ=/Asia — no match → 200 + empty array
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_scope" >/dev/null 2>&1

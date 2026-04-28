@@ -1,0 +1,202 @@
+#
+# FILE            troe_timescale_temporal_aggregation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.20 / § 6.18.3.2 — Aggregated Temporal Representation.
+# ?format=aggregatedValues + ?aggrMethods + ?aggrPeriodDuration buckets
+# numeric-Property instances per period and applies one or more methods.
+#
+# Output shape per attr:
+#   "<attr>": { "type":"Property", "<method>":[[v, t-start, t-end], ...], ... }
+#
+--NAME--
+TRoE timescale - format=aggregatedValues
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_aggr" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_aggr" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_aggr --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1 with six speed instances over 5h (10,20,30,40,50,60)"
+echo "===================================================================="
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T10:30:00Z"},
+    {"type":"Property","value":30,"observedAt":"2026-04-28T12:00:00Z"},
+    {"type":"Property","value":40,"observedAt":"2026-04-28T12:30:00Z"},
+    {"type":"Property","value":50,"observedAt":"2026-04-28T14:00:00Z"},
+    {"type":"Property","value":60,"observedAt":"2026-04-28T14:30:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. avg+min+max per 1h bucket from 10:00 to 15:00 (window=PT1H)"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T15:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max&aggrPeriodDuration=PT1H'
+echo
+echo
+
+
+echo "03. sum + count per 2h bucket"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=sum,totalCount&aggrPeriodDuration=PT2H'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with six speed instances over 5h (10,20,30,40,50,60)
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. avg+min+max per 1h bucket from 10:00 to 15:00 (window=PT1H)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "avg": [
+        [
+          15,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T11:00:00.000Z"
+        ],
+        [
+          35,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T13:00:00.000Z"
+        ],
+        [
+          55,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T15:00:00.000Z"
+        ]
+      ],
+      "max": [
+        [
+          20,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T11:00:00.000Z"
+        ],
+        [
+          40,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T13:00:00.000Z"
+        ],
+        [
+          60,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T15:00:00.000Z"
+        ]
+      ],
+      "min": [
+        [
+          10,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T11:00:00.000Z"
+        ],
+        [
+          30,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T13:00:00.000Z"
+        ],
+        [
+          50,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T15:00:00.000Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. sum + count per 2h bucket
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "sum": [
+        [
+          30,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          70,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          110,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_aggr" >/dev/null 2>&1

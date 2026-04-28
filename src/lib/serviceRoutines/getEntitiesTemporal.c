@@ -36,10 +36,14 @@
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "swNgsild/ldToTemporalValues.h"             // ldToTemporalValues
+#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchScope
+#include "kjson/kjBuilder.h"                         // kjChildRemove
+#include "kjson/kjLookup.h"                          // kjLookup
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
 
+#include "db/DbDriver.h"                             // db
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/getEntitiesTemporal.h"     // Own interface
@@ -126,6 +130,52 @@ bool getEntitiesTemporal(void)
   // No matches → 200 + empty array (per § 6.18.3.2 query semantics).
   if (result == NULL)
     result = kjArray(swRest.kjsonP, NULL);
+
+  // § 4.18 / § 6.18.3.2: scopeQ and geoQ — both applied against the
+  // entity's CURRENT state (looked up from the current-state DB). Temporal
+  // entities that no longer exist in current state can't satisfy a
+  // current-state filter and are dropped. Same single DB-fetch covers both.
+  bool needCurrentState = (swNgsild.scopeExpr != NULL || swNgsild.geoRel != NULL);
+
+  if (needCurrentState && db.entityRetrieve != NULL)
+  {
+    KjNode* ep = result->value.firstChildP;
+    while (ep != NULL)
+    {
+      KjNode* nextEp = ep->next;
+      KjNode* idP    = kjLookup(ep, "id");
+      bool    keep   = true;
+
+      KjNode* curEntity = NULL;
+      if (idP != NULL && idP->type == KjString)
+        db.entityRetrieve(tenantP, idP->value.s, &curEntity);
+
+      if (curEntity == NULL)
+      {
+        keep = false;
+      }
+      else
+      {
+        if (keep && swNgsild.scopeExpr != NULL)
+        {
+          KjNode* scopeP = kjLookup(curEntity, "scope");
+          keep = ldEntityMatchScope(scopeP, swNgsild.scopeExpr);
+        }
+
+        if (keep && swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
+        {
+          keep = db.geoMatchFunc(curEntity, swNgsild.geoRel, swNgsild.geometry,
+                                 swNgsild.coordinates,
+                                 swNgsild.geoproperty ? swNgsild.geoproperty : "location");
+        }
+      }
+
+      if (!keep)
+        kjChildRemove(result, ep);
+
+      ep = nextEp;
+    }
+  }
 
   // § 4.23: orderBy. For temporal output the sorter picks the most-recent
   // instance value per entity (see ldOrderSort.c::temporalLatestValue).
