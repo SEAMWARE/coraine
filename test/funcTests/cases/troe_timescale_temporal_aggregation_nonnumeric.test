@@ -1,0 +1,234 @@
+#
+# FILE            troe_timescale_temporal_aggregation_nonnumeric.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.20 — Aggregated Temporal Representation, non-numeric Property values.
+#
+# Per spec, Boolean and String values support only totalCount and
+# distinctCount. Numeric methods (avg/sum/min/max/stddev/sumsq) are
+# silently dropped for buckets whose values aren't all numeric.
+#
+--NAME--
+TRoE timescale - aggregatedValues on Boolean and String
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_aggr2" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_aggr2" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_aggr2 --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1: alarm (Boolean, six samples) + status (String, six samples)"
+echo "============================================================================"
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "alarm":[
+    {"type":"Property","value":false,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":false,"observedAt":"2026-04-28T10:30:00Z"},
+    {"type":"Property","value":true, "observedAt":"2026-04-28T12:00:00Z"},
+    {"type":"Property","value":false,"observedAt":"2026-04-28T12:30:00Z"},
+    {"type":"Property","value":true, "observedAt":"2026-04-28T14:00:00Z"},
+    {"type":"Property","value":true, "observedAt":"2026-04-28T14:30:00Z"}
+  ],
+  "status":[
+    {"type":"Property","value":"idle",   "observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":"idle",   "observedAt":"2026-04-28T10:30:00Z"},
+    {"type":"Property","value":"running","observedAt":"2026-04-28T12:00:00Z"},
+    {"type":"Property","value":"running","observedAt":"2026-04-28T12:30:00Z"},
+    {"type":"Property","value":"error",  "observedAt":"2026-04-28T14:00:00Z"},
+    {"type":"Property","value":"running","observedAt":"2026-04-28T14:30:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. totalCount + distinctCount per 2h bucket — works for Bool + String"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=totalCount,distinctCount&aggrPeriodDuration=PT2H'
+echo
+echo
+
+
+echo "03. avg + totalCount — avg is a numeric-only method, skipped on non-numerics"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=PT2H'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1: alarm (Boolean, six samples) + status (String, six samples)
+============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. totalCount + distinctCount per 2h bucket — works for Bool + String
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "alarm": {
+      "distinctCount": [
+        [
+          1,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          1,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "id": "urn:V1",
+    "status": {
+      "distinctCount": [
+        [
+          1,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          1,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. avg + totalCount — avg is a numeric-only method, skipped on non-numerics
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "alarm": {
+      "avg": [],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "id": "urn:V1",
+    "status": {
+      "avg": [],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          2,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_aggr2" >/dev/null 2>&1
