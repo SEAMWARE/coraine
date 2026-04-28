@@ -1,0 +1,110 @@
+#
+# FILE            troe_timescale_temporal_query_localonly.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Companion to troe_timescale_temporal_query.test. Same multi-entity
+# GET /temporal/entities behaviour, but verified with the broker started
+# in --localOnly mode (CLI flag) instead of ?local=true on the request.
+# Both knobs exist so requests can opt out of the future distop path.
+#
+--NAME--
+TRoE timescale - temporal multi-entity query (broker --localOnly)
+
+--TAGS--
+troe timescale postgres temporal query
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_query_lo" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_query_lo" >/dev/null
+swBrokerStart --localOnly --troe timescale --troeName sw_troe_query_lo --troeUser postgres
+
+--RUN--
+
+echo "01. Seed: V1 (Vehicle), V2 (Vehicle), P1 (Person)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"alice","observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. type=Vehicle returns V1 + V2 (broker is --localOnly, no ?local needed)"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z' | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+arr = json.loads(body) if body.strip() else []
+print(f'  count: {len(arr)}')
+for e in sorted(arr, key=lambda x: x.get('id','')):
+  print(f\"    id={e.get('id')} type={e.get('type')}\")"
+echo
+echo
+
+
+echo "03. q=speed>50 → only V2"
+echo "========================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E50' | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+arr = json.loads(body) if body.strip() else []
+print(f'  count: {len(arr)}')
+for e in arr:
+  print(f\"    id={e.get('id')}\")"
+echo
+echo
+
+
+echo "04. ?local=true is also accepted (redundant under --localOnly but harmless)"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+arr = json.loads(body) if body.strip() else []
+print(f'  count: {len(arr)}')"
+echo
+echo
+
+
+--EXPECT--
+01. Seed: V1 (Vehicle), V2 (Vehicle), P1 (Person)
+=================================================
+done
+
+
+02. type=Vehicle returns V1 + V2 (broker is --localOnly, no ?local needed)
+==========================================================================
+  count: 2
+    id=urn:V1 type=Vehicle
+    id=urn:V2 type=Vehicle
+
+
+03. q=speed>50 → only V2
+========================
+  count: 1
+    id=urn:V2
+
+
+04. ?local=true is also accepted (redundant under --localOnly but harmless)
+===========================================================================
+  count: 2
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_query_lo" >/dev/null 2>&1

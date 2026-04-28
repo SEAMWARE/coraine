@@ -120,7 +120,17 @@ typedef struct TroeQueryFilter
   // merges it into its WHERE.
   const char*  qSqlPredicate;
 
-  // geo, ids, types — grow as the read path lands
+  // Multi-entity entity selectors (only consumed by entityTemporalQuery,
+  // ignored by entityTemporalRetrieve which uses an explicit entityId).
+  char**       idV;          // NULL-terminated list of entity-id URIs
+  const char*  idPattern;    // POSIX regex for entity id
+  char**       typeV;        // NULL-terminated list of expanded type IRIs
+
+  // Pagination (multi-entity query only).
+  int          limit;        // 0 = unset (caller defaults)
+  int          offset;       // 0 = unset
+
+  // geo, scopeQ — grow as the read path lands
   void*        opaque;
 } TroeQueryFilter;
 

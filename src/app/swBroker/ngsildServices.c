@@ -63,6 +63,7 @@
 #include "serviceRoutines/postEntityBatchQuery.h"      // postEntityBatchQuery
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
+#include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -143,8 +144,9 @@ SwRestServiceSimplified ngsildCoreServices[] =
   // Context Source Identity (§ 5.15 / § 6.33)
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone },
 
-  // Temporal Operations (§ 5.7.4 / § 6.18+)
-  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*", getEntityTemporal, LD_PARAMS_GET_TEMPORAL_ENTITY, LdOpNone }
+  // Temporal Operations (§ 5.7.3 / § 6.19.3.1, § 5.7.4 / § 6.18.3.2)
+  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities",   getEntitiesTemporal, LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpNone },
+  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*", getEntityTemporal,   LD_PARAMS_GET_TEMPORAL_ENTITY,     LdOpNone }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

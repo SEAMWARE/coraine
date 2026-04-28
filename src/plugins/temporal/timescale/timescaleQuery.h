@@ -21,4 +21,7 @@
 extern int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
                                            TroeQueryFilter* fP, KjNode** resultPP);
 
+extern int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
+                                        KjNode** resultPP);
+
 #endif  // TIMESCALE_TIMESCALEQUERY_H_

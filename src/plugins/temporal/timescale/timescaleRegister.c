@@ -36,7 +36,7 @@ void troeRegister(TroeDriver* driverP)
   driverP->entityEvent  = timescaleEntityEvent;
   driverP->attrEvent    = timescaleAttrEvent;
   driverP->eventList    = timescaleEventList;
-  driverP->entityTemporalQuery    = NULL;
+  driverP->entityTemporalQuery    = timescaleEntityTemporalQuery;
   driverP->entityTemporalRetrieve = timescaleEntityTemporalRetrieve;
   driverP->versionInfo  = NULL;
   driverP->dumpInfo     = NULL;

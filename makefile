@@ -72,7 +72,8 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postEntityBatchDelete.c     \
                 src/lib/serviceRoutines/postEntityBatchQuery.c      \
                 src/lib/serviceRoutines/getSourceIdentity.c \
-                src/lib/serviceRoutines/getEntityTemporal.c
+                src/lib/serviceRoutines/getEntityTemporal.c        \
+                src/lib/serviceRoutines/getEntitiesTemporal.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
@@ -80,7 +81,8 @@ DB_SOURCES    = src/lib/db/dbInit.c                    \
 
 TROE_SOURCES  = src/lib/troe/troeInit.c                \
                 src/lib/troe/troeDispatch.c            \
-                src/lib/troe/troeFromMerge.c
+                src/lib/troe/troeFromMerge.c           \
+                src/lib/troe/troeQTreeToSql.c
 
 PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
 
