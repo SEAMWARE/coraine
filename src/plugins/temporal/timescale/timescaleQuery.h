@@ -19,9 +19,10 @@
 
 
 extern int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
-                                           TroeQueryFilter* fP, KjNode** resultPP);
+                                           TroeQueryFilter* fP, KjNode** resultPP,
+                                           TroeRangeInfo* rangeOut);
 
 extern int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
-                                        KjNode** resultPP);
+                                        KjNode** resultPP, TroeRangeInfo* rangeOut);
 
 #endif  // TIMESCALE_TIMESCALEQUERY_H_

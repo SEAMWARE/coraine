@@ -18,11 +18,12 @@
 PGconn*          timescaleConn   = NULL;
 pthread_mutex_t  timescaleMutex  = PTHREAD_MUTEX_INITIALIZER;
 
-char*            timescaleDbHost = NULL;
-char*            timescaleDbName = NULL;
-char*            timescaleDbUser = NULL;
-char*            timescaleDbPwd  = NULL;
-int              timescaleDbPort = 5432;
+char*            timescaleDbHost      = NULL;
+char*            timescaleDbName      = NULL;
+char*            timescaleDbUser      = NULL;
+char*            timescaleDbPwd       = NULL;
+int              timescaleDbPort      = 5432;
+int              timescaleInstanceCap = 100;  // § 6.3.10 default temporal-instance cap
 
 
 
@@ -37,5 +38,6 @@ KArg timescaleArgV[] =
   { "--troeUser", "-troeUser", KaString, _vp &timescaleDbUser, KaOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
   { "--troePwd",  "-troePwd",  KaString, _vp &timescaleDbPwd,  KaOpt, _vp NULL,        NULL, NULL, "TRoE postgres password" },
   { "--troePort", "-troePort", KaInt,    _vp &timescaleDbPort, KaOpt, _vp 5432,        _vp 1, _vp 65535, "TRoE postgres port" },
+  { "--troeInstanceCap", "-troeCap", KaInt, _vp &timescaleInstanceCap, KaOpt, _vp 100, _vp 1, _vp 1000000, "Per-entity attribute-instance cap before 206 + Content-Range (§ 6.3.10)" },
   KARGS_END
 };

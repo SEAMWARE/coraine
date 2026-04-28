@@ -23,15 +23,18 @@
 //
 
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
 #include <string.h>                                  // strcmp, memset
 
 #include "swRest/SwRestState.h"                      // swRest
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray
+#include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 
-#include "troe/TroeDriver.h"                         // troe, TroeQueryFilter
+#include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
 
 #include "db/Tenant.h"                               // Tenant
@@ -103,8 +106,11 @@ bool getEntitiesTemporal(void)
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
+  TroeRangeInfo rangeInfo;
+  memset(&rangeInfo, 0, sizeof(rangeInfo));
+
   KjNode* result = NULL;
-  int     r      = troe.entityTemporalQuery(tenantP, &filter, &result);
+  int     r      = troe.entityTemporalQuery(tenantP, &filter, &result, &rangeInfo);
 
   if (r != TROE_OK)
   {
@@ -117,7 +123,24 @@ bool getEntitiesTemporal(void)
   if (result == NULL)
     result = kjArray(swRest.kjsonP, NULL);
 
-  swRest.out.responseTree   = result;
-  swRest.out.httpStatusCode = 200;
+  swRest.out.responseTree = result;
+
+  // § 6.3.10: 206 Partial Content + Content-Range when any entity was truncated.
+  // The bounds span the union of all entities' attribute time ranges in the
+  // response — there's only one Content-Range header per HTTP response.
+  if (rangeInfo.truncated && rangeInfo.rangeStartIso != NULL && rangeInfo.rangeEndIso != NULL)
+  {
+    int   sz  = 96;
+    char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
+    if (rangeInfo.size > 0)
+      snprintf(buf, sz, "DateTime %s-%s/%d", rangeInfo.rangeStartIso, rangeInfo.rangeEndIso, rangeInfo.size);
+    else
+      snprintf(buf, sz, "DateTime %s-%s/*", rangeInfo.rangeStartIso, rangeInfo.rangeEndIso);
+    swRestOutHeaderAdd("Content-Range", buf);
+    swRest.out.httpStatusCode = 206;
+  }
+  else
+    swRest.out.httpStatusCode = 200;
+
   return true;
 }

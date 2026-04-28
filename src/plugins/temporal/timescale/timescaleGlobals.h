@@ -28,6 +28,7 @@ extern char*             timescaleDbName;
 extern char*             timescaleDbUser;
 extern char*             timescaleDbPwd;
 extern int               timescaleDbPort;
+extern int               timescaleInstanceCap;
 
 extern KArg              timescaleArgV[];
 

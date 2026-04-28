@@ -7,6 +7,13 @@
 //
 // Read path: single-entity retrieve and multi-entity query.
 //
+// § 6.3.10 temporal pagination: when ?lastN is NOT supplied, an
+// implementation-default instance cap kicks in. Per-entity, when an
+// attribute's instance count would exceed the cap, the result is
+// truncated and TroeRangeInfo->truncated is set so the service routine
+// emits 206 + Content-Range. With ?lastN, that's the user's explicit
+// cap — no truncation flag, no 206.
+//
 // Result tree shape (NGSI-LD § 5.7.4 TemporalEntity):
 //   {
 //     "id": "urn:V1",
@@ -41,6 +48,11 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn, timescaleMutex
 #include "temporal/timescale/timescaleQuery.h"            // Own interface
+
+
+// Default per-entity instance cap when ?lastN is absent (§ 6.3.10).
+// Configurable later via CLI; hardcoded for now so tests get a stable knob.
+#define TROE_DEFAULT_INSTANCE_CAP 100
 
 
 
@@ -214,7 +226,8 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId, bool
 // entityType is optional; when NULL, the helper looks it up via troe_entities.
 //
 static int buildEntityTemporalDocLocked(const char* entityId, const char* entityTypeIn,
-                                        TroeQueryFilter* fP, KjNode** treePP)
+                                        TroeQueryFilter* fP, KjNode** treePP,
+                                        TroeRangeInfo* rangeOut)
 {
   *treePP = NULL;
 
@@ -225,6 +238,8 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
   char**      attrV         = (fP != NULL) ? fP->attrV         : NULL;
   int         lastN         = (fP != NULL) ? fP->lastN         : 0;
   const char* qPred         = (fP != NULL) ? fP->qSqlPredicate : NULL;
+  int         instanceCap   = (fP != NULL && fP->instanceCap > 0) ? fP->instanceCap
+                              : (timescaleInstanceCap > 0 ? timescaleInstanceCap : TROE_DEFAULT_INSTANCE_CAP);
 
   const char* tCol          = timeColumn(timeProp);
   bool        createdAtOnly = (timeProp != NULL && strcmp(timeProp, "createdAt") == 0);
@@ -318,12 +333,15 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
   }
   else
   {
+    // No lastN → enforce the implementation cap. Fetch (cap+1) so we
+    // can detect whether truncation kicked in.
     snprintf(sql, sqlSize,
       "SELECT %s "
       "FROM troe_attrs "
       "WHERE entity_id = $1%s%s%s "
-      "ORDER BY attr_name, dataset_id, %s %s",
-      selectCols, timePred, opPred, attrPred, tCol, orderDir);
+      "ORDER BY attr_name, dataset_id, %s %s "
+      "LIMIT %d",
+      selectCols, timePred, opPred, attrPred, tCol, orderDir, instanceCap + 1);
   }
 
   PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);
@@ -336,6 +354,14 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
   }
 
   int rowN = PQntuples(aRes);
+
+  // Detect cap-driven truncation (only when lastN absent).
+  bool truncated = false;
+  if (lastN <= 0 && rowN > instanceCap)
+  {
+    rowN      = instanceCap;  // Drop the sentinel row
+    truncated = true;
+  }
 
   if (rowN == 0 && entityType == NULL)
   {
@@ -350,6 +376,11 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
   if (entityType != NULL)
     kjChildAdd(root, kjString(kjsonP, "type", entityType));
 
+  // Track min/max ts (in tCol axis) for Content-Range. ISO strings sort
+  // lexically so straight strcmp is fine.
+  const char* minIso = NULL;
+  const char* maxIso = NULL;
+
   for (int r = 0; r < rowN; r++)
   {
     const char* attrName  = PQgetvalue(aRes, r, 0);
@@ -357,6 +388,14 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
     const char* dsId      = PQgetisnull(aRes, r, 2) ? NULL : PQgetvalue(aRes, r, 2);
     const char* modAtIso  = PQgetisnull(aRes, r, 3) ? NULL : PQgetvalue(aRes, r, 3);
     const char* obsAtIso  = PQgetisnull(aRes, r, 4) ? NULL : PQgetvalue(aRes, r, 4);
+
+    // The chosen time-axis ISO for range tracking.
+    const char* axisIso = (strcmp(tCol, "modified_at") == 0) ? modAtIso : obsAtIso;
+    if (axisIso != NULL)
+    {
+      if (minIso == NULL || strcmp(axisIso, minIso) < 0) minIso = axisIso;
+      if (maxIso == NULL || strcmp(axisIso, maxIso) > 0) maxIso = axisIso;
+    }
     const char* opStr     = PQgetvalue(aRes, r, 5);
     const char* v_text    = PQgetisnull(aRes, r, 6)  ? NULL : PQgetvalue(aRes, r, 6);
     const char* v_number  = PQgetisnull(aRes, r, 7)  ? NULL : PQgetvalue(aRes, r, 7);
@@ -405,6 +444,29 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
 
   PQclear(aRes);
 
+  // Accumulate range info for the caller (multi-entity unions, single-entity
+  // takes its values straight). Only the first writer fills size — it stays
+  // constant across entities for one request.
+  if (rangeOut != NULL)
+  {
+    if (truncated)
+      rangeOut->truncated = true;
+
+    if (minIso != NULL)
+    {
+      if (rangeOut->rangeStartIso == NULL || strcmp(minIso, rangeOut->rangeStartIso) < 0)
+        rangeOut->rangeStartIso = kaStrdup(&swRest.kalloc, minIso);
+    }
+    if (maxIso != NULL)
+    {
+      if (rangeOut->rangeEndIso == NULL || strcmp(maxIso, rangeOut->rangeEndIso) > 0)
+        rangeOut->rangeEndIso = kaStrdup(&swRest.kalloc, maxIso);
+    }
+
+    if (lastN > 0 && rangeOut->size == 0)
+      rangeOut->size = lastN;
+  }
+
   *treePP = root;
   return TROE_OK;
 }
@@ -416,7 +478,8 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
 // timescaleEntityTemporalRetrieve - § 5.7.3 single-entity retrieve.
 //
 int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
-                                    TroeQueryFilter* fP, KjNode** resultPP)
+                                    TroeQueryFilter* fP, KjNode** resultPP,
+                                    TroeRangeInfo* rangeOut)
 {
   (void) tenantP;
 
@@ -426,7 +489,7 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
   *resultPP = NULL;
 
   pthread_mutex_lock(&timescaleMutex);
-  int r = buildEntityTemporalDocLocked(entityId, NULL, fP, resultPP);
+  int r = buildEntityTemporalDocLocked(entityId, NULL, fP, resultPP, rangeOut);
   pthread_mutex_unlock(&timescaleMutex);
 
   return r;
@@ -539,7 +602,7 @@ static const char* idPatternClause(const char* idPattern, KAlloc* kaP)
 // per-entity inside the helper (N+1 reads — fine for v1).
 //
 int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
-                                 KjNode** resultPP)
+                                 KjNode** resultPP, TroeRangeInfo* rangeOut)
 {
   (void) tenantP;
 
@@ -593,7 +656,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 1));
 
     KjNode* docP = NULL;
-    int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP);
+    int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut);
 
     if (rc == TROE_OK && docP != NULL)
       kjChildAdd(arrP, docP);

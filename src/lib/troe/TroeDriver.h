@@ -130,9 +130,31 @@ typedef struct TroeQueryFilter
   int          limit;        // 0 = unset (caller defaults)
   int          offset;       // 0 = unset
 
+  // Per-entity attribute-instance cap (§ 6.3.10 temporal pagination).
+  // Applied when ?lastN is NOT supplied; ignored when lastN > 0.
+  // 0 → caller uses the plugin's hardcoded default.
+  int          instanceCap;
+
   // geo, scopeQ — grow as the read path lands
   void*        opaque;
 } TroeQueryFilter;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// TroeRangeInfo - response-level pagination info (§ 6.3.10).
+//
+// Out-param populated by the plugin. When `truncated` is set, the
+// service routine emits a 206 + Content-Range. Bounds are formatted ISO.
+//
+typedef struct TroeRangeInfo
+{
+  bool         truncated;        // any (attr, ds) hit instanceCap?
+  const char*  rangeStartIso;    // earliest observed_at returned (forward) / latest (backward)
+  const char*  rangeEndIso;      // latest observed_at returned (forward) / earliest (backward)
+  int          size;             // 0 = unset → "*", otherwise lastN value
+} TroeRangeInfo;
 
 
 
@@ -162,9 +184,11 @@ typedef int  (*TroeEventListFunc)(const TroeEvent* listHead, int count);
 //
 // Read entry-points.
 //
-typedef int  (*TroeEntityTemporalQueryFunc)(Tenant* tenantP, TroeQueryFilter* fP, KjNode** resultPP);
+typedef int  (*TroeEntityTemporalQueryFunc)(Tenant* tenantP, TroeQueryFilter* fP,
+                                            KjNode** resultPP, TroeRangeInfo* rangeOut);
 typedef int  (*TroeEntityTemporalRetrieveFunc)(Tenant* tenantP, const char* entityId,
-                                               TroeQueryFilter* fP, KjNode** resultPP);
+                                               TroeQueryFilter* fP, KjNode** resultPP,
+                                               TroeRangeInfo* rangeOut);
 
 typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 

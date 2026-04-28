@@ -1,0 +1,137 @@
+#
+# FILE            troe_timescale_temporal_partial.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.10 partial-content: when the per-entity attribute-instance cap
+# is exceeded, the broker truncates and emits 206 + Content-Range with
+# unit=DateTime. With ?lastN, that's the user's explicit cap so no 206.
+#
+# Broker is started with --troeInstanceCap 5 so we can exceed the cap
+# with only a handful of PATCHes.
+#
+--NAME--
+TRoE timescale - 206 + Content-Range when instance cap exceeded (§ 6.3.10)
+
+--TAGS--
+troe timescale postgres temporal partial-content pagination
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_partial" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_partial" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_partial --troeUser postgres --troeInstanceCap 5
+
+--RUN--
+
+echo "01. Seed urn:V1 with 8 speed instances at observedAt 09:00..16:00"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":50,"observedAt":"2026-04-28T13:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":70,"observedAt":"2026-04-28T15:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80,"observedAt":"2026-04-28T16:00:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. Single-entity GET (no lastN) → 206 + Content-Range, 5 of 8 instances"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1' --include 2>&1 | python3 -c "
+import sys, re, json
+text = sys.stdin.read()
+sep = text.find('\n\n')
+hdr  = text[:sep] if sep >= 0 else text
+body = text[sep+2:] if sep >= 0 else ''
+status = hdr.splitlines()[0] if hdr else ''
+cr = next((l for l in hdr.splitlines() if l.lower().startswith('content-range')), '(none)')
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+n  = len(d[sk]) if sk else 0
+print('  status:', status)
+print('  Content-Range:', cr)
+print('  speed instance count:', n)
+"
+echo
+echo
+
+
+echo "03. Single-entity GET (lastN=3) → 200, 3 instances, no Content-Range"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3' --include 2>&1 | python3 -c "
+import sys, re, json
+text = sys.stdin.read()
+sep = text.find('\n\n')
+hdr  = text[:sep] if sep >= 0 else text
+body = text[sep+2:] if sep >= 0 else ''
+status = hdr.splitlines()[0] if hdr else ''
+cr = next((l for l in hdr.splitlines() if l.lower().startswith('content-range')), '(none)')
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+n  = len(d[sk]) if sk else 0
+print('  status:', status)
+print('  Content-Range:', cr)
+print('  speed instance count:', n)
+"
+echo
+echo
+
+
+echo "04. Multi-entity GET (no lastN) → 206 + Content-Range"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' --include 2>&1 | python3 -c "
+import sys, re, json
+text = sys.stdin.read()
+sep = text.find('\n\n')
+hdr  = text[:sep] if sep >= 0 else text
+body = text[sep+2:] if sep >= 0 else ''
+status = hdr.splitlines()[0] if hdr else ''
+cr = next((l for l in hdr.splitlines() if l.lower().startswith('content-range')), '(none)')
+arr = json.loads(body) if body.strip() else []
+print('  status:', status)
+print('  Content-Range:', cr)
+print('  entity count:', len(arr))
+"
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with 8 speed instances at observedAt 09:00..16:00
+================================================================
+done
+
+
+02. Single-entity GET (no lastN) → 206 + Content-Range, 5 of 8 instances
+========================================================================
+  status: HTTP/1.1 206 Partial Content
+  Content-Range: Content-Range: DateTime 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
+  speed instance count: 5
+
+
+03. Single-entity GET (lastN=3) → 200, 3 instances, no Content-Range
+====================================================================
+  status: HTTP/1.1 200 OK
+  Content-Range: (none)
+  speed instance count: 3
+
+
+04. Multi-entity GET (no lastN) → 206 + Content-Range
+=====================================================
+  status: HTTP/1.1 206 Partial Content
+  Content-Range: Content-Range: DateTime 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
+  entity count: 1
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_partial" >/dev/null 2>&1
