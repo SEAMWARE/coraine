@@ -61,8 +61,13 @@ static int execSimple(const char* sql)
 // Migration #1 — initial schema.
 //
 // Plain tables (no hypertable conversion). When TimescaleDB is available
-// a follow-up migration can convert them. PostGIS is required only for
-// the v_geo column, which we defer until needed.
+// a follow-up step can convert them (see ensureHypertable below).
+//
+// `troe_attrs.instance_id` is the system-generated NGSI-LD instanceId
+// (§ 5.2.5 / § 5.2.6). It's the PK so PATCH/DELETE on
+// /attrs/{attr}/{instance} (§ 5.6.14 / § 5.6.15) target a specific row,
+// and so Modify can freely bump modified_at without re-keying.
+// gen_random_uuid() is built-in since PostgreSQL 13 — no extension needed.
 //
 static int troeMig001Initial(void)
 {
@@ -80,12 +85,17 @@ static int troeMig001Initial(void)
     "CREATE INDEX IF NOT EXISTS troe_entities_id_modified  ON troe_entities (entity_id, modified_at DESC)",
     "CREATE INDEX IF NOT EXISTS troe_entities_type_modified ON troe_entities (entity_type, modified_at DESC)",
 
+    // troe_attrs: one row per instance. created_at + modified_at are
+    // distinct properties of the instance (§ 5.6.14.4) — created_at is
+    // set once on insert, modified_at is bumped by Modify-Instance.
     "CREATE TABLE IF NOT EXISTS troe_attrs ("
+    "  instance_id TEXT NOT NULL DEFAULT ('urn:ngsi-ld:Instance:' || gen_random_uuid()),"
     "  entity_id   TEXT NOT NULL,"
     "  entity_type TEXT NOT NULL,"
     "  attr_name   TEXT NOT NULL,"
     "  attr_kind   SMALLINT NOT NULL DEFAULT 0,"
     "  dataset_id  TEXT NOT NULL DEFAULT '',"
+    "  created_at  TIMESTAMPTZ NOT NULL,"
     "  modified_at TIMESTAMPTZ NOT NULL,"
     "  observed_at TIMESTAMPTZ,"
     "  op          TEXT NOT NULL,"
@@ -95,56 +105,12 @@ static int troeMig001Initial(void)
     "  v_datetime  TIMESTAMPTZ,"
     "  v_compound  JSONB,"
     "  sub_attrs   JSONB,"
-    "  PRIMARY KEY (entity_id, attr_name, dataset_id, modified_at, op)"
+    "  PRIMARY KEY (instance_id)"
     ")",
 
     "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_observed   ON troe_attrs (entity_id, attr_name, observed_at DESC)",
     "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_modified   ON troe_attrs (entity_id, attr_name, modified_at DESC)",
     "CREATE INDEX IF NOT EXISTS troe_attrs_type_attr_observed ON troe_attrs (entity_type, attr_name, observed_at DESC)",
-
-    NULL
-  };
-
-  for (int i = 0; sqls[i] != NULL; i++)
-    if (execSimple(sqls[i]) != 0)
-      return -1;
-
-  return 0;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// Migration #2 — instance_id column (§ 5.2.5 / § 5.2.6 instanceId).
-//
-// Lets PATCH/DELETE on /attrs/{attr}/{instance} (§ 5.6.14 / § 5.6.15) target
-// a specific row. URN-form (urn:ngsi-ld:Instance:<uuid>) so the value never
-// contains `/` and stays clean in URL paths.
-//
-// gen_random_uuid() is built-in since PostgreSQL 13 — no extension needed.
-//
-static int troeMig002InstanceId(void)
-{
-  static const char* sqls[] =
-  {
-    "ALTER TABLE troe_attrs "
-    "  ADD COLUMN IF NOT EXISTS instance_id TEXT",
-
-    // Backfill any pre-existing rows.
-    "UPDATE troe_attrs "
-    "   SET instance_id = 'urn:ngsi-ld:Instance:' || gen_random_uuid() "
-    " WHERE instance_id IS NULL",
-
-    "ALTER TABLE troe_attrs "
-    "  ALTER COLUMN instance_id SET NOT NULL",
-
-    "ALTER TABLE troe_attrs "
-    "  ALTER COLUMN instance_id "
-    "  SET DEFAULT 'urn:ngsi-ld:Instance:' || gen_random_uuid()",
-
-    "CREATE UNIQUE INDEX IF NOT EXISTS troe_attrs_instance_id "
-    "  ON troe_attrs (instance_id)",
 
     NULL
   };
@@ -171,9 +137,8 @@ typedef struct
 
 static const TroeMigration migrationsV[] =
 {
-  { 1, "initial schema",                 troeMig001Initial    },
-  { 2, "instance_id column on troe_attrs", troeMig002InstanceId },
-  { 0, NULL,                             NULL                 }
+  { 1, "initial schema", troeMig001Initial },
+  { 0, NULL,             NULL              }
 };
 
 

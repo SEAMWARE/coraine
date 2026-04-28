@@ -461,13 +461,10 @@ static bool instanceExists(const char* entityId, const char* attrName, const cha
 //
 // timescaleEntityTemporalInstanceModify - § 5.6.14 / § 6.22.3.1.
 //
-// Replaces the value-bearing columns of the row identified by instanceId.
-// Spec § 5.6.14.4 says "modifiedAt shall be set to the timestamp corresponding
-// to this modification" — but our schema uses (entity_id, attr_name, dataset_id,
-// modified_at, op) as the PK so re-keying in place is awkward. v1 leaves
-// modified_at fixed (= the original instance's modifiedAt) and updates only
-// the value-bearing + observed_at columns. A follow-up could split modified_at
-// out of the PK or add a separate last_edit_at column.
+// Replaces the value-bearing columns of the row identified by instanceId
+// and bumps modified_at to now() per § 5.6.14.4 ("modifiedAt shall be set
+// to the timestamp corresponding to this modification"). The PK is
+// instance_id, so modified_at is free to change.
 //
 int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
                                           const char* attrName,
@@ -551,13 +548,15 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 
   // Reset all value columns then apply the supplied ones — a Modify that
   // only carries "value" cleanly clears any prior compound/bool of that row.
+  // modified_at is bumped to now() per § 5.6.14.4.
   PGresult* res = PQexecParams(timescaleConn,
     "UPDATE troe_attrs "
     "   SET v_text     = $4, "
     "       v_number   = $5::double precision, "
     "       v_bool     = $6::boolean, "
     "       v_compound = $7::jsonb, "
-    "       observed_at = COALESCE($8::timestamptz, observed_at) "
+    "       observed_at = COALESCE($8::timestamptz, observed_at), "
+    "       modified_at = now() "
     " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3",
     8, NULL, paramV, NULL, NULL, 0);
 
