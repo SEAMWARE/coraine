@@ -6,7 +6,7 @@
 // Copyright 2026 Seamware
 //
 // GET /ngsi-ld/v1/temporal/entities/{id}
-// NGSI-LD § 5.7.4 — Retrieve Temporal Evolution of an Entity.
+// NGSI-LD § 5.7.3 — Retrieve Temporal Evolution of an Entity (§ 6.19.3.1).
 //
 // Filtering supported in this slice:
 //   ?timerel + ?timeAt (+ ?endTimeAt for between)
@@ -14,7 +14,9 @@
 //   ?attrs (comma list, post-expansion)
 //   ?lastN (per-attribute instance cap)
 //
-// q / geoQ / Content-Range pagination — follow.
+// Content-Range pagination — follows. ?q= is NOT in the spec's URL-param
+// table for this route (§ 6.19.3.1) — it lives only on the multi-entity
+// Query Temporal Evolution (§ 6.18.3.2).
 //
 
 #include <stddef.h>                                  // NULL
@@ -26,7 +28,6 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter
-#include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -79,10 +80,6 @@ bool getEntityTemporal(void)
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
   filter.lastN        = swNgsild.lastN;
-
-  // ?q= → SQL fragment (or NULL when q wasn't given / uses an unsupported feature).
-  if (swNgsild.qExpr != NULL)
-    filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 

@@ -1,0 +1,56 @@
+#
+# FILE            troe_timescale_temporal_q_rejected.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /temporal/entities/{id} (§ 5.7.3 / § 6.19.3.1) does NOT accept ?q=.
+# The spec's URL-parameter table for this route omits q — q lives on the
+# multi-entity Query Temporal Evolution (§ 6.18.3.2) and on subscriptions.
+# Verify q is rejected with 400 here.
+#
+--NAME--
+TRoE timescale - temporal GET rejects ?q= (§ 6.19.3.1)
+
+--TAGS--
+troe timescale postgres temporal q url-param
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_q" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_q" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_q --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. q=speed>5 → 400 (q not allowed on single-entity temporal retrieve)"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed>5' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1
+===============
+done
+
+
+02. q=speed>5 → 400 (q not allowed on single-entity temporal retrieve)
+======================================================================
+HTTP/1.1 400 Bad Request
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_q" >/dev/null 2>&1
