@@ -220,6 +220,7 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
   const char* timeProp      = (fP != NULL) ? fP->timeproperty  : NULL;
   char**      attrV         = (fP != NULL) ? fP->attrV         : NULL;
   int         lastN         = (fP != NULL) ? fP->lastN         : 0;
+  const char* qPred         = (fP != NULL) ? fP->qSqlPredicate : NULL;
 
   const char* tCol          = timeColumn(timeProp);
   bool        createdAtOnly = (timeProp != NULL && strcmp(timeProp, "createdAt") == 0);
@@ -227,6 +228,38 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
   const char* attrPred      = attrsInClause(attrV, &swRest.kalloc);
 
   pthread_mutex_lock(&timescaleMutex);
+
+  // -------------------------------------------------------------------------
+  //
+  // ?q= precondition: does this entity match the q expression at any point
+  // in its history? If not, return TROE_NOT_FOUND (404 from the service
+  // routine). When qPred is NULL, no q filter — skip.
+  //
+  if (qPred != NULL)
+  {
+    const char* idParamCheck[1] = { entityId };
+    int   checkSize = (int) strlen(qPred) + 32;
+    char* checkSql  = (char*) kaAlloc(&swRest.kalloc, checkSize);
+    snprintf(checkSql, checkSize, "SELECT %s", qPred);
+
+    PGresult* qRes = PQexecParams(timescaleConn, checkSql, 1, NULL, idParamCheck, NULL, NULL, 0);
+    if (PQresultStatus(qRes) != PGRES_TUPLES_OK)
+    {
+      KT_E("timescale: q precondition SELECT failed: %s", PQerrorMessage(timescaleConn));
+      PQclear(qRes);
+      pthread_mutex_unlock(&timescaleMutex);
+      return TROE_ERR;
+    }
+    bool matches = (PQntuples(qRes) == 1
+                    && PQgetvalue(qRes, 0, 0) != NULL
+                    && PQgetvalue(qRes, 0, 0)[0] == 't');
+    PQclear(qRes);
+    if (!matches)
+    {
+      pthread_mutex_unlock(&timescaleMutex);
+      return TROE_NOT_FOUND;
+    }
+  }
 
   // -------------------------------------------------------------------------
   //

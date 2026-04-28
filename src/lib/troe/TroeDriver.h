@@ -114,7 +114,13 @@ typedef struct TroeQueryFilter
   // ?lastN= per-attribute instance cap (0 = no cap)
   int          lastN;
 
-  // q-tree, geo, ids, types — grow as the read path lands
+  // ?q= compiled to a SQL WHERE fragment (EXISTS-subqueries against
+  // troe_attrs keyed on the outer entity_id $1). NULL = no q filter.
+  // Service routine produces this via troeQTreeToSql(); plugin AND-
+  // merges it into its WHERE.
+  const char*  qSqlPredicate;
+
+  // geo, ids, types — grow as the read path lands
   void*        opaque;
 } TroeQueryFilter;
 

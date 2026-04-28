@@ -1,0 +1,117 @@
+#
+# FILE            troe_timescale_temporal_q.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /temporal/entities/{id} with ?q=. v1: term-level == != > < >= <=
+# on number/string/bool, plus AND/OR composition. q acts as an entity
+# precondition (matches → return temporal evolution; no match → 404).
+#
+--NAME--
+TRoE timescale - temporal GET with q-tree entity filter
+
+--TAGS--
+troe timescale postgres temporal q
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_q" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_q" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_q --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1 (speed history 10,20,30,40)"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. q=speed>25 → matches (speed reached 30+) → 200 with full history"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed>25' | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+print('  id:', d.get('id'))
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+print('  speed.count:', sum(1 for k in d if short(k) == 'speed'))
+"
+echo
+echo
+
+
+echo "03. q=speed>500 → no match → 404"
+echo "================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed>500' | head -1
+echo
+echo
+
+
+echo "04. q=color==\"red\" → matches"
+echo "============================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=color==%22red%22' | head -1
+echo
+echo
+
+
+echo "05. q=speed>5;color==\"red\" (AND) → matches both → 200"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed%3E5%3Bcolor%3D%3D%22red%22' | head -1
+echo
+echo
+
+
+echo "06. q=speed>500|color==\"red\" (OR) → color matches → 200"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed%3E500%7Ccolor%3D%3D%22red%22' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 (speed history 10,20,30,40)
+===========================================
+done
+
+
+02. q=speed>25 → matches (speed reached 30+) → 200 with full history
+====================================================================
+  id: urn:V1
+  speed.count: 1
+
+
+03. q=speed>500 → no match → 404
+================================
+HTTP/1.1 404 Not Found
+
+
+04. q=color=="red" → matches
+============================
+HTTP/1.1 200 OK
+
+
+05. q=speed>5;color=="red" (AND) → matches both → 200
+======================================================
+HTTP/1.1 200 OK
+
+
+06. q=speed>500|color=="red" (OR) → color matches → 200
+========================================================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_q" >/dev/null 2>&1

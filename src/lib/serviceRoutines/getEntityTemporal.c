@@ -26,6 +26,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter
+#include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -78,6 +79,10 @@ bool getEntityTemporal(void)
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
   filter.lastN        = swNgsild.lastN;
+
+  // ?q= → SQL fragment (or NULL when q wasn't given / uses an unsupported feature).
+  if (swNgsild.qExpr != NULL)
+    filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
