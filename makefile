@@ -78,7 +78,9 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/deleteEntityTemporal.c     \
                 src/lib/serviceRoutines/deleteEntityTemporalAttr.c \
                 src/lib/serviceRoutines/postEntitiesTemporal.c     \
-                src/lib/serviceRoutines/postEntityTemporalAttrs.c
+                src/lib/serviceRoutines/postEntityTemporalAttrs.c  \
+                src/lib/serviceRoutines/patchEntityTemporalInstance.c \
+                src/lib/serviceRoutines/deleteEntityTemporalInstance.c
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \

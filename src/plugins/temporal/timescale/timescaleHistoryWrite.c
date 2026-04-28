@@ -22,6 +22,8 @@
 #include <stddef.h>                                       // NULL
 #include <stdbool.h>                                      // bool
 #include <stdint.h>                                       // uint64_t
+#include <stdio.h>                                        // snprintf
+#include <stdlib.h>                                       // strtoll
 #include <string.h>                                       // strcmp, memset
 #include <pthread.h>                                      // pthread_mutex_*
 #include <libpq-fe.h>                                     // PG*
@@ -30,6 +32,9 @@
 #include "kjson/KjNode.h"                                 // KjNode
 #include "kjson/kjLookup.h"                               // kjLookup
 #include "kjson/kjBuilder.h"                              // kjObject, kjChildAdd
+#include "kjson/kjRender.h"                               // kjFastRender
+#include "kjson/kjRenderSize.h"                           // kjFastRenderSize
+#include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
 
 #include "swRest/SwRestState.h"                           // swRest
@@ -374,6 +379,243 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
   }
 
   PQclear(PQexec(timescaleConn, "COMMIT"));
+  pthread_mutex_unlock(&timescaleMutex);
+  return TROE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// extractInstanceFromBody - find the single instance object in the body of a
+// PATCH /attrs/{attr}/{instance} request (§ 5.6.14.3).
+//
+// Tolerate either:
+//   (a) { "speed": [ { "type":"Property","value":42, ... } ] }   — fragment
+//   (b) { "type":"Property","value":42, "observedAt":"..." }     — bare instance
+//
+static KjNode* extractInstanceFromBody(KjNode* bodyP)
+{
+  if (bodyP == NULL || bodyP->type != KjObject)
+    return NULL;
+
+  // Case (b): the body itself is the instance.
+  KjNode* tP = kjLookup(bodyP, "type");
+  if (tP != NULL && tP->type == KjString)
+  {
+    const char* t = tP->value.s;
+    if (strcmp(t, "Property") == 0 || strcmp(t, "Relationship") == 0 ||
+        strcmp(t, "GeoProperty") == 0 || strcmp(t, "LanguageProperty") == 0 ||
+        strcmp(t, "VocabProperty") == 0 || strcmp(t, "ListProperty") == 0 ||
+        strcmp(t, "ListRelationship") == 0 || strcmp(t, "JsonProperty") == 0)
+      return bodyP;
+  }
+
+  // Case (a): walk children for the first attr-shaped array.
+  for (KjNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+  {
+    if (fP->name == NULL)                           continue;
+    if (fP->name[0] == '@')                         continue;
+    if (strcmp(fP->name, "id")        == 0)         continue;
+    if (strcmp(fP->name, "type")      == 0)         continue;
+    if (strcmp(fP->name, "scope")     == 0)         continue;
+    if (strcmp(fP->name, "createdAt")  == 0)        continue;
+    if (strcmp(fP->name, "modifiedAt") == 0)        continue;
+
+    if (fP->type == KjArray && fP->value.firstChildP != NULL)
+      return fP->value.firstChildP;
+    if (fP->type == KjObject)
+      return fP;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// instanceExists - does (entity, attr, instance) name a row? Caller holds mutex.
+//
+static bool instanceExists(const char* entityId, const char* attrName, const char* instanceId)
+{
+  const char* paramV[3] = { entityId, attrName, instanceId };
+  PGresult* res = PQexecParams(timescaleConn,
+    "SELECT 1 FROM troe_attrs "
+    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3 LIMIT 1",
+    3, NULL, paramV, NULL, NULL, 0);
+  if (PQresultStatus(res) != PGRES_TUPLES_OK)
+  {
+    KT_E("timescale: instance lookup failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(res);
+    return false;
+  }
+  bool exists = (PQntuples(res) > 0);
+  PQclear(res);
+  return exists;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleEntityTemporalInstanceModify - § 5.6.14 / § 6.22.3.1.
+//
+// Replaces the value-bearing columns of the row identified by instanceId.
+// Spec § 5.6.14.4 says "modifiedAt shall be set to the timestamp corresponding
+// to this modification" — but our schema uses (entity_id, attr_name, dataset_id,
+// modified_at, op) as the PK so re-keying in place is awkward. v1 leaves
+// modified_at fixed (= the original instance's modifiedAt) and updates only
+// the value-bearing + observed_at columns. A follow-up could split modified_at
+// out of the PK or add a separate last_edit_at column.
+//
+int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
+                                          const char* attrName,
+                                          const char* instanceId,
+                                          KjNode* rootP)
+{
+  (void) tenantP;
+
+  if (timescaleConn == NULL || entityId == NULL || attrName == NULL ||
+      instanceId == NULL || rootP == NULL)
+    return TROE_ERR;
+
+  KjNode* instP = extractInstanceFromBody(rootP);
+  if (instP == NULL)
+    return TROE_ERR;  // Caller maps to 400.
+
+  KjNode* valueP  = kjLookup(instP, "value");
+  KjNode* observP = kjLookup(instP, "observedAt");
+
+  // Render typed columns from the instance's value node.
+  const char* v_text   = NULL;
+  const char* v_number = NULL;
+  const char* v_bool   = NULL;
+  const char* v_compnd = NULL;
+
+  if (valueP != NULL)
+  {
+    if (valueP->type == KjString)
+      v_text = valueP->value.s;
+    else if (valueP->type == KjInt)
+    {
+      char* buf = (char*) kaAlloc(&swRest.kalloc, 32);
+      snprintf(buf, 32, "%lld", (long long) valueP->value.i);
+      v_number = buf;
+    }
+    else if (valueP->type == KjFloat)
+    {
+      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      snprintf(buf, 64, "%.17g", valueP->value.f);
+      v_number = buf;
+    }
+    else if (valueP->type == KjBoolean)
+    {
+      v_bool = valueP->value.b ? "t" : "f";
+    }
+    else if (valueP->type == KjObject || valueP->type == KjArray)
+    {
+      int   sz  = kjFastRenderSize(valueP) + 1;
+      char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
+      kjFastRender(valueP, buf);
+      v_compnd = buf;
+    }
+  }
+
+  const char* obsAtIso = (observP != NULL && observP->type == KjString) ? observP->value.s : NULL;
+
+  pthread_mutex_lock(&timescaleMutex);
+
+  if (!entityHasRows(entityId))
+  {
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_NOT_FOUND;
+  }
+  if (!instanceExists(entityId, attrName, instanceId))
+  {
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_NOT_FOUND;
+  }
+
+  // $1=entity_id, $2=attr_name, $3=instance_id,
+  // $4=v_text, $5=v_number, $6=v_bool, $7=v_compound, $8=observed_at
+  const char* paramV[8];
+  paramV[0] = entityId;
+  paramV[1] = attrName;
+  paramV[2] = instanceId;
+  paramV[3] = v_text;
+  paramV[4] = v_number;
+  paramV[5] = v_bool;
+  paramV[6] = v_compnd;
+  paramV[7] = obsAtIso;
+
+  // Reset all value columns then apply the supplied ones — a Modify that
+  // only carries "value" cleanly clears any prior compound/bool of that row.
+  PGresult* res = PQexecParams(timescaleConn,
+    "UPDATE troe_attrs "
+    "   SET v_text     = $4, "
+    "       v_number   = $5::double precision, "
+    "       v_bool     = $6::boolean, "
+    "       v_compound = $7::jsonb, "
+    "       observed_at = COALESCE($8::timestamptz, observed_at) "
+    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3",
+    8, NULL, paramV, NULL, NULL, 0);
+
+  if (PQresultStatus(res) != PGRES_COMMAND_OK)
+  {
+    KT_E("timescale: instance UPDATE failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(res);
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_ERR;
+  }
+  PQclear(res);
+
+  pthread_mutex_unlock(&timescaleMutex);
+  return TROE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleEntityTemporalInstanceDelete - § 5.6.15 / § 6.22.3.2.
+//
+int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
+                                          const char* attrName, const char* instanceId)
+{
+  (void) tenantP;
+
+  if (timescaleConn == NULL || entityId == NULL || attrName == NULL || instanceId == NULL)
+    return TROE_ERR;
+
+  pthread_mutex_lock(&timescaleMutex);
+
+  if (!entityHasRows(entityId))
+  {
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_NOT_FOUND;
+  }
+  if (!instanceExists(entityId, attrName, instanceId))
+  {
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_NOT_FOUND;
+  }
+
+  const char* paramV[3] = { entityId, attrName, instanceId };
+  PGresult* res = PQexecParams(timescaleConn,
+    "DELETE FROM troe_attrs "
+    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3",
+    3, NULL, paramV, NULL, NULL, 0);
+
+  if (PQresultStatus(res) != PGRES_COMMAND_OK)
+  {
+    KT_E("timescale: instance DELETE failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(res);
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_ERR;
+  }
+  PQclear(res);
+
   pthread_mutex_unlock(&timescaleMutex);
   return TROE_OK;
 }

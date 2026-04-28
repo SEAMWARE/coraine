@@ -43,6 +43,8 @@ void troeRegister(TroeDriver* driverP)
   driverP->entityTemporalAttrDelete = timescaleEntityTemporalAttrDelete;
   driverP->entityTemporalCreate    = timescaleEntityTemporalCreate;
   driverP->entityTemporalAttrsAdd  = timescaleEntityTemporalAttrsAdd;
+  driverP->entityTemporalInstanceModify = timescaleEntityTemporalInstanceModify;
+  driverP->entityTemporalInstanceDelete = timescaleEntityTemporalInstanceDelete;
   driverP->versionInfo  = NULL;
   driverP->dumpInfo     = NULL;
 }

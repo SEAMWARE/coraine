@@ -69,6 +69,8 @@
 #include "serviceRoutines/deleteEntityTemporalAttr.h"  // deleteEntityTemporalAttr
 #include "serviceRoutines/postEntitiesTemporal.h"      // postEntitiesTemporal
 #include "serviceRoutines/postEntityTemporalAttrs.h"   // postEntityTemporalAttrs
+#include "serviceRoutines/patchEntityTemporalInstance.h"  // patchEntityTemporalInstance
+#include "serviceRoutines/deleteEntityTemporalInstance.h" // deleteEntityTemporalInstance
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -151,6 +153,8 @@ SwRestServiceSimplified ngsildCoreServices[] =
 
   // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
   // More-specific routes first — the router matches in registration order.
+  { SwVerbPatch,  "/ngsi-ld/v1/temporal/entities/*/attrs/*/*",      patchEntityTemporalInstance,   0,                                 LdOpNone },
+  { SwVerbDelete, "/ngsi-ld/v1/temporal/entities/*/attrs/*/*",      deleteEntityTemporalInstance,  0,                                 LdOpNone },
   { SwVerbDelete, "/ngsi-ld/v1/temporal/entities/*/attrs/*",        deleteEntityTemporalAttr,      LD_PARAMS_DELETE_TEMPORAL_ATTR,    LdOpNone },
   { SwVerbPost,   "/ngsi-ld/v1/temporal/entities/*/attrs",          postEntityTemporalAttrs,       0,                                 LdOpNone },
   { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*",                getEntityTemporal,             LD_PARAMS_GET_TEMPORAL_ENTITY,     LdOpNone },

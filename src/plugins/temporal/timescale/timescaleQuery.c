@@ -312,7 +312,7 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
     "to_char(modified_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS modified_at_iso, "
     "to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS observed_at_iso, "
     "op, v_text, v_number, v_bool, v_compound, sub_attrs, "
-    "modified_at, observed_at";
+    "modified_at, observed_at, instance_id";
 
   const char* orderDir = (lastN > 0) ? "DESC" : "ASC";
 
@@ -402,6 +402,9 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
     const char* v_bool    = PQgetisnull(aRes, r, 8)  ? NULL : PQgetvalue(aRes, r, 8);
     const char* v_compnd  = PQgetisnull(aRes, r, 9)  ? NULL : PQgetvalue(aRes, r, 9);
     const char* subAttrs  = PQgetisnull(aRes, r, 10) ? NULL : PQgetvalue(aRes, r, 10);
+    // Column indexes 11/12 are raw timestamps (referenced only by the inner
+    // window-function ORDER BY); column 13 is instance_id (§ 5.2.5).
+    const char* instId    = PQgetisnull(aRes, r, 13) ? NULL : PQgetvalue(aRes, r, 13);
 
     KjNode* arr = kjLookup(root, attrName);
     if (arr == NULL)
@@ -424,6 +427,8 @@ static int buildEntityTemporalDocLocked(const char* entityId, const char* entity
       kjChildAdd(inst, kjString(kjsonP, "observedAt", kaStrdup(&swRest.kalloc, obsAtIso)));
     if (dsId != NULL && dsId[0] != 0)
       kjChildAdd(inst, kjString(kjsonP, "datasetId", kaStrdup(&swRest.kalloc, dsId)));
+    if (instId != NULL)
+      kjChildAdd(inst, kjString(kjsonP, "instanceId", kaStrdup(&swRest.kalloc, instId)));
 
     if (subAttrs != NULL && subAttrs[0] != 0)
     {

@@ -1,0 +1,195 @@
+#
+# FILE            troe_timescale_temporal_instance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Per-instance temporal write endpoints (§ 5.6.14, § 5.6.15).
+# instanceId is broker-generated (URN form) on insert; clients learn it
+# via GET, then use it in PATCH / DELETE on
+# /temporal/entities/{id}/attrs/{attr}/{instance}.
+#
+--NAME--
+TRoE timescale - PATCH / DELETE Attribute instance by instanceId
+
+--TAGS--
+troe timescale postgres temporal patch delete instance
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_inst" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_inst" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_inst --troeUser postgres
+
+--RUN--
+
+echo "01. Create urn:V1 with three speed instances → broker mints instanceIds"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{
+  "id":"urn:V1","type":"Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}
+  ]
+}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. GET — every instance carries instanceId (urn:ngsi-ld:Instance:...)"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+arr = d.get(sk, [])
+shape = []
+for inst in sorted(arr, key=lambda x: x.get('value',-1)):
+  iid = inst.get('instanceId','MISSING')
+  ok  = isinstance(iid,str) and iid.startswith('urn:ngsi-ld:Instance:')
+  shape.append(f\"value={inst.get('value')} instanceId={'<urn-form>' if ok else iid}\")
+for s in shape: print('  ' + s)"
+echo
+echo
+
+
+echo "03. PATCH the value=20 instance → 204"
+echo "====================================="
+INST=$(swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body)
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next(k for k in d if short(k) == 'speed')
+print(next(i['instanceId'] for i in d[sk] if i.get('value') == 20))")
+swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{
+  "speed":[{"type":"Property","value":25,"observedAt":"2026-04-28T10:00:00Z"}]
+}' | head -1
+echo
+echo
+
+
+echo "04. GET — the value=20 instance is now 25, others untouched"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body)
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next(k for k in d if short(k) == 'speed')
+vals = sorted(i.get('value') for i in d[sk])
+print('  values:', vals)"
+echo
+echo
+
+
+echo "05. DELETE the value=25 instance → 204"
+echo "======================================"
+INST=$(swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body)
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next(k for k in d if short(k) == 'speed')
+print(next(i['instanceId'] for i in d[sk] if i.get('value') == 25))")
+swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X DELETE | head -1
+echo
+echo
+
+
+echo "06. GET — only 10 and 30 remain"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body)
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next(k for k in d if short(k) == 'speed')
+print('  values:', sorted(i.get('value') for i in d[sk]))"
+echo
+echo
+
+
+echo "07. DELETE same instance again → 404 (already gone)"
+echo "==================================================="
+swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X DELETE | head -1
+echo
+echo
+
+
+echo "08. PATCH a non-existent instance → 404"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/urn:ngsi-ld:Instance:00000000-0000-0000-0000-000000000000' -X PATCH --payload '{
+  "speed":[{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}]
+}' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:V1 with three speed instances → broker mints instanceIds
+=======================================================================
+done
+
+
+02. GET — every instance carries instanceId (urn:ngsi-ld:Instance:...)
+======================================================================
+  value=10 instanceId=<urn-form>
+  value=20 instanceId=<urn-form>
+  value=30 instanceId=<urn-form>
+
+
+03. PATCH the value=20 instance → 204
+=====================================
+HTTP/1.1 204 No Content
+
+
+04. GET — the value=20 instance is now 25, others untouched
+===========================================================
+  values: [10, 25, 30]
+
+
+05. DELETE the value=25 instance → 204
+======================================
+HTTP/1.1 204 No Content
+
+
+06. GET — only 10 and 30 remain
+===============================
+  values: [10, 30]
+
+
+07. DELETE same instance again → 404 (already gone)
+===================================================
+HTTP/1.1 404 Not Found
+
+
+08. PATCH a non-existent instance → 404
+=======================================
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_inst" >/dev/null 2>&1

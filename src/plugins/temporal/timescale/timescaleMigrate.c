@@ -116,6 +116,50 @@ static int troeMig001Initial(void)
 
 // -----------------------------------------------------------------------------
 //
+// Migration #2 — instance_id column (§ 5.2.5 / § 5.2.6 instanceId).
+//
+// Lets PATCH/DELETE on /attrs/{attr}/{instance} (§ 5.6.14 / § 5.6.15) target
+// a specific row. URN-form (urn:ngsi-ld:Instance:<uuid>) so the value never
+// contains `/` and stays clean in URL paths.
+//
+// gen_random_uuid() is built-in since PostgreSQL 13 — no extension needed.
+//
+static int troeMig002InstanceId(void)
+{
+  static const char* sqls[] =
+  {
+    "ALTER TABLE troe_attrs "
+    "  ADD COLUMN IF NOT EXISTS instance_id TEXT",
+
+    // Backfill any pre-existing rows.
+    "UPDATE troe_attrs "
+    "   SET instance_id = 'urn:ngsi-ld:Instance:' || gen_random_uuid() "
+    " WHERE instance_id IS NULL",
+
+    "ALTER TABLE troe_attrs "
+    "  ALTER COLUMN instance_id SET NOT NULL",
+
+    "ALTER TABLE troe_attrs "
+    "  ALTER COLUMN instance_id "
+    "  SET DEFAULT 'urn:ngsi-ld:Instance:' || gen_random_uuid()",
+
+    "CREATE UNIQUE INDEX IF NOT EXISTS troe_attrs_instance_id "
+    "  ON troe_attrs (instance_id)",
+
+    NULL
+  };
+
+  for (int i = 0; sqls[i] != NULL; i++)
+    if (execSimple(sqls[i]) != 0)
+      return -1;
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Migration table.
 //
 typedef struct
@@ -127,8 +171,9 @@ typedef struct
 
 static const TroeMigration migrationsV[] =
 {
-  { 1, "initial schema", troeMig001Initial },
-  { 0, NULL,             NULL              }
+  { 1, "initial schema",                 troeMig001Initial    },
+  { 2, "instance_id column on troe_attrs", troeMig002InstanceId },
+  { 0, NULL,                             NULL                 }
 };
 
 

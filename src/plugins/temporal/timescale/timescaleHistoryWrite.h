@@ -29,5 +29,16 @@ extern int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP);
 
 extern int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNode* rootP);
 
+extern int timescaleEntityTemporalInstanceModify(Tenant* tenantP,
+                                                 const char* entityId,
+                                                 const char* attrName,
+                                                 const char* instanceId,
+                                                 KjNode* rootP);
+
+extern int timescaleEntityTemporalInstanceDelete(Tenant* tenantP,
+                                                 const char* entityId,
+                                                 const char* attrName,
+                                                 const char* instanceId);
+
 
 #endif  // TIMESCALE_TIMESCALEHISTORYWRITE_H_

@@ -219,6 +219,32 @@ typedef int  (*TroeEntityTemporalCreateFunc)(Tenant* tenantP, KjNode* rootP);
 typedef int  (*TroeEntityTemporalAttrsAddFunc)(Tenant* tenantP, const char* entityId,
                                                KjNode* rootP);
 
+//
+// Modify / delete one specific attribute instance, identified by its
+// system-generated instanceId (§ 5.6.14, § 5.6.15).
+//
+// Modify: replaces the row's value-bearing columns with values extracted
+// from the EntityTemporal-Fragment's single instance (rootP); modified_at
+// is bumped to the request time. createdAt is preserved by the schema's
+// pre-existing values (no column for createdAt; modified_at after this
+// call is the new modifiedAt; the row's ageless creation marker is its
+// initial modified_at — but since the spec says createdAt should remain,
+// we leave the existing modified_at untouched and bump only the
+// value/observed columns. See implementation comment.)
+//
+// Delete: removes one row. Returns TROE_NOT_FOUND if no instance with
+// that id exists for the (entity, attr) pair.
+//
+typedef int  (*TroeEntityTemporalInstanceModifyFunc)(Tenant* tenantP,
+                                                     const char* entityId,
+                                                     const char* attrName,
+                                                     const char* instanceId,
+                                                     KjNode* rootP);
+typedef int  (*TroeEntityTemporalInstanceDeleteFunc)(Tenant* tenantP,
+                                                     const char* entityId,
+                                                     const char* attrName,
+                                                     const char* instanceId);
+
 typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
 //
@@ -255,6 +281,8 @@ typedef struct TroeDriver
   TroeEntityTemporalAttrDeleteFunc  entityTemporalAttrDelete;
   TroeEntityTemporalCreateFunc      entityTemporalCreate;
   TroeEntityTemporalAttrsAddFunc    entityTemporalAttrsAdd;
+  TroeEntityTemporalInstanceModifyFunc  entityTemporalInstanceModify;
+  TroeEntityTemporalInstanceDeleteFunc  entityTemporalInstanceDelete;
 
   TroeVersionInfoFunc               versionInfo;
   TroeDumpInfoFunc                  dumpInfo;       // dev/test only — NULL for prod plugins
