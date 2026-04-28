@@ -43,6 +43,7 @@
 
 #include "swRest/SwRestState.h"                           // swRest
 #include "swNgsild/LdAttrType.h"                          // LdAttr*
+#include "swNgsild/SwNgsild.h"                            // swNgsild
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
 
@@ -425,15 +426,32 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     KjNode* inst = kjObject(kjsonP, NULL);
     kjChildAdd(inst, kjString(kjsonP, "type", kindToTypeString(attrKind)));
 
-    const char* vfn = kindValueFieldName(attrKind);
-    KjNode* vNode = makeValueNode(kjsonP, vfn, v_text, v_number, v_bool, v_compnd);
-    if (vNode != NULL)
-      kjChildAdd(inst, vNode);
+    // § 4.5.7: deleted instances render with value="urn:ngsi-ld:null".
+    bool isDeleted = (strcmp(opStr, "deleted") == 0);
 
-    if (crAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "createdAt",  kaStrdup(&swRest.kalloc, crAtIso)));
-    if (modAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "modifiedAt", kaStrdup(&swRest.kalloc, modAtIso)));
+    if (isDeleted)
+    {
+      const char* vfn = kindValueFieldName(attrKind);
+      kjChildAdd(inst, kjString(kjsonP, vfn, "urn:ngsi-ld:null"));
+    }
+    else
+    {
+      const char* vfn = kindValueFieldName(attrKind);
+      KjNode* vNode = makeValueNode(kjsonP, vfn, v_text, v_number, v_bool, v_compnd);
+      if (vNode != NULL)
+        kjChildAdd(inst, vNode);
+    }
+
+    // § 6.3.11: createdAt / modifiedAt / deletedAt are gated by sysAttrs.
+    if (swNgsild.sysAttrs)
+    {
+      if (crAtIso != NULL)
+        kjChildAdd(inst, kjString(kjsonP, "createdAt",  kaStrdup(&swRest.kalloc, crAtIso)));
+      if (modAtIso != NULL)
+        kjChildAdd(inst, kjString(kjsonP, "modifiedAt", kaStrdup(&swRest.kalloc, modAtIso)));
+      if (isDeleted && modAtIso != NULL)
+        kjChildAdd(inst, kjString(kjsonP, "deletedAt",  kaStrdup(&swRest.kalloc, modAtIso)));
+    }
     if (obsAtIso != NULL)
       kjChildAdd(inst, kjString(kjsonP, "observedAt", kaStrdup(&swRest.kalloc, obsAtIso)));
     if (dsId != NULL && dsId[0] != 0)
@@ -451,9 +469,6 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
           kjChildAdd(inst, sP);
       }
     }
-
-    if (strcmp(opStr, "deleted") == 0)
-      kjChildAdd(inst, kjBoolean(kjsonP, "deleted", KTRUE));
 
     kjChildAdd(arr, inst);
   }
