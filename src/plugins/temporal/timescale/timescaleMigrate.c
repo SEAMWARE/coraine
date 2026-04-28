@@ -73,23 +73,29 @@ static int troeMig001Initial(void)
 {
   static const char* sqls[] =
   {
+    // tenant: empty string for the default tenant (no NGSILD-Tenant header).
+    // Part of every PK / index so different tenants' data can never clash.
     "CREATE TABLE IF NOT EXISTS troe_entities ("
+    "  tenant      TEXT NOT NULL DEFAULT '',"
     "  entity_id   TEXT NOT NULL,"
     "  entity_type TEXT NOT NULL,"
     "  modified_at TIMESTAMPTZ NOT NULL,"
     "  op          TEXT NOT NULL,"
     "  scope       TEXT[],"
-    "  PRIMARY KEY (entity_id, modified_at, op)"
+    "  PRIMARY KEY (tenant, entity_id, modified_at, op)"
     ")",
 
-    "CREATE INDEX IF NOT EXISTS troe_entities_id_modified  ON troe_entities (entity_id, modified_at DESC)",
-    "CREATE INDEX IF NOT EXISTS troe_entities_type_modified ON troe_entities (entity_type, modified_at DESC)",
+    "CREATE INDEX IF NOT EXISTS troe_entities_id_modified  ON troe_entities (tenant, entity_id, modified_at DESC)",
+    "CREATE INDEX IF NOT EXISTS troe_entities_type_modified ON troe_entities (tenant, entity_type, modified_at DESC)",
 
     // troe_attrs: one row per instance. created_at + modified_at are
     // distinct properties of the instance (§ 5.6.14.4) — created_at is
     // set once on insert, modified_at is bumped by Modify-Instance.
+    // tenant is part of every secondary index so cross-tenant data never
+    // leaks. instance_id stays a globally-unique PK (UUID).
     "CREATE TABLE IF NOT EXISTS troe_attrs ("
     "  instance_id TEXT NOT NULL DEFAULT ('urn:ngsi-ld:Instance:' || gen_random_uuid()),"
+    "  tenant      TEXT NOT NULL DEFAULT '',"
     "  entity_id   TEXT NOT NULL,"
     "  entity_type TEXT NOT NULL,"
     "  attr_name   TEXT NOT NULL,"
@@ -108,9 +114,9 @@ static int troeMig001Initial(void)
     "  PRIMARY KEY (instance_id)"
     ")",
 
-    "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_observed   ON troe_attrs (entity_id, attr_name, observed_at DESC)",
-    "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_modified   ON troe_attrs (entity_id, attr_name, modified_at DESC)",
-    "CREATE INDEX IF NOT EXISTS troe_attrs_type_attr_observed ON troe_attrs (entity_type, attr_name, observed_at DESC)",
+    "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_observed   ON troe_attrs (tenant, entity_id, attr_name, observed_at DESC)",
+    "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_modified   ON troe_attrs (tenant, entity_id, attr_name, modified_at DESC)",
+    "CREATE INDEX IF NOT EXISTS troe_attrs_type_attr_observed ON troe_attrs (tenant, entity_type, attr_name, observed_at DESC)",
 
     NULL
   };

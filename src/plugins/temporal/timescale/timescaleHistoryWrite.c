@@ -52,12 +52,12 @@
 // entityHasRows - quick existence check against troe_entities.
 // Caller holds timescaleMutex.
 //
-static bool entityHasRows(const char* entityId)
+static bool entityHasRows(const char* tenant, const char* entityId)
 {
-  const char* paramV[1] = { entityId };
+  const char* paramV[2] = { entityId, tenant };
   PGresult* res = PQexecParams(timescaleConn,
-    "SELECT 1 FROM troe_entities WHERE entity_id = $1 LIMIT 1",
-    1, NULL, paramV, NULL, NULL, 0);
+    "SELECT 1 FROM troe_entities WHERE entity_id = $1 AND tenant = $2 LIMIT 1",
+    2, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: troe_entities existence SELECT failed: %s",
@@ -77,12 +77,12 @@ static bool entityHasRows(const char* entityId)
 // attrHasRows - quick existence check against troe_attrs for a given attr.
 // Caller holds timescaleMutex.
 //
-static bool attrHasRows(const char* entityId, const char* attrName)
+static bool attrHasRows(const char* tenant, const char* entityId, const char* attrName)
 {
-  const char* paramV[2] = { entityId, attrName };
+  const char* paramV[3] = { entityId, attrName, tenant };
   PGresult* res = PQexecParams(timescaleConn,
-    "SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = $2 LIMIT 1",
-    2, NULL, paramV, NULL, NULL, 0);
+    "SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = $2 AND tenant = $3 LIMIT 1",
+    3, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: troe_attrs existence SELECT failed: %s",
@@ -103,20 +103,20 @@ static bool attrHasRows(const char* entityId, const char* attrName)
 //
 int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
 {
-  (void) tenantP;
-
   if (timescaleConn == NULL || entityId == NULL || entityId[0] == 0)
     return TROE_ERR;
 
+  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
+
   pthread_mutex_lock(&timescaleMutex);
 
-  if (!entityHasRows(entityId))
+  if (!entityHasRows(tenant, entityId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
   }
 
-  const char* paramV[1] = { entityId };
+  const char* paramV[2] = { entityId, tenant };
 
   // Single statement per table — both DELETEs run in autocommit since
   // they're independent and either succeeding leaves the store in a
@@ -125,8 +125,8 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
   PQclear(r);
 
   PGresult* attrsR = PQexecParams(timescaleConn,
-    "DELETE FROM troe_attrs WHERE entity_id = $1",
-    1, NULL, paramV, NULL, NULL, 0);
+    "DELETE FROM troe_attrs WHERE entity_id = $1 AND tenant = $2",
+    2, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(attrsR) != PGRES_COMMAND_OK)
   {
     KT_E("timescale: troe_attrs DELETE failed: %s", PQerrorMessage(timescaleConn));
@@ -138,8 +138,8 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
   PQclear(attrsR);
 
   PGresult* entR = PQexecParams(timescaleConn,
-    "DELETE FROM troe_entities WHERE entity_id = $1",
-    1, NULL, paramV, NULL, NULL, 0);
+    "DELETE FROM troe_entities WHERE entity_id = $1 AND tenant = $2",
+    2, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(entR) != PGRES_COMMAND_OK)
   {
     KT_E("timescale: troe_entities DELETE failed: %s", PQerrorMessage(timescaleConn));
@@ -169,19 +169,19 @@ int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,
                                       const char* attrName,
                                       const char* datasetId, bool deleteAll)
 {
-  (void) tenantP;
-
   if (timescaleConn == NULL || entityId == NULL || attrName == NULL)
     return TROE_ERR;
 
+  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
+
   pthread_mutex_lock(&timescaleMutex);
 
-  if (!entityHasRows(entityId))
+  if (!entityHasRows(tenant, entityId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
   }
-  if (!attrHasRows(entityId, attrName))
+  if (!attrHasRows(tenant, entityId, attrName))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
@@ -190,17 +190,17 @@ int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,
   PGresult* res = NULL;
   if (deleteAll)
   {
-    const char* paramV[2] = { entityId, attrName };
+    const char* paramV[3] = { entityId, attrName, tenant };
     res = PQexecParams(timescaleConn,
-      "DELETE FROM troe_attrs WHERE entity_id = $1 AND attr_name = $2",
-      2, NULL, paramV, NULL, NULL, 0);
+      "DELETE FROM troe_attrs WHERE entity_id = $1 AND attr_name = $2 AND tenant = $3",
+      3, NULL, paramV, NULL, NULL, 0);
   }
   else
   {
-    const char* paramV[3] = { entityId, attrName, (datasetId != NULL) ? datasetId : "" };
+    const char* paramV[4] = { entityId, attrName, (datasetId != NULL) ? datasetId : "", tenant };
     res = PQexecParams(timescaleConn,
-      "DELETE FROM troe_attrs WHERE entity_id = $1 AND attr_name = $2 AND dataset_id = $3",
-      3, NULL, paramV, NULL, NULL, 0);
+      "DELETE FROM troe_attrs WHERE entity_id = $1 AND attr_name = $2 AND dataset_id = $3 AND tenant = $4",
+      4, NULL, paramV, NULL, NULL, 0);
   }
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
@@ -332,8 +332,6 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
 //
 int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
 {
-  (void) tenantP;
-
   if (timescaleConn == NULL || rootP == NULL || rootP->type != KjObject)
     return TROE_ERR;
 
@@ -437,13 +435,14 @@ static KjNode* extractInstanceFromBody(KjNode* bodyP)
 //
 // instanceExists - does (entity, attr, instance) name a row? Caller holds mutex.
 //
-static bool instanceExists(const char* entityId, const char* attrName, const char* instanceId)
+static bool instanceExists(const char* tenant, const char* entityId,
+                           const char* attrName, const char* instanceId)
 {
-  const char* paramV[3] = { entityId, attrName, instanceId };
+  const char* paramV[4] = { entityId, attrName, instanceId, tenant };
   PGresult* res = PQexecParams(timescaleConn,
     "SELECT 1 FROM troe_attrs "
-    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3 LIMIT 1",
-    3, NULL, paramV, NULL, NULL, 0);
+    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3 AND tenant = $4 LIMIT 1",
+    4, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: instance lookup failed: %s", PQerrorMessage(timescaleConn));
@@ -471,11 +470,11 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
                                           const char* instanceId,
                                           KjNode* rootP)
 {
-  (void) tenantP;
-
   if (timescaleConn == NULL || entityId == NULL || attrName == NULL ||
       instanceId == NULL || rootP == NULL)
     return TROE_ERR;
+
+  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
 
   KjNode* instP = extractInstanceFromBody(rootP);
   if (instP == NULL)
@@ -523,28 +522,29 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 
   pthread_mutex_lock(&timescaleMutex);
 
-  if (!entityHasRows(entityId))
+  if (!entityHasRows(tenant, entityId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
   }
-  if (!instanceExists(entityId, attrName, instanceId))
+  if (!instanceExists(tenant, entityId, attrName, instanceId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
   }
 
-  // $1=entity_id, $2=attr_name, $3=instance_id,
-  // $4=v_text, $5=v_number, $6=v_bool, $7=v_compound, $8=observed_at
-  const char* paramV[8];
+  // $1=entity_id, $2=attr_name, $3=instance_id, $4=tenant,
+  // $5=v_text, $6=v_number, $7=v_bool, $8=v_compound, $9=observed_at
+  const char* paramV[9];
   paramV[0] = entityId;
   paramV[1] = attrName;
   paramV[2] = instanceId;
-  paramV[3] = v_text;
-  paramV[4] = v_number;
-  paramV[5] = v_bool;
-  paramV[6] = v_compnd;
-  paramV[7] = obsAtIso;
+  paramV[3] = tenant;
+  paramV[4] = v_text;
+  paramV[5] = v_number;
+  paramV[6] = v_bool;
+  paramV[7] = v_compnd;
+  paramV[8] = obsAtIso;
 
   // Reset all value columns then apply the supplied ones — a Modify that
   // only carries "value" cleanly clears any prior compound/bool of that row.
@@ -556,16 +556,16 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
   char sql[1024];
   snprintf(sql, sizeof(sql),
     "UPDATE troe_attrs "
-    "   SET v_text     = $4, "
-    "       v_number   = $5::double precision, "
-    "       v_bool     = $6::boolean, "
-    "       v_compound = $7::jsonb, "
-    "       observed_at = COALESCE($8::timestamptz, observed_at), "
+    "   SET v_text     = $5, "
+    "       v_number   = $6::double precision, "
+    "       v_bool     = $7::boolean, "
+    "       v_compound = $8::jsonb, "
+    "       observed_at = COALESCE($9::timestamptz, observed_at), "
     "       modified_at = %s "
-    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3",
+    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3 AND tenant = $4",
     tsExpr);
 
-  PGresult* res = PQexecParams(timescaleConn, sql, 8, NULL, paramV, NULL, NULL, 0);
+  PGresult* res = PQexecParams(timescaleConn, sql, 9, NULL, paramV, NULL, NULL, 0);
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {
@@ -589,29 +589,29 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
                                           const char* attrName, const char* instanceId)
 {
-  (void) tenantP;
-
   if (timescaleConn == NULL || entityId == NULL || attrName == NULL || instanceId == NULL)
     return TROE_ERR;
 
+  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
+
   pthread_mutex_lock(&timescaleMutex);
 
-  if (!entityHasRows(entityId))
+  if (!entityHasRows(tenant, entityId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
   }
-  if (!instanceExists(entityId, attrName, instanceId))
+  if (!instanceExists(tenant, entityId, attrName, instanceId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
   }
 
-  const char* paramV[3] = { entityId, attrName, instanceId };
+  const char* paramV[4] = { entityId, attrName, instanceId, tenant };
   PGresult* res = PQexecParams(timescaleConn,
     "DELETE FROM troe_attrs "
-    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3",
-    3, NULL, paramV, NULL, NULL, 0);
+    " WHERE entity_id = $1 AND attr_name = $2 AND instance_id = $3 AND tenant = $4",
+    4, NULL, paramV, NULL, NULL, 0);
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {
@@ -638,14 +638,14 @@ int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
 //
 int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNode* rootP)
 {
-  (void) tenantP;
-
   if (timescaleConn == NULL || entityId == NULL || rootP == NULL || rootP->type != KjObject)
     return TROE_ERR;
 
+  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
+
   pthread_mutex_lock(&timescaleMutex);
 
-  if (!entityHasRows(entityId))
+  if (!entityHasRows(tenant, entityId))
   {
     pthread_mutex_unlock(&timescaleMutex);
     return TROE_NOT_FOUND;
@@ -654,11 +654,11 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
   // Look up entity_type from the most-recent troe_entities row so the
   // synthesised attr rows carry the right type (entity_type is part of
   // the troe_attrs schema, used for type-filtered queries).
-  const char* idParamV[1] = { entityId };
+  const char* idParamV[2] = { entityId, tenant };
   PGresult* tRes = PQexecParams(timescaleConn,
     "SELECT entity_type FROM troe_entities "
-    "WHERE entity_id = $1 ORDER BY modified_at DESC LIMIT 1",
-    1, NULL, idParamV, NULL, NULL, 0);
+    "WHERE entity_id = $1 AND tenant = $2 ORDER BY modified_at DESC LIMIT 1",
+    2, NULL, idParamV, NULL, NULL, 0);
   if (PQresultStatus(tRes) != PGRES_TUPLES_OK || PQntuples(tRes) == 0)
   {
     KT_E("timescale: entity_type lookup failed: %s", PQerrorMessage(timescaleConn));

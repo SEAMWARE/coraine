@@ -1,0 +1,177 @@
+#
+# FILE            troe_timescale_temporal_tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Multi-tenant isolation for the temporal API. Two tenants (T1, T2)
+# create the same entity-id with different attribute values; each
+# tenant's GET/PATCH/DELETE on that id sees ONLY their own data.
+#
+--NAME--
+TRoE timescale - multi-tenant isolation
+
+--TAGS--
+troe timescale postgres temporal tenant
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_tenant" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_tenant" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_tenant --troeUser postgres
+
+--RUN--
+
+echo "01. POST urn:V1 (Vehicle, speed=10) in tenant T1"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t1" --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. POST urn:V1 (Vehicle, speed=99) in tenant T2 — same id, different tenant"
+echo "============================================================================"
+swCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t2" --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "03. GET temporal/urn:V1 in tenant T1 — sees speed=10"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t1" | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+vals = sorted([i.get('value') for i in d.get(sk, [])]) if sk else []
+print(f'  values: {vals}')"
+echo
+echo
+
+
+echo "04. GET temporal/urn:V1 in tenant T2 — sees speed=99"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t2" | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+vals = sorted([i.get('value') for i in d.get(sk, [])]) if sk else []
+print(f'  values: {vals}')"
+echo
+echo
+
+
+echo "05. GET temporal/urn:V1 in default tenant — 404 (no entity there)"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | head -1
+echo
+echo
+
+
+echo "06. Multi-entity GET in T1 — count 1, V1"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z' -H "NGSILD-Tenant: t1" | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+arr = json.loads(body) if body.strip() else []
+print(f'  count: {len(arr)}')"
+echo
+echo
+
+
+echo "07. DELETE temporal/urn:V1 in T1 — drops only T1's row"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE -H "NGSILD-Tenant: t1" | head -1
+echo
+echo
+
+
+echo "08. GET temporal/urn:V1 in T1 — 404 (gone)"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t1" | head -1
+echo
+echo
+
+
+echo "09. GET temporal/urn:V1 in T2 — still there"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t2" | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+vals = sorted([i.get('value') for i in d.get(sk, [])]) if sk else []
+print(f'  values: {vals}')"
+echo
+echo
+
+
+--EXPECT--
+01. POST urn:V1 (Vehicle, speed=10) in tenant T1
+================================================
+done
+
+
+02. POST urn:V1 (Vehicle, speed=99) in tenant T2 — same id, different tenant
+============================================================================
+done
+
+
+03. GET temporal/urn:V1 in tenant T1 — sees speed=10
+====================================================
+  values: [10]
+
+
+04. GET temporal/urn:V1 in tenant T2 — sees speed=99
+====================================================
+  values: [99]
+
+
+05. GET temporal/urn:V1 in default tenant — 404 (no entity there)
+=================================================================
+HTTP/1.1 404 Not Found
+
+
+06. Multi-entity GET in T1 — count 1, V1
+========================================
+  count: 1
+
+
+07. DELETE temporal/urn:V1 in T1 — drops only T1's row
+======================================================
+HTTP/1.1 204 No Content
+
+
+08. GET temporal/urn:V1 in T1 — 404 (gone)
+==========================================
+HTTP/1.1 404 Not Found
+
+
+09. GET temporal/urn:V1 in T2 — still there
+===========================================
+  values: [99]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_tenant" >/dev/null 2>&1
