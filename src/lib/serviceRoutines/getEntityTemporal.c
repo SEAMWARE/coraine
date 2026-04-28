@@ -29,6 +29,8 @@
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/ldPickOmit.h"                     // ldPickOmit
+#include "swNgsild/ldToTemporalValues.h"             // ldToTemporalValues
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 
@@ -83,6 +85,7 @@ bool getEntityTemporal(void)
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
   filter.lastN        = swNgsild.lastN;
+  filter.datasetIdV   = swNgsild.datasetIdV;
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
@@ -105,6 +108,11 @@ bool getEntityTemporal(void)
             "temporal retrieve failed for entity '%s'", entityId);
     return true;
   }
+
+  // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction
+  // and ?format=temporalValues run in renderHook, see ldHooks.c).
+  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+    ldPickOmit(result, swNgsild.pickV, swNgsild.omitV);
 
   swRest.out.responseTree = result;
 

@@ -135,6 +135,11 @@ typedef struct TroeQueryFilter
   // 0 → caller uses the plugin's hardcoded default.
   int          instanceCap;
 
+  // ?datasetId= — NULL-terminated list of datasetId tokens. Each entry is
+  // either a URI or the literal "@none" (matching the default-instance
+  // empty-string column). NULL = no datasetId filter.
+  char**       datasetIdV;
+
   // geo, scopeQ — grow as the read path lands
   void*        opaque;
 } TroeQueryFilter;

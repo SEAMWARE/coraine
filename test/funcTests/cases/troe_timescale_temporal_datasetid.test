@@ -1,0 +1,231 @@
+#
+# FILE            troe_timescale_temporal_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ?datasetId= URL parameter on the temporal API. Each entry in the CSV
+# is either a URI or the literal "@none" (matching the default instance,
+# stored as empty-string dataset_id in TRoE).
+#
+# Spec § 6.18.3.2 / § 6.19.3.1: datasetId narrows the result to instances
+# whose datasetId matches one in the list.
+#
+--NAME--
+TRoE timescale - temporal datasetId filter
+
+--TAGS--
+troe timescale postgres temporal datasetid
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dsid" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dsid" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_dsid --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1 with three datasets on speed (default + DS1 + DS2)"
+echo "=================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    {
+      "type":       "Property",
+      "value":      10,
+      "observedAt": "2026-04-28T09:00:00Z"
+    },
+    {
+      "type":       "Property",
+      "value":      55,
+      "datasetId":  "urn:ds:1",
+      "observedAt": "2026-04-28T09:00:00Z"
+    },
+    {
+      "type":       "Property",
+      "value":      99,
+      "datasetId":  "urn:ds:2",
+      "observedAt": "2026-04-28T09:00:00Z"
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. ?datasetId=urn:ds:1 — only the DS1 instance is returned"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:1'
+echo
+echo
+
+
+echo "03. ?datasetId=@none — only the default instance (no datasetId field) is returned"
+echo "================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=@none'
+echo
+echo
+
+
+echo "04. ?datasetId=urn:ds:1,urn:ds:2 — both named datasets, default excluded"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:1,urn:ds:2'
+echo
+echo
+
+
+echo "05. ?datasetId=urn:ds:1 + ?type=Vehicle&timerel=after on multi-entity GET"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&datasetId=urn:ds:1'
+echo
+echo
+
+
+echo "07. ?datasetId=urn:ds:nope — no match → 200 + just id/type"
+echo "=========================================================="
+# § 6.19.3.1: 404 only when the entity itself doesn't exist. With a
+# datasetId filter that matches nothing, the entity is still there;
+# return a 200 with an empty attribute set.
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:nope'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with three datasets on speed (default + DS1 + DS2)
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. ?datasetId=urn:ds:1 — only the DS1 instance is returned
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 55
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. ?datasetId=@none — only the default instance (no datasetId field) is returned
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. ?datasetId=urn:ds:1,urn:ds:2 — both named datasets, default excluded
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 55
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 99
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. ?datasetId=urn:ds:1 + ?type=Vehicle&timerel=after on multi-entity GET
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "datasetId": "urn:ds:1",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 55
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. ?datasetId=urn:ds:nope — no match → 200 + just id/type
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dsid" >/dev/null 2>&1

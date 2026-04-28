@@ -1,0 +1,171 @@
+#
+# FILE            troe_timescale_temporal_values_format.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.8 / § 6.3.10 — Simplified Temporal Representation.
+# ?format=temporalValues converts each attr from
+#   [ {type, value, observedAt}, ... ]
+# to
+#   { type: "Property",         values:       [[value,    ts], ...] }
+#   { type: "Relationship",     objects:      [[object,   ts], ...] }
+#   { type: "LanguageProperty", languageMaps: [[{lang:val,...}, ts], ...] }
+#
+# Seed via POST /entities (single-instance creates) + PATCHes to grow the
+# temporal series for "speed". The POST /temporal/entities path has a known
+# bug — it drops Relationship and observedAt on LanguageProperty.
+#
+--NAME--
+TRoE timescale - format=temporalValues
+
+--TAGS--
+troe timescale postgres temporal format
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_tv" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_tv" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_tv --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1 (Property + Relationship + LanguageProperty), then PATCH speed twice"
+echo "===================================================================================="
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":  {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
+  "height": {"type":"Property","value":1.85,"observedAt":"2026-04-28T09:00:00Z"},
+  "owner":  {"type":"Relationship","object":"urn:Bob","observedAt":"2026-04-28T09:00:00Z"},
+  "name":   {"type":"LanguageProperty","languageMap":{"en":"Hello","fr":"Bonjour"},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. ?format=temporalValues — full simplified shape (values / objects / languageMaps)"
+echo "===================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?format=temporalValues'
+echo
+echo
+
+
+echo "03. Multi-entity GET ?format=temporalValues — array of simplified entities (pick=speed)"
+echo "========================================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&format=temporalValues&pick=speed'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 (Property + Relationship + LanguageProperty), then PATCH speed twice
+====================================================================================
+done
+
+
+02. ?format=temporalValues — full simplified shape (values / objects / languageMaps)
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "height": {
+    "type": "Property",
+    "values": [
+      [
+        1.85,
+        "2026-04-28T09:00:00.000Z"
+      ]
+    ]
+  },
+  "id": "urn:V1",
+  "name": {
+    "languageMaps": [
+      [
+        {
+          "en": "Hello",
+          "fr": "Bonjour"
+        },
+        "2026-04-28T09:00:00.000Z"
+      ]
+    ],
+    "type": "LanguageProperty"
+  },
+  "owner": {
+    "objects": [
+      [
+        "urn:Bob",
+        "2026-04-28T09:00:00.000Z"
+      ]
+    ],
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "values": [
+      [
+        10,
+        "2026-04-28T09:00:00.000Z"
+      ],
+      [
+        20,
+        "2026-04-28T10:00:00.000Z"
+      ],
+      [
+        30,
+        "2026-04-28T11:00:00.000Z"
+      ]
+    ]
+  },
+  "type": "Vehicle"
+}
+
+
+
+03. Multi-entity GET ?format=temporalValues — array of simplified entities (pick=speed)
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-04-28T09:00:00.000Z"
+        ],
+        [
+          20,
+          "2026-04-28T10:00:00.000Z"
+        ],
+        [
+          30,
+          "2026-04-28T11:00:00.000Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_tv" >/dev/null 2>&1

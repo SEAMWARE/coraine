@@ -160,28 +160,48 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
   // and falls back to value-shape heuristics.
   cP->kind = (int) ldAttrTypeDetect(instP);
 
-  // ldApiEntityToDbModel normalises all value-bearing keys (value/object/
-  // languageMap/vocab/valueList/objectList/json) to "value" in storage.
-  // Attr-kind already disambiguates; we only need to read the "value" field.
+  // The value of an attribute may live under any of these keys depending on
+  // its kind:
+  //   Property / GeoProperty / VocabProperty / JsonProperty / ListProperty → "value"
+  //   Relationship / ListRelationship                                       → "object"
+  //   LanguageProperty                                                      → "languageMap"
+  // (Note: after JSON-LD expansion via swldExpandTree these stay as short
+  //  names — they're core-context terms with the keep-short shortcut.)
+  // ldApiEntityToDbModel normalises all of them to "value" before regular
+  // POST /entities; the temporal POST path may feed us API-format directly,
+  // so accept either form here.
   KjNode* valueP   = NULL;
   KjNode* observP  = NULL;
   KjNode* subAttrs = kjObject(swRest.kjsonP, NULL);
 
-  for (KjNode* fP = instP->value.firstChildP; fP != NULL; fP = fP->next)
+  // IMPORTANT: kjChildAdd re-points the added node's ->next, which would
+  // break this for-loop's iteration if the loop variable is the same node.
+  // Capture nextP before the body and use it after.
+  KjNode* fP = instP->value.firstChildP;
+  while (fP != NULL)
   {
-    if (fP->name == NULL) continue;
+    KjNode* nextP = fP->next;
 
-    if (strcmp(fP->name, "type")       == 0) continue;
-    if (strcmp(fP->name, "value")      == 0) { valueP  = fP; continue; }
-    if (strcmp(fP->name, "observedAt") == 0) { observP = fP; continue; }
-    if (strcmp(fP->name, "createdAt")  == 0) continue;
-    if (strcmp(fP->name, "modifiedAt") == 0) continue;
-    if (strcmp(fP->name, "datasetId")  == 0) continue;
+    if (fP->name == NULL) { fP = nextP; continue; }
 
-    // Sub-attribute. Add a copy by name. (Plugin doesn't own the lifetime
-    // of the rendered JSON beyond this row write, so a shallow link is fine.)
-    KjNode* clone = fP;
-    kjChildAdd(subAttrs, clone);
+    if (strcmp(fP->name, "type")       == 0) { fP = nextP; continue; }
+    if (strcmp(fP->name, "createdAt")  == 0) { fP = nextP; continue; }
+    if (strcmp(fP->name, "modifiedAt") == 0) { fP = nextP; continue; }
+    if (strcmp(fP->name, "datasetId")  == 0) { fP = nextP; continue; }
+
+    if (strcmp(fP->name, "observedAt") == 0)   { observP = fP;       fP = nextP; continue; }
+    if (strcmp(fP->name, "value")      == 0 ||
+        strcmp(fP->name, "object")     == 0 ||
+        strcmp(fP->name, "languageMap") == 0 ||
+        strcmp(fP->name, "vocab")      == 0 ||
+        strcmp(fP->name, "valueList")  == 0 ||
+        strcmp(fP->name, "objectList") == 0 ||
+        strcmp(fP->name, "json")       == 0)   { valueP  = fP;       fP = nextP; continue; }
+
+    // Sub-attribute. kjChildAdd re-homes the node into subAttrs (stomping
+    // its ->next) — that's fine because we already saved nextP.
+    kjChildAdd(subAttrs, fP);
+    fP = nextP;
   }
 
   // observedAt:

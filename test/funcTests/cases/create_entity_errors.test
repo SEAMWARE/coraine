@@ -1914,7 +1914,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "languageMap values must be strings or arrays of strings (key 'https://uri.etsi.org/ngsi-ld/default-context/en')",
+  "detail": "languageMap values must be strings or arrays of strings (key 'en')",
   "title": "Invalid LanguageProperty",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

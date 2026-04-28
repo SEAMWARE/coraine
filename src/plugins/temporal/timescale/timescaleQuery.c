@@ -184,6 +184,47 @@ static const char* attrsInClause(char** attrV, KAlloc* kaP)
 
 // -----------------------------------------------------------------------------
 //
+// datasetIdsInClause - " AND dataset_id IN ('','urn:..',..)" or "" when empty.
+//
+// "@none" in the URL param maps to the empty-string dataset_id we store for
+// the default instance.
+//
+static const char* datasetIdsInClause(char** dsV, KAlloc* kaP)
+{
+  if (dsV == NULL || dsV[0] == NULL)
+    return "";
+
+  int needed = 32;
+  for (int i = 0; dsV[i] != NULL; i++)
+    needed += (int) strlen(dsV[i]) * 2 + 4;
+
+  char* buf = (char*) kaAlloc(kaP, needed);
+  int   p   = 0;
+  p += snprintf(buf + p, needed - p, " AND dataset_id IN (");
+
+  for (int i = 0; dsV[i] != NULL; i++)
+  {
+    if (i > 0) { buf[p++] = ','; }
+    buf[p++] = '\'';
+    if (strcmp(dsV[i], "@none") != 0)
+    {
+      for (const char* s = dsV[i]; *s; s++)
+      {
+        if (*s == '\'') { buf[p++] = '\''; buf[p++] = '\''; }
+        else            buf[p++] = *s;
+      }
+    }
+    buf[p++] = '\'';
+  }
+  buf[p++] = ')';
+  buf[p]   = 0;
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // runQPreconditionLocked - returns true if the entity matches q, false if not.
 // On DB error sets *errOut to true. NULL qPred → matches.
 // Mutex must be held by the caller.
@@ -241,6 +282,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   const char* endTimeAt     = (fP != NULL) ? fP->endTimeAtIso  : NULL;
   const char* timeProp      = (fP != NULL) ? fP->timeproperty  : NULL;
   char**      attrV         = (fP != NULL) ? fP->attrV         : NULL;
+  char**      datasetIdV    = (fP != NULL) ? fP->datasetIdV    : NULL;
   int         lastN         = (fP != NULL) ? fP->lastN         : 0;
   const char* qPred         = (fP != NULL) ? fP->qSqlPredicate : NULL;
   int         instanceCap   = (fP != NULL && fP->instanceCap > 0) ? fP->instanceCap
@@ -250,6 +292,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   bool        createdAtOnly = (timeProp != NULL && strcmp(timeProp, "createdAt") == 0);
   const char* opPred        = createdAtOnly ? " AND op = 'created'" : "";
   const char* attrPred      = attrsInClause(attrV, &swRest.kalloc);
+  const char* dsPred        = datasetIdsInClause(datasetIdV, &swRest.kalloc);
 
   // q precondition (tenant-scoped — the q-tree compiler emits AND tenant=$2).
   bool qErr = false;
@@ -335,10 +378,10 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
       "SELECT %s, "
       "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s DESC) AS rn "
       "FROM troe_attrs "
-      "WHERE entity_id = $1 AND tenant = $2%s%s%s) sub "
+      "WHERE entity_id = $1 AND tenant = $2%s%s%s%s) sub "
       "WHERE rn <= %d "
       "ORDER BY attr_name, dataset_id, %s DESC",
-      selectCols, tCol, timePred, opPred, attrPred, lastN, tCol);
+      selectCols, tCol, timePred, opPred, attrPred, dsPred, lastN, tCol);
   }
   else
   {
@@ -347,10 +390,10 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     snprintf(sql, sqlSize,
       "SELECT %s "
       "FROM troe_attrs "
-      "WHERE entity_id = $1 AND tenant = $2%s%s%s "
+      "WHERE entity_id = $1 AND tenant = $2%s%s%s%s "
       "ORDER BY attr_name, dataset_id, %s %s "
       "LIMIT %d",
-      selectCols, timePred, opPred, attrPred, tCol, orderDir, instanceCap + 1);
+      selectCols, timePred, opPred, attrPred, dsPred, tCol, orderDir, instanceCap + 1);
   }
 
   PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);

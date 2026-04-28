@@ -10,6 +10,8 @@
 # linked-entity expansion (join=flat / inline) and q sub-queries
 # (q=rel{...}) work across brokers.
 #
+# REQUIRE_DB: mongoc
+#
 --NAME--
 Linked entities — cross-CSR retrieval (join + q={})
 

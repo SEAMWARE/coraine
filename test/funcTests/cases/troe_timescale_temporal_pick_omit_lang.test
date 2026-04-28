@@ -1,0 +1,271 @@
+#
+# FILE            troe_timescale_temporal_pick_omit_lang.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Output filters on the temporal API:
+#   ?pick=  — keep only listed attributes (§ 4.5.4)
+#   ?omit=  — drop listed attributes (§ 4.5.5)
+#   ?lang=  — reduce LanguageProperty instances to Property in the chosen language
+#
+# Each step prints the full HTTP response (headers + body). The volatile
+# instanceId UUID is matched in the expect via REGEX(); the rest of the
+# response is verbatim, so it is easy to proof-read.
+#
+--NAME--
+TRoE timescale - temporal pick/omit/lang
+
+--TAGS--
+troe timescale postgres temporal pick
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_pick" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_pick" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_pick --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1 with speed + color + name (LanguageProperty)"
+echo "============================================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type":       "Property",
+    "value":      10,
+    "observedAt": "2026-04-28T09:00:00Z"
+  },
+  "color": {
+    "type":       "Property",
+    "value":      "red",
+    "observedAt": "2026-04-28T09:00:00Z"
+  },
+  "name": {
+    "type":        "LanguageProperty",
+    "languageMap": {"en": "Hello", "fr": "Bonjour", "@none": "Hola"},
+    "observedAt":  "2026-04-28T09:00:00Z"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. ?pick=speed — only speed survives, instance shape preserved"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=speed'
+echo
+echo
+
+
+echo "03. ?omit=color — color dropped, others kept"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?omit=color'
+echo
+echo
+
+
+echo "04. ?lang=fr — LanguageProperty 'name' reduced to Property w/ French value"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lang=fr'
+echo
+echo
+
+
+echo "05. ?lang=de — no German match, falls back to @none"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lang=de'
+echo
+echo
+
+
+echo "06. Multi-entity GET with ?pick=speed (timerel=after, type=Vehicle)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with speed + color + name (LanguageProperty)
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. ?pick=speed — only speed survives, instance shape preserved
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. ?omit=color — color dropped, others kept
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "name": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "languageMap": {
+        "@none": "Hola",
+        "en": "Hello",
+        "fr": "Bonjour"
+      },
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "LanguageProperty"
+    }
+  ],
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. ?lang=fr — LanguageProperty 'name' reduced to Property w/ French value
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": "red"
+    }
+  ],
+  "id": "urn:V1",
+  "name": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "lang": "fr",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": "Bonjour"
+    }
+  ],
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. ?lang=de — no German match, falls back to @none
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "color": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": "red"
+    }
+  ],
+  "id": "urn:V1",
+  "name": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "lang": "@none",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": "Hola"
+    }
+  ],
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+06. Multi-entity GET with ?pick=speed (timerel=after, type=Vehicle)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 10
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_pick" >/dev/null 2>&1

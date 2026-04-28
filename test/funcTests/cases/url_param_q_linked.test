@@ -10,6 +10,8 @@
 # Only locally-stored targets are reachable in this slice (per § 4.5.23
 # "limited to avoid cascades"); distOps lookup is a follow-up.
 #
+# REQUIRE_DB: mongoc
+#
 --NAME--
 q-filter — linked-entity sub-query (q=rel{...})
 

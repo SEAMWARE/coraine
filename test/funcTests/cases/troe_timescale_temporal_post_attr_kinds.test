@@ -1,0 +1,178 @@
+#
+# FILE            troe_timescale_temporal_post_attr_kinds.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# POST /ngsi-ld/v1/temporal/entities — § 5.6.11 / § 6.18.3.1.
+#
+# Verifies that the temporal-create endpoint handles all attr kinds:
+# Property (value), Relationship (object), LanguageProperty (languageMap).
+# Previously dropped two of three attrs (loop-iteration bug stomping
+# attrP->next via instanceWrap) and lost observedAt on Relationship and
+# LanguageProperty (extractCols only knew "value" key, plus another
+# loop-iteration bug stomping fP->next via kjChildAdd into subAttrs).
+#
+--NAME--
+TRoE timescale - POST /temporal/entities, all attr kinds round-trip
+
+--TAGS--
+troe timescale postgres temporal create
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_postk" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_postk" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_postk --troeUser postgres
+
+--RUN--
+
+echo "01. POST /temporal/entities — Property + Relationship + LanguageProperty"
+echo "========================================================================"
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":  {"type":"Property","value":42,"observedAt":"2026-04-28T09:00:00Z"},
+  "owner":  {"type":"Relationship","object":"urn:Bob","observedAt":"2026-04-28T09:00:00Z"},
+  "name":   {"type":"LanguageProperty","languageMap":{"en":"Hello","fr":"Bonjour"},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /temporal/entities/urn:V1 — all three attrs round-trip with observedAt"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "03. POST /temporal/entities with multi-instance speed (array of instances)"
+echo "=========================================================================="
+payload='{
+  "id":   "urn:V2",
+  "type": "Vehicle",
+  "speed": [
+    {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /temporal/entities/urn:V2 — three speed instances"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V2
+echo
+echo
+
+
+--EXPECT--
+01. POST /temporal/entities — Property + Relationship + LanguageProperty
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET /temporal/entities/urn:V1 — all three attrs round-trip with observedAt
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "name": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "languageMap": {
+        "en": "Hello",
+        "fr": "Bonjour"
+      },
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "LanguageProperty"
+    }
+  ],
+  "owner": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "object": "urn:Bob",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Relationship"
+    }
+  ],
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 42
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. POST /temporal/entities with multi-instance speed (array of instances)
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V2
+Content-Length: REGEX(\d+)
+
+
+
+
+04. GET /temporal/entities/urn:V2 — three speed instances
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V2",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T10:00:00.000Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T11:00:00.000Z",
+      "type": "Property",
+      "value": 30
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_postk" >/dev/null 2>&1

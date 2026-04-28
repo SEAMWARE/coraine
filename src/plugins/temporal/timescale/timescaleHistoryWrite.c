@@ -258,26 +258,35 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
 {
   uint64_t nsOffset = 0;
 
-  for (KjNode* attrP = rootP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  // IMPORTANT: instanceWrap stomps the wrapped node's ->next, which
+  // breaks this iteration if attrP itself is wrapped (single-object
+  // attr branch). Capture nextP up-front and we're safe in both branches.
+  KjNode* attrP = rootP->value.firstChildP;
+  while (attrP != NULL)
   {
-    if (attrP->name == NULL)                         continue;
-    if (attrP->name[0] == '@')                       continue;
-    if (strcmp(attrP->name, "id")        == 0)       continue;
-    if (strcmp(attrP->name, "type")      == 0)       continue;
-    if (strcmp(attrP->name, "scope")     == 0)       continue;
-    if (strcmp(attrP->name, "createdAt") == 0)       continue;
-    if (strcmp(attrP->name, "modifiedAt") == 0)      continue;
+    KjNode* nextAttrP = attrP->next;
+
+    if (attrP->name == NULL ||
+        attrP->name[0] == '@' ||
+        strcmp(attrP->name, "id")         == 0 ||
+        strcmp(attrP->name, "type")       == 0 ||
+        strcmp(attrP->name, "scope")      == 0 ||
+        strcmp(attrP->name, "createdAt")  == 0 ||
+        strcmp(attrP->name, "modifiedAt") == 0)
+    {
+      attrP = nextAttrP;
+      continue;
+    }
 
     // EntityTemporal: each attribute is an array of instance objects.
     // Tolerate single-object form (some clients omit the array).
     if (attrP->type == KjArray)
     {
-      // Walk the array carefully — instanceWrap stomps `next`. Capture
-      // each child's `next` pointer before wrapping.
+      // instanceWrap stomps each instance's ->next. Capture nextP before wrapping.
       KjNode* instP = attrP->value.firstChildP;
       while (instP != NULL)
       {
-        KjNode* nextP = instP->next;
+        KjNode* nextInstP = instP->next;
 
         TroeEvent ev;
         memset(&ev, 0, sizeof(ev));
@@ -293,7 +302,7 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
         if (r != TROE_OK) return r;
 
         nsOffset += 1000000;  // +1 ms
-        instP = nextP;
+        instP = nextInstP;
       }
     }
     else if (attrP->type == KjObject)
@@ -312,6 +321,8 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
       int r = timescaleExecAttrInsertLocked(&ev);
       if (r != TROE_OK) return r;
     }
+
+    attrP = nextAttrP;
   }
   return TROE_OK;
 }
