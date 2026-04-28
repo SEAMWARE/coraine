@@ -13,6 +13,7 @@
 //
 
 #include <stddef.h>                                       // NULL
+#include <stdbool.h>                                      // bool
 #include <stdio.h>                                        // snprintf
 #include <stdlib.h>                                       // strtol
 #include <libpq-fe.h>                                     // PG*
@@ -158,6 +159,88 @@ static int currentSchemaVersion(void)
 
 // -----------------------------------------------------------------------------
 //
+// ensureHypertable - convert troe_attrs to a TimescaleDB hypertable when
+// the TimescaleDB extension is available.
+//
+// Runs on every boot, after the versioned migrations. Idempotent:
+//   - No TS extension installed → log notice, return 0 (still success).
+//   - troe_attrs already a hypertable → no-op.
+//   - Otherwise convert with migrate_data => TRUE so any existing rows
+//     are partitioned in place.
+//
+// Done outside the version table on purpose: if a deployment installs
+// TimescaleDB later, the conversion happens automatically on the next
+// boot without a "rerun pending migrations" dance.
+//
+static int ensureHypertable(void)
+{
+  // 1. Is the TimescaleDB extension installed in this database?
+  PGresult* res = PQexec(timescaleConn,
+                         "SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' LIMIT 1");
+  if (PQresultStatus(res) != PGRES_TUPLES_OK)
+  {
+    KT_E("timescale: pg_extension lookup failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(res);
+    return -1;
+  }
+  bool tsInstalled = (PQntuples(res) > 0);
+  PQclear(res);
+
+  if (!tsInstalled)
+  {
+    KT_I("timescale: TimescaleDB extension not installed — running on plain postgres "
+         "(troe_attrs will not be a hypertable)");
+    return 0;
+  }
+
+  // 2. Already a hypertable?
+  res = PQexec(timescaleConn,
+               "SELECT 1 FROM timescaledb_information.hypertables "
+               "WHERE hypertable_name = 'troe_attrs' LIMIT 1");
+  if (PQresultStatus(res) != PGRES_TUPLES_OK)
+  {
+    // Older TimescaleDB versions used _timescaledb_catalog.hypertable —
+    // log the lookup failure and skip; conversion can be triggered by
+    // an admin manually if needed.
+    KT_I("timescale: hypertables view query failed (%s) — skipping auto-conversion",
+         PQerrorMessage(timescaleConn));
+    PQclear(res);
+    return 0;
+  }
+  bool alreadyHypertable = (PQntuples(res) > 0);
+  PQclear(res);
+
+  if (alreadyHypertable)
+  {
+    KT_V("timescale: troe_attrs is already a hypertable");
+    return 0;
+  }
+
+  // 3. Convert. modified_at is NOT NULL on every row (broker-receipt time)
+  // so it's the safe time-axis. migrate_data => TRUE handles any rows
+  // that were already inserted before this conversion.
+  KT_I("timescale: converting troe_attrs to hypertable (chunk_time_interval = 7 days)");
+  res = PQexec(timescaleConn,
+               "SELECT create_hypertable('troe_attrs', 'modified_at', "
+               "                         chunk_time_interval => INTERVAL '7 days', "
+               "                         if_not_exists => TRUE, "
+               "                         migrate_data => TRUE)");
+  if (PQresultStatus(res) != PGRES_TUPLES_OK)
+  {
+    KT_E("timescale: create_hypertable failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(res);
+    return -1;
+  }
+  PQclear(res);
+
+  KT_I("timescale: troe_attrs converted to hypertable");
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleMigrate -
 //
 int timescaleMigrate(void)
@@ -209,7 +292,14 @@ int timescaleMigrate(void)
     if (execSimple("COMMIT") != 0)                              return -1;
   }
 
-  // 4. Release advisory lock.
+  // 4. Hypertable conversion (idempotent, no-op when TS isn't installed).
+  if (ensureHypertable() != 0)
+  {
+    // Don't fail the boot on hypertable issues — the plain-table path
+    // still works. The error is logged inside ensureHypertable().
+  }
+
+  // 5. Release advisory lock.
   char unlockSql[128];
   snprintf(unlockSql, sizeof(unlockSql), "SELECT pg_advisory_unlock(%lld)",
            (long long) TIMESCALE_MIGRATE_ADVISORY_LOCK_ID);
