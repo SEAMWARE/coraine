@@ -234,9 +234,10 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
 
 // -----------------------------------------------------------------------------
 //
-// execEntityInsert -
+// timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
+// Caller must hold timescaleMutex.
 //
-static int execEntityInsert(const TroeEvent* evP)
+int timescaleExecEntityInsertLocked(const TroeEvent* evP)
 {
   char tsExpr[64];
   nsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
@@ -269,9 +270,10 @@ static int execEntityInsert(const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
-// execAttrInsert -
+// timescaleExecAttrInsertLocked - INSERT one row into troe_attrs.
+// Caller must hold timescaleMutex.
 //
-static int execAttrInsert(const TroeEvent* evP)
+int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 {
   AttrCols cols;
   extractCols((KjNode*) evP->attrSnapshot, &cols);
@@ -373,7 +375,7 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
     attrEv.attrSnapshot   = attrP;
     attrEv.entitySnapshot = evP->entitySnapshot;
 
-    int r = execAttrInsert(&attrEv);
+    int r = timescaleExecAttrInsertLocked(&attrEv);
     if (r != TROE_OK) return r;
   }
   return TROE_OK;
@@ -390,7 +392,7 @@ int timescaleEntityEvent(const TroeEvent* evP)
   if (evP == NULL || timescaleConn == NULL) return TROE_ERR;
 
   pthread_mutex_lock(&timescaleMutex);
-  int r = execEntityInsert(evP);
+  int r = timescaleExecEntityInsertLocked(evP);
 
   // For entity-level create / replace, fan out into per-attr rows so
   // the initial state is queryable on the temporal-attrs side.
@@ -412,7 +414,7 @@ int timescaleAttrEvent(const TroeEvent* evP)
   if (evP == NULL || timescaleConn == NULL) return TROE_ERR;
 
   pthread_mutex_lock(&timescaleMutex);
-  int r = execAttrInsert(evP);
+  int r = timescaleExecAttrInsertLocked(evP);
   pthread_mutex_unlock(&timescaleMutex);
   return r;
 }
@@ -446,11 +448,11 @@ int timescaleEventList(const TroeEvent* listHead, int count)
     int r;
     if (evP->op >= TroeOpAttrCreated)
     {
-      r = execAttrInsert(evP);
+      r = timescaleExecAttrInsertLocked(evP);
     }
     else
     {
-      r = execEntityInsert(evP);
+      r = timescaleExecEntityInsertLocked(evP);
 
       // Entity-level create / replace fan out into per-attr rows so
       // the initial state is queryable on the temporal-attrs side.

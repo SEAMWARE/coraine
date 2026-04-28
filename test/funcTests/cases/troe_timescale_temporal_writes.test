@@ -1,0 +1,240 @@
+#
+# FILE            troe_timescale_temporal_writes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Temporal write endpoints — direct manipulation of TRoE history,
+# bypassing the current-state DB. Local-only first cut; distops are
+# deferred (project_temporal_distops_deferred memory).
+#
+#   POST   /temporal/entities                            § 5.6.11 / § 6.18.3.1
+#   POST   /temporal/entities/{id}/attrs                 § 5.6.12 / § 6.20.3.1
+#   DELETE /temporal/entities/{id}/attrs/{attr}          § 5.6.13 / § 6.21.3.1
+#   DELETE /temporal/entities/{id}                       § 5.6.16 / § 6.19.3.2
+#
+--NAME--
+TRoE timescale - temporal write endpoints (Create / Add / Delete / Delete-Attr)
+
+--TAGS--
+troe timescale postgres temporal create delete
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_writes" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_writes" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_writes --troeUser postgres
+
+--RUN--
+
+echo "01. POST /temporal/entities — create urn:V1 with two speed instances"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T10:00:00Z"}
+  ]
+}' --include 2>&1 | python3 -c "
+import sys
+text = sys.stdin.read()
+sep = text.find('\r\n\r\n')
+if sep < 0: sep = text.find('\n\n')
+hdr = text[:sep] if sep >= 0 else text
+status = hdr.replace('\r','').splitlines()[0] if hdr else ''
+loc = next((l.replace('\r','') for l in hdr.replace('\r','').splitlines() if l.lower().startswith('location')), '(none)')
+print('  status:', status)
+print('  Location:', loc)
+"
+echo
+echo
+
+
+echo "02. GET /temporal/entities/urn:V1 — confirm 2 instances landed"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+sk = next((k for k in d if short(k) == 'speed'), None)
+n  = len(d[sk]) if sk else 0
+print('  id:', d.get('id'))
+print('  speed instance count:', n)"
+echo
+echo
+
+
+echo "03. POST /temporal/entities/urn:V1/attrs — add 1 more speed + 1 color"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs --payload '{
+  "speed": [{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}],
+  "color": [{"type":"Property","value":"red","observedAt":"2026-04-28T09:30:00Z"}]
+}' --include 2>&1 | python3 -c "
+import sys
+text = sys.stdin.read()
+sep = text.find('\r\n\r\n')
+if sep < 0: sep = text.find('\n\n')
+hdr = text[:sep] if sep >= 0 else text
+print('  status:', hdr.replace('\r','').splitlines()[0])"
+echo
+echo
+
+
+echo "04. GET — speed now has 3 instances, color has 1"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+for k in sorted(d):
+  if k in ('id','type'): continue
+  print(f\"  {short(k)} count: {len(d[k])}\")"
+echo
+echo
+
+
+echo "05. DELETE /temporal/entities/urn:V1/attrs/color — drops the color attr"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs/color -X DELETE --include 2>&1 | python3 -c "
+import sys
+text = sys.stdin.read()
+sep = text.find('\r\n\r\n')
+if sep < 0: sep = text.find('\n\n')
+hdr = text[:sep] if sep >= 0 else text
+print('  status:', hdr.replace('\r','').splitlines()[0])"
+echo
+echo
+
+
+echo "06. GET — only speed remains"
+echo "============================"
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
+attrs = sorted(short(k) for k in d if k not in ('id','type'))
+print(f'  attrs: {attrs}')"
+echo
+echo
+
+
+echo "07. DELETE /temporal/entities/urn:V1 — drops everything"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE --include 2>&1 | python3 -c "
+import sys
+text = sys.stdin.read()
+sep = text.find('\r\n\r\n')
+if sep < 0: sep = text.find('\n\n')
+hdr = text[:sep] if sep >= 0 else text
+print('  status:', hdr.replace('\r','').splitlines()[0])"
+echo
+echo
+
+
+echo "08. GET after delete → 404"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | head -1
+echo
+echo
+
+
+echo "09. DELETE the same entity again → 404 (already gone)"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE --include 2>&1 | python3 -c "
+import sys
+text = sys.stdin.read()
+sep = text.find('\r\n\r\n')
+if sep < 0: sep = text.find('\n\n')
+hdr = text[:sep] if sep >= 0 else text
+print('  status:', hdr.replace('\r','').splitlines()[0])"
+echo
+echo
+
+
+echo "10. POST attrs to non-existent entity → 404"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:NoSuch/attrs --payload '{
+  "speed":[{"type":"Property","value":1,"observedAt":"2026-04-28T09:00:00Z"}]
+}' --include 2>&1 | python3 -c "
+import sys
+text = sys.stdin.read()
+sep = text.find('\r\n\r\n')
+if sep < 0: sep = text.find('\n\n')
+hdr = text[:sep] if sep >= 0 else text
+print('  status:', hdr.replace('\r','').splitlines()[0])"
+echo
+echo
+
+
+--EXPECT--
+01. POST /temporal/entities — create urn:V1 with two speed instances
+====================================================================
+  status: HTTP/1.1 201 Created
+  Location: Location: /ngsi-ld/v1/temporal/entities/urn:V1
+
+
+02. GET /temporal/entities/urn:V1 — confirm 2 instances landed
+==============================================================
+  id: urn:V1
+  speed instance count: 2
+
+
+03. POST /temporal/entities/urn:V1/attrs — add 1 more speed + 1 color
+=====================================================================
+  status: HTTP/1.1 204 No Content
+
+
+04. GET — speed now has 3 instances, color has 1
+================================================
+  color count: 1
+  speed count: 3
+
+
+05. DELETE /temporal/entities/urn:V1/attrs/color — drops the color attr
+=======================================================================
+  status: HTTP/1.1 204 No Content
+
+
+06. GET — only speed remains
+============================
+  attrs: ['speed']
+
+
+07. DELETE /temporal/entities/urn:V1 — drops everything
+=======================================================
+  status: HTTP/1.1 204 No Content
+
+
+08. GET after delete → 404
+==========================
+HTTP/1.1 404 Not Found
+
+
+09. DELETE the same entity again → 404 (already gone)
+=====================================================
+  status: HTTP/1.1 404 Not Found
+
+
+10. POST attrs to non-existent entity → 404
+===========================================
+  status: HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_writes" >/dev/null 2>&1

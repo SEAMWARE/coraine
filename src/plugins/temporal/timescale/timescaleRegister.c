@@ -17,6 +17,7 @@
 #include "temporal/timescale/timescaleInit.h"             // timescaleInit, timescaleClose
 #include "temporal/timescale/timescaleEvent.h"            // timescaleEntityEvent, timescaleAttrEvent, timescaleEventList
 #include "temporal/timescale/timescaleQuery.h"            // timescaleEntityTemporalRetrieve
+#include "temporal/timescale/timescaleHistoryWrite.h"     // timescaleEntityTemporalDelete, etc.
 
 
 
@@ -36,8 +37,12 @@ void troeRegister(TroeDriver* driverP)
   driverP->entityEvent  = timescaleEntityEvent;
   driverP->attrEvent    = timescaleAttrEvent;
   driverP->eventList    = timescaleEventList;
-  driverP->entityTemporalQuery    = timescaleEntityTemporalQuery;
-  driverP->entityTemporalRetrieve = timescaleEntityTemporalRetrieve;
+  driverP->entityTemporalQuery     = timescaleEntityTemporalQuery;
+  driverP->entityTemporalRetrieve  = timescaleEntityTemporalRetrieve;
+  driverP->entityTemporalDelete    = timescaleEntityTemporalDelete;
+  driverP->entityTemporalAttrDelete = timescaleEntityTemporalAttrDelete;
+  driverP->entityTemporalCreate    = timescaleEntityTemporalCreate;
+  driverP->entityTemporalAttrsAdd  = timescaleEntityTemporalAttrsAdd;
   driverP->versionInfo  = NULL;
   driverP->dumpInfo     = NULL;
 }

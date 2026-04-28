@@ -190,6 +190,35 @@ typedef int  (*TroeEntityTemporalRetrieveFunc)(Tenant* tenantP, const char* enti
                                                TroeQueryFilter* fP, KjNode** resultPP,
                                                TroeRangeInfo* rangeOut);
 
+//
+// Delete the entire temporal evolution of one entity (§ 5.6.16).
+// Returns TROE_OK on success, TROE_NOT_FOUND when the entity has no
+// rows in TRoE, TROE_ERR on DB failure.
+//
+typedef int  (*TroeEntityTemporalDeleteFunc)(Tenant* tenantP, const char* entityId);
+
+//
+// Delete one attribute from the temporal evolution (§ 5.6.13).
+// Match: entityId + attrName (expanded IRI). Optional datasetId narrows
+// to a single instance set; when NULL + deleteAll==false, only the
+// default dataset is removed; when deleteAll==true, all datasets.
+//
+typedef int  (*TroeEntityTemporalAttrDeleteFunc)(Tenant* tenantP, const char* entityId,
+                                                 const char* attrName,
+                                                 const char* datasetId, bool deleteAll);
+
+//
+// Create / Add — both insert into the TRoE store via raw EntityTemporal
+// trees, bypassing the current-state DB. The plugin treats each row as
+// an authoritative historical record (ie. doesn't generate side-effects
+// like fanout). NULL implementation → 501 from the service routine.
+//
+// rootP is the (already JSON-LD expanded) EntityTemporal root.
+//
+typedef int  (*TroeEntityTemporalCreateFunc)(Tenant* tenantP, KjNode* rootP);
+typedef int  (*TroeEntityTemporalAttrsAddFunc)(Tenant* tenantP, const char* entityId,
+                                               KjNode* rootP);
+
 typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
 //
@@ -222,6 +251,10 @@ typedef struct TroeDriver
 
   TroeEntityTemporalQueryFunc       entityTemporalQuery;
   TroeEntityTemporalRetrieveFunc    entityTemporalRetrieve;
+  TroeEntityTemporalDeleteFunc      entityTemporalDelete;
+  TroeEntityTemporalAttrDeleteFunc  entityTemporalAttrDelete;
+  TroeEntityTemporalCreateFunc      entityTemporalCreate;
+  TroeEntityTemporalAttrsAddFunc    entityTemporalAttrsAdd;
 
   TroeVersionInfoFunc               versionInfo;
   TroeDumpInfoFunc                  dumpInfo;       // dev/test only — NULL for prod plugins

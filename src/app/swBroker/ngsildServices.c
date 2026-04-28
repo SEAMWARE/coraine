@@ -65,6 +65,10 @@
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
 #include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h" // postTemporalEntityBatchQuery
+#include "serviceRoutines/deleteEntityTemporal.h"      // deleteEntityTemporal
+#include "serviceRoutines/deleteEntityTemporalAttr.h"  // deleteEntityTemporalAttr
+#include "serviceRoutines/postEntitiesTemporal.h"      // postEntitiesTemporal
+#include "serviceRoutines/postEntityTemporalAttrs.h"   // postEntityTemporalAttrs
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
@@ -145,10 +149,15 @@ SwRestServiceSimplified ngsildCoreServices[] =
   // Context Source Identity (§ 5.15 / § 6.33)
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone },
 
-  // Temporal Operations (§ 5.7.3 / § 6.19.3.1, § 5.7.4 / § 6.18.3.2 + § 6.24.3.1)
-  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,         LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpNone },
-  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*",                getEntityTemporal,           LD_PARAMS_GET_TEMPORAL_ENTITY,     LdOpNone },
-  { SwVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery, LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpNone }
+  // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
+  // More-specific routes first — the router matches in registration order.
+  { SwVerbDelete, "/ngsi-ld/v1/temporal/entities/*/attrs/*",        deleteEntityTemporalAttr,      LD_PARAMS_DELETE_TEMPORAL_ATTR,    LdOpNone },
+  { SwVerbPost,   "/ngsi-ld/v1/temporal/entities/*/attrs",          postEntityTemporalAttrs,       0,                                 LdOpNone },
+  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities/*",                getEntityTemporal,             LD_PARAMS_GET_TEMPORAL_ENTITY,     LdOpNone },
+  { SwVerbDelete, "/ngsi-ld/v1/temporal/entities/*",                deleteEntityTemporal,          0,                                 LdOpNone },
+  { SwVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpNone },
+  { SwVerbPost,   "/ngsi-ld/v1/temporal/entities",                  postEntitiesTemporal,          0,                                 LdOpNone },
+  { SwVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpNone }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);
