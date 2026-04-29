@@ -1,0 +1,198 @@
+#
+# FILE            troe_timescale_temporal_distop_query_inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on the multi-entity temporal GET (§ 5.7.4 / § 5.7.5).
+#
+# CB has an INCLUSIVE registration pointing at CP1 covering Vehicle's
+# queryTemporal op (speed only). After populating each broker:
+#   CB:  urn:V1 (speed=10,20), urn:V2 (speed=15,25)   — local
+#   CP1: urn:V1 (speed=30,40), urn:V3 (speed=50,60)   — remote
+# A GET /temporal/entities?type=Vehicle on CB unions:
+#   urn:V1 → 4 speed instances merged
+#   urn:V2 → 2 local-only instances
+#   urn:V3 → 2 remote-only instances
+#
+--NAME--
+TRoE timescale - temporal distop query, inclusive
+
+--TAGS--
+troe timescale postgres temporal distops registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cb"  >/dev/null
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cp1" >/dev/null
+swBrokerStart        --troe timescale --troeName sw_troe_dist_cb  --troeUser postgres
+swBrokerStart -role CP1 --troe timescale --troeName sw_troe_dist_cp1 --troeUser postgres
+
+--RUN--
+
+echo "01. Register CB → CP1 (inclusive, queryTemporal) for any Vehicle/speed"
+echo "======================================================================"
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "inclusive",
+  "operations": ["queryTemporal"],
+  "information":[
+    {
+      "entities":   [{"type":"Vehicle"}],
+      "properties": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed CB with urn:V1 + urn:V2 (2 instances each)"
+echo "==================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+payload='{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":15,"observedAt":"2026-04-28T09:30:00Z"}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":25,"observedAt":"2026-04-28T10:30:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "03. Seed CP1 with urn:V1 + urn:V3 (2 instances each)"
+echo "===================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+payload='{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-28T13:00:00Z"}}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "04. GET /temporal/entities?type=Vehicle on CB — 3 entities, V1 merged"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z'
+echo
+echo
+
+
+--EXPECT--
+01. Register CB → CP1 (inclusive, queryTemporal) for any Vehicle/speed
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CB-CP1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Seed CB with urn:V1 + urn:V2 (2 instances each)
+===================================================
+done
+
+
+03. Seed CP1 with urn:V1 + urn:V3 (2 instances each)
+====================================================
+done
+
+
+04. GET /temporal/entities?type=Vehicle on CB — 3 entities, V1 merged
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 10
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T10:00:00.000Z",
+        "type": "Property",
+        "value": 20
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T11:00:00.000Z",
+        "type": "Property",
+        "value": 30
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T12:00:00.000Z",
+        "type": "Property",
+        "value": 40
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:30:00.000Z",
+        "type": "Property",
+        "value": 15
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T10:30:00.000Z",
+        "type": "Property",
+        "value": 25
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T13:00:00.000Z",
+        "type": "Property",
+        "value": 50
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T14:00:00.000Z",
+        "type": "Property",
+        "value": 60
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
