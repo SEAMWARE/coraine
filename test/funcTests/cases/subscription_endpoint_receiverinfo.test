@@ -1,0 +1,79 @@
+#
+# FILE            subscription_endpoint_receiverinfo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.15 endpoint.receiverInfo — KeyValuePair[] forwarded as outbound
+# HTTP headers when the broker sends a notification.
+#
+--NAME--
+Subscription notification - endpoint.receiverInfo as outbound headers (§ 5.2.15)
+
+--TAGS--
+subscription notification receiverinfo
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Create sub with receiverInfo (X-Token, X-Tenant)"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:RI",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7711/notify",
+      "receiverInfo": [
+        {"key": "X-Token",  "value": "abc123"},
+        {"key": "X-Tenant", "value": "demo"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Trigger a notification"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+echo
+echo
+
+
+echo "03. Inspect ftClient dump - X-Token and X-Tenant headers were forwarded"
+echo "======================================================================="
+ftClientDump --port 7711 | grep -E '"X-(Token|Tenant)"'
+echo
+echo
+
+
+--EXPECT--
+01. Create sub with receiverInfo (X-Token, X-Tenant)
+====================================================
+HTTP/1.1 201 Created
+
+
+02. Trigger a notification
+==========================
+HTTP/1.1 201 Created
+
+
+03. Inspect ftClient dump - X-Token and X-Tenant headers were forwarded
+=======================================================================
+      "X-Tenant": "demo",
+      "X-Token": "abc123"
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop
