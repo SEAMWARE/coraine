@@ -1,0 +1,249 @@
+#
+# FILE            subscription_notify_pick_omit_lang.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.14 / § 4.21 / § 4.15: subscription notification.pick / .omit /
+# subscription-level lang shape the entity body inside notifications.
+#
+--NAME--
+Subscription notification - pick / omit / lang body shaping (§ 5.2.14)
+
+--TAGS--
+subscription notification format pick
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+echo "01. Sub with notification.pick=[speed]"
+echo "======================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Pick",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"},
+    "pick": ["speed"]
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Sub with notification.omit=[color]"
+echo "======================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Omit",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"},
+    "omit": ["color"]
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. Sub with subscription-level lang=es"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Lang",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "lang": "es",
+  "notification": {
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. Create entity with speed + color + name (LanguageProperty) - 3 notifs"
+echo "========================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed":  {"type":"Property","value":80},
+  "color":  {"type":"Property","value":"red"},
+  "name":   {"type":"LanguageProperty","languageMap":{"en":"Hello","es":"Hola"}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+sleep 0.4
+echo
+
+
+echo "05. Dump ftClient - 3 notifications, each shaped per its sub"
+echo "============================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Sub with notification.pick=[speed]
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Pick
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Sub with notification.omit=[color]
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Omit
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Sub with subscription-level lang=es
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Lang
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Create entity with speed + color + name (LanguageProperty) - 3 notifs
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+05. Dump ftClient - 3 notifications, each shaped per its sub
+============================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 80
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f]{8}:[0-9]{4})",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Pick",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "name": {
+            "languageMap": {
+              "en": "Hello",
+              "es": "Hola"
+            },
+            "type": "LanguageProperty"
+          },
+          "speed": {
+            "type": "Property",
+            "value": 80
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f]{8}:[0-9]{4})",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Omit",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "color": {
+            "type": "Property",
+            "value": "red"
+          },
+          "id": "urn:V1",
+          "name": {
+            "lang": "es",
+            "type": "Property",
+            "value": "Hola"
+          },
+          "speed": {
+            "type": "Property",
+            "value": 80
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f]{8}:[0-9]{4})",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Lang",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+ftClientStop
