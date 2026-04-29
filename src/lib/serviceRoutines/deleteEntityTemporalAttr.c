@@ -11,21 +11,86 @@
 //   ?deleteAll=true    — every instance regardless of datasetId
 // Defaults: only the default-dataset (datasetId='') is deleted.
 //
+// Distops: broadcast DELETE to CSRs that cover the attr and support
+// deleteAttrsTemporal.
+//
 
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
+#include <stdlib.h>                                  // free
+#include <string.h>                                  // strcmp, strlen, strcpy
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 #include "swJsonld/swldExpand.h"                     // swldExpand
+#include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
+#include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/SwNgsild.h"                       // swNgsild fields
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
+#include "swNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
 
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/deleteEntityTemporalAttr.h"  // Own interface
+
+
+
+static bool csrCoversAttr(LdRegCacheItem* csr, const char* attrIri)
+{
+  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+  {
+    if (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL)
+      return true;
+    if (riP->propertyNamesV != NULL)
+      for (int i = 0; riP->propertyNamesV[i] != NULL; i++)
+        if (strcmp(riP->propertyNamesV[i], attrIri) == 0) return true;
+    if (riP->relationshipNamesV != NULL)
+      for (int i = 0; riP->relationshipNamesV[i] != NULL; i++)
+        if (strcmp(riP->relationshipNamesV[i], attrIri) == 0) return true;
+  }
+  return false;
+}
+
+
+
+static int forwardDeleteAttr(LdRegCacheItem* csr,
+                             const char*     entityId,
+                             const char*     attrName,
+                             const char*     queryString,
+                             const char*     ownAlias,
+                             const char**    errorDetailPP)
+{
+  const char* prefix = "/ngsi-ld/v1/temporal/entities/";
+  const char* mid    = "/attrs/";
+  int   baseLen = strlen(csr->endpoint);
+  int   prefLen = strlen(prefix);
+  int   idLen   = strlen(entityId);
+  int   midLen  = strlen(mid);
+  int   atLen   = strlen(attrName);
+  int   qsLen   = (queryString != NULL && queryString[0] != 0) ? (int) strlen(queryString) : 0;
+
+  char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + qsLen + 1);
+  int   pos = 0;
+  memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
+  memcpy(url + pos, prefix, prefLen);        pos += prefLen;
+  memcpy(url + pos, entityId, idLen);        pos += idLen;
+  memcpy(url + pos, mid, midLen);            pos += midLen;
+  memcpy(url + pos, attrName, atLen);        pos += atLen;
+  if (qsLen > 0)
+  {
+    url[pos++] = '?';
+    memcpy(url + pos, queryString, qsLen); pos += qsLen;
+  }
+  url[pos] = 0;
+
+  return ldDistOpSend(csr, SwVerbDelete, url, NULL, 0, ownAlias, errorDetailPP);
+}
 
 
 
@@ -53,7 +118,6 @@ bool deleteEntityTemporalAttr(void)
     return true;
   }
 
-  // Expand attribute name via the request @context (or core context).
   ldContextResolve();
   SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
   const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
@@ -61,27 +125,114 @@ bool deleteEntityTemporalAttr(void)
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
-  // datasetId: NULL → default dataset; deleteAll bool from URL parser.
   const char* datasetId = NULL;
   if (swNgsild.datasetIdV != NULL && swNgsild.datasetIdV[0] != NULL)
     datasetId = swNgsild.datasetIdV[0];
 
-  int r = troe.entityTemporalAttrDelete(tenantP, entityId, attrIri,
-                                        datasetId, swNgsild.deleteAll);
-
-  if (r == TROE_NOT_FOUND)
+  // Forwarded query string mirrors the request's datasetId / deleteAll.
+  // Build directly from the parsed swNgsild fields rather than echoing
+  // raw URL params (which may have been URL-decoded already).
+  char* fwdQs = (char*) kaAlloc(&swRest.kalloc, 256);
+  int   qpos  = 0;
+  if (datasetId != NULL)
+    qpos += snprintf(fwdQs + qpos, 256 - qpos, "datasetId=%s", datasetId);
+  if (swNgsild.deleteAll)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-            "no temporal data for entity '%s' / attribute '%s'", entityId, attrWild);
-    return true;
+    if (qpos > 0) fwdQs[qpos++] = '&';
+    qpos += snprintf(fwdQs + qpos, 256 - qpos, "deleteAll=true");
   }
-  if (r != TROE_OK)
+  fwdQs[qpos] = 0;
+
+  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  bool    anySucceeded = false;
+
+  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  {
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+
+    if (!ldDistOpLoopDetected(ownAlias))
+    {
+      LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
+      for (int m = 0; m < 3; m++)
+      {
+        LdRegCacheItem** matchV = NULL;
+        int matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
+                                                entityId, NULL, modes[m], &matchV);
+
+        for (int i = 0; i < matchN; i++)
+        {
+          LdRegCacheItem* csr = matchV[i];
+          if (csr->endpoint == NULL)                          continue;
+          if (ldDistOpCsrWouldLoop(csr, ownAlias))            continue;
+          if (!ldRegOpSupported(csr, LdOpDeleteAttrsTemporal)) continue;
+          if (!csrCoversAttr(csr, attrIri))                   continue;
+
+          const char* upErr  = NULL;
+          int         upCode = forwardDeleteAttr(csr, entityId, attrWild, fwdQs, ownAlias, &upErr);
+
+          if (upCode == 404)
+            continue;
+          if (upCode < 200 || upCode >= 300)
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                  ldDistOpForwardFailureReason(upCode, upErr),
+                                  csr->regId);
+          else
+            anySucceeded = true;
+        }
+
+        if (matchV != NULL) free(matchV);
+      }
+    }
+  }
+
+  int r = troe.entityTemporalAttrDelete(tenantP, entityId, attrIri, datasetId, swNgsild.deleteAll);
+
+  bool localOk       = (r == TROE_OK);
+  bool localNotFound = (r == TROE_NOT_FOUND);
+
+  if (localOk)
+    anySucceeded = true;
+  else if (!localNotFound && !anySucceeded)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
             "temporal attribute delete failed for '%s'/'%s'", entityId, attrWild);
     return true;
   }
+  else if (!localOk && !localNotFound)
+  {
+    char detail[256];
+    snprintf(detail, sizeof(detail),
+             "local temporal attr delete failed for '%s'/'%s'", entityId, attrWild);
+    ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                          LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                          detail, NULL);
+  }
 
-  swRest.out.httpStatusCode = 204;
+  if (!anySucceeded && localNotFound)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+            "no temporal data for entity '%s' / attribute '%s'", entityId, attrWild);
+    return true;
+  }
+
+  int errorsCount = 0;
+  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+
+  if (errorsCount == 0)
+  {
+    swRest.out.httpStatusCode = 204;
+    return true;
+  }
+
+  KjNode* result     = kjObject(swRest.kjsonP, NULL);
+  KjNode* successArr = kjArray(swRest.kjsonP, "success");
+  if (anySucceeded)
+    kjChildAdd(successArr, kjString(swRest.kjsonP, NULL, entityId));
+  kjChildAdd(result, successArr);
+  kjChildAdd(result, errorsArrayP);
+
+  swRest.out.responseTree   = result;
+  swRest.out.httpStatusCode = anySucceeded ? 207 : 502;
   return true;
 }

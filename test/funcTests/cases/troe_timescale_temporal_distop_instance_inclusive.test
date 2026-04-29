@@ -1,0 +1,185 @@
+#
+# FILE            troe_timescale_temporal_distop_instance_inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on the per-instance temporal writes (§ 5.6.14 / § 5.6.15
+# — updateAttrInstanceTemporal / deleteAttrInstanceTemporal).
+#
+# CB has an INCLUSIVE registration to CP1 covering Vehicle/speed for the
+# instance ops + retrieveTemporal. After seeding both brokers via the
+# upsert fan-out, we discover CP1's instanceId via direct GET on CP1,
+# then PATCH and DELETE that instanceId from CB. CB's local TRoE will
+# 404 on those instanceIds (each broker generates its own UUIDs), but
+# the forward to CP1 succeeds → CB returns 204. We verify the changes
+# landed on CP1 with a final direct GET.
+#
+--NAME--
+TRoE timescale - temporal distop instance writes, inclusive
+
+--TAGS--
+troe timescale postgres temporal distops registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cb"  >/dev/null
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cp1" >/dev/null
+swBrokerStart        --troe timescale --troeName sw_troe_dist_cb  --troeUser postgres
+swBrokerStart -role CP1 --troe timescale --troeName sw_troe_dist_cp1 --troeUser postgres
+
+--RUN--
+
+echo "01. Register CB->CP1 (inclusive, instance ops + retrieveTemporal)"
+echo "================================================================="
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "inclusive",
+  "operations": ["upsertTemporal","updateAttrInstanceTemporal","deleteAttrInstanceTemporal","retrieveTemporal"],
+  "information":[
+    {
+      "entities":   [{"type":"Vehicle"}],
+      "properties": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" --include 2>&1 | python3 -c "
+import sys
+print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
+echo
+echo
+
+
+echo "02. Seed urn:V1 on CB (upsert fan-out → instance lands on both)"
+echo "==============================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" --include 2>&1 | python3 -c "
+import sys
+print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
+echo
+echo
+
+
+echo "03. Discover CP1's local instanceId via direct GET on CP1"
+echo "========================================================="
+INSTANCE_ID=$(swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+sk = next((k for k in d if k.endswith('/speed') or k=='speed'), None)
+print(d[sk][0]['instanceId'])")
+echo "  instanceId: prefix-stable, suffix-uuid"
+case "$INSTANCE_ID" in urn:ngsi-ld:Instance:*) echo "  format: ok" ;; *) echo "  format: BAD ($INSTANCE_ID)" ;; esac
+echo
+echo
+
+
+echo "04. PATCH the CP1 instance via CB (forward succeeds, local 404 swallowed)"
+echo "========================================================================="
+swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
+  -X PATCH --payload '{"type":"Property","value":99,"observedAt":"2026-04-28T09:30:00Z"}' --include 2>&1 | python3 -c "
+import sys
+print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
+echo
+echo
+
+
+echo "05. GET on CP1 - verify value patched to 99"
+echo "==========================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+sk = next((k for k in d if k.endswith('/speed') or k=='speed'), None)
+print('  speed[0].value:', d[sk][0]['value'])"
+echo
+echo
+
+
+echo "06. DELETE the CP1 instance via CB (forward succeeds, local 404 swallowed)"
+echo "=========================================================================="
+swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
+  -X DELETE --include 2>&1 | python3 -c "
+import sys
+print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
+echo
+echo
+
+
+echo "07. GET on CP1 - speed instance gone, only id+type left"
+echo "======================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+import sys, json
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+attrs = sorted(k.split('/')[-1] for k in d if k not in ('id','type'))
+print('  attrs left:', attrs)"
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 (inclusive, instance ops + retrieveTemporal)
+=================================================================
+  status: 201 Created
+
+
+02. Seed urn:V1 on CB (upsert fan-out → instance lands on both)
+===============================================================
+  status: 201 Created
+
+
+03. Discover CP1's local instanceId via direct GET on CP1
+=========================================================
+  instanceId: prefix-stable, suffix-uuid
+  format: ok
+
+
+04. PATCH the CP1 instance via CB (forward succeeds, local 404 swallowed)
+=========================================================================
+  status: 204 No Content
+
+
+05. GET on CP1 - verify value patched to 99
+===========================================
+  speed[0].value: 99
+
+
+06. DELETE the CP1 instance via CB (forward succeeds, local 404 swallowed)
+==========================================================================
+  status: 204 No Content
+
+
+07. GET on CP1 - speed instance gone, only id+type left
+=======================================================
+  attrs left: []
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1

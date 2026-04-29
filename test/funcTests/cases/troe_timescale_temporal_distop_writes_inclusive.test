@@ -1,0 +1,238 @@
+#
+# FILE            troe_timescale_temporal_distop_writes_inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on the URL-shaped temporal writes (§ 5.6.12 / § 5.6.13 /
+# § 5.6.16 — appendAttrsTemporal / deleteAttrsTemporal / deleteTemporal).
+#
+# CB has an INCLUSIVE registration to CP1 covering Vehicle/speed for all
+# four write ops (upsert + appendAttrs + deleteAttrs + delete). Each
+# write fans out to CP1; we verify by GET on CP1 directly.
+#
+--NAME--
+TRoE timescale - temporal distop URL writes, inclusive
+
+--TAGS--
+troe timescale postgres temporal distops registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cb"  >/dev/null
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cp1" >/dev/null
+swBrokerStart        --troe timescale --troeName sw_troe_dist_cb  --troeUser postgres
+swBrokerStart -role CP1 --troe timescale --troeName sw_troe_dist_cp1 --troeUser postgres
+
+--RUN--
+
+echo "01. Register CB->CP1 (inclusive, all temporal write ops + retrieveTemporal)"
+echo "==========================================================================="
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "inclusive",
+  "operations": ["upsertTemporal","appendAttrsTemporal","deleteAttrsTemporal","deleteTemporal","retrieveTemporal"],
+  "information":[
+    {
+      "entities":   [{"type":"Vehicle"}],
+      "properties": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed urn:V1 on CB (upsert, fan-out)"
+echo "======================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. POST /attrs adds a second speed instance (appendAttrs distop)"
+echo "================================================================="
+payload='{
+  "speed": [
+    { "type": "Property", "value": 20, "observedAt": "2026-04-28T10:00:00Z" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs --payload "$payload"
+echo
+echo
+
+
+echo "04. GET temporal/urn:V1 on CP1 - 2 instances persisted via fan-out"
+echo "=================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "05. DELETE /attrs/speed?deleteAll=true on CB (deleteAttrs distop)"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed?deleteAll=true' -X DELETE
+echo
+echo
+
+
+echo "06. GET temporal/urn:V1 on CP1 - speed instances gone, only id+type left"
+echo "========================================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "07. Re-seed urn:V1 then DELETE /entities/urn:V1 on CB (deleteTemporal distop)"
+echo "============================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    { "type": "Property", "value": 30, "observedAt": "2026-04-28T11:00:00Z" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" >/dev/null
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE
+echo
+echo
+
+
+echo "08. GET temporal/urn:V1 on CP1 - 404"
+echo "===================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 (inclusive, all temporal write ops + retrieveTemporal)
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CB-CP1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Seed urn:V1 on CB (upsert, fan-out)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST /attrs adds a second speed instance (appendAttrs distop)
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET temporal/urn:V1 on CP1 - 2 instances persisted via fan-out
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T10:00:00.000Z",
+      "type": "Property",
+      "value": 20
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. DELETE /attrs/speed?deleteAll=true on CB (deleteAttrs distop)
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET temporal/urn:V1 on CP1 - speed instances gone, only id+type left
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+07. Re-seed urn:V1 then DELETE /entities/urn:V1 on CB (deleteTemporal distop)
+=============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET temporal/urn:V1 on CP1 - 404
+====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "no temporal data for entity 'urn:V1'",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1

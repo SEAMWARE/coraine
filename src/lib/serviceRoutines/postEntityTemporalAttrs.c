@@ -6,27 +6,117 @@
 // Copyright 2026 Seamware
 //
 // POST /ngsi-ld/v1/temporal/entities/{id}/attrs — § 5.6.12 / § 6.20.3.1.
-// Add Attributes to Temporal Evolution of an Entity. The body is an
-// EntityTemporal Fragment — top-level id/type are optional (the entity
-// id is in the URL); each per-attribute array of instances is appended
-// to TRoE.
+// Add Attributes to Temporal Evolution. Body is an EntityTemporal Fragment;
+// each per-attribute array of instances is appended to TRoE.
 //
-// Response: 204 No Content on success, 404 if the entity has no
-// existing temporal evolution.
+// Distops (§ 4.3.6 / § 5.6.12.4): exclusive/redirect chop matching attrs
+// out of the local body before the local append; inclusive forwards a
+// clone and keeps everything locally. CSRs must support
+// appendAttrsTemporal (NOT in any default group per § 4.20 Table 4.20-2).
 //
 
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
+#include <stdlib.h>                                  // free
+#include <string.h>                                  // strcmp, strlen, memcpy
+
+#include <regex.h>                                   // regexec
 
 #include "swRest/SwRestState.h"                      // swRest
+#include "swJsonld/swldInit.h"                       // SWLD_CORE_CONTEXT_URL
+
 #include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
+#include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjRender.h"                          // kjFastRender
+#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
+#include "swNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
+#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
 
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postEntityTemporalAttrs.h" // Own interface
+
+
+
+static bool hasNonKeywordAttr(KjNode* entityP)
+{
+  if (entityP == NULL || entityP->type != KjObject)
+    return false;
+  for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+  {
+    if (c->name == NULL)             continue;
+    if (c->name[0] == '@')           continue;
+    if (strcmp(c->name, "id")   == 0) continue;
+    if (strcmp(c->name, "type") == 0) continue;
+    return true;
+  }
+  return false;
+}
+
+
+
+static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
+{
+  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+  {
+    if (eiP->id == NULL && eiP->idPatternList == NULL)
+      return true;
+    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
+      return true;
+    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
+      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
+        return true;
+  }
+  return false;
+}
+
+
+
+static char* renderFragmentWithContext(KjNode* fragP)
+{
+  if (kjLookup(fragP, "@context") == NULL)
+    kjChildAdd(fragP, kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL));
+
+  int   sz  = kjFastRenderSize(fragP) + 1;
+  char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
+  kjFastRender(fragP, buf);
+  return buf;
+}
+
+
+
+static int forwardAppendAttrs(LdRegCacheItem* csr,
+                              const char*     entityId,
+                              KjNode*         fragP,
+                              const char*     ownAlias,
+                              const char**    errorDetailPP)
+{
+  const char* prefix = "/ngsi-ld/v1/temporal/entities/";
+  const char* suffix = "/attrs";
+  int   baseLen = strlen(csr->endpoint);
+  int   prefLen = strlen(prefix);
+  int   idLen   = strlen(entityId);
+  int   sufLen  = strlen(suffix);
+
+  char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + sufLen + 1);
+  int   pos = 0;
+  memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
+  memcpy(url + pos, prefix, prefLen);        pos += prefLen;
+  memcpy(url + pos, entityId, idLen);        pos += idLen;
+  memcpy(url + pos, suffix, sufLen);         pos += sufLen;
+  url[pos] = 0;
+
+  char* body = renderFragmentWithContext(fragP);
+  return ldDistOpSend(csr, SwVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
+}
 
 
 
@@ -55,23 +145,126 @@ bool postEntityTemporalAttrs(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP    = (Tenant*) swNgsild.tenantP;
+  bool    inputHadAttrs = hasNonKeywordAttr(bodyP);
 
-  int r = troe.entityTemporalAttrsAdd(tenantP, entityId, bodyP);
+  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  bool    anySucceeded = false;
 
-  if (r == TROE_NOT_FOUND)
+  // Distop dispatch (§ 4.3.6 / § 5.6.12.4). No type known from URL — match
+  // CSRs by id alone. Auxiliary mode is read-only — never enters the write
+  // dispatch.
+  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-            "no temporal evolution for entity '%s'", entityId);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    bool        loopSeen = ldDistOpLoopDetected(ownAlias);
+
+    if (!loopSeen)
+    {
+      LdRegMode modes[]      = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
+      bool      detachOnMode[] = { true, true, false };  // excl/redir chop; incl clones
+
+      for (int m = 0; m < 3; m++)
+      {
+        LdRegCacheItem** matchV = NULL;
+        int matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
+                                                entityId, NULL, modes[m], &matchV);
+
+        for (int i = 0; i < matchN; i++)
+        {
+          LdRegCacheItem* csr = matchV[i];
+          if (csr->endpoint == NULL)                          continue;
+          if (ldDistOpCsrWouldLoop(csr, ownAlias))            continue;
+
+          bool opSupported = ldRegOpSupported(csr, LdOpAppendAttrsTemporal);
+
+          for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+          {
+            if (!entityInfoCoversId(riP, entityId)) continue;
+
+            KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, detachOnMode[m]);
+            if (fragP == NULL) continue;
+
+            if (!opSupported)
+            {
+              ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                    LD_ERROR_CONFLICT, "Conflict",
+                                    "registration does not support appendAttrsTemporal",
+                                    csr->regId);
+              continue;
+            }
+
+            const char* upErr  = NULL;
+            int         upCode = forwardAppendAttrs(csr, entityId, fragP, ownAlias, &upErr);
+
+            if (upCode < 200 || upCode >= 300)
+              ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                    LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                    ldDistOpForwardFailureReason(upCode, upErr),
+                                    csr->regId);
+            else
+              anySucceeded = true;
+          }
+        }
+
+        if (matchV != NULL) free(matchV);
+      }
+    }
+  }
+
+  // Local TRoE append — skip when excl/redir consumed every input attr.
+  bool distopsConsumedAll = (inputHadAttrs && !hasNonKeywordAttr(bodyP));
+
+  if (!distopsConsumedAll)
+  {
+    int r = troe.entityTemporalAttrsAdd(tenantP, entityId, bodyP);
+
+    if (r == TROE_NOT_FOUND)
+    {
+      if (!anySucceeded)
+      {
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                "no temporal evolution for entity '%s'", entityId);
+        return true;
+      }
+      // Forward(s) succeeded → swallow local 404 (the entity exists upstream).
+    }
+    else if (r != TROE_OK)
+    {
+      if (!anySucceeded)
+      {
+        ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                "temporal add-attrs failed for '%s'", entityId);
+        return true;
+      }
+      char detail[256];
+      snprintf(detail, sizeof(detail),
+               "local temporal add-attrs failed for '%s'", entityId);
+      ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                            LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                            detail, NULL);
+    }
+    else
+      anySucceeded = true;
+  }
+
+  int errorsCount = 0;
+  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+
+  if (errorsCount == 0)
+  {
+    swRest.out.httpStatusCode = 204;
     return true;
   }
-  if (r != TROE_OK)
-  {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
-            "temporal add-attrs failed for '%s'", entityId);
-    return true;
-  }
 
-  swRest.out.httpStatusCode = 204;
+  KjNode* result     = kjObject(swRest.kjsonP, NULL);
+  KjNode* successArr = kjArray(swRest.kjsonP, "success");
+  if (anySucceeded)
+    kjChildAdd(successArr, kjString(swRest.kjsonP, NULL, entityId));
+  kjChildAdd(result, successArr);
+  kjChildAdd(result, errorsArrayP);
+
+  swRest.out.responseTree   = result;
+  swRest.out.httpStatusCode = anySucceeded ? 207 : 502;
   return true;
 }
