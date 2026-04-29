@@ -389,6 +389,30 @@ bool getEntitiesTemporal(void)
     return true;
   }
 
+  // § 5.7.4.4: orderBy on multi-entity temporal queries is restricted to
+  // local scope (federation can't order across sources reliably) and to
+  // ordering by entity id only.
+  if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
+  {
+    if (!swNgsild.local)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "orderBy on temporal queries requires 'local=true' (cannot order across federated sources)");
+      return true;
+    }
+    for (int i = 0; i < swNgsild.orderByCount; i++)
+    {
+      const char* an = swNgsild.orderByV[i].attrName;
+      // 'id' may have been JSON-LD-expanded to '@id' by the URL param parser.
+      if (an == NULL || (strcmp(an, "id") != 0 && strcmp(an, "@id") != 0))
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                "orderBy on temporal queries may only refer to 'id' (got '%s')", an ? an : "(null)");
+        return true;
+      }
+    }
+  }
+
   if (troe.entityTemporalQuery == NULL)
   {
     ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
