@@ -1,0 +1,182 @@
+#
+# FILE            introspection_csr_empty_arrays.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.11: when CSR registrations don't enumerate attributes (or types),
+# the corresponding fields in EntityType / EntityTypeInfo / Attribute
+# response payloads must be present-but-empty arrays, not omitted.
+#
+--NAME--
+Introspection - CSR-only types/attrs emit empty arrays (§ 5.7.11)
+
+--TAGS--
+discovery types attributes registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Register CSR with type=Vehicle but NO property/relationship lists"
+echo "====================================================================="
+payload='{
+  "id":         "urn:CSR:Vehicle",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:1",
+  "information":[ {"entities":[{"type":"Vehicle"}]} ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /types?details=true - Vehicle present, attributeNames=[]"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/types?details=true'
+echo
+echo
+
+
+echo "03. GET /types/Vehicle - attributeDetails=[]"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/types/Vehicle'
+echo
+echo
+
+
+echo "04. Register CSR for attr=speed but NO type"
+echo "==========================================="
+payload='{
+  "id":         "urn:CSR:speed",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:1",
+  "information":[ {"propertyNames":["speed"]} ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. GET /attributes?details=true - speed present, typeNames=[]"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/attributes?details=true'
+echo
+echo
+
+
+echo "06. GET /attributes/speed - typeNames=[]"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/attributes/speed'
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR with type=Vehicle but NO property/relationship lists
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET /types?details=true - Vehicle present, attributeNames=[]
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "attributeNames": [],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Vehicle",
+    "type": "EntityType",
+    "typeName": "Vehicle"
+  }
+]
+
+
+
+03. GET /types/Vehicle - attributeDetails=[]
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeDetails": [],
+  "entityCount": 0,
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/Vehicle",
+  "type": "EntityTypeInfo",
+  "typeName": "Vehicle"
+}
+
+
+
+04. Register CSR for attr=speed but NO type
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:speed
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+05. GET /attributes?details=true - speed present, typeNames=[]
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "attributeName": "speed",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+    "type": "Attribute",
+    "typeNames": []
+  }
+]
+
+
+
+06. GET /attributes/speed - typeNames=[]
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeCount": 0,
+  "attributeName": "speed",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+  "type": "Attribute",
+  "typeNames": []
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
