@@ -95,4 +95,23 @@ extern void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Ten
 //
 extern int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesNotifApiArray - flat / inline expand on an API-format array
+//
+// The notification path runs ldEntityToApi on each matched entity before
+// adding it to the data[] array (datasetId wrappers unwrapped, "value"
+// renamed back to "object" for Relationships, etc.). The above walkers
+// expect storage shape; this entry-point operates on the post-API tree
+// that lives in the notification body.
+//
+// flat   → fetched targets are appended to the array, each ldEntityToApi-
+//          converted to match the existing entries.
+// inline → each Relationship instance gets an "entity" sub-attribute
+//          carrying the target tree (also API-converted).
+//
+extern void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, Tenant* tenantP);
+
 #endif  // LE_LDLINKEDENTITIES_H_

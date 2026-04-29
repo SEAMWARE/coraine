@@ -508,3 +508,227 @@ KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 
   return primaryP;
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// collectRelationshipTargetsApi - API-format equivalent of collectRelationshipTargets
+//
+// API shape per attribute child:
+//   - single instance:  { "type": "Relationship", "object": "<uri>", ... }
+//   - multi-instance:   [ { "type": "Relationship", "object": "<uri>", ... }, ... ]
+//
+static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP, int* outCountP, int* outCapP)
+{
+  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if (attrP->name == NULL || attrP->name[0] == '@')               continue;
+    if (strcmp(attrP->name, "id")         == 0)                     continue;
+    if (strcmp(attrP->name, "type")       == 0)                     continue;
+    if (strcmp(attrP->name, "createdAt")  == 0)                     continue;
+    if (strcmp(attrP->name, "modifiedAt") == 0)                     continue;
+    if (strcmp(attrP->name, "scope")      == 0)                     continue;
+
+    KjNode* instances[16];
+    int     instCount = 0;
+
+    if (attrP->type == KjObject)
+      instances[instCount++] = attrP;
+    else if (attrP->type == KjArray)
+    {
+      for (KjNode* iP = attrP->value.firstChildP; iP != NULL && instCount < 16; iP = iP->next)
+        if (iP->type == KjObject)
+          instances[instCount++] = iP;
+    }
+    else
+      continue;
+
+    for (int i = 0; i < instCount; i++)
+    {
+      KjNode* typeP = kjLookup(instances[i], "type");
+      if (typeP == NULL || typeP->type != KjString)                 continue;
+      if (strcmp(typeP->value.s, "Relationship") != 0)              continue;
+
+      KjNode* objP = kjLookup(instances[i], "object");
+      if (objP == NULL || objP->type != KjString || objP->value.s == NULL) continue;
+
+      if (*outCountP >= *outCapP)
+      {
+        int newCap = (*outCapP == 0) ? 8 : (*outCapP) * 2;
+        const char** newArr = (const char**) realloc((void*) *outIdsP, newCap * sizeof(char*));
+        *outIdsP = newArr;
+        *outCapP = newCap;
+      }
+      (*outIdsP)[(*outCountP)++] = objP->value.s;
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// notifFlatBfs - § 4.5.23.3 BFS for the API-format notification path
+//
+static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
+                         int joinLevel, Tenant* tenantP, VisitedNode** visitedPP)
+{
+  if (frontier == NULL || frontierCount <= 0) return;
+  if (joinLevel < 1 || tenantP == NULL) { free(frontier); return; }
+
+  for (int depth = 0; depth < joinLevel; depth++)
+  {
+    const char** targets = NULL;
+    int          targetN = 0;
+    int          targetCap = 0;
+
+    for (int i = 0; i < frontierCount; i++)
+      collectRelationshipTargetsApi(frontier[i], &targets, &targetN, &targetCap);
+
+    KjNode** nextFrontier      = NULL;
+    int      nextFrontierCount = 0;
+    int      nextFrontierCap   = 0;
+
+    for (int t = 0; t < targetN; t++)
+    {
+      const char* tid = targets[t];
+      if (visitedContains(*visitedPP, tid)) continue;
+
+      KjNode* targetEntityP = NULL;
+      int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+      if (r != 0 || targetEntityP == NULL)
+      {
+        *visitedPP = visitedAppend(*visitedPP, tid);
+        continue;
+      }
+
+      // linkedFetchOne returns storage shape — convert to API to match
+      // the existing entries in the notification's data[] array.
+      ldEntityToApi(targetEntityP, &swRest.kalloc);
+
+      kjChildAdd(outArr, targetEntityP);
+      *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+
+      if (nextFrontierCount >= nextFrontierCap)
+      {
+        nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
+        nextFrontier    = (KjNode**) realloc(nextFrontier, nextFrontierCap * sizeof(KjNode*));
+      }
+      nextFrontier[nextFrontierCount++] = targetEntityP;
+    }
+
+    free(targets);
+    free(frontier);
+    frontier      = nextFrontier;
+    frontierCount = nextFrontierCount;
+    if (frontierCount == 0) break;
+  }
+  free(frontier);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// notifInlineWalk - § 4.5.23.2 inline walk on API-format primary
+//
+static void notifInlineWalk(KjNode* primaryP, int joinLevel, VisitedNode** visitedPP, Tenant* tenantP)
+{
+  if (joinLevel < 1) return;
+
+  for (KjNode* attrP = primaryP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if (attrP->name == NULL || attrP->name[0] == '@')               continue;
+    if (strcmp(attrP->name, "id")         == 0)                     continue;
+    if (strcmp(attrP->name, "type")       == 0)                     continue;
+    if (strcmp(attrP->name, "createdAt")  == 0)                     continue;
+    if (strcmp(attrP->name, "modifiedAt") == 0)                     continue;
+    if (strcmp(attrP->name, "scope")      == 0)                     continue;
+
+    KjNode* instances[16];
+    int     instCount = 0;
+    if (attrP->type == KjObject)
+      instances[instCount++] = attrP;
+    else if (attrP->type == KjArray)
+    {
+      for (KjNode* iP = attrP->value.firstChildP; iP != NULL && instCount < 16; iP = iP->next)
+        if (iP->type == KjObject)
+          instances[instCount++] = iP;
+    }
+    else
+      continue;
+
+    for (int i = 0; i < instCount; i++)
+    {
+      KjNode* typeP = kjLookup(instances[i], "type");
+      if (typeP == NULL || typeP->type != KjString) continue;
+      if (strcmp(typeP->value.s, "Relationship") != 0) continue;
+
+      KjNode* objP = kjLookup(instances[i], "object");
+      if (objP == NULL || objP->type != KjString || objP->value.s == NULL) continue;
+
+      const char* tid = objP->value.s;
+      if (visitedContains(*visitedPP, tid)) continue;
+
+      KjNode* targetEntityP = NULL;
+      int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+      if (r != 0 || targetEntityP == NULL)
+      {
+        *visitedPP = visitedAppend(*visitedPP, tid);
+        continue;
+      }
+
+      ldEntityToApi(targetEntityP, &swRest.kalloc);
+      *visitedPP  = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+      targetEntityP->name = (char*) "entity";
+      kjChildAdd(instances[i], targetEntityP);
+
+      if (joinLevel > 1)
+        notifInlineWalk(targetEntityP, joinLevel - 1, visitedPP, tenantP);
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldLinkedEntitiesNotifApiArray -
+//
+void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, Tenant* tenantP)
+{
+  if (arrayP == NULL || arrayP->type != KjArray || mode == NULL || tenantP == NULL) return;
+  if (arrayP->value.firstChildP == NULL) return;
+
+  if (strcmp(mode, "flat") == 0)
+  {
+    VisitedNode* visited      = NULL;
+    int          primaryCount = 0;
+    for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+    {
+      const char* id = entityIdOf(eP);
+      if (id != NULL) visited = visitedAppend(visited, id);
+      primaryCount++;
+    }
+
+    KjNode** frontier = (KjNode**) malloc(primaryCount * sizeof(KjNode*));
+    int      idx      = 0;
+    for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
+      frontier[idx++] = eP;
+
+    notifFlatBfs(arrayP, frontier, primaryCount, joinLevel, tenantP, &visited);
+    visitedFree(visited);
+  }
+  else if (strcmp(mode, "inline") == 0)
+  {
+    for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+    {
+      const char* id = entityIdOf(eP);
+      if (id == NULL) continue;
+      VisitedNode* visited = visitedAppend(NULL, id);
+      notifInlineWalk(eP, joinLevel, &visited, tenantP);
+      visitedFree(visited);
+    }
+  }
+}

@@ -1,0 +1,95 @@
+#
+# FILE            subscription_notif_join_inline.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.14 notification.join = "inline" — linked entities are added
+# to the Relationship instance under the "entity" sub-attribute
+# (§ 4.5.23.2).
+#
+--NAME--
+Subscription notification - notification.join = inline (§ 5.2.14, § 4.5.23.2)
+
+--TAGS--
+subscription notification linked-entities
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Seed P1 + V1 (parking → P1)"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:P1"}}' | head -1
+echo
+echo
+
+
+echo "02. Sub on Vehicle with notification.join=inline, joinLevel=1"
+echo "============================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Inline",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "join": "inline",
+    "joinLevel": 1,
+    "endpoint": {
+      "uri": "http://localhost:7711/notify",
+      "cooldown": 1
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. Trigger - update V1"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}' | head -1
+echo
+echo
+
+
+echo "04. ftClient dump — V1.parking.entity = P1 (inline)"
+echo "===================================================="
+ftClientDump --port 7711 | grep -E '"object"|"entity":|"id": "urn:P1"|"name":'
+echo
+echo
+
+
+--EXPECT--
+01. Seed P1 + V1 (parking → P1)
+===============================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Sub on Vehicle with notification.join=inline, joinLevel=1
+=============================================================
+HTTP/1.1 201 Created
+
+
+03. Trigger - update V1
+=======================
+HTTP/1.1 204 No Content
+
+
+04. ftClient dump — V1.parking.entity = P1 (inline)
+====================================================
+            "entity": {
+              "id": "urn:P1",
+              "name": {
+            "object": "urn:P1",
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

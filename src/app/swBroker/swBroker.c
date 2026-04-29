@@ -34,6 +34,8 @@
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "swNgsild/ldNotifyStatsHook.h"           // ldNotifyStatsHookSet
+#include "swNgsild/ldLinkedEntitiesHook.h"        // ldLinkedEntitiesHookSet
+#include "linkedEntities/ldLinkedEntities.h"      // ldLinkedEntitiesNotifApiArray
 #include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
 #include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
@@ -494,6 +496,17 @@ static void brokerNotifyStatsHook(bool csrSub, bool success)
 
 // -----------------------------------------------------------------------------
 //
+// brokerLinkedEntitiesHook - called by swNgsild when notification.join is set
+//
+static void brokerLinkedEntitiesHook(KjNode* dataArrayP, const char* mode, int joinLevel, void* tenantP)
+{
+  ldLinkedEntitiesNotifApiArray(dataArrayP, mode, joinLevel, (Tenant*) tenantP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // main -
 //
 int main(int argC, char* argV[])
@@ -605,6 +618,7 @@ int main(int argC, char* argV[])
   tenantInit("sw");
   metricsInit();
   ldNotifyStatsHookSet(brokerNotifyStatsHook);
+  ldLinkedEntitiesHookSet(brokerLinkedEntitiesHook);
   swRestSetPreServiceHook(brokerPreServiceHook);
   swRestSetPostResponseHook(brokerPostResponseHook);
 
