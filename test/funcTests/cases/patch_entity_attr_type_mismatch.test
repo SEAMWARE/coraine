@@ -1,0 +1,118 @@
+#
+# FILE            patch_entity_attr_type_mismatch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.6.4.4: PATCH /entities/{id}/attrs/{attr} — if the body's "type" is
+# present, it must equal the existing attribute's type. Mismatch → 400.
+#
+--NAME--
+PATCH /entities/{id}/attrs/{attr} - type mismatch (§ 5.6.4.4)
+
+--TAGS--
+entity patch attr error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create urn:V1 with speed Property"
+echo "====================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 80
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH speed with matching type Property - 204 OK"
+echo "===================================================="
+payload='{
+  "type": "Property",
+  "value": 90
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. PATCH speed with type=Relationship - 400 type mismatch"
+echo "=========================================================="
+payload='{
+  "type": "Relationship",
+  "object": "urn:other"
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "04. PATCH speed without type field - 204 (omitted type is fine)"
+echo "================================================================"
+payload='{
+  "value": 100
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:V1 with speed Property
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. PATCH speed with matching type Property - 204 OK
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. PATCH speed with type=Relationship - 400 type mismatch
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute type mismatch: cannot change 'speed' from 'Property' to 'Relationship'",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. PATCH speed without type field - 204 (omitted type is fine)
+================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

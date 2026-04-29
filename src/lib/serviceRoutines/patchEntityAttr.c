@@ -316,7 +316,8 @@ bool patchEntityAttr(void)
     }
     else
     {
-      if (kjLookup(targetEntity, attrIri) == NULL)
+      KjNode* existingAttr = kjLookup(targetEntity, attrIri);
+      if (existingAttr == NULL)
       {
         if (!anySucceeded)
         {
@@ -327,6 +328,25 @@ bool patchEntityAttr(void)
       }
       else
       {
+        // § 5.6.4.4: "If present in the provided NGSI-LD Entity Fragment,
+        // the type of the Attribute has to be the same as the type of
+        // the targeted Attribute fragment". Storage form puts the type
+        // on each instance object — check the first instance we find.
+        KjNode* fragTypeP = kjLookup(bodyP, "type");
+        if (fragTypeP != NULL && fragTypeP->type == KjString && existingAttr->type == KjObject)
+        {
+          KjNode* anyInstP = existingAttr->value.firstChildP;
+          KjNode* existingTypeP = (anyInstP != NULL) ? kjLookup(anyInstP, "type") : NULL;
+          if (existingTypeP != NULL && existingTypeP->type == KjString &&
+              strcmp(fragTypeP->value.s, existingTypeP->value.s) != 0)
+          {
+            ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                    "attribute type mismatch: cannot change '%s' from '%s' to '%s'",
+                    attrWild, existingTypeP->value.s, fragTypeP->value.s);
+            return true;
+          }
+        }
+
         ldApiEntityToDbModel(entityFrag, &swRest.kalloc);
 
         LdMergeReport report = { NULL };
