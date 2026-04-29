@@ -1,0 +1,137 @@
+#
+# FILE            troe_timescale_temporal_distop_upsert_inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on POST /temporal/entities (§ 5.6.11 / § 4.3.6.2).
+#
+# CB has an INCLUSIVE registration pointing at CP1 covering Vehicle's
+# upsertTemporal op. POSTing an EntityTemporal to CB:
+#   - creates the local TRoE evolution (kept locally, inclusive mode)
+#   - forwards a fragment to CP1 which also creates its own evolution
+# The follow-up GET on CB then unions both per § 5.7.5 (already
+# verified by troe_timescale_temporal_distop_inclusive — this test
+# only confirms the upsert-side fan-out).
+#
+--NAME--
+TRoE timescale - temporal distop upsert, inclusive
+
+--TAGS--
+troe timescale postgres temporal distops registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cb"  >/dev/null
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cp1" >/dev/null
+swBrokerStart        --troe timescale --troeName sw_troe_dist_cb  --troeUser postgres
+swBrokerStart -role CP1 --troe timescale --troeName sw_troe_dist_cp1 --troeUser postgres
+
+--RUN--
+
+echo "01. Register CB->CP1 (inclusive, upsertTemporal+retrieveTemporal) for Vehicle/speed"
+echo "===================================================================================="
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "inclusive",
+  "operations": ["upsertTemporal", "retrieveTemporal"],
+  "information":[
+    {
+      "entities":   [{"type":"Vehicle"}],
+      "properties": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST /temporal/entities for urn:V1 on CB (2 instances, fan-out to CP1)"
+echo "=========================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" },
+    { "type": "Property", "value": 20, "observedAt": "2026-04-28T10:00:00Z" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET temporal/urn:V1 on CP1 directly — fan-out persisted (2 instances)"
+echo "========================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 (inclusive, upsertTemporal+retrieveTemporal) for Vehicle/speed
+====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CB-CP1
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST /temporal/entities for urn:V1 on CB (2 instances, fan-out to CP1)
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. GET temporal/urn:V1 on CP1 directly — fan-out persisted (2 instances)
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T10:00:00.000Z",
+      "type": "Property",
+      "value": 20
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
