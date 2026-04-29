@@ -799,7 +799,7 @@ bool postEntityBatchUpdate(void)
   {
     if (db.entityBulkUpdate == NULL)
     {
-      ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Update not supported by this DB plugin");
       return true;
     }

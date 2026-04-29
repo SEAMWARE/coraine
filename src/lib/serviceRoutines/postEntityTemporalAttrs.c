@@ -139,7 +139,7 @@ bool postEntityTemporalAttrs(void)
 
   if (troe.entityTemporalAttrsAdd == NULL)
   {
-    ldError(501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
             "Not Implemented",
             "active TRoE plugin does not support add-attrs on temporal entities");
     return true;

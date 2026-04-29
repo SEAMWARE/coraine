@@ -291,7 +291,7 @@ bool putEntityAttr(void)
 
         if (db.entityAttrsSet == NULL)
         {
-          ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+          ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
                   "Replace Attribute not supported by this DB plugin");
           return true;
         }

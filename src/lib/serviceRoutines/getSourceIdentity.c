@@ -89,7 +89,7 @@ bool getSourceIdentity(void)
   const char* alias = ldCsourceAliasForTenant(tenant, &swRest.kalloc);
   if (alias == NULL)
   {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "context source alias is not configured");
     return true;
   }

@@ -68,7 +68,7 @@ bool postCsourceSubscriptions(void)
   // timeInterval (periodic CSR notifications) deferred — § 5.11.7
   if (kjLookup(subP, "timeInterval") != NULL)
   {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "periodic CSR subscriptions ('timeInterval') are not supported");
     return true;
   }

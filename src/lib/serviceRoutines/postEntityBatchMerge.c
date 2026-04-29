@@ -631,7 +631,7 @@ bool postEntityBatchMerge(void)
   {
     if (db.entityBulkMerge == NULL)
     {
-      ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Merge not supported by this DB plugin");
       return true;
     }

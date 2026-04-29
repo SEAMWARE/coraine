@@ -310,7 +310,7 @@ bool getEntityTemporal(void)
 
   if (troe.entityTemporalRetrieve == NULL)
   {
-    ldError(501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
             "Not Implemented",
             "active TRoE plugin does not support temporal queries");
     return true;

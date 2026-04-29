@@ -61,7 +61,7 @@ bool getTypes(void)
 
   if (db.typeList == NULL)
   {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "type discovery not supported by this DB plugin");
     return true;
   }

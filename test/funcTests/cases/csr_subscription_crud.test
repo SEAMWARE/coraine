@@ -8,7 +8,7 @@
 # § 5.11 Context Source Registration Subscription — CRUD surface.
 # Separate cache (Tenant.regSubCacheP) so entity-sub hot path is
 # untouched. Cache-only (no DB persistence in v1). timeInterval
-# returns 501.
+# returns 422.
 #
 --NAME--
 CSR Subscription CRUD - create, retrieve, query, update, delete
@@ -30,7 +30,7 @@ swBrokerStart
 # 05. Create duplicate id - 409
 # 06. PATCH - change description
 # 07. Retrieve after patch - 200, new description
-# 08. POST with timeInterval - 501 (deferred)
+# 08. POST with timeInterval - 422 (deferred)
 # 09. DELETE first - 204
 # 10. List after delete - one sub
 # 11. DELETE non-existing - 404
@@ -105,7 +105,7 @@ echo
 echo
 
 
-echo "08. POST with timeInterval - 501"
+echo "08. POST with timeInterval - 422"
 echo "================================"
 payload='{
   "id": "urn:ngsi-ld:Subscription:CSR3",
@@ -299,9 +299,9 @@ Content-Length: REGEX(\d+)
 
 
 
-08. POST with timeInterval - 501
+08. POST with timeInterval - 422
 ================================
-HTTP/1.1 501 Not Implemented
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)

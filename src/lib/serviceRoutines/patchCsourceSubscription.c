@@ -66,7 +66,7 @@ bool patchCsourceSubscription(void)
   // timeInterval not supported for CSR subs (defer to follow-up)
   if (kjLookup(fragment, "timeInterval") != NULL)
   {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "periodic CSR subscriptions ('timeInterval') are not supported");
     return true;
   }

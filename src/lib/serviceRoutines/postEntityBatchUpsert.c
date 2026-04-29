@@ -857,7 +857,7 @@ bool postEntityBatchUpsert(void)
   {
     if (db.entityBulkCreate == NULL)
     {
-      ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Upsert (create path) not supported by this DB plugin");
       return true;
     }
@@ -892,7 +892,7 @@ bool postEntityBatchUpsert(void)
   {
     if (db.entityBulkUpdate == NULL)
     {
-      ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Upsert (update path) not supported by this DB plugin");
       return true;
     }

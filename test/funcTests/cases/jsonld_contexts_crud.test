@@ -40,7 +40,7 @@ contextServerPush /jsonldContexts/ctxT '{
 # 12. POST with bad body (no @context, no url) — 400
 # 13. POST with @context not an object — 400
 # 14. POST with url not a string — 400
-# 15. POST Cached with unreachable URL — 503 Context Not Available
+# 15. POST Cached with unreachable URL — 504 Context Not Available
 #
 
 echo "01. POST Hosted (@context body)"
@@ -148,7 +148,7 @@ echo
 echo
 
 
-echo "15. POST Cached unreachable URL — 503"
+echo "15. POST Cached unreachable URL — 504"
 echo "====================================="
 payload='{"url":"http://127.0.0.1:1/nope.jsonld"}'
 swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
@@ -326,9 +326,9 @@ Content-Length: REGEX(\d+)
 
 
 
-15. POST Cached unreachable URL — 503
+15. POST Cached unreachable URL — 504
 =====================================
-HTTP/1.1 503 Service Unavailable
+HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)

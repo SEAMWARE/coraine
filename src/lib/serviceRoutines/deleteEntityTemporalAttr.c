@@ -112,7 +112,7 @@ bool deleteEntityTemporalAttr(void)
 
   if (troe.entityTemporalAttrDelete == NULL)
   {
-    ldError(501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
             "Not Implemented",
             "active TRoE plugin does not support attribute delete on temporal entities");
     return true;

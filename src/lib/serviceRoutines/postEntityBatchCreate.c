@@ -772,7 +772,7 @@ bool postEntityBatchCreate(void)
   {
     if (db.entityBulkCreate == NULL)
     {
-      ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Creation not supported by this DB plugin");
       return true;
     }

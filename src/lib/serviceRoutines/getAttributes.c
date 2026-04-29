@@ -48,7 +48,7 @@ bool getAttributes(void)
 
   if (db.attrList == NULL)
   {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "attribute discovery not supported by this DB plugin");
     return true;
   }

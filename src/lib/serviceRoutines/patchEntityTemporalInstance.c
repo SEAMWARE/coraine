@@ -141,7 +141,7 @@ bool patchEntityTemporalInstance(void)
 
   if (troe.entityTemporalInstanceModify == NULL)
   {
-    ldError(501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
             "Not Implemented",
             "active TRoE plugin does not support instance modify");
     return true;

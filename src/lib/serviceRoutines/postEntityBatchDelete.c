@@ -452,7 +452,7 @@ bool postEntityBatchDelete(void)
   //
   if (db.entityBulkDelete == NULL)
   {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "Batch Entity Delete not supported by this DB plugin");
     return true;
   }

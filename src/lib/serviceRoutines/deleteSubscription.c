@@ -38,7 +38,7 @@ bool deleteSubscription(void)
 
   if (db.subscriptionDelete == NULL)
   {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented", "subscription CRUD not supported by this DB plugin");
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "subscription CRUD not supported by this DB plugin");
     return true;
   }
 

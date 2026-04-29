@@ -39,7 +39,7 @@ bool patchCsourceRegistration(void)
 
   if (db.registrationUpdate == NULL)
   {
-    ldError(501, LD_ERROR_INTERNAL_ERROR, "Not Implemented", "registration CRUD not supported by this DB plugin");
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "registration CRUD not supported by this DB plugin");
     return true;
   }
 
