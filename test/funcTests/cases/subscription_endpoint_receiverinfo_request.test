@@ -1,0 +1,109 @@
+#
+# FILE            subscription_endpoint_receiverinfo_request.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.15 endpoint.receiverInfo with the special value
+# "urn:ngsi-ld:request" — the broker takes the value of the same-named
+# header from the triggering request and forwards it on the
+# notification (extending § 4.3.6.5 by symmetry).
+#
+--NAME--
+Subscription notification - receiverInfo "urn:ngsi-ld:request" substitution (§ 5.2.15 + § 4.3.6.5)
+
+--TAGS--
+subscription notification receiverinfo request-substitution
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Create sub - X-Auth pulled from request, X-Static fixed"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:RIsub",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7711/notify",
+      "receiverInfo": [
+        {"key": "X-Auth",   "value": "urn:ngsi-ld:request"},
+        {"key": "X-Static", "value": "fixed-token"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Trigger notification - request carries X-Auth: bearer-abc"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities -H "X-Auth: bearer-abc" \
+       --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+echo
+echo
+
+
+echo "03. ftClient dump - X-Auth substituted, X-Static verbatim"
+echo "========================================================="
+ftClientDump --port 7711 | grep -E '"X-(Auth|Static)"'
+echo
+echo
+
+
+echo "04. Trigger another notification - this time WITHOUT X-Auth"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs \
+       --payload '{"speed":{"type":"Property","value":99}}' | head -1
+echo
+echo
+
+
+echo "05. ftClient dump - X-Auth missing on the 2nd, X-Static still there"
+echo "==================================================================="
+ftClientDump --port 7711 | grep -cE '"X-Auth"'
+ftClientDump --port 7711 | grep -cE '"X-Static"'
+echo
+echo
+
+
+--EXPECT--
+01. Create sub - X-Auth pulled from request, X-Static fixed
+===========================================================
+HTTP/1.1 201 Created
+
+
+02. Trigger notification - request carries X-Auth: bearer-abc
+=============================================================
+HTTP/1.1 201 Created
+
+
+03. ftClient dump - X-Auth substituted, X-Static verbatim
+=========================================================
+      "X-Auth": "bearer-abc",
+      "X-Static": "fixed-token"
+
+
+04. Trigger another notification - this time WITHOUT X-Auth
+===========================================================
+HTTP/1.1 204 No Content
+
+
+05. ftClient dump - X-Auth missing on the 2nd, X-Static still there
+===================================================================
+1
+2
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop
