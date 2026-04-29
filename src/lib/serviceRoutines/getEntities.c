@@ -807,13 +807,29 @@ static bool entityMapPaginate(void)
     swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
+  // § 5.5.9.1: emit prev for any non-first page; next when more remain.
   bool hasMore = (offset + added < mapP->entryCount);
-  if (hasMore)
+  bool hasPrev = (offset > 0);
+  if (hasMore || hasPrev)
   {
-    char* nextUrl = (char*) kaAlloc(&swRest.kalloc, 256);
-    snprintf(nextUrl, 256, "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\"",
-             swNgsild.entityMapId, offset + limit, limit);
-    swRestOutHeaderAdd("Link", nextUrl);
+    char* link = (char*) kaAlloc(&swRest.kalloc, 512);
+    int   pos  = 0;
+    if (hasPrev)
+    {
+      int prevOff = offset - limit;
+      if (prevOff < 0) prevOff = 0;
+      pos += snprintf(link + pos, 512 - pos,
+                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"prev\"; type=\"application/json\"",
+                      swNgsild.entityMapId, prevOff, limit);
+    }
+    if (hasMore)
+    {
+      if (pos > 0) pos += snprintf(link + pos, 512 - pos, ", ");
+      pos += snprintf(link + pos, 512 - pos,
+                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\"",
+                      swNgsild.entityMapId, offset + limit, limit);
+    }
+    swRestOutHeaderAdd("Link", link);
   }
 
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)

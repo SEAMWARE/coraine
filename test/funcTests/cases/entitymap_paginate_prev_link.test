@@ -1,0 +1,99 @@
+#
+# FILE            entitymap_paginate_prev_link.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.5.9.1: paginated responses must emit Link rel="prev" for non-first
+# pages and Link rel="next" while more pages remain. The entityMap path
+# previously emitted only rel="next" — this test pins both.
+#
+--NAME--
+EntityMap pagination - rel=prev + rel=next (§ 5.5.9.1)
+
+--TAGS--
+entity entitymap pagination
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed 5 entities"
+echo "==================="
+for i in 1 2 3 4 5; do
+  payload="{\"id\":\"urn:V$i\",\"type\":\"Vehicle\",\"speed\":{\"type\":\"Property\",\"value\":$((i*10))}}"
+  swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+done
+echo done
+echo
+echo
+
+
+echo "02. Create entityMap covering all 5 entities"
+echo "============================================"
+MAPID=$(swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle' 2>&1 | python3 -c "
+import sys, json, re
+hdr=''; body=''
+for line in sys.stdin:
+  if hdr=='' and line.strip()=='': hdr='done'; continue
+  if hdr=='done': body+=line
+d = json.loads(body) if body.strip() else {}
+print(d.get('id',''))")
+echo "  mapId: ${MAPID:+ok}"
+echo
+echo
+
+
+echo "03. Page 2 (offset=2, limit=2 → expect rel=prev AND rel=next)"
+echo "============================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=2&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
+import sys, re
+for line in sys.stdin:
+  m = re.findall(r'rel=\"([^\"]+)\"', line)
+  m = [r for r in m if r in ('next','prev','first','last')]
+  if m:
+    print('  rels:', sorted(m))"
+echo
+echo
+
+
+echo "04. Page 3 / last (offset=4, limit=2 → expect rel=prev only)"
+echo "============================================================"
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=4&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
+import sys, re
+for line in sys.stdin:
+  m = re.findall(r'rel=\"([^\"]+)\"', line)
+  m = [r for r in m if r in ('next','prev','first','last')]
+  if m:
+    print('  rels:', sorted(m))"
+echo
+echo
+
+
+--EXPECT--
+01. Seed 5 entities
+===================
+done
+
+
+02. Create entityMap covering all 5 entities
+============================================
+  mapId: ok
+
+
+03. Page 2 (offset=2, limit=2 → expect rel=prev AND rel=next)
+=============================================================
+  rels: ['next', 'prev']
+
+
+04. Page 3 / last (offset=4, limit=2 → expect rel=prev only)
+============================================================
+  rels: ['prev']
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -118,7 +118,7 @@ Content-Length: REGEX(\d+)
 
 03. Create map
 ==============
-Map captured: REGEX(.*)
+Map captured: urn:ngsi-l... (truncated)
 
 
 04. Page 1: limit=1 offset=0 → V1 (from local)
@@ -145,6 +145,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: REGEX(.*)
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
