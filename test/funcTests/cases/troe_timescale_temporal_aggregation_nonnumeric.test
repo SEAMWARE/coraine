@@ -5,11 +5,13 @@
 #
 # Copyright 2026 Seamware
 #
-# § 4.5.20 — Aggregated Temporal Representation, non-numeric Property values.
+# § 4.5.19.1 — Aggregated Temporal Representation, non-numeric Property values.
 #
-# Per spec, Boolean and String values support only totalCount and
-# distinctCount. Numeric methods (avg/sum/min/max/stddev/sumsq) are
-# silently dropped for buckets whose values aren't all numeric.
+# Per spec table 4.5.19.1-1:
+#   Boolean → all numeric methods supported (true=1, false=0 per the note)
+#   String  → totalCount + distinctCount + lex min/max
+# Methods that are N/A for the value's type drop their row from that
+# bucket (the method's array comes out empty if no bucket qualifies).
 #
 --NAME--
 TRoE timescale - aggregatedValues on Boolean and String
@@ -59,9 +61,9 @@ echo
 echo
 
 
-echo "03. avg + totalCount — avg is a numeric-only method, skipped on non-numerics"
-echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=PT2H'
+echo "03. avg + min + max — Boolean works (true=1/false=0), String emits lex min/max"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max&aggrPeriodDuration=PT2H'
 echo
 echo
 
@@ -169,8 +171,8 @@ Content-Length: REGEX(\d+)
 
 
 
-03. avg + totalCount — avg is a numeric-only method, skipped on non-numerics
-============================================================================
+03. avg + min + max — Boolean works (true=1/false=0), String emits lex min/max
+===============================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -180,20 +182,53 @@ Content-Length: REGEX(\d+)
 [
   {
     "alarm": {
-      "avg": [],
-      "totalCount": [
+      "avg": [
         [
-          2,
+          0,
           "2026-04-28T10:00:00.000Z",
           "2026-04-28T12:00:00.000Z"
         ],
         [
-          2,
+          0.5,
           "2026-04-28T12:00:00.000Z",
           "2026-04-28T14:00:00.000Z"
         ],
         [
-          2,
+          1,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "max": [
+        [
+          0,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          1,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          1,
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "min": [
+        [
+          0,
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          0,
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          1,
           "2026-04-28T14:00:00.000Z",
           "2026-04-28T16:00:00.000Z"
         ]
@@ -203,19 +238,36 @@ Content-Length: REGEX(\d+)
     "id": "urn:V1",
     "status": {
       "avg": [],
-      "totalCount": [
+      "max": [
         [
-          2,
+          "idle",
           "2026-04-28T10:00:00.000Z",
           "2026-04-28T12:00:00.000Z"
         ],
         [
-          2,
+          "running",
           "2026-04-28T12:00:00.000Z",
           "2026-04-28T14:00:00.000Z"
         ],
         [
-          2,
+          "running",
+          "2026-04-28T14:00:00.000Z",
+          "2026-04-28T16:00:00.000Z"
+        ]
+      ],
+      "min": [
+        [
+          "idle",
+          "2026-04-28T10:00:00.000Z",
+          "2026-04-28T12:00:00.000Z"
+        ],
+        [
+          "running",
+          "2026-04-28T12:00:00.000Z",
+          "2026-04-28T14:00:00.000Z"
+        ],
+        [
+          "error",
           "2026-04-28T14:00:00.000Z",
           "2026-04-28T16:00:00.000Z"
         ]
