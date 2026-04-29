@@ -1059,6 +1059,11 @@ bool getEntities(void)
             // pickWanted against the union of all infoV[*] exports of
             // this CSR. Skip the CSR entirely when user.pick is set and
             // the intersection is empty.
+            //
+            // local=true is appended so the receiver's own too-wide-query
+            // check (§ 5.7.2.4) accepts the request, AND so the receiver
+            // doesn't transitively fan out to its own CSRs (we only want
+            // this CSR's own data in split mode).
             char** csrExports = csrUnionExports(csr, &swRest.kalloc);
             bool   skip       = false;
             const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip);
@@ -1066,18 +1071,10 @@ bool getEntities(void)
               continue;
 
             int   pLen = strlen(pickParam);
-            char* combined = (char*) kaAlloc(&swRest.kalloc, pLen + 1);
-            // baseQs is "" in split mode; pickParam starts with "&pick=",
-            // so trim the leading "&" if combined would otherwise begin
-            // with "&" (no other params present).
-            if (pLen > 0 && pickParam[0] == '&')
-            {
-              strcpy(combined, pickParam + 1);
-            }
-            else
-            {
-              strcpy(combined, pickParam);
-            }
+            char* combined = (char*) kaAlloc(&swRest.kalloc, pLen + sizeof("local=true") + 1);
+            strcpy(combined, "local=true");
+            if (pLen > 0)
+              strcpy(combined + 10, pickParam);  // 10 = strlen("local=true"); pickParam starts with "&pick=..."
             fullQs = combined;
           }
           else
