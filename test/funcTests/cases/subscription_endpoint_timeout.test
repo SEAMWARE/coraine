@@ -1,0 +1,62 @@
+#
+# FILE            subscription_endpoint_timeout.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.15 endpoint.timeout — maximum ms before a notification is assumed
+# to have failed. The value must round-trip through GET /subscriptions.
+#
+--NAME--
+Subscription notification - endpoint.timeout round-trip (§ 5.2.15)
+
+--TAGS--
+subscription notification timeout
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create sub with endpoint.timeout=12345"
+echo "=========================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Tmo",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://127.0.0.1:9999/notify",
+      "timeout": 12345
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET sub → timeout=12345 round-trips"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Tmo | grep -E '"(uri|timeout)"'
+echo
+echo
+
+
+--EXPECT--
+01. Create sub with endpoint.timeout=12345
+==========================================
+HTTP/1.1 201 Created
+
+
+02. GET sub → timeout=12345 round-trips
+========================================
+      "timeout": 12345,
+      "uri": "http://127.0.0.1:9999/notify"
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
