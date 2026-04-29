@@ -10,7 +10,7 @@
 # previously emitted only rel="next" — this test pins both.
 #
 --NAME--
-EntityMap pagination - rel=prev + rel=next (§ 5.5.9.1)
+EntityMap pagination - rel=first/prev/next/last (§ 5.5.9.1)
 
 --TAGS--
 entity entitymap pagination
@@ -47,7 +47,7 @@ echo
 echo
 
 
-echo "03. Page 2 (offset=2, limit=2 → expect rel=prev AND rel=next)"
+echo "03. Page 2 (offset=2, limit=2 → expect first/prev/next/last)"
 echo "============================================================="
 swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=2&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
 import sys, re
@@ -60,7 +60,7 @@ echo
 echo
 
 
-echo "04. Page 3 / last (offset=4, limit=2 → expect rel=prev only)"
+echo "04. Page 3 / last (offset=4, limit=2 → expect first + prev)"
 echo "============================================================"
 swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=4&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
 import sys, re
@@ -84,14 +84,14 @@ done
   mapId: ok
 
 
-03. Page 2 (offset=2, limit=2 → expect rel=prev AND rel=next)
+03. Page 2 (offset=2, limit=2 → expect first/prev/next/last)
 =============================================================
-  rels: ['next', 'prev']
+  rels: ['first', 'last', 'next', 'prev']
 
 
-04. Page 3 / last (offset=4, limit=2 → expect rel=prev only)
+04. Page 3 / last (offset=4, limit=2 → expect first + prev)
 ============================================================
-  rels: ['prev']
+  rels: ['first', 'prev']
 
 
 --TEARDOWN--
