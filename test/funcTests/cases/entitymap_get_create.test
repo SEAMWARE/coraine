@@ -46,9 +46,9 @@ echo
 echo
 
 
-echo "03. GET /entityMaps with no filter → all 3 entities"
-echo "==================================================="
-swCurl --url "/ngsi-ld/v1/entityMaps"
+echo "03. GET /entityMaps?local=true → all 3 entities"
+echo "================================================"
+swCurl --url "/ngsi-ld/v1/entityMaps?local=true"
 echo
 echo
 
@@ -117,8 +117,8 @@ Content-Length: REGEX(\d+)
 
 
 
-03. GET /entityMaps with no filter → all 3 entities
-===================================================
+03. GET /entityMaps?local=true → all 3 entities
+================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json

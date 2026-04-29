@@ -79,7 +79,7 @@ echo
 
 echo "07. Query all entities - empty array"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 

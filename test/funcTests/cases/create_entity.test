@@ -51,9 +51,9 @@ echo
 echo
 
 
-echo "03. Query all entities"
-echo "======================"
-swCurl --url /ngsi-ld/v1/entities
+echo "03. Query all entities of type Vehicle"
+echo "======================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
@@ -112,8 +112,8 @@ Content-Length: REGEX(\d+)
 
 
 
-03. Query all entities
-======================
+03. Query all entities of type Vehicle
+======================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json

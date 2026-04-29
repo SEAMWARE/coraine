@@ -52,14 +52,14 @@ echo
 
 echo "02. pick multiple attrs: ?pick=speed,color - both returned, temperature omitted"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?pick=speed,color'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed,color'
 echo
 echo
 
 
 echo "03. pick non-existent attr: ?pick=nonexistent - entity with no user attrs"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?pick=nonexistent'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=nonexistent'
 echo
 echo
 
@@ -73,21 +73,21 @@ echo
 
 echo "05. omit multiple attrs: ?omit=speed,color - only temperature returned"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?omit=speed,color'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&omit=speed,color'
 echo
 echo
 
 
 echo "06. omit non-existent attr: ?omit=nonexistent - all attrs returned unchanged"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/entities?omit=nonexistent'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&omit=nonexistent'
 echo
 echo
 
 
 echo "07. pick+omit together: ?pick=speed,color&omit=speed - document behavior (pick wins)"
 echo "===================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?pick=speed,color&omit=speed'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed,color&omit=speed'
 echo
 echo
 

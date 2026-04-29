@@ -24,7 +24,7 @@ swBrokerStart --corsOrigin __ALL
 
 echo "01. GET request - CORS headers present"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 

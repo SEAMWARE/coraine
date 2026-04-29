@@ -43,7 +43,7 @@ echo
 
 echo "02. GET entities?omit=speed - speed omitted, color returned"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?omit=speed'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&omit=speed'
 echo
 echo
 

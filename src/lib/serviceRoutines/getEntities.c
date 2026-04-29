@@ -857,6 +857,29 @@ bool getEntities(void)
     return entityMapPaginate();
 
   //
+  // § 5.7.2.4: too-wide-query rejection. At least one filter must be
+  // supplied. The spec lists type/attrs/q/georel/local; we additionally
+  // accept id and idPattern since they bound the candidate set as
+  // tightly (an explicit URI list is not a "too wide" query). ?entityMap=
+  // bypasses (paginating an already-bounded map).
+  //
+  if (swNgsild.entityMapId == NULL)
+  {
+    bool hasType   = (swNgsild.typeV != NULL || swNgsild.typeExpr != NULL);
+    bool hasAttrs  = (swNgsild.attrsV != NULL);
+    bool hasQ      = (swNgsild.qExpr != NULL);
+    bool hasGeo    = (swNgsild.georel != NULL);
+    bool isLocal   = swNgsild.local;
+    bool hasId     = (swNgsild.idV != NULL || swNgsild.idPattern != NULL);
+    if (!hasType && !hasAttrs && !hasQ && !hasGeo && !isLocal && !hasId)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied");
+      return true;
+    }
+  }
+
+  //
   // Geo-query inter-parameter validation
   //
   bool hasGeorel      = (swNgsild.georel      != NULL);

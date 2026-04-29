@@ -159,13 +159,16 @@ Content-Length: REGEX(\d+)
 
 04. GET entities?type= (empty) - document current behavior
 ==========================================================
-HTTP/1.1 200 OK
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
-[]
+{
+  "detail": "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 

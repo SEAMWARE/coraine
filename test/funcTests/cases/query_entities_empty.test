@@ -18,19 +18,21 @@ swBrokerStart
 --RUN--
 
 #
-# 01. GET /entities on empty database - 200 OK with empty array
+# 01. GET /entities?type=X on empty database - 200 OK with empty array
+# (per § 5.7.2.4 the bare GET /entities is rejected as too-wide; we use
+#  ?type=X to exercise the empty-result path)
 #
 
-echo "01. GET /entities on empty database - 200 OK with empty array"
-echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities
+echo "01. GET /entities?type=Vehicle on empty database - 200 OK with empty array"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
 
 --EXPECT--
-01. GET /entities on empty database - 200 OK with empty array
-==============================================================
+01. GET /entities?type=Vehicle on empty database - 200 OK with empty array
+==========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json

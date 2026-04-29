@@ -43,7 +43,7 @@ echo
 
 echo "02. GET entities?pick=speed - only speed attribute returned"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?pick=speed'
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed'
 echo
 echo
 
