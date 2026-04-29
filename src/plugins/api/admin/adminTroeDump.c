@@ -25,7 +25,7 @@ bool adminGetTroeDump(void)
 {
   if (troe.dumpInfo == NULL)
   {
-    ldError(501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
             "Not Implemented",
             "active TRoE plugin does not support dump (use --troe=ramdb)");
     return true;

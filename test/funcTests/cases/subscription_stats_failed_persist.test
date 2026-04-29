@@ -29,7 +29,7 @@ swCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type":"Vehicle"}],
-  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify", "cooldown": 1}}
 }' | head -1
 echo
 echo

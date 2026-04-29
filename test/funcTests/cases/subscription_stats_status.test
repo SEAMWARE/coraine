@@ -28,7 +28,7 @@ swCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
-  "notification": {"endpoint": {"uri": "http://localhost:7711/notify"}}
+  "notification": {"endpoint": {"uri": "http://localhost:7711/notify", "cooldown": 1}}
 }'
 echo
 echo
