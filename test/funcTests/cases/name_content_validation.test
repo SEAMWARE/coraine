@@ -1,0 +1,311 @@
+#
+# FILE            name_content_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.6.2 — names (Type / Property / Relationship) shall match the
+# unicodeLetter (unicodeLetter | unicodeNumber | "_")* grammar, with
+# optional "prefix:name" form.
+#
+# § 4.6.4 — string Property values shall not contain any of:
+#   <  >  "  '  =  ;  (  )
+#
+--NAME--
+Name regex (§ 4.6.2) + content sanitizer (§ 4.6.4) on entity payloads
+
+--TAGS--
+entity validation create
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Valid name + clean value
+# 02. Type starts with digit                  → 400 Invalid Attribute Name
+# 03. Attribute name contains '!'             → 400 Invalid Attribute Name
+# 04. Attribute name has consecutive colons   → 201 (URI-style identifiers tolerated)
+# 05. Sub-attribute name with space           → 400 Invalid Attribute Name
+# 06. prefix:name form (valid)
+# 07. Property string value contains '<'      → 400 Forbidden Characters
+# 08. Property string value contains '"'      → 400 Forbidden Characters
+# 09. Property string value contains ';'      → 400 Forbidden Characters
+# 10. Property numeric value (sanitizer string-only)
+# 11. Forbidden char inside an array element  → 400 Forbidden Characters
+# 12. Forbidden char inside a sub-attribute   → 400 Forbidden Characters
+#
+
+echo "01. Valid name + clean value"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "02. Type starts with digit"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e2","type":"3Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "03. Attribute name contains '!'"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e3","type":"V","spe!ed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "04. Attribute name has consecutive colons (URI-style, tolerated)"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e4","type":"V","a::b":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "04b. Multi-colon URN-style attribute name (valid)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e4b","type":"V","urn:attributes:speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "05. Sub-attribute name with space"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e5","type":"V","speed":{"type":"Property","value":42,"bad name":{"type":"Property","value":1}}}'
+echo
+echo
+
+
+echo "06. prefix:name form (valid)"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e6","type":"V","ngsi:speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "07. Property value contains '<'"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e7","type":"V","label":{"type":"Property","value":"hello <script>"}}'
+echo
+echo
+
+
+echo "08. Property value contains a double-quote"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e8","type":"V","label":{"type":"Property","value":"sa\"id"}}'
+echo
+echo
+
+
+echo "09. Property value contains ';'"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e9","type":"V","label":{"type":"Property","value":"DROP TABLE; --"}}'
+echo
+echo
+
+
+echo "10. Numeric value (sanitizer only checks strings)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e10","type":"V","speed":{"type":"Property","value":99}}'
+echo
+echo
+
+
+echo "11. Forbidden char inside an array value"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e11","type":"V","tags":{"type":"Property","value":["ok","bad=value"]}}'
+echo
+echo
+
+
+echo "12. Forbidden char inside a sub-attribute value"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e12","type":"V","speed":{"type":"Property","value":42,"unitCode":{"type":"Property","value":"m/s"},"note":{"type":"Property","value":"a=b"}}}'
+echo
+echo
+
+
+--EXPECT--
+01. Valid name + clean value
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:e1
+Content-Length: 0
+
+
+
+
+02. Type starts with digit
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute name '3Vehicle' must start with a letter (§ 4.6.2)",
+  "title": "Invalid Attribute Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Attribute name contains '!'
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute name 'spe!ed' contains a forbidden character (0x21) — § 4.6.2",
+  "title": "Invalid Attribute Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Attribute name has consecutive colons (URI-style, tolerated)
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:e4
+Content-Length: 0
+
+
+
+
+04b. Multi-colon URN-style attribute name (valid)
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:e4b
+Content-Length: 0
+
+
+
+
+05. Sub-attribute name with space
+=================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute name 'bad name' contains a forbidden character (0x20) — § 4.6.2",
+  "title": "Invalid Attribute Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. prefix:name form (valid)
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:e6
+Content-Length: 0
+
+
+
+
+07. Property value contains '<'
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "title": "Forbidden Characters",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Property value contains a double-quote
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "title": "Forbidden Characters",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Property value contains ';'
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "title": "Forbidden Characters",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Numeric value (sanitizer only checks strings)
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:e10
+Content-Length: 0
+
+
+
+
+11. Forbidden char inside an array value
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "value of 'tags' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "title": "Forbidden Characters",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. Forbidden char inside a sub-attribute value
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "value of 'note' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "title": "Forbidden Characters",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
