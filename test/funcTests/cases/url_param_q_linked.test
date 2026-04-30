@@ -133,7 +133,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:Alice
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -145,7 +144,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:Bob
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -157,7 +155,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V1
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -169,7 +166,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V2
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -181,7 +177,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V3
-Link: REGEX(.*)
 Content-Length: 0
 
 

@@ -480,20 +480,7 @@ bool postCsourceRegistration(void)
   strcat(locBuf, idP->value.s);
   swRestOutHeaderAdd("Location", locBuf);
 
-  SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  ctxUrl = (ctxP != NULL) ? ctxP->url : NULL;
-
-  if (ctxUrl != NULL)
-  {
-    const char* suffix  = ">; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"";
-    int         linkLen = 1 + strlen(ctxUrl) + strlen(suffix) + 1;
-    char*       linkBuf = kaAlloc(&swRest.kalloc, linkLen);
-
-    strcpy(linkBuf, "<");
-    strcat(linkBuf, ctxUrl);
-    strcat(linkBuf, suffix);
-    swRestOutHeaderAdd("Link", linkBuf);
-  }
+  // § 6.3.6: no Link header on no-body responses.
 
   return true;
 }

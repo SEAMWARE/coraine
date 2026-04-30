@@ -101,7 +101,6 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Rewrite
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 
@@ -114,7 +113,6 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:V1
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 

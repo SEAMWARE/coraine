@@ -68,7 +68,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Self
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 
@@ -80,7 +79,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V1
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 

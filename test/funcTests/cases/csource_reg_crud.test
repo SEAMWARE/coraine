@@ -153,7 +153,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 
@@ -190,7 +189,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: REGEX(/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+)
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 
@@ -323,7 +321,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 

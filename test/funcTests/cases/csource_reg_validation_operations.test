@@ -180,7 +180,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-individual
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -192,7 +191,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-group
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -204,7 +202,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-temporal
-Link: REGEX(.*)
 Content-Length: 0
 
 
@@ -231,7 +228,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-aux-good
-Link: REGEX(.*)
 Content-Length: 0
 
 
