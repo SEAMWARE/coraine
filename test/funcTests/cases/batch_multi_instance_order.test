@@ -1,0 +1,59 @@
+#
+# FILE            batch_multi_instance_order.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.6.6 — when a batch operation is given an array containing multiple
+# instances of the same entity id, those instances "shall come in
+# chronological order" (oldest first). The broker processes them in
+# arrival order — pinning that contract here so a regression that
+# silently re-orders (or skips earlier instances) is caught.
+#
+--NAME--
+Batch multi-instance arrival order (§ 4.6.6)
+
+--TAGS--
+entity batch order multi-instance
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Batch upsert with three instances of the same entity, oldest → newest"
+echo "=========================================================================="
+payload='[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"obs":{"type":"Property","value":"first"}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":20},"obs":{"type":"Property","value":"second"}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30},"obs":{"type":"Property","value":"third"}}
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" -X POST | head -1
+echo
+echo
+
+
+echo "02. GET — last (newest) instance won"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"(value)"'
+echo
+echo
+
+
+--EXPECT--
+01. Batch upsert with three instances of the same entity, oldest → newest
+==========================================================================
+HTTP/1.1 201 Created
+
+
+02. GET — last (newest) instance won
+====================================
+    "value": "third"
+    "value": 30
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
