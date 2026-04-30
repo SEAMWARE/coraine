@@ -109,8 +109,8 @@ echo
 echo
 
 
-echo "11. Multi-instance same id V3 (new) — first creates, rest merge, mirrored"
-echo "========================================================================="
+echo "11. Multi-instance same id V3 (new) — first creates, rest fully REPLACE (§ 5.5.11.2)"
+echo "======================================================================================"
 swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"pink"}},
@@ -120,15 +120,15 @@ echo
 echo
 
 
-echo "12. GET CB V3 local-only — speed=300, color=pink"
-echo "================================================"
+echo "12. GET CB V3 local-only — only speed=300 (last instance fully replaced)"
+echo "========================================================================"
 swCurl --url '/ngsi-ld/v1/entities/urn:V3?options=keyValues&local=true'
 echo
 echo
 
 
-echo "13. GET CP1 V3 — speed=300, color=pink (CP1 merged 3 instances in order)"
-echo "========================================================================"
+echo "13. GET CP1 V3 — only speed=300 (CP1 also did 3 replaces in order)"
+echo "==================================================================="
 swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V3?options=keyValues'
 echo
 echo
@@ -283,8 +283,8 @@ Content-Length: 76
 
 
 
-11. Multi-instance same id V3 (new) — first creates, rest merge, mirrored
-=========================================================================
+11. Multi-instance same id V3 (new) — first creates, rest fully REPLACE (§ 5.5.11.2)
+======================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
@@ -300,16 +300,15 @@ Content-Length: 52
 
 
 
-12. GET CB V3 local-only — speed=300, color=pink
-================================================
+12. GET CB V3 local-only — only speed=300 (last instance fully replaced)
+========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 77
+Content-Length: 58
 
 {
-  "color": "pink",
   "id": "urn:V3",
   "speed": 300,
   "type": "Vehicle"
@@ -317,16 +316,15 @@ Content-Length: 77
 
 
 
-13. GET CP1 V3 — speed=300, color=pink (CP1 merged 3 instances in order)
-========================================================================
+13. GET CP1 V3 — only speed=300 (CP1 also did 3 replaces in order)
+===================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 77
+Content-Length: 58
 
 {
-  "color": "pink",
   "id": "urn:V3",
   "speed": 300,
   "type": "Vehicle"

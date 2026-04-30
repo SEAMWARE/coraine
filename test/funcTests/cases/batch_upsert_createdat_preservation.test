@@ -1,0 +1,134 @@
+#
+# FILE            batch_upsert_createdat_preservation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.8 / § 5.6.2.4 — createdAt is set when the Entity / Attribute
+# instance was first entered into the system; a Replace shall not
+# reset it. modifiedAt gets stamped fresh on every write.
+#
+# Default-mode (replace) batch upsert must:
+#   - keep entity-level createdAt across the replace
+#   - keep attribute-instance createdAt for attrs that existed before
+#     and are present in the new fragment (same datasetId)
+#   - bump entity-level + attribute-level modifiedAt
+#
+--NAME--
+Batch upsert (replace) preserves createdAt for entity + attr instances (§ 4.8 / § 5.6.2.4)
+
+--TAGS--
+batch upsert createdAt sysAttrs replace
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity urn:V1 with speed (initial)"
+echo "============================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET sysAttrs=true → capture createdAt for entity + speed"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/cat_pres_initial.txt 2>&1
+ENTITY_CREATED=$(grep -m1 -oE '"createdAt": "[^"]+"' /tmp/cat_pres_initial.txt | head -1)
+SPEED_CREATED=$(grep -A2 '"speed":' /tmp/cat_pres_initial.txt | grep -oE '"createdAt": "[^"]+"' | head -1)
+echo "initial entity.createdAt captured: $([ -n "$ENTITY_CREATED" ] && echo OK || echo FAIL)"
+echo "initial speed.createdAt  captured: $([ -n "$SPEED_CREATED"  ] && echo OK || echo FAIL)"
+echo
+echo
+
+
+echo "03. Sleep 1.2s so any fresh stamp would differ at second granularity"
+echo "===================================================================="
+sleep 1.2
+echo
+echo
+
+
+echo "04. Batch upsert default (replace) — same speed value, no other attrs"
+echo "====================================================================="
+payload='[
+  {
+    "id": "urn:V1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 99
+    }
+  }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
+echo
+echo
+
+
+echo "05. GET sysAttrs=true → entity.createdAt + speed.createdAt unchanged"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/cat_pres_after.txt 2>&1
+ENTITY_CREATED2=$(grep -m1 -oE '"createdAt": "[^"]+"' /tmp/cat_pres_after.txt | head -1)
+SPEED_CREATED2=$(grep -A2 '"speed":' /tmp/cat_pres_after.txt | grep -oE '"createdAt": "[^"]+"' | head -1)
+[ "$ENTITY_CREATED" = "$ENTITY_CREATED2" ] && echo "entity.createdAt preserved: OK" || echo "entity.createdAt CHANGED: $ENTITY_CREATED -> $ENTITY_CREATED2"
+[ "$SPEED_CREATED"  = "$SPEED_CREATED2"  ] && echo "speed.createdAt  preserved: OK" || echo "speed.createdAt  CHANGED: $SPEED_CREATED -> $SPEED_CREATED2"
+echo
+echo
+
+
+echo "06. modifiedAt was bumped (sanity: modifiedAt > createdAt now)"
+echo "=============================================================="
+ENTITY_MODIFIED=$(grep -m1 -oE '"modifiedAt": "[^"]+"' /tmp/cat_pres_after.txt | head -1)
+[ "$ENTITY_MODIFIED" != "$ENTITY_CREATED2" ] && echo "entity.modifiedAt bumped: OK" || echo "entity.modifiedAt NOT bumped"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity urn:V1 with speed (initial)
+=============================================
+HTTP/1.1 201 Created
+
+
+02. GET sysAttrs=true → capture createdAt for entity + speed
+============================================================
+initial entity.createdAt captured: OK
+initial speed.createdAt  captured: OK
+
+
+03. Sleep 1.2s so any fresh stamp would differ at second granularity
+====================================================================
+
+
+04. Batch upsert default (replace) — same speed value, no other attrs
+=====================================================================
+HTTP/1.1 204 No Content
+
+
+05. GET sysAttrs=true → entity.createdAt + speed.createdAt unchanged
+====================================================================
+entity.createdAt preserved: OK
+speed.createdAt  preserved: OK
+
+
+06. modifiedAt was bumped (sanity: modifiedAt > createdAt now)
+==============================================================
+entity.modifiedAt bumped: OK
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+\rm -f /tmp/cat_pres_initial.txt /tmp/cat_pres_after.txt

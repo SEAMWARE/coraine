@@ -63,6 +63,7 @@
 #include "swNgsild/LdNormalizeInput.h"               // ldNormalizeInput
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
+#include "swNgsild/ldIsEntityKeyword.h"              // ldIsEntityKeyword
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/LdProblem.h"                      // LD_ERROR_*
 #include "swNgsild/ldEntityAttrsSet.h"               // ldEntityAttrsSet
@@ -691,36 +692,86 @@ bool postEntityBatchUpsert(void)
         notifyOp  = LdNotifyEntityCreate;
         wasCreatedV[gi] = true;
       }
-      else if (firstFragment && exists && !updateMode)
+      else if (!updateMode)
       {
-        // Replace mode: first fragment becomes the new state.
-        // Existing attrs not in fragment disappear. Subsequent frags merge.
-        finalP = kjClone(swRest.kjsonP, fragP);
-
-        // Synthesise a merge report so the notification subsystem can
-        // match attr-level triggers. Diff existingDb against fragP:
-        //   - attr in existingDb, not in fragP  → attributeDeleted
-        //   - attr in fragP, not in existingDb  → attributeCreated
-        //   - attr in both                       → attributeModified
+        // § 5.5.11.2 default (replace) — every fragment fully replaces
+        // the previous state. Synthesise a merge report between previous
+        // finalP (or existingDb on the first iteration) and the new fragP
+        // so attr-level notification triggers still fire.
         //
-        report.changes = kjArray(swRest.kjsonP, NULL);
-        for (KjNode* eAttr = existingDb->value.firstChildP; eAttr != NULL; eAttr = eAttr->next)
+        // § 4.8 — entity-level createdAt is set when the entity was first
+        // entered into the system; carry it over from prevP so a replace
+        // doesn't reset it. modifiedAt gets stamped fresh by the DB
+        // layer on every write.
+        KjNode* prevP = (finalP != NULL) ? finalP : existingDb;
+        KjNode* newFinalP = kjClone(swRest.kjsonP, fragP);
+
+        if (prevP != NULL)
         {
-          if (eAttr->name == NULL || eAttr->name[0] == '@')     continue;
-          if (strcmp(eAttr->name, "id")   == 0)                  continue;
-          if (strcmp(eAttr->name, "type") == 0)                  continue;
-          if (kjLookup(fragP, eAttr->name) != NULL)              continue;
-          KjNode* chg = kjObject(swRest.kjsonP, NULL);
-          kjChildAdd(chg, kjString(swRest.kjsonP, "attr",   (char*) eAttr->name));
-          kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) "attributeDeleted"));
-          kjChildAdd(report.changes, chg);
+          KjNode* prevCreatedP = kjLookup(prevP, "createdAt");
+          if (prevCreatedP != NULL && prevCreatedP->type == KjInt)
+          {
+            // ldApiEntityToDbModel stamped fragP with a fresh createdAt;
+            // overwrite that with the previous entity's value (§ 4.8).
+            KjNode* nCreated = kjLookup(newFinalP, "createdAt");
+            if (nCreated == NULL)
+              kjChildAdd(newFinalP, kjClone(swRest.kjsonP, prevCreatedP));
+            else if (nCreated->type == KjInt)
+              nCreated->value.i = prevCreatedP->value.i;
+          }
+
+          // § 5.6.2.4 — replacing an attribute instance must keep its
+          // original createdAt. DB-shape attrs are objects keyed by
+          // datasetId: { "@none": {createdAt,...}, "urn:x": {...} }.
+          // Walk newFinalP's attrs and patch instance-level createdAt
+          // from the matching prev instance (same attr + datasetId).
+          for (KjNode* nAttr = newFinalP->value.firstChildP; nAttr != NULL; nAttr = nAttr->next)
+          {
+            if (nAttr->name == NULL || ldIsEntityKeyword(nAttr->name)) continue;
+            if (nAttr->type != KjObject)                                continue;
+
+            KjNode* pAttr = kjLookup(prevP, nAttr->name);
+            if (pAttr == NULL || pAttr->type != KjObject)               continue;
+
+            for (KjNode* nInst = nAttr->value.firstChildP; nInst != NULL; nInst = nInst->next)
+            {
+              if (nInst->type != KjObject) continue;
+              KjNode* pInst = kjLookup(pAttr, nInst->name);
+              if (pInst == NULL || pInst->type != KjObject) continue;
+
+              KjNode* pInstCreated = kjLookup(pInst, "createdAt");
+              if (pInstCreated == NULL || pInstCreated->type != KjInt) continue;
+
+              KjNode* nInstCreated = kjLookup(nInst, "createdAt");
+              if (nInstCreated == NULL)
+                kjChildAdd(nInst, kjClone(swRest.kjsonP, pInstCreated));
+              else if (nInstCreated->type == KjInt)
+                nInstCreated->value.i = pInstCreated->value.i;
+            }
+          }
+        }
+
+        report.changes = kjArray(swRest.kjsonP, NULL);
+        if (prevP != NULL)
+        {
+          for (KjNode* eAttr = prevP->value.firstChildP; eAttr != NULL; eAttr = eAttr->next)
+          {
+            if (eAttr->name == NULL || eAttr->name[0] == '@')   continue;
+            if (strcmp(eAttr->name, "id")   == 0)               continue;
+            if (strcmp(eAttr->name, "type") == 0)               continue;
+            if (kjLookup(fragP, eAttr->name) != NULL)           continue;
+            KjNode* chg = kjObject(swRest.kjsonP, NULL);
+            kjChildAdd(chg, kjString(swRest.kjsonP, "attr",   (char*) eAttr->name));
+            kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) "attributeDeleted"));
+            kjChildAdd(report.changes, chg);
+          }
         }
         for (KjNode* fAttr = fragP->value.firstChildP; fAttr != NULL; fAttr = fAttr->next)
         {
           if (fAttr->name == NULL || fAttr->name[0] == '@')     continue;
           if (strcmp(fAttr->name, "id")   == 0)                  continue;
           if (strcmp(fAttr->name, "type") == 0)                  continue;
-          const char* reason = (kjLookup(existingDb, fAttr->name) != NULL)
+          const char* reason = (prevP != NULL && kjLookup(prevP, fAttr->name) != NULL)
                                ? "attributeModified"
                                : "attributeCreated";
           KjNode* chg = kjObject(swRest.kjsonP, NULL);
@@ -728,10 +779,12 @@ bool postEntityBatchUpsert(void)
           kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) reason));
           kjChildAdd(report.changes, chg);
         }
+
+        finalP = newFinalP;
       }
       else
       {
-        // Update mode for first frag, OR subsequent fragments (merge).
+        // Update mode (?options=update): merge into running state.
         if (finalP == NULL)
           finalP = kjClone(swRest.kjsonP, fragP);
         else

@@ -1,0 +1,131 @@
+#
+# FILE            batch_multi_instance_per_op.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.5.11 — when a batch input array contains multiple instances of the
+# same entity, the broker shall process them in array order (oldest →
+# newest) and apply per-op semantics:
+#
+#   5.5.11.1 Create:   first creates, subsequent → "Already Exists" error
+#   5.5.11.2 Upsert:   first creates,
+#                      subsequent fully REPLACE (default) or UPDATE/merge
+#                      (?options=update)
+#   5.5.11.3 Update:   each fragment updates existing attrs, in order
+#   5.5.11.4 Delete:   first deletes, subsequent → "Not Found" error
+#   5.5.11.5 Merge:    chronological merge, only final state persists
+#
+--NAME--
+Batch ops — multi-instance same-entity semantics (§ 5.5.11)
+
+--TAGS--
+entity batch order multi-instance
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. CREATE [V1, V1, V1] — first succeeds, two errors (§ 5.5.11.1)"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2}},
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3}}
+]' -X POST | head -1
+echo
+echo
+
+
+echo "02. GET — speed=1 (only the first create stuck)"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"value"'
+echo
+echo
+
+
+echo "03. UPSERT default replace [V2 x3] — last fully replaces; obs gone"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":1},"obs":{"type":"Property","value":"first"}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":2}},
+  {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":3},"color":{"type":"Property","value":"red"}}
+]' -X POST | head -1
+echo
+echo
+echo "  GET V2 — expect speed=3, color=red, NO obs"
+swCurl --url /ngsi-ld/v1/entities/urn:V2 | grep -E '"(speed|color|obs|value)"'
+echo
+echo
+
+
+echo "04. UPSERT options=update [V3 x3] — merge each, all attrs preserved"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1},"obs":{"type":"Property","value":"first"}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":2}},
+  {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":3},"color":{"type":"Property","value":"red"}}
+]' -X POST | head -1
+echo
+echo
+echo "  GET V3 — expect speed=3, color=red, obs=first (merged)"
+swCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"(speed|color|obs|value)"'
+echo
+echo
+
+
+echo "05. DELETE [V1, V1] — first ok, second 'Not Found' (§ 5.5.11.4)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V1"]' -X POST | head -1
+echo
+echo
+
+
+--EXPECT--
+01. CREATE [V1, V1, V1] — first succeeds, two errors (§ 5.5.11.1)
+=================================================================
+HTTP/1.1 207 Multi-Status
+
+
+02. GET — speed=1 (only the first create stuck)
+===============================================
+    "value": 1
+
+
+03. UPSERT default replace [V2 x3] — last fully replaces; obs gone
+==================================================================
+HTTP/1.1 201 Created
+
+
+  GET V2 — expect speed=3, color=red, NO obs
+  "color": {
+    "value": "red"
+  "speed": {
+    "value": 3
+
+
+04. UPSERT options=update [V3 x3] — merge each, all attrs preserved
+===================================================================
+HTTP/1.1 201 Created
+
+
+  GET V3 — expect speed=3, color=red, obs=first (merged)
+  "color": {
+    "value": "red"
+  "obs": {
+    "value": "first"
+  "speed": {
+    "value": 3
+
+
+05. DELETE [V1, V1] — first ok, second 'Not Found' (§ 5.5.11.4)
+===============================================================
+HTTP/1.1 207 Multi-Status
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

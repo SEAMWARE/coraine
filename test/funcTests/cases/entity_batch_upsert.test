@@ -107,11 +107,11 @@ echo
 echo
 
 
-echo "10. Multi-instance new entity V5 — first creates, rest merge"
-echo "============================================================"
-# V5 doesn't exist. Array-order: first creates V5 with speed=100,
-# second merges color=pink, third merges speed=300. Final V5 has
-# speed=300 AND color=pink.
+echo "10. Multi-instance new entity V5 — first creates, rest fully REPLACE (§ 5.5.11.2)"
+echo "==================================================================================="
+# V5 doesn't exist. Default-mode (replace). Array-order: first creates V5
+# with speed=100, second REPLACES with color=pink (speed gone), third
+# REPLACES again with speed=300 (color gone). Final V5 has only speed=300.
 swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V5","type":"Vehicle","color":{"type":"Property","value":"pink"}},
@@ -121,17 +121,17 @@ echo
 echo
 
 
-echo "11. GET V5 — speed=300, color=pink"
-echo "=================================="
+echo "11. GET V5 — only speed=300 (last replace dropped color)"
+echo "========================================================"
 swCurl --url /ngsi-ld/v1/entities/urn:V5?options=keyValues
 echo
 echo
 
 
-echo "12. Multi-instance existing V1 — first REPLACES, rest merge"
-echo "==========================================================="
-# V1 currently {speed:99}. Array: first frag {foo:1} → V1 becomes {foo:1}
-# (replace, speed gone). Second frag {bar:2} → merge, V1 = {foo:1, bar:2}.
+echo "12. Multi-instance existing V1 — every fragment REPLACES (§ 5.5.11.2 default)"
+echo "============================================================================="
+# V1 currently {speed:99}. Array: frag1 {foo:1} → V1 = {foo:1};
+# frag2 {bar:2} → V1 = {bar:2} (foo gone). Final V1 has only bar.
 swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","foo":{"type":"Property","value":1}},
   {"id":"urn:V1","type":"Vehicle","bar":{"type":"Property","value":2}}
@@ -140,8 +140,8 @@ echo
 echo
 
 
-echo "13. GET V1 — foo=1, bar=2, no speed (replaced then merged)"
-echo "=========================================================="
+echo "13. GET V1 — only bar=2 (final replace dropped foo and speed)"
+echo "============================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
@@ -306,8 +306,8 @@ Content-Length: 57
 
 
 
-10. Multi-instance new entity V5 — first creates, rest merge
-============================================================
+10. Multi-instance new entity V5 — first creates, rest fully REPLACE (§ 5.5.11.2)
+===================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
@@ -323,16 +323,15 @@ Content-Length: 52
 
 
 
-11. GET V5 — speed=300, color=pink
-==================================
+11. GET V5 — only speed=300 (last replace dropped color)
+========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 77
+Content-Length: 58
 
 {
-  "color": "pink",
   "id": "urn:V5",
   "speed": 300,
   "type": "Vehicle"
@@ -340,8 +339,8 @@ Content-Length: 77
 
 
 
-12. Multi-instance existing V1 — first REPLACES, rest merge
-===========================================================
+12. Multi-instance existing V1 — every fragment REPLACES (§ 5.5.11.2 default)
+=============================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
@@ -349,17 +348,16 @@ Content-Type: application/json; charset=utf-8
 
 
 
-13. GET V1 — foo=1, bar=2, no speed (replaced then merged)
-==========================================================
+13. GET V1 — only bar=2 (final replace dropped foo and speed)
+=============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 66
+Content-Length: 54
 
 {
   "bar": 2,
-  "foo": 1,
   "id": "urn:V1",
   "type": "Vehicle"
 }
