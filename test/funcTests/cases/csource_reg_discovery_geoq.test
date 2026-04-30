@@ -80,7 +80,7 @@ echo
 ===========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:Madrid
 Link: REGEX(.*)
 Content-Length: 0
@@ -88,7 +88,7 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:Barcelona
 Link: REGEX(.*)
 Content-Length: 0
@@ -100,7 +100,7 @@ Content-Length: 0
 =====================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX([0-9]+)
 
@@ -154,7 +154,7 @@ Content-Length: REGEX([0-9]+)
 ===================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX([0-9]+)
 
@@ -208,7 +208,7 @@ Content-Length: REGEX([0-9]+)
 =================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: 3
 
@@ -220,7 +220,7 @@ Content-Length: 3
 ===============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: 1263
 

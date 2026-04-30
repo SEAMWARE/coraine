@@ -102,7 +102,7 @@ echo
 ============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NoMerge
 Link: REGEX(.*)
 Content-Length: 0
@@ -114,7 +114,7 @@ Content-Length: 0
 =====================================================================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -139,7 +139,7 @@ Content-Length: REGEX(\d+)
 ===================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:DeadMerge
 Link: REGEX(.*)
 Content-Length: 0
@@ -148,7 +148,7 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveMerge
 Link: REGEX(.*)
 Content-Length: 0
@@ -160,7 +160,7 @@ Content-Length: 0
 ===============================================================
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 

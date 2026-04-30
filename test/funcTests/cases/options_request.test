@@ -62,7 +62,7 @@ echo
 ===================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, POST, DELETE, HEAD, OPTIONS
 
 
@@ -72,7 +72,7 @@ Allow: GET, POST, DELETE, HEAD, OPTIONS
 ==================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 
 
@@ -82,7 +82,7 @@ Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 ========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, POST, HEAD, OPTIONS
 
 
@@ -92,7 +92,7 @@ Allow: GET, POST, HEAD, OPTIONS
 ===============================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, DELETE, HEAD, OPTIONS
 
 
@@ -102,7 +102,7 @@ Allow: GET, DELETE, HEAD, OPTIONS
 ==============================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: REGEX(\d+)
 
 {

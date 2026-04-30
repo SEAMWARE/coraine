@@ -150,7 +150,7 @@ echo
 ========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 66
 
@@ -168,7 +168,7 @@ Content-Length: 66
 ========================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 
 
 
@@ -177,7 +177,7 @@ Content-Type: application/json
 ===========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 95
 
@@ -195,7 +195,7 @@ Content-Length: 95
 =================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 76
 
@@ -212,7 +212,7 @@ Content-Length: 76
 ==========================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 
 
 
@@ -221,7 +221,7 @@ Content-Type: application/json
 =============================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 76
 
@@ -238,7 +238,7 @@ Content-Length: 76
 =========================================
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 264
 
@@ -264,7 +264,7 @@ Content-Length: 264
 ==================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 76
 
@@ -281,7 +281,7 @@ Content-Length: 76
 =========================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 470
 
@@ -313,7 +313,7 @@ Content-Length: 470
 =========================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 
 
 
@@ -322,7 +322,7 @@ Content-Type: application/json
 ==================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 77
 
@@ -339,7 +339,7 @@ Content-Length: 77
 =====================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 149
 
 {
@@ -354,7 +354,7 @@ Content-Length: 149
 ======================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 153
 
 {
@@ -369,7 +369,7 @@ Content-Length: 153
 ========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 153
 
 {

@@ -62,7 +62,7 @@ echo
 ======================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Access-Control-Allow-Origin: *
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
@@ -76,11 +76,11 @@ Content-Length: REGEX(\d+)
 ===========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, POST, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, DELETE, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
 
@@ -91,11 +91,11 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 ===========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
 
@@ -106,11 +106,11 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 ========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, POST, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
 
@@ -121,11 +121,11 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 ===============================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Allow: GET, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, DELETE, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
 

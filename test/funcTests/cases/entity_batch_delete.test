@@ -122,7 +122,7 @@ echo
 =====================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 80
 
@@ -141,7 +141,7 @@ Content-Length: 80
 ========================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 
 
 
@@ -150,7 +150,7 @@ Content-Type: application/json
 ================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 134
 
 {
@@ -165,7 +165,7 @@ Content-Length: 134
 ================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 134
 
 {
@@ -180,7 +180,7 @@ Content-Length: 134
 ==============================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 57
 
@@ -196,7 +196,7 @@ Content-Length: 57
 =============================================
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 264
 
@@ -222,7 +222,7 @@ Content-Length: 264
 ================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 134
 
 {
@@ -237,7 +237,7 @@ Content-Length: 134
 ============================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 470
 
@@ -269,7 +269,7 @@ Content-Length: 470
 ===============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V4
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 0
@@ -279,7 +279,7 @@ Content-Length: 0
 
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 263
 
@@ -305,7 +305,7 @@ Content-Length: 263
 =====================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 150
 
 {
@@ -320,7 +320,7 @@ Content-Length: 150
 ======================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 154
 
 {
@@ -335,7 +335,7 @@ Content-Length: 154
 ========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 154
 
 {

@@ -116,7 +116,7 @@ echo
 =================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 150
 
 {
@@ -131,7 +131,7 @@ Content-Length: 150
 ================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 144
 
 {
@@ -146,7 +146,7 @@ Content-Length: 144
 ====================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 151
 
 {
@@ -161,7 +161,7 @@ Content-Length: 151
 ================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Content-Length: 137
 
 {
@@ -176,7 +176,7 @@ Content-Length: 137
 ==============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-good
 Link: REGEX(.*)
 Content-Length: 0
@@ -188,7 +188,7 @@ Content-Length: 0
 ===========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-none
 Link: REGEX(.*)
 Content-Length: 0
@@ -200,7 +200,7 @@ Content-Length: 0
 ==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-mixed
 Link: REGEX(.*)
 Content-Length: 0

@@ -181,7 +181,7 @@ echo
 ======================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -195,7 +195,7 @@ Content-Length: REGEX(\d+)
 ============================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -218,7 +218,7 @@ Content-Length: REGEX(\d+)
 ===================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -235,7 +235,7 @@ Content-Length: REGEX(\d+)
 =======================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -247,7 +247,7 @@ Content-Length: REGEX(\d+)
 ========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -264,7 +264,7 @@ Content-Length: REGEX(\d+)
 ===============================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -281,7 +281,7 @@ Content-Length: REGEX(\d+)
 ==================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -298,7 +298,7 @@ Content-Length: REGEX(\d+)
 ==========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -315,7 +315,7 @@ Content-Length: REGEX(\d+)
 ==============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -332,7 +332,7 @@ Content-Length: REGEX(\d+)
 ================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -349,7 +349,7 @@ Content-Length: REGEX(\d+)
 ==================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -366,7 +366,7 @@ Content-Length: REGEX(\d+)
 ======================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -383,7 +383,7 @@ Content-Length: REGEX(\d+)
 ========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:E1
 Link: REGEX(.*)
@@ -396,7 +396,7 @@ Content-Length: REGEX(\d+)
 ========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t2
 Location: /ngsi-ld/v1/entities/urn:E2
 Link: REGEX(.*)
@@ -409,7 +409,7 @@ Content-Length: REGEX(\d+)
 ============================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -424,7 +424,7 @@ Content-Length: REGEX(\d+)
 ===========================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -441,7 +441,7 @@ Content-Length: REGEX(\d+)
 ======================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
@@ -458,7 +458,7 @@ Content-Length: REGEX(\d+)
 ==============================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 

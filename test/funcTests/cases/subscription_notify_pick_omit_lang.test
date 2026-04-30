@@ -96,7 +96,7 @@ echo
 ======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Pick
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
@@ -108,7 +108,7 @@ Content-Length: REGEX(\d+)
 ======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Omit
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
@@ -120,7 +120,7 @@ Content-Length: REGEX(\d+)
 =======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Lang
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
@@ -132,7 +132,7 @@ Content-Length: REGEX(\d+)
 =========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V1
 Link: REGEX(.*)
 Content-Length: REGEX(\d+)
