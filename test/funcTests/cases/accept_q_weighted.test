@@ -67,6 +67,34 @@ echo
 echo
 
 
+echo "06. Accept: application/xml only → 406 (§ 6.3.4)"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/xml" 2>&1 | grep -E "^HTTP" | head -1
+echo
+echo
+
+
+echo "07. q=0 for json AND ld+json → 406"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/json;q=0, application/ld+json;q=0" 2>&1 | grep -E "^HTTP" | head -1
+echo
+echo
+
+
+echo "08. Accept: geo+json only on /info/sourceIdentity → 406 (no carve-out)"
+echo "======================================================================"
+swCurl --url /info/sourceIdentity -H "Accept: application/geo+json" 2>&1 | grep -E "^HTTP" | head -1
+echo
+echo
+
+
+echo "09. Accept: geo+json only on Retrieve Entity → 200 (§ 6.3.4 carve-out)"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/geo+json" 2>&1 | grep -E "^HTTP" | head -1
+echo
+echo
+
+
 --EXPECT--
 00. Seed entity with geometry
 =============================
@@ -96,6 +124,26 @@ Content-Type: application/geo+json; charset=utf-8
 05. Equal q → first-listed wins (ld+json first)
 ===============================================
 Content-Type: application/ld+json; charset=utf-8
+
+
+06. Accept: application/xml only → 406 (§ 6.3.4)
+================================================
+HTTP/1.1 406 Not Acceptable
+
+
+07. q=0 for json AND ld+json → 406
+====================================
+HTTP/1.1 406 Not Acceptable
+
+
+08. Accept: geo+json only on /info/sourceIdentity → 406 (no carve-out)
+======================================================================
+HTTP/1.1 406 Not Acceptable
+
+
+09. Accept: geo+json only on Retrieve Entity → 200 (§ 6.3.4 carve-out)
+======================================================================
+HTTP/1.1 200 OK
 
 
 --TEARDOWN--
