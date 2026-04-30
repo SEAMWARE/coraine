@@ -1,0 +1,103 @@
+#
+# FILE            accept_q_weighted.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.4 — Accept-header negotiation across the three NGSI-LD media
+# types: application/json, application/ld+json, application/geo+json.
+# Highest q wins; equal q → first-listed wins; q=0 means not-acceptable.
+#
+--NAME--
+HTTP: q-weighted Accept negotiation (§ 6.3.4)
+
+--TAGS--
+http accept
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "00. Seed entity with geometry"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:V1","type":"Vehicle",
+  "speed":{"type":"Property","value":42},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}}
+}' | head -1
+echo
+echo
+
+
+echo "01. ld+json q=0.9 beats geo+json q=0.5"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/geo+json;q=0.5, application/ld+json;q=0.9" 2>&1 | grep -i "^Content-Type:"
+echo
+echo
+
+
+echo "02. geo+json q=0.9 beats ld+json q=0.5"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/geo+json;q=0.9, application/ld+json;q=0.5" 2>&1 | grep -i "^Content-Type:"
+echo
+echo
+
+
+echo "03. q=0 excludes geo+json — ld+json wins"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/geo+json;q=0, application/ld+json;q=0.9" 2>&1 | grep -i "^Content-Type:"
+echo
+echo
+
+
+echo "04. Equal q → first-listed wins (geo+json first)"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/geo+json, application/ld+json" 2>&1 | grep -i "^Content-Type:"
+echo
+echo
+
+
+echo "05. Equal q → first-listed wins (ld+json first)"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Accept: application/ld+json, application/geo+json" 2>&1 | grep -i "^Content-Type:"
+echo
+echo
+
+
+--EXPECT--
+00. Seed entity with geometry
+=============================
+HTTP/1.1 201 Created
+
+
+01. ld+json q=0.9 beats geo+json q=0.5
+======================================
+Content-Type: application/ld+json; charset=utf-8
+
+
+02. geo+json q=0.9 beats ld+json q=0.5
+======================================
+Content-Type: application/geo+json; charset=utf-8
+
+
+03. q=0 excludes geo+json — ld+json wins
+========================================
+Content-Type: application/ld+json; charset=utf-8
+
+
+04. Equal q → first-listed wins (geo+json first)
+================================================
+Content-Type: application/geo+json; charset=utf-8
+
+
+05. Equal q → first-listed wins (ld+json first)
+===============================================
+Content-Type: application/ld+json; charset=utf-8
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -27,6 +27,7 @@
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
+#include "swNgsild/ldAcceptParse.h"                 // ldAcceptParse, LdAcceptType
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
 #include "swNgsild/ldQAttrs.h"                       // ldQAttrs
@@ -204,7 +205,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
       qN++;
 
   bool hasGeoQ        = (swNgsild.georel != NULL);
-  bool acceptGeoJson  = (swRest.in.accept != NULL && strstr(swRest.in.accept, "application/geo+json") != NULL);
+  bool acceptGeoJson  = (ldAcceptParse(swRest.in.accept) == LdAcceptGeoJson);
 
   int cap = pickN + qN + 2;
   char** wanted = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
