@@ -1,0 +1,135 @@
+#
+# FILE            dataset_id_dedup.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.5.3 — Processing of Conflicting Attributes for a single
+# local-write payload that contains more than one instance with the
+# same datasetId for the same Attribute.
+#
+# Spec mandates a tiebreaker, NOT rejection:
+#   1. expiresAt in the past → discard
+#   2. Most recent observedAt wins
+#   3. (modifiedAt — N/A for local writes)
+#   4. Indeterminate → array-order: last wins
+#
+--NAME--
+Multi-attr duplicate datasetId resolved per § 4.5.5.3 tiebreaker
+
+--TAGS--
+entity multi-attr datasetid validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. POST entity with two default-instance speeds, no observedAt → last wins"
+echo "==========================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10},
+    {"type": "Property", "value": 99}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"value"'
+echo
+echo
+
+
+echo "02. POST entity with two same-datasetId speeds, observedAt picks oldest fragment"
+echo "================================================================================"
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10, "datasetId": "urn:dsA",
+     "observedAt": "2026-12-01T00:00:00Z"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsA",
+     "observedAt": "2026-01-01T00:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V2 | grep -E '"value"'
+echo
+echo
+
+
+echo "03. POST entity with expired duplicate → expired discarded"
+echo "=========================================================="
+payload='{
+  "id": "urn:V3",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10, "datasetId": "urn:dsB",
+     "expiresAt": "2000-01-01T00:00:00Z"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsB"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"value"'
+echo
+echo
+
+
+echo "04. Distinct datasetIds in one multi-attr → both kept"
+echo "====================================================="
+payload='{
+  "id": "urn:V4",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10, "datasetId": "urn:dsX"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsY"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V4 | grep -E '"value"|datasetId' | sort
+echo
+echo
+
+
+--EXPECT--
+01. POST entity with two default-instance speeds, no observedAt → last wins
+===========================================================================
+HTTP/1.1 201 Created
+
+    "value": 99
+
+
+02. POST entity with two same-datasetId speeds, observedAt picks oldest fragment
+================================================================================
+HTTP/1.1 201 Created
+
+    "value": 10
+
+
+03. POST entity with expired duplicate → expired discarded
+==========================================================
+HTTP/1.1 201 Created
+
+    "value": 99
+
+
+04. Distinct datasetIds in one multi-attr → both kept
+=====================================================
+HTTP/1.1 201 Created
+
+      "datasetId": "urn:dsX",
+      "datasetId": "urn:dsY",
+      "value": 10
+      "value": 99
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

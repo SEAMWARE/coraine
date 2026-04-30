@@ -40,7 +40,7 @@ swBrokerStart
 # 14. datasetId not a valid URI
 # 15. GeoProperty value not an object
 # 16. GeoProperty missing coordinates
-# 17. Multi-attribute duplicate datasetId
+# 17. Multi-attribute duplicate datasetId — § 4.5.5.3 dedup, last wins
 #
 
 echo "01. Payload not a JSON object (array)"
@@ -497,15 +497,15 @@ Content-Length: REGEX(\d+)
 
 17. Multi-attribute duplicate datasetId
 =======================================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'",
-  "title": "Duplicate datasetId",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

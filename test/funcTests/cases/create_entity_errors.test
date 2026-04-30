@@ -63,8 +63,8 @@ swBrokerStart
 #
 # 32. Multi-attr empty array
 # 33. Multi-attr element not an object (integer)
-# 34. Multi-attr two defaults (no datasetId)
-# 35. Multi-attr duplicate datasetId
+# 34. Multi-attr two defaults (no datasetId) — § 4.5.5.3 dedup, last wins
+# 35. Multi-attr duplicate datasetId — § 4.5.5.3 dedup, last wins
 #
 # 36. GeoProperty value not an object (string)
 # 37. GeoProperty missing type in GeoJSON
@@ -1593,31 +1593,25 @@ Content-Length: REGEX(\d+)
 
 34. Multi-attr two defaults (no datasetId)
 ==========================================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Location: /ngsi-ld/v1/entities/urn:e34
+Link: REGEX(.*)
+Content-Length: 0
 
-{
-  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': only one instance without datasetId allowed",
-  "title": "Duplicate Default Instance",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
 
 
 
 35. Multi-attr duplicate datasetId
 ==================================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Location: /ngsi-ld/v1/entities/urn:e35
+Link: REGEX(.*)
+Content-Length: 0
 
-{
-  "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'",
-  "title": "Duplicate datasetId",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
 
 
 
