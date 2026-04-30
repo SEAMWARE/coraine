@@ -31,6 +31,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
+#include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
 #include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
@@ -535,6 +536,11 @@ static int forwardAndParse(LdRegCacheItem* csr,
   // (ldEntityToApi) expects, so the merge result can flow through the
   // normal output pipeline.
   apiAttrToStorageWrap(treeP, swRest.kjsonP);
+
+  // § 4.5.5.2 — entity-level expiresAt cascades to each Attribute, with
+  // attr-level values further in the future being shortened to the
+  // entity-level value.
+  ldExpiresAtPropagate(treeP);
 
   *upstreamPP = treeP;
   return status;

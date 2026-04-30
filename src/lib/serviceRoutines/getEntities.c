@@ -26,6 +26,7 @@
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
+#include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
 #include "swNgsild/ldQAttrs.h"                       // ldQAttrs
@@ -606,6 +607,10 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   swldExpandTree(treeP, &swRest.kalloc);
   ldStripAtContext(treeP);
   apiAttrToStorageWrap(treeP);
+
+  // § 4.5.5.2 — entity-level expiresAt cascades to each Attribute, with
+  // attr-level values further in the future shortened to entity-level.
+  ldExpiresAtPropagate(treeP);
   return treeP;
 }
 

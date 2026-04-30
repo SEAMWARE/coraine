@@ -1,0 +1,111 @@
+#
+# FILE            distop_expires_at_propagate.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.5.2 — when an Entity arrives from a registered Context Source
+# with a top-level expiresAt, the broker propagates that DateTime down
+# to each Attribute. Per-attribute expiresAt values further in the
+# future are shortened to the entity-level expiry.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+DistOp § 4.5.5.2 — expiresAt entity → attr propagation
+
+--TAGS--
+distops expiresAt retrieve
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+echo "01. Seed urn:V1 on CP1 with entity-level expiresAt 2099 + one attr w/ 2150"
+echo "==========================================================================="
+swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "later": {
+    "type": "Property",
+    "value": 99,
+    "expiresAt": "2150-01-01T00:00:00Z"
+  },
+  "earlier": {
+    "type": "Property",
+    "value": 7,
+    "expiresAt": "2050-01-01T00:00:00Z"
+  }
+}' | head -1
+echo
+echo
+
+
+echo "02. Register CSR on CB pointing to CP1 for Vehicle"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities": [{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "03. GET urn:V1 on CB → distop fetch + propagation"
+echo "================================================="
+echo "  speed:    no attr-expiresAt → set to entity-level 2099-01-01"
+echo "  later:    attr expiresAt 2150 (further) → shortened to 2099-01-01"
+echo "  earlier:  attr expiresAt 2050 (earlier) → kept as 2050-01-01"
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1?options=sysAttrs | grep -E '"(expiresAt|value)"'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 on CP1 with entity-level expiresAt 2099 + one attr w/ 2150
+===========================================================================
+HTTP/1.1 201 Created
+
+
+02. Register CSR on CB pointing to CP1 for Vehicle
+==================================================
+HTTP/1.1 201 Created
+
+
+03. GET urn:V1 on CB → distop fetch + propagation
+=================================================
+  speed:    no attr-expiresAt → set to entity-level 2099-01-01
+  later:    attr expiresAt 2150 (further) → shortened to 2099-01-01
+  earlier:  attr expiresAt 2050 (earlier) → kept as 2050-01-01
+
+    "expiresAt": {
+      "value": "2050-01-01T00:00:00Z"
+    "value": 7
+  "expiresAt": "2099-01-01T00:00:00Z",
+    "expiresAt": {
+      "value": "2099-01-01T00:00:00Z"
+    "value": 99
+    "expiresAt": "2099-01-01T00:00:00Z",
+    "value": 42
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1
