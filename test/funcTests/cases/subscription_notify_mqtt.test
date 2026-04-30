@@ -1,0 +1,109 @@
+#
+# FILE            subscription_notify_mqtt.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7 — MQTT notification binding. Subscriber's endpoint.uri starts
+# with mqtt://; broker connects as MQTT client to that broker and
+# publishes the wrapped { metadata, body } JSON.
+#
+# Test rig: a private mosquitto on port 11883 (anonymous, runtime
+# config), ftClient subscribed to topic ngsild/notif. MQTT messages
+# land in the same dump array as HTTP notifications, with verb="MQTT".
+#
+--NAME--
+Subscription notification - MQTT delivery (§ 7)
+
+--TAGS--
+subscription notification mqtt
+
+--INIT--
+swDbDrop
+echo "listener 11883
+allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
+mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
+sleep 0.3
+ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
+swBrokerStart
+
+--RUN--
+
+echo "01. Create subscription with mqtt:// endpoint, QoS=0"
+echo "===================================================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:mqtt-S1",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-QoS","value":"0"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. POST a Vehicle — should trigger an MQTT publish"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}'
+echo
+echo
+
+
+echo "03. Wait briefly, then verify ftClient received one MQTT entry"
+echo "=============================================================="
+sleep 0.5
+ftClientDump | grep -cE '"verb": "MQTT"'
+ftClientDump | grep -cE '"url": "ngsild/notif"'
+ftClientDump | grep -cE 'subscriptionId.*mqtt-S1'
+ftClientDump | grep -cE 'metadata.*Content-Type.*application/json'
+ftClientDump | grep -cE 'urn:V1.*type.*Vehicle'
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription with mqtt:// endpoint, QoS=0
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:mqtt-S1
+Content-Length: 0
+
+
+
+
+02. POST a Vehicle — should trigger an MQTT publish
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. Wait briefly, then verify ftClient received one MQTT entry
+==============================================================
+1
+1
+1
+1
+1
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
+pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
+\rm -f /tmp/mqtt-test-mosquitto.conf

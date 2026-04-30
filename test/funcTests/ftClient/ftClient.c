@@ -19,6 +19,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
+
+#include <mosquitto.h>
 
 #include "kargs/kargs.h"
 #include "kargs/kargsBuiltins.h"
@@ -53,6 +56,8 @@ unsigned short ftPort       = 7701;
 bool           ftFg         = true;
 unsigned short ftPostStatus = 200;     // status returned for accumulate POSTs; override with --status
 unsigned int   ftDelayMs    = 0;       // sleep before responding — for timeout tests
+unsigned short ftMqttPort   = 0;       // 0 = no MQTT subscription
+char*          ftMqttTopic  = (char*) "#"; // default: catch every topic
 
 static KArg ftArgV[] =
 {
@@ -60,6 +65,8 @@ static KArg ftArgV[] =
   { "--foreground", "-fg", KaBool,   _vp &ftFg,         KaOpt, _vp KTRUE, _vp KFALSE, _vp KTRUE, "run in foreground" },
   { "--status",     "-s",  KaUShort, _vp &ftPostStatus, KaOpt, _vp 200,   _vp 100, _vp 599, "HTTP status for accumulate POSTs (misbehave mode)" },
   { "--delay",      NULL,  KaUInt,   _vp &ftDelayMs,    KaOpt, _vp 0,     _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
+  { "--mqttPort",   NULL,  KaUShort, _vp &ftMqttPort,   KaOpt, _vp 0,     _vp 0, _vp 65535, "MQTT broker port to subscribe to (0 = disabled)" },
+  { "--mqttTopic",  NULL,  KaString, _vp &ftMqttTopic,  KaOpt, _vp "#",   NULL,  NULL,      "MQTT topic to subscribe (default '#')" },
   KARGS_END
 };
 
@@ -293,6 +300,71 @@ static bool getAccumulate(void)
 
 // -----------------------------------------------------------------------------
 //
+// MQTT subscriber — runs in its own thread, accumulates received messages
+// into the same dumpArray under verb="MQTT", url=<topic>, body=<payload>.
+//
+static pthread_mutex_t mqttDumpMutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void mqttOnConnect(struct mosquitto* m, void* ud, int rc)
+{
+  (void) ud; (void) rc;
+  mosquitto_subscribe(m, NULL, ftMqttTopic, 0);
+}
+
+static void mqttOnMessage(struct mosquitto* m, void* ud, const struct mosquitto_message* msg)
+{
+  (void) m; (void) ud;
+  if (msg == NULL || msg->payload == NULL) return;
+
+  KjNode* entry = kjObject(NULL, NULL);
+  kjChildAdd(entry, kjString(NULL, "verb",  "MQTT"));
+  kjChildAdd(entry, kjString(NULL, "url",   msg->topic ? msg->topic : ""));
+
+  // Try to parse payload as JSON; fall back to a string body.
+  char* payloadStr = (char*) malloc(msg->payloadlen + 1);
+  if (payloadStr == NULL) return;
+  memcpy(payloadStr, msg->payload, msg->payloadlen);
+  payloadStr[msg->payloadlen] = '\0';
+
+  // Store the payload as a string body — same shape as HTTP non-JSON
+  // bodies. Tests typically grep on the payload text directly.
+  kjChildAdd(entry, kjString(NULL, "body", payloadStr));
+  free(payloadStr);
+
+  pthread_mutex_lock(&mqttDumpMutex);
+  kjChildAdd(dumpArray, entry);
+  dumpCount++;
+  pthread_mutex_unlock(&mqttDumpMutex);
+}
+
+static void* mqttListenerThread(void* arg)
+{
+  (void) arg;
+
+  if (mosquitto_lib_init() != MOSQ_ERR_SUCCESS)
+    return NULL;
+
+  struct mosquitto* mosq = mosquitto_new(NULL, true, NULL);
+  if (mosq == NULL) return NULL;
+
+  mosquitto_connect_callback_set(mosq, mqttOnConnect);
+  mosquitto_message_callback_set(mosq, mqttOnMessage);
+
+  // Reconnect-loop friendly: try forever (the broker may not be up yet).
+  while (mosquitto_connect(mosq, "localhost", ftMqttPort, 60) != MOSQ_ERR_SUCCESS)
+    usleep(200000);
+
+  mosquitto_loop_forever(mosq, -1, 1);
+
+  mosquitto_destroy(mosq);
+  mosquitto_lib_cleanup();
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Service table
 //
 static SwRestServiceSimplified ftServices[] =
@@ -354,6 +426,18 @@ int main(int argC, char* argV[])
   {
     fprintf(stderr, "ftClient: swRestInit failed on port %u\n", ftPort);
     return 1;
+  }
+
+  if (ftMqttPort != 0)
+  {
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, mqttListenerThread, NULL) != 0)
+    {
+      fprintf(stderr, "ftClient: failed to start MQTT listener thread\n");
+      return 1;
+    }
+    pthread_detach(tid);
+    KT_I("ftClient MQTT listener: localhost:%u topic='%s'", ftMqttPort, ftMqttTopic);
   }
 
   KT_I("ftClient running on port %u", ftPort);

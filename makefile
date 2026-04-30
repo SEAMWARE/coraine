@@ -123,7 +123,7 @@ K_LIBS        = $(LIB_DIR)/kargs/libkargs.a            \
 #
 # System libraries
 #
-SYS_LIBS      = -lmicrohttpd -lssl -lcrypto -lpthread -ldl -lm
+SYS_LIBS      = -lmicrohttpd -lssl -lcrypto -lpthread -ldl -lm -lmosquitto
 
 #
 # Plugin directories
