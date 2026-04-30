@@ -23,6 +23,7 @@
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd
+#include "kjson/kjClone.h"                           // kjClone
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swNgsild/swNgsild.h"                       // swNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
@@ -117,6 +118,19 @@ bool getSourceIdentity(void)
   kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceAlias",  alias));
   kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceUptime", uptimeBuf));
   kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceTimeAt", timeAtBuf));
+
+  // § 5.2.40 contextSourceExtras — opaque JSON, never @context-expanded.
+  // Cloned into the request arena so the response renderer doesn't mutate
+  // the long-lived startup-parsed tree.
+  if (ldContextSourceExtras != NULL)
+  {
+    KjNode* extras = kjClone(swRest.kjsonP, ldContextSourceExtras);
+    if (extras != NULL)
+    {
+      extras->name = (char*) "contextSourceExtras";
+      kjChildAdd(body, extras);
+    }
+  }
 
   swNgsild.rawResponse      = true;
   swRest.out.responseTree   = body;

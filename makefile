@@ -290,12 +290,29 @@ $(FTCLIENT_DIR)/%.o: $(FTCLIENT_DIR)/%.c
 
 PREFIX          = /usr/local
 INSTALL_PLUGIN  = /opt/seamware/plugins
+INSTALL_ETC     = /opt/seamware/etc
+
+# contextSourceExtras (§ 5.2.40) — default opaque JSON config rendered on
+# /info/sourceIdentity. Regenerated on every build with current version,
+# git SHA and build timestamp; the user can replace at deploy time or
+# override at runtime via --contextSourceExtras <other-file>.
+SWBROKER_VERSION   = 0.2.0
+SWBROKER_GIT_SHA   = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+SWBROKER_BUILD_AT  = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+etc/contextSourceExtras.json: makefile
+	@mkdir -p etc
+	@printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
+	  "$(SWBROKER_VERSION)" "$(SWBROKER_GIT_SHA)" "$(SWBROKER_BUILD_AT)" > $@
+
+all: etc/contextSourceExtras.json
 
 install: all
 	@mkdir -p $(PREFIX)/bin
 	@mkdir -p $(INSTALL_PLUGIN)/db/currentState
 	@mkdir -p $(INSTALL_PLUGIN)/troe/temporal
 	@mkdir -p $(INSTALL_PLUGIN)/api
+	@mkdir -p $(INSTALL_ETC)
 	cat $(BINARY)                  > $(PREFIX)/bin/$(BINARY)         && chmod +x $(PREFIX)/bin/$(BINARY)
 	cat $(PLUGIN_DIR)/mongoc.so    > $(INSTALL_PLUGIN)/db/currentState/mongoc.so
 	cat $(PLUGIN_DIR)/swRamDB.so   > $(INSTALL_PLUGIN)/db/currentState/swRamDB.so
@@ -303,6 +320,7 @@ install: all
 	cat $(PLUGIN_DIR)/troeRamdb.so > $(INSTALL_PLUGIN)/troe/temporal/ramdb.so
 	cat $(PLUGIN_DIR)/troeTimescale.so > $(INSTALL_PLUGIN)/troe/temporal/timescale.so
 	cat $(PLUGIN_DIR)/admin.so     > $(INSTALL_PLUGIN)/api/admin.so
+	cat etc/contextSourceExtras.json > $(INSTALL_ETC)/contextSourceExtras.json
 
 i:   install
 d:   clean

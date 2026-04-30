@@ -30,6 +30,8 @@
 #include "kjson/kjBufferCreate.h"                 // kjBufferCreate
 #include "kjson/kjParse.h"                        // kjParse
 #include "kjson/kjLookup.h"                       // kjLookup
+#include "kjson/kjClone.h"                        // kjClone
+#include "kalloc/kaAlloc.h"                       // kaAlloc
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
@@ -189,6 +191,7 @@ int            corsMaxAge   = 86400;
 char*          userContext  = NULL;
 char*          csourceAlias = NULL;
 char*          httpEndpoint = NULL;
+char*          contextSourceExtras = NULL;  // path to a JSON file (§ 5.2.40)
 bool           noSplitEntities = false;
 int            subStatsFlushInterval = 60;  // seconds; 0 disables the timer
 
@@ -206,6 +209,7 @@ static KArg kargV[] =
   { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
   { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
   { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: http://localhost:<port>)" },
+  { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
   { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
   { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
@@ -507,6 +511,66 @@ static void brokerLinkedEntitiesHook(KjNode* dataArrayP, const char* mode, int j
 
 // -----------------------------------------------------------------------------
 //
+// contextSourceExtrasLoad - parse the file into ldContextSourceExtras (§ 5.2.40)
+//
+// `cliPath` is the value of --contextSourceExtras (NULL if not supplied).
+// On no CLI override, falls back to the install-time default at
+// /opt/seamware/etc/contextSourceExtras.json (regenerated on every build).
+//
+// Parses with the startup pool (swRest.kalloc) so the raw text and the
+// transient parse tree are freed by the pool reset that the caller does
+// right after; kjClone(NULL, parsed) deep-copies into malloc-backed
+// storage that persists for the broker's lifetime.
+//
+// CLI override: parse / open / read errors are fatal — misconfiguration
+// must surface now, not later via a 500 on /info/sourceIdentity.
+// Install-time default: missing file is silently OK (no extras rendered).
+//
+static void contextSourceExtrasLoad(const char* cliPath)
+{
+  const char* path        = cliPath;
+  bool        cliSupplied = (cliPath != NULL);
+
+  if (path == NULL)
+    path = "/opt/seamware/etc/contextSourceExtras.json";
+
+  FILE* fp = fopen(path, "r");
+  if (fp == NULL)
+  {
+    if (cliSupplied)
+      KT_X(1, "--contextSourceExtras: cannot open '%s'", path);
+    return;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  long fsz = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  if (fsz <= 0 || fsz > 1024 * 1024)
+  {
+    fclose(fp);
+    KT_X(1, "contextSourceExtras: '%s' empty or too large (max 1 MiB)", path);
+  }
+
+  char* buf = (char*) kaAlloc(&swRest.kalloc, fsz + 1);
+  if (fread(buf, 1, fsz, fp) != (size_t) fsz)
+  {
+    fclose(fp);
+    KT_X(1, "contextSourceExtras: read failed on '%s'", path);
+  }
+  fclose(fp);
+  buf[fsz] = 0;
+
+  KjNode* parsed = kjParse(swRest.kjsonP, buf);
+  if (parsed == NULL)
+    KT_X(1, "contextSourceExtras: '%s' is not valid JSON", path);
+
+  ldContextSourceExtras = kjClone(NULL, parsed);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // main -
 //
 int main(int argC, char* argV[])
@@ -572,6 +636,7 @@ int main(int argC, char* argV[])
     ldBrokerHttpEndpoint = defaultEndpoint;
   }
 
+
   int r = ktInit("swBroker", NULL, true, NULL, NULL, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
     KT_X(1, "ktInit failed");
@@ -635,9 +700,13 @@ int main(int argC, char* argV[])
   //
   static char startupKallocBuf[16384];
   kaBufferInit(&swRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
+  swRest.kjsonP = kjBufferCreate(&swRest.kjson, &swRest.kalloc);
   tenantSubCacheReload();
   tenantRegCacheReload();
   contextCacheReload();
+
+  contextSourceExtrasLoad(contextSourceExtras);
+
   kaBufferReset(&swRest.kalloc, false);
 
   // Start pernot loop (periodic notification background thread)

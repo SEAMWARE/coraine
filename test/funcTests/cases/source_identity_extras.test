@@ -1,0 +1,51 @@
+#
+# FILE            source_identity_extras.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.40 — `contextSourceExtras` is opaque JSON config rendered
+# verbatim under /info/sourceIdentity, never @context-expanded.
+#
+--NAME--
+Source Identity - contextSourceExtras renders verbatim (§ 5.2.40)
+
+--TAGS--
+admin source-identity csourceExtras
+
+--INIT--
+cat > /tmp/csx.json << 'EOF'
+{
+  "instance": "broker-A1",
+  "tags": ["pilot", "demo"],
+  "contact": { "email": "ops@example.com", "phone": "+1-555-0100" }
+}
+EOF
+swDbDrop
+swBrokerStart --contextSourceExtras /tmp/csx.json
+
+--RUN--
+
+echo "01. GET /info/sourceIdentity — contextSourceExtras present, verbatim"
+echo "===================================================================="
+swCurl --url /info/sourceIdentity | grep -E '"(contextSourceExtras|instance|tags|contact|email|phone)"'
+echo
+echo
+
+
+--EXPECT--
+01. GET /info/sourceIdentity — contextSourceExtras present, verbatim
+====================================================================
+  "contextSourceExtras": {
+    "contact": {
+      "email": "ops@example.com",
+      "phone": "+1-555-0100"
+    "instance": "broker-A1",
+    "tags": [
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+\rm -f /tmp/csx.json
