@@ -1,0 +1,66 @@
+#
+# FILE            prefer_preference_applied.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.6 — when the client sends "Prefer: ngsi-ld=<x>", the broker
+# replies with "Preference-Applied: ngsi-ld=<conformant-version>".
+# We respond with our supported version (1.9.1) regardless of <x>;
+# full version-degradation per § 4.3.6.8 is not implemented.
+#
+--NAME--
+HTTP: Prefer / Preference-Applied (§ 6.3.6)
+
+--TAGS--
+http prefer
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. With Prefer: ngsi-ld=1.9.1 → response carries Preference-Applied"
+echo "===================================================================="
+swCurl --url /info/sourceIdentity -H "Prefer: ngsi-ld=1.9.1" 2>&1 | grep -i "^Preference-Applied:"
+echo
+echo
+
+
+echo "02. Without Prefer → no Preference-Applied"
+echo "==========================================="
+n=$(swCurl --url /info/sourceIdentity 2>&1 | grep -ci "^Preference-Applied:")
+echo "  Preference-Applied count: $n"
+echo
+echo
+
+
+echo "03. Prefer with no ngsi-ld= → no Preference-Applied (different Prefer use)"
+echo "=========================================================================="
+n=$(swCurl --url /info/sourceIdentity -H "Prefer: body=ld+json" 2>&1 | grep -ci "^Preference-Applied:")
+echo "  Preference-Applied count: $n"
+echo
+echo
+
+
+--EXPECT--
+01. With Prefer: ngsi-ld=1.9.1 → response carries Preference-Applied
+====================================================================
+Preference-Applied: ngsi-ld=1.9.1
+
+
+02. Without Prefer → no Preference-Applied
+===========================================
+  Preference-Applied count: 0
+
+
+03. Prefer with no ngsi-ld= → no Preference-Applied (different Prefer use)
+==========================================================================
+  Preference-Applied count: 0
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
