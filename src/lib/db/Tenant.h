@@ -27,6 +27,7 @@ typedef struct Tenant
   void*           regCacheP;      // registration cache (LdRegCache*), owned by broker
   void*           regSubCacheP;   // CSR-subscription cache (LdSubCache*, § 5.11), owned by broker
   void*           entityMapStoreP; // entity map store (LdEntityMapStore*), for distributed query pagination
+  void*           snapshotCacheP; // snapshot cache (LdSnapshotCache*, § 5.16), owned by broker
   struct Tenant*  next;           // linked list
 } Tenant;
 

@@ -22,6 +22,9 @@
 #include "serviceRoutines/postEntityAttrs.h"     // postEntityAttrs
 #include "serviceRoutines/patchEntityAttrs.h"    // patchEntityAttrs
 #include "serviceRoutines/purgeEntities.h"       // purgeEntities
+#include "serviceRoutines/postSnapshot.h"        // postSnapshot
+#include "serviceRoutines/getSnapshot.h"         // getSnapshot
+#include "serviceRoutines/deleteSnapshot.h"      // deleteSnapshot
 #include "serviceRoutines/getEntityAttr.h"       // getEntityAttr
 #include "serviceRoutines/patchEntityAttr.h"     // patchEntityAttr
 #include "serviceRoutines/putEntityAttr.h"       // putEntityAttr
@@ -161,7 +164,12 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbDelete, "/ngsi-ld/v1/temporal/entities/*",                deleteEntityTemporal,          0,                                 LdOpDeleteTemporal },
   { SwVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
   { SwVerbPost,   "/ngsi-ld/v1/temporal/entities",                  postEntitiesTemporal,          0,                                 LdOpUpsertTemporal },
-  { SwVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal }
+  { SwVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
+
+  // Snapshots — § 5.16
+  { SwVerbPost,   "/ngsi-ld/v1/snapshots",                          postSnapshot,                  0,                                 LdOpCreateSnapshot   },
+  { SwVerbGet,    "/ngsi-ld/v1/snapshots/*",                        getSnapshot,                   0,                                 LdOpRetrieveSnapshot },
+  { SwVerbDelete, "/ngsi-ld/v1/snapshots/*",                        deleteSnapshot,                0,                                 LdOpDeleteSnapshot   }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

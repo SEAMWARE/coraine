@@ -32,6 +32,9 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postEntityAttrs.c \
                 src/lib/serviceRoutines/patchEntityAttrs.c \
                 src/lib/serviceRoutines/purgeEntities.c \
+                src/lib/serviceRoutines/postSnapshot.c \
+                src/lib/serviceRoutines/getSnapshot.c \
+                src/lib/serviceRoutines/deleteSnapshot.c \
                 src/lib/serviceRoutines/getEntityAttr.c \
                 src/lib/serviceRoutines/patchEntityAttr.c \
                 src/lib/serviceRoutines/putEntityAttr.c \

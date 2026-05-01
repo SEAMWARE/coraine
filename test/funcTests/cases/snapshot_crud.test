@@ -1,0 +1,274 @@
+#
+# FILE            snapshot_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16 Snapshot subsystem — Phase 1: bare CRUD scaffold.
+#
+# Phase-1 limitations honoured by these checks:
+#   - Status is set to "success" immediately on create (no async query
+#     execution yet).
+#   - snapshotQueriesDetails / snapshotTemporalQueriesDetails are
+#     absent (would be populated once async execution lands).
+#   - Snapshot-aware reads (NGSILD-Snapshot header) not yet wired.
+#
+# Coverage:
+#   01. Missing required fields → 400
+#   02. Invalid type → 400
+#   03. Create snapshot (auto-generated id) → 201
+#   04. Create snapshot with explicit id → 201
+#   05. Re-create same id → 409
+#   06. GET existing → 200
+#   07. GET unknown → 404
+#   08. DELETE existing → 204
+#   09. GET deleted → 404
+#   10. DELETE unknown → 404
+#
+--NAME--
+Snapshot CRUD scaffold (§ 5.16, Phase 1)
+
+--TAGS--
+snapshot
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. POST /snapshots empty → 400"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/snapshots --payload '{}'
+echo
+echo
+
+
+echo "02. POST /snapshots with wrong type → 400"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"type":"NotASnapshot","snapshotQueries":[]}'
+echo
+echo
+
+
+echo "03. POST /snapshots without id → 201, server generates id"
+echo "========================================================="
+payload='{
+  "type": "Snapshot",
+  "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "04. POST /snapshots with explicit id → 201"
+echo "=========================================="
+payload='{
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "type": "Snapshot",
+  "snapshotPriority": 7,
+  "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "05. POST same id → 409"
+echo "======================"
+swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "06. GET /snapshots/urn:ngsi-ld:Snapshot:S1 → 200"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+echo
+echo
+
+
+echo "07. GET /snapshots/urn:ngsi-ld:Snapshot:DoesNotExist → 404"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:DoesNotExist
+echo
+echo
+
+
+echo "08. DELETE /snapshots/urn:ngsi-ld:Snapshot:S1 → 204"
+echo "==================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+echo
+echo
+
+
+echo "09. GET /snapshots/urn:ngsi-ld:Snapshot:S1 → 404 (was deleted)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+echo
+echo
+
+
+echo "10. DELETE unknown id → 404"
+echo "==========================="
+swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch
+echo
+echo
+
+
+--EXPECT--
+01. POST /snapshots empty → 400
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'type' must be \"Snapshot\"",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. POST /snapshots with wrong type → 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'type' must be \"Snapshot\"",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. POST /snapshots without id → 201, server generates id
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/REGEX(urn:ngsi-ld:Snapshot:[0-9a-f]{8}:[0-9a-f]{4})
+Content-Length: REGEX(\d+)
+
+
+
+
+04. POST /snapshots with explicit id → 201
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+Content-Length: REGEX(\d+)
+
+
+
+
+05. POST same id → 409
+======================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1' already exists",
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+06. GET /snapshots/urn:ngsi-ld:Snapshot:S1 → 200
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 7,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+07. GET /snapshots/urn:ngsi-ld:Snapshot:DoesNotExist → 404
+==========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:DoesNotExist' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. DELETE /snapshots/urn:ngsi-ld:Snapshot:S1 → 204
+===================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+09. GET /snapshots/urn:ngsi-ld:Snapshot:S1 → 404 (was deleted)
+==============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. DELETE unknown id → 404
+===========================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

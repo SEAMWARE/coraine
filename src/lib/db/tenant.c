@@ -22,6 +22,7 @@
 #include "swNgsild/ldPernotCache.h"                      // ldPernotCacheCreate
 #include "swNgsild/LdEntityMap.h"                         // LdEntityMapStore
 #include "swNgsild/ldEntityMap.h"                         // ldEntityMapStoreCreate
+#include "swNgsild/LdSnapshotCache.h"                     // ldSnapshotCacheCreate
 #include "swNgsild/LdRegCache.h"                          // LdRegCache
 #include "swNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
 #include "kjson/kjLookup.h"                              // kjLookup
@@ -64,6 +65,7 @@ void tenantInit(const char* prefix)
     ((LdRegCache*) tenant0.regCacheP)->csrGeoMatchFunc = db.csrGeoMatchFunc;
   tenant0.regSubCacheP    = ldSubCacheCreate();
   tenant0.entityMapStoreP = ldEntityMapStoreCreate();
+  tenant0.snapshotCacheP  = ldSnapshotCacheCreate();
   tenant0.next        = NULL;
 }
 
@@ -136,6 +138,7 @@ Tenant* tenantGetOrCreate(const char* name)
     ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc = db.csrGeoMatchFunc;
   tP->regSubCacheP    = ldSubCacheCreate();
   tP->entityMapStoreP = ldEntityMapStoreCreate();
+  tP->snapshotCacheP  = ldSnapshotCacheCreate();
 
   // Prepend to linked list
   tP->next   = tenantList;
