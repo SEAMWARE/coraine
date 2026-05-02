@@ -13,6 +13,7 @@
 #
 # Requires postgres + the timescale TRoE plugin.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot temporal reads (§ 6.3.22 / Phase #146c)
 

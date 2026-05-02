@@ -17,6 +17,7 @@
 #     so a subsequent restart finds no leftover.
 #   - Purge by q removes entries from disk too.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot persistence + restart reload (§ 5.16, Phase #140)
 

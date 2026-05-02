@@ -17,6 +17,7 @@
 # Brokers are started with --noSplitEntities (split-mode capture is
 # Phase 141b — implemented but not yet exercised here).
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot distributed capture, no-split (§ 5.16, Phase #141)
 

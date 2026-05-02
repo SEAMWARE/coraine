@@ -20,6 +20,7 @@
 #
 # receiverInfo entries are emitted as HTTP headers per § 6.3.18 binding.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 SnapshotNotification (§ 5.16.6 / § 5.3.4)
 

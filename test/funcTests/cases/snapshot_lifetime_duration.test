@@ -10,6 +10,7 @@
 # snapshotLifetime recomputes expiresAt; bad durations are rejected
 # with 400. Default (no snapshotLifetime) is 1h.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot snapshotLifetime ISO 8601 duration → expiresAt (§ 5.2.41 / Phase #145)
 

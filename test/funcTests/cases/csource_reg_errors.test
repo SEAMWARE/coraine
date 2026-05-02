@@ -839,16 +839,11 @@ echo
 --EXPECT--
 01. POST without payload - 400
 ==============================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 411 Length Required
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
-{
-  "detail": "no payload",
-  "title": "Bad Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
 
 
 
@@ -857,7 +852,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 160
 
 {
   "detail": "Registration payload must be a JSON object",
@@ -872,7 +867,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 153
 
 {
   "detail": "Registration 'type' is mandatory for create",
@@ -887,7 +882,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "Registration 'type' must be 'ContextSourceRegistration'",
@@ -902,7 +897,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 161
 
 {
   "detail": "Registration 'endpoint' is mandatory for create",
@@ -917,7 +912,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 137
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
@@ -932,7 +927,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 167
 
 {
   "detail": "Registration 'information' is mandatory for create",
@@ -947,7 +942,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 153
 
 {
   "detail": "'information' must have at least one element",
@@ -962,7 +957,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 214
 
 {
   "detail": "'information' element must have at least one of 'entities', 'propertyNames', 'relationshipNames'",
@@ -977,7 +972,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 148
 
 {
   "detail": "'entities[].type' is mandatory",
@@ -992,7 +987,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 201
 
 {
   "detail": "Registration 'mode' must be one of: inclusive, exclusive, redirect, auxiliary (got 'magic')",
@@ -1007,7 +1002,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 162
 
 {
   "detail": "'expiresAt' must be a DateTime in the future",
@@ -1022,7 +1017,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 158
 
 {
   "detail": "'expiresAt' is not a valid ISO 8601 DateTime",
@@ -1037,7 +1032,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 231
 
 {
   "detail": "auxiliary registration 'operations' must be one of: retrieveOps, retrieveEntity, queryEntity (got 'createEntity')",
@@ -1053,7 +1048,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:Aux1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1063,7 +1058,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 196
 
 {
   "detail": "contextSourceInfo 'accept' must be 'application/json' or 'application/ld+json'",
@@ -1078,7 +1073,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 150
 
 {
   "detail": "registration 'urn:doesnt:exist' not found",
@@ -1093,7 +1088,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 143
 
 {
   "detail": "registration 'id' must be a string",
@@ -1108,7 +1103,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "Registration 'type' must be 'ContextSourceRegistration'",
@@ -1123,7 +1118,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "Registration 'type' must be 'ContextSourceRegistration'",
@@ -1138,7 +1133,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 144
 
 {
   "detail": "registration 'id' must not be empty",
@@ -1153,7 +1148,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 141
 
 {
   "detail": "Not a valid URI: 'no-colon-here'",
@@ -1168,7 +1163,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 152
 
 {
   "detail": "'information' must be a JSON array",
@@ -1183,7 +1178,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 158
 
 {
   "detail": "'information' items must be JSON objects",
@@ -1198,7 +1193,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 159
 
 {
   "detail": "'information[].entities' must be an array",
@@ -1213,7 +1208,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 151
 
 {
   "detail": "'information[].entities' must not be empty",
@@ -1228,7 +1223,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 171
 
 {
   "detail": "'information[].entities[]' items must be JSON objects",
@@ -1243,7 +1238,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "'entities[].id' must be a URI string",
@@ -1258,7 +1253,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 136
 
 {
   "detail": "Not a valid URI: 'no-colon'",
@@ -1273,7 +1268,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 163
 
 {
   "detail": "'entities[].idPattern' must be a regex string",
@@ -1303,7 +1298,7 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 172
 
 {
   "detail": "'entities[].type' must be a string or array of strings",
@@ -1318,7 +1313,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 150
 
 {
   "detail": "'entities[].type' array must not be empty",
@@ -1333,7 +1328,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 163
 
 {
   "detail": "'entities[].type' array items must be strings",
@@ -1348,7 +1343,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 161
 
 {
   "detail": "'propertyNames' must be an array of strings",
@@ -1363,7 +1358,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 178
 
 {
   "detail": "'information[].propertyNames' / 'relationshipNames' must not be empty",
@@ -1378,7 +1373,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "'propertyNames' items must be non-empty strings",
@@ -1393,7 +1388,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "'propertyNames' items must be non-empty strings",
@@ -1408,7 +1403,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "'relationshipNames' must be an array of strings",
@@ -1423,7 +1418,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 178
 
 {
   "detail": "'information[].propertyNames' / 'relationshipNames' must not be empty",
@@ -1438,7 +1433,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "'relationshipNames' items must be non-empty strings",
@@ -1453,7 +1448,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "'relationshipNames' items must be non-empty strings",
@@ -1468,7 +1463,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "'expiresAt' must be a DateTime string",
@@ -1483,7 +1478,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "Registration 'mode' must be a string",
@@ -1498,7 +1493,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "'contextSourceInfo' must be an array",
@@ -1513,7 +1508,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 171
 
 {
   "detail": "'contextSourceInfo' items must be {key,value} objects",
@@ -1528,7 +1523,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 156
 
 {
   "detail": "'contextSourceInfo' item missing 'key'",
@@ -1543,7 +1538,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 158
 
 {
   "detail": "'contextSourceInfo' item missing 'value'",
@@ -1558,7 +1553,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 201
 
 {
   "detail": "contextSourceInfo 'contentType' must be 'application/json' or 'application/ld+json'",
@@ -1573,7 +1568,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 3
 
 []

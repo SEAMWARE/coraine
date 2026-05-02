@@ -10,6 +10,7 @@
 # subscription / registration creation) must be rejected with 422
 # OperationNotSupported. GET paths pass through.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot NGSILD-Snapshot write guard (§ 5.16 / Phase #147)
 

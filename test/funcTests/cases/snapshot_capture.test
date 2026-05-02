@@ -15,6 +15,7 @@
 # Reading those entities via the NGSILD-Snapshot header lands in
 # Phase 2b — this test only covers create-time outcomes.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot entity capture (§ 5.16, Phase 2a)
 

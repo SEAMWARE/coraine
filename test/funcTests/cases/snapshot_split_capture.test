@@ -24,6 +24,7 @@
 #   - q=speed>20 on the snapshot returns the merged V1 (which it would
 #     not, if the query had been forwarded as-is to the partial sources)
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot split-mode capture: per-attribute merge across CSRs (§ 5.16, Phase #142)
 

@@ -18,6 +18,7 @@
 # Each case verifies the snapshot's frozen view ignores subsequent
 # live mutations.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot read — orderBy / q / pick / pagination (§ 5.16, Phase #139)
 

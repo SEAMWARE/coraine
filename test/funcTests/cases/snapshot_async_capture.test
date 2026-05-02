@@ -13,6 +13,7 @@
 # notification. The client polls /snapshots/{id} until status is
 # terminal (or waits for a SnapshotNotification).
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot async background capture (§ 5.16.1.4 / Phase #144)
 

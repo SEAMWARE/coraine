@@ -11,6 +11,7 @@
 #
 # Requires postgres + the timescale TRoE plugin.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot temporal lifecycle — clone + delete (§ 5.16.2 / § 5.16.5 / Phase #146d)
 

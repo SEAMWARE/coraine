@@ -18,6 +18,7 @@
 #   - Unknown snapshot id → 404 ResourceNotFound.
 #   - Entity not in the snapshot → 404 ResourceNotFound.
 #
+# REQUIRE_DB: mongoc
 --NAME--
 Snapshot-aware reads (§ 5.16, Phase 2b)
 
