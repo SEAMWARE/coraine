@@ -662,7 +662,11 @@ int main(int argC, char* argV[])
   static KAlloc  contextAlloc;
   static char    contextBuffer[64 * 1024];
 
-  kaBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 0, NULL, "jsonld-context");
+  // allocSize must be non-zero — kaAlloc falls back to calloc(1, allocSize)
+  // when the static 64 KiB initial buffer runs out, and calloc(1, 0) returns
+  // NULL/empty, leading to a SEGV on the next memset. 256 KiB matches the
+  // pernot/swRest convention for "ample headroom for normal growth".
+  kaBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
 
   if (swldInit(&contextAlloc, NULL, contextDownload) != 0)
     KT_X(1, "swldInit failed");
