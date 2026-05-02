@@ -1,0 +1,192 @@
+#
+# FILE            entitymap_linked_maps.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.14.4.4 — when distributed EntityMap creation forwards to CSRs, the
+# local broker forwards POST /entityMaps (not GET /entities) and the CP
+# returns its own (local) EntityMap. The local broker stores the
+# (CSR.regId → remote EntityMap.id) mapping in its `linkedMaps` field.
+#
+# Setup:  CP1 has V2, V3.  CB has V1.  CSR CB→CP1 (inclusive, Vehicle).
+# Trigger: POST /entityMaps?type=Vehicle on CB (i.e. distributed map
+#          creation across CB + CP1).
+# Verify:  CB's response carries linkedMaps with one entry pointing
+#          urn:CSR:R1 → some remote EntityMap id, AND that same id
+#          exists on CP1's own /entityMaps store.
+#
+--NAME--
+EntityMap linkedMaps populated by distributed creation (§ 5.14.4.4)
+
+--TAGS--
+entitymap distops query
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed CP1: V2, V3"
+echo "===================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+echo
+echo
+
+
+echo "02. Seed CB: V1"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 (R1) inclusive"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "04. Sanity: distop GET /entities?type=Vehicle merges V1 + V2 + V3"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=id&options=keyValues'
+echo
+echo
+
+
+echo "05. GET /entityMaps?type=Vehicle on CB — captures local + remote, populates linkedMaps"
+echo "======================================================================================="
+swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id'
+echo
+echo
+
+
+echo "06. Confirm linkedMaps shape: keyed by CSR id, values are remote-EntityMap URIs"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id' | grep -E '"linkedMaps"|"urn:CSR:R1"' | sed -E 's|EntityMap:[a-f0-9]{12}|EntityMap:STABLE_ID|g'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1: V2, V3
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V3
+Content-Length: 0
+
+
+
+
+02. Seed CB: V1
+===============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 (R1) inclusive
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Content-Length: 0
+
+
+
+
+04. Sanity: distop GET /entities?type=Vehicle merges V1 + V2 + V3
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 207
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 10,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 20,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": 30,
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. GET /entityMaps?type=Vehicle on CB — captures local + remote, populates linkedMaps
+=======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-EntityMap: REGEX(/ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:[a-f0-9]+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 335
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "urn:CSR:R1"
+    ],
+    "urn:V3": [
+      "urn:CSR:R1"
+    ]
+  },
+  "expiresAt": "REGEX([0-9TZ:.\-]+)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)",
+  "linkedMaps": {
+    "urn:CSR:R1": "REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)"
+  },
+  "type": "EntityMap"
+}
+
+
+
+06. Confirm linkedMaps shape: keyed by CSR id, values are remote-EntityMap URIs
+===============================================================================
+      "urn:CSR:R1"
+      "urn:CSR:R1"
+  "linkedMaps": {
+    "urn:CSR:R1": "urn:ngsi-ld:EntityMap:STABLE_ID"
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

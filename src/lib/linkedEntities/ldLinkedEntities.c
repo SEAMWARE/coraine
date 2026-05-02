@@ -82,6 +82,23 @@ static void visitedFree(VisitedNode* head)
 
 
 
+//
+// visitedSeedFromContainedBy - pre-populate the visited set with the
+// entity ids that came in via ?containedBy= (§ 5.7.1.4 cycle prevention
+// for linked-entity retrieval). Returns the new head — or the input
+// head when ?containedBy is absent. Callers must visitedFree() the
+// returned head.
+//
+static VisitedNode* visitedSeedFromContainedBy(VisitedNode* head)
+{
+  if (swNgsild.containedByV == NULL) return head;
+  for (int i = 0; swNgsild.containedByV[i] != NULL; i++)
+    head = visitedAppend(head, swNgsild.containedByV[i]);
+  return head;
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // entityIdOf - extract the "id" of an entity tree (borrowed pointer)
@@ -348,6 +365,7 @@ KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
   kjChildAdd(outArr, primaryP);
 
   VisitedNode* visited     = visitedAppend(NULL, primaryId);
+  visited                  = visitedSeedFromContainedBy(visited);
   KjNode**     frontier    = (KjNode**) malloc(sizeof(KjNode*));
   frontier[0]              = primaryP;
   flatBfs(outArr, frontier, 1, joinLevel, tenantP, &visited);
@@ -379,6 +397,7 @@ void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tena
       visited = visitedAppend(visited, id);
     primaryCount++;
   }
+  visited = visitedSeedFromContainedBy(visited);
 
   // Build a frontier snapshot (kjChildAdd inside the BFS would otherwise
   // mutate the live ->next chain we're iterating).
@@ -503,6 +522,7 @@ KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
     return primaryP;
 
   VisitedNode* visited = visitedAppend(NULL, primaryId);
+  visited              = visitedSeedFromContainedBy(visited);
   inlineWalk(primaryP, joinLevel, &visited, tenantP);
   visitedFree(visited);
 

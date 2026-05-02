@@ -1,0 +1,149 @@
+#
+# FILE            csource_reg_discovery_filtered_info.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.10.2.5 — discovery responses must be FILTERED: each returned CSR
+# carries only the RegistrationInfo entries that match the request's
+# filter (type / id / idPattern / attrs|pick). Non-matching entries are
+# stripped from the information[] array.
+#
+--NAME--
+CSR discovery — filtered RegistrationInfo in response (§ 5.10.2.5)
+
+--TAGS--
+csr discovery
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+# A single CSR with THREE RegistrationInfo entries:
+#   info[0]:  Vehicle.speed
+#   info[1]:  Person.name
+#   info[2]:  Building.location
+echo "01. Register CSR with three RegistrationInfo entries"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:ngsi-ld:CSR:Multi",
+  "type":"ContextSourceRegistration",
+  "endpoint":"http://localhost:9999/csource",
+  "information":[
+    {"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]},
+    {"entities":[{"type":"Person"}],"propertyNames":["name"]},
+    {"entities":[{"type":"Building"}],"propertyNames":["location"]}
+  ]
+}' | head -1
+echo
+echo
+
+
+echo "02. Discovery type=Vehicle — only the Vehicle RegistrationInfo entry comes back"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  csr count:', len(d))
+for csr in d:
+    print('  csr:', csr.get('id'), 'info entries:', len(csr.get('information', [])))
+    for info in csr.get('information', []):
+        et = [e.get('type') for e in info.get('entities', [])]
+        pn = info.get('propertyNames', [])
+        print('    info: types=', et, 'propertyNames=', pn)
+"
+echo
+echo
+
+
+echo "03. Discovery type=Vehicle,Person — both Vehicle and Person entries come back"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Person' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  csr count:', len(d))
+for csr in d:
+    print('  csr:', csr.get('id'), 'info entries:', len(csr.get('information', [])))
+    for info in csr.get('information', []):
+        et = [e.get('type') for e in info.get('entities', [])]
+        print('    info: types=', et)
+"
+echo
+echo
+
+
+echo "04. Discovery pick=speed — only the speed entry matches"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&pick=speed' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  csr count:', len(d))
+for csr in d:
+    print('  csr:', csr.get('id'), 'info entries:', len(csr.get('information', [])))
+    for info in csr.get('information', []):
+        print('    info: propertyNames=', info.get('propertyNames', []))
+"
+echo
+echo
+
+
+echo "05. Discovery type=Building — Building info entry only"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  csr count:', len(d))
+for csr in d:
+    for info in csr.get('information', []):
+        et = [e.get('type') for e in info.get('entities', [])]
+        pn = info.get('propertyNames', [])
+        print('    info: types=', et, 'propertyNames=', pn)
+"
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR with three RegistrationInfo entries
+====================================================
+HTTP/1.1 201 Created
+
+
+02. Discovery type=Vehicle — only the Vehicle RegistrationInfo entry comes back
+===============================================================================
+  csr count: 1
+  csr: urn:ngsi-ld:CSR:Multi info entries: 1
+    info: types= ['Vehicle'] propertyNames= ['speed']
+
+
+03. Discovery type=Vehicle,Person — both Vehicle and Person entries come back
+=============================================================================
+  csr count: 1
+  csr: urn:ngsi-ld:CSR:Multi info entries: 2
+    info: types= ['Vehicle']
+    info: types= ['Person']
+
+
+04. Discovery pick=speed — only the speed entry matches
+=======================================================
+  csr count: 1
+  csr: urn:ngsi-ld:CSR:Multi info entries: 1
+    info: propertyNames= ['speed']
+
+
+05. Discovery type=Building — Building info entry only
+======================================================
+  csr count: 1
+    info: types= ['Building'] propertyNames= ['location']
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -65,12 +65,23 @@ bool postCsourceSubscriptions(void)
   if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, &swRest.kalloc) == false)
     return true;
 
-  // timeInterval (periodic CSR notifications) deferred — § 5.11.7
-  if (kjLookup(subP, "timeInterval") != NULL)
+  // § 5.11.7 — timeInterval drives periodic CsourceNotifications.
+  // Validate it here; it gets transferred to the cache item further
+  // down, after the cache add.
+  int timeIntervalSec = 0;
+  KjNode* tiP = kjLookup(subP, "timeInterval");
+  if (tiP != NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
-            "periodic CSR subscriptions ('timeInterval') are not supported");
-    return true;
+    long n = (tiP->type == KjInt)   ? (long) tiP->value.i
+           : (tiP->type == KjFloat) ? (long) tiP->value.f
+           : -1L;
+    if (n < 1)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "'timeInterval' must be a positive integer (seconds)");
+      return true;
+    }
+    timeIntervalSec = (int) n;
   }
 
   //
@@ -170,7 +181,11 @@ bool postCsourceSubscriptions(void)
   //
   LdSubCacheItem* cacheItem = NULL;
   if (tenantP->regSubCacheP != NULL)
+  {
     cacheItem = ldSubCacheItemAdd((LdSubCache*) tenantP->regSubCacheP, subP, NULL);
+    if (cacheItem != NULL)
+      cacheItem->timeInterval = timeIntervalSec;
+  }
 
   //
   // 201 Created — Location + Link headers

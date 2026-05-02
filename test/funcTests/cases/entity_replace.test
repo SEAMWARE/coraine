@@ -163,7 +163,7 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
@@ -243,16 +243,11 @@ Content-Length: REGEX(\d+)
 
 08. PUT without payload — 400
 =============================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 411 Length Required
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Content-Length: REGEX(\d+)
 
-{
-  "detail": "no payload",
-  "title": "Bad Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
 
 
 

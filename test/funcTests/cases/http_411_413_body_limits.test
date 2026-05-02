@@ -1,0 +1,93 @@
+#
+# FILE            http_411_413_body_limits.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.2 / § 6.3.4 — POST/PATCH/PUT must carry Content-Length
+# (411 Length Required if missing, no body); the broker's configured
+# max-request-size cap (CLI --maxRequestSize, default 2 MiB) caps the
+# body — anything larger gets 413 Request Entity Too Large.
+#
+# Broker started here with --maxRequestSize 1 (1 MiB) so we can hit
+# the cap with a manageable test payload.
+#
+--NAME--
+HTTP 411 / 413 — Content-Length required, request body cap (§ 6.3.4 / § 6.3.2)
+
+--TAGS--
+error http
+
+--INIT--
+swDbDrop
+swBrokerStart -mrs 1
+
+--RUN--
+
+# 01. POST without body → 411 Length Required, NO body in response (per § 6.3.4).
+echo "01. POST /entities with no body — 411 (no payload)"
+echo "==================================================="
+curl -s -X POST -i http://localhost:${SW_BROKER_PORT}/ngsi-ld/v1/entities | head -20
+echo
+echo
+
+
+# 02. POST with very small body → success path (cap not hit).
+echo "02. POST small body — 201 (well under the 1 MiB cap)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+echo
+echo
+
+
+# 03. POST with body just over 1 MiB → 413 Request Entity Too Large.
+echo "03. POST oversized body — 413"
+echo "============================="
+python3 -c "import sys, json; print(json.dumps({'id':'urn:Big','type':'X','blob':{'type':'Property','value':'A'*1100000}}))" > /tmp/swCurlBig.json
+curl -s -i -X POST -H 'Content-Type: application/json' --data-binary @/tmp/swCurlBig.json \
+     http://localhost:${SW_BROKER_PORT}/ngsi-ld/v1/entities 2>&1 | grep -iE '^HTTP/|^Content-Type:|RequestEntityTooLarge'
+\rm -f /tmp/swCurlBig.json
+echo
+echo
+
+
+# 04. GET — Content-Length is irrelevant; nothing should fire 411 / 413.
+echo "04. GET /entities — unaffected"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities?type=Vehicle | head -1
+echo
+echo
+
+
+--EXPECT--
+01. POST /entities with no body — 411 (no payload)
+===================================================
+HTTP/1.1 411 Length Required
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 0
+
+
+
+02. POST small body — 201 (well under the 1 MiB cap)
+====================================================
+HTTP/1.1 201 Created
+
+
+03. POST oversized body — 413
+=============================
+HTTP/1.1 100 Continue
+HTTP/1.1 413 Content Too Large
+Content-Type: application/json; charset=utf-8
+  "type": "https://uri.etsi.org/ngsi-ld/errors/RequestEntityTooLarge",
+
+
+04. GET /entities — unaffected
+==============================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,389 @@
+#
+# FILE            snapshot_orderby_q.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16 Snapshot — exercise the rich query semantics that "just work"
+# now that snapshot reads route through the standard entity stack
+# (Phase #139: snapshot-as-tenant + DB-backed store):
+#
+#   - GET /entities?orderBy=speed         on a snapshot
+#   - GET /entities?orderBy=!speed        on a snapshot
+#   - GET /entities?q=speed>50            on a snapshot
+#   - GET /entities?pick=speed            on a snapshot
+#   - GET /entities?limit=2&offset=1      on a snapshot
+#
+# Each case verifies the snapshot's frozen view ignores subsequent
+# live mutations.
+#
+--NAME--
+Snapshot read — orderBy / q / pick / pagination (§ 5.16, Phase #139)
+
+--TAGS--
+snapshot
+
+--INIT--
+swDbDrop
+swSnapDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed five Vehicles with varying speeds"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V4","type":"Vehicle","speed":{"type":"Property","value":63}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V5","type":"Vehicle","speed":{"type":"Property","value":25}}'
+echo
+echo
+
+
+echo "02. Create snapshot capturing all Vehicles"
+echo "=========================================="
+payload='{"id":"urn:ngsi-ld:Snapshot:Frozen","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
+swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "03. Mutate live V1 (speed → 999) — must not affect snapshot reads"
+echo "================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
+echo
+echo
+
+
+echo "04. Snapshot read, orderBy=speed (ascending)"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+echo
+echo
+
+
+echo "05. Snapshot read, orderBy=speed;desc (descending)"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed%3Bdesc' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+echo
+echo
+
+
+echo "06. Snapshot read, q=speed>50"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E50' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+echo
+echo
+
+
+echo "07. Snapshot read, pick=speed (no id/type filter projection)"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+echo
+echo
+
+
+echo "08. Snapshot read, paginated: limit=2 offset=1, sorted by speed"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=1' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+echo
+echo
+
+
+--EXPECT--
+01. Seed five Vehicles with varying speeds
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V3
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V4
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V5
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create snapshot capturing all Vehicles
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Frozen
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Mutate live V1 (speed → 999) — must not affect snapshot reads
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+04. Snapshot read, orderBy=speed (ascending)
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V3",
+    "speed": {
+      "type": "Property",
+      "value": 15
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V5",
+    "speed": {
+      "type": "Property",
+      "value": 25
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V4",
+    "speed": {
+      "type": "Property",
+      "value": 63
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. Snapshot read, orderBy=speed;desc (descending)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V4",
+    "speed": {
+      "type": "Property",
+      "value": 63
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V5",
+    "speed": {
+      "type": "Property",
+      "value": 25
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V3",
+    "speed": {
+      "type": "Property",
+      "value": 15
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. Snapshot read, q=speed>50
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V4",
+    "speed": {
+      "type": "Property",
+      "value": 63
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Snapshot read, pick=speed (no id/type filter projection)
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V3",
+    "speed": {
+      "type": "Property",
+      "value": 15
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V5",
+    "speed": {
+      "type": "Property",
+      "value": 25
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V4",
+    "speed": {
+      "type": "Property",
+      "value": 63
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+08. Snapshot read, paginated: limit=2 offset=1, sorted by speed
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: </ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=0>; rel="first"; type="application/json", </ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=0>; rel="prev"; type="application/json", </ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=3>; rel="next"; type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V3",
+    "speed": {
+      "type": "Property",
+      "value": 15
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V4",
+    "speed": {
+      "type": "Property",
+      "value": 63
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swSnapDrop
+swDbDrop

@@ -1,0 +1,131 @@
+#
+# FILE            snapshot_temporal_capture.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16.1.4 + § 5.7.4 — snapshotTemporalQueries are executed against the
+# live tenant's TRoE store; matched EntityTemporal trees are streamed
+# into the snap-tenant's TRoE store. snapshotTemporalQueriesDetails
+# reports per-query result status; snapshotStatus aggregates across
+# both current-state and temporal detail lists.
+#
+# Requires postgres + the timescale TRoE plugin.
+#
+--NAME--
+Snapshot temporal capture (§ 5.16.1.4 / Phase #146b)
+
+--TAGS--
+snapshot troe timescale postgres
+
+--INIT--
+swDbDrop
+swSnapDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_ft" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_snap_troe_ft" >/dev/null
+swBrokerStart --troe timescale --troeName sw_snap_troe_ft --troeUser postgres
+
+--RUN--
+
+echo "01. Seed two Vehicle entities (TRoE captures createds)"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}' >/dev/null
+echo "  seeded V1, V2"
+echo
+echo
+
+
+echo "02. PATCH each speed twice — three temporal instances per entity"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2/attrs/speed -X PATCH --payload '{"value":85}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2/attrs/speed -X PATCH --payload '{"value":90}' >/dev/null
+echo "  patched each twice"
+echo
+echo
+
+
+echo "03. POST snapshot with snapshotTemporalQueries — capture history"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Hist",
+  "type": "Snapshot",
+  "snapshotTemporalQueries":[
+    {
+      "type":"Query",
+      "entities":[{"type":"Vehicle"}],
+      "temporalQ":{"timerel":"after","timeAt":"1970-01-01T00:00:00Z","timeproperty":"modifiedAt"}
+    }
+  ]
+}'
+echo
+echo
+
+
+echo "04. GET /snapshots/Hist — snapshotTemporalQueriesDetails populated, status=success"
+echo "==================================================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Hist | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  snapshotStatus:', d.get('snapshotStatus'))
+print('  temporal queries detail count:', len(d.get('snapshotTemporalQueriesDetails', [])))
+for det in d.get('snapshotTemporalQueriesDetails', []):
+    print('  detail.resultStatus:', det.get('resultStatus'))
+"
+echo
+echo
+
+
+echo "05. timescale: snap-tenant attr rows match the live-tenant count (3 per entity)"
+echo "================================================================================"
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d sw_snap_troe_ft -tA -F'|' \
+  -c "SELECT count(*) AS n, CASE WHEN tenant LIKE '%_snap_%' THEN 'snap' ELSE 'live' END AS scope FROM troe_attrs GROUP BY scope ORDER BY scope"
+echo
+echo
+
+
+--EXPECT--
+01. Seed two Vehicle entities (TRoE captures createds)
+======================================================
+  seeded V1, V2
+
+
+02. PATCH each speed twice — three temporal instances per entity
+================================================================
+  patched each twice
+
+
+03. POST snapshot with snapshotTemporalQueries — capture history
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Hist
+Content-Length: 0
+
+
+
+
+04. GET /snapshots/Hist — snapshotTemporalQueriesDetails populated, status=success
+===================================================================================
+  snapshotStatus: success
+  temporal queries detail count: 1
+  detail.resultStatus: success
+
+
+05. timescale: snap-tenant attr rows match the live-tenant count (3 per entity)
+================================================================================
+6|live
+6|snap
+
+
+--TEARDOWN--
+swBrokerStop
+swSnapDrop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_ft" >/dev/null 2>&1

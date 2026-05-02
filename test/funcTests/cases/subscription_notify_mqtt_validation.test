@@ -1,0 +1,245 @@
+#
+# FILE            subscription_notify_mqtt_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2 Table 7.2-1 — notifierInfo MQTT-QoS / MQTT-Version validation.
+# Allowed values:
+#   MQTT-QoS:     "0", "1", "2"        (default 0)
+#   MQTT-Version: mqtt3.1.1, mqtt5.0   (default mqtt5.0)
+# Anything else → 400 Bad Request, subscription not created.
+#
+--NAME--
+Subscription notifierInfo - MQTT-QoS / MQTT-Version validation (§ 7.2)
+
+--TAGS--
+subscription mqtt error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. notifierInfo with invalid MQTT-QoS (3) — 400"
+echo "================================================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:bad-qos",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-QoS","value":"3"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. notifierInfo with invalid MQTT-Version (mqtt2.0) — 400"
+echo "=========================================================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:bad-version",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-Version","value":"mqtt2.0"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. notifierInfo not an array — 400"
+echo "==================================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:bad-shape-1",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":{"key":"MQTT-QoS","value":"1"}
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. notifierInfo entry missing 'value' — 400"
+echo "============================================"
+payload='{
+  "id":"urn:ngsi-ld:Subscription:bad-shape-2",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-QoS"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "05. notifierInfo with all valid keys (QoS=2, Version=mqtt3.1.1) — 201"
+echo "====================================================================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:mqtt-good",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-QoS","value":"2"},
+        {"key":"MQTT-Version","value":"mqtt3.1.1"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "06. Confirm only the valid one was created"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. notifierInfo with invalid MQTT-QoS (3) — 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 153
+
+{
+  "detail": "'MQTT-QoS' must be '0', '1', or '2'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. notifierInfo with invalid MQTT-Version (mqtt2.0) — 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 165
+
+{
+  "detail": "'MQTT-Version' must be 'mqtt3.1.1' or 'mqtt5.0'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. notifierInfo not an array — 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 171
+
+{
+  "detail": "'notification.endpoint.notifierInfo' must be an array",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. notifierInfo entry missing 'value' — 400
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 195
+
+{
+  "detail": "'notification.endpoint.notifierInfo' items must be {key:string, value:string}",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. notifierInfo with all valid keys (QoS=2, Version=mqtt3.1.1) — 201
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:mqtt-good
+Content-Length: 0
+
+
+
+
+06. Confirm only the valid one was created
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 587
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:mqtt-good",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "notifierInfo": [
+          {
+            "key": "MQTT-QoS",
+            "value": "2"
+          },
+          {
+            "key": "MQTT-Version",
+            "value": "mqtt3.1.1"
+          }
+        ],
+        "uri": "mqtt://localhost:11883/ngsild/notif"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

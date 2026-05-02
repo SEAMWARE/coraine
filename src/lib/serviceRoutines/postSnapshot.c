@@ -7,17 +7,17 @@
 //
 // POST /ngsi-ld/v1/snapshots — Create Snapshot (§ 5.16.1).
 //
-// Phase 1 scope (intentionally narrow):
-//   - Validate the Snapshot doc per § 5.2.41.
-//   - Generate id if absent, default snapshotPriority=5, set createdAt
-//     /modifiedAt/expiresAt + status="success".
-//   - Store in the per-tenant Snapshot cache.
-//   - Return 201 Created with Location.
+// Phase 1: bare CRUD store (validation, id assignment, cache add).
+// Phase 2a (this revision): synchronous execution of snapshotQueries
+// against the local DB, freezing matched entities into the snapshot's
+// own store via ldSnapshotExecQueries. Status transitions to one of
+// success / partial / empty / failure based on per-query outcomes.
 //
 // Deferred to later phases:
-//   - Async query execution against snapshotQueries / snapshotTemporalQueries.
-//   - Storage of retrieved entities into a snapshot-tagged store.
-//   - Status transitions (preparing → success/partial/empty/failure).
+//   - snapshotTemporalQueries (TRoE integration, Phase 4).
+//   - Distributed snapshotQueries (forward to CSRs per § 5.7.2.4).
+//   - Background execution (so the create call returns before queries
+//     finish; § 5.16.1.4 says "executed in the background").
 //   - SnapshotNotification on the endpoint URI.
 //
 #include <stdbool.h>                                     // bool
@@ -29,16 +29,29 @@
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kjson/KjNode.h"                                // KjNode
 #include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjString, kjChildAdd
+#include "kjson/kjBuilder.h"                             // kjString, kjInteger, kjChildAdd, kjObject
+#include "kjson/kjClone.h"                               // kjClone
+
+#include "db/DbDriver.h"                                 // db
 
 #include "swNgsild/swNgsild.h"                           // ldError, swNgsild
 #include "swNgsild/LdProblem.h"                          // LD_ERROR_*
 #include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemAdd
+#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "swNgsild/ldIso8601Duration.h"                  // ldIso8601DurationParseNs
 #include "swRest/swRestOutHeader.h"                      // swRestOutHeaderAdd
 
 #include "db/Tenant.h"                                   // Tenant
+#include "db/snapshotTenant.h"                           // snapshotTenantCreate
+#include "troe/TroeDriver.h"                             // troe
 
+#include "serviceRoutines/ldSnapshotExec.h"              // ldSnapshotExecQueries
+#include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotExecTemporalQueries
+#include "serviceRoutines/ldSnapshotCaptureAsync.h"      // ldSnapshotCaptureAsync
 #include "serviceRoutines/postSnapshot.h"                // Own interface
+
+
+extern bool asyncSnapshot;  // swBroker.c CLI flag
 
 
 // -----------------------------------------------------------------------------
@@ -113,6 +126,17 @@ static bool validateSnapshot(KjNode* snapP)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
               "'snapshotPriority' must be an integer between 1 and 10");
+      return false;
+    }
+  }
+
+  KjNode* lifeP = kjLookup(snapP, "snapshotLifetime");
+  if (lifeP != NULL)
+  {
+    if (lifeP->type != KjString || ldIso8601DurationParseNs(lifeP->value.s) < 0)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")");
       return false;
     }
   }
@@ -198,26 +222,106 @@ bool postSnapshot(void)
     return true;
   }
 
-  // System-generated members. Phase 1 sets status=success directly —
-  // there's no async execution yet so there's nothing to fail.
+  // System-generated members. Status starts as "preparing" per
+  // § 5.16.1.4; ldSnapshotExecQueries below transitions it to one of
+  // success / partial / empty / failure once queries have run.
   uint64_t  now = swRest.requestStartTime;
   uint64_t  exp = now + 3600ULL * 1000000000ULL;  // default 1h
+
+  // § 5.2.41 snapshotLifetime → expiresAt. Already validated above.
+  KjNode* lifeP = kjLookup(snapP, "snapshotLifetime");
+  if (lifeP != NULL && lifeP->type == KjString)
+  {
+    int64_t durNs = ldIso8601DurationParseNs(lifeP->value.s);
+    if (durNs > 0)
+      exp = now + (uint64_t) durNs;
+  }
 
   replaceString(snapP, "createdAt",      nsToIso(now));
   replaceString(snapP, "modifiedAt",     nsToIso(now));
   replaceString(snapP, "expiresAt",      nsToIso(exp));
   replaceString(snapP, "lastUsedAt",     nsToIso(now));
-  replaceString(snapP, "snapshotStatus", "success");
+  replaceString(snapP, "snapshotStatus", "preparing");
 
   // Default priority.
   if (kjLookup(snapP, "snapshotPriority") == NULL)
     kjChildAdd(snapP, kjInteger(swRest.kjsonP, "snapshotPriority", 5));
 
-  if (ldSnapshotCacheItemAdd(cacheP, snapP) == NULL)
+  LdSnapshotCacheItem* itemP = ldSnapshotCacheItemAdd(cacheP, snapP);
+  if (itemP == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
             "snapshot cache add failed");
     return true;
+  }
+
+  // The snap-tenant holds the frozen entity bodies — see snapshotTenant.h.
+  // Captured entities stream into it via db.entityCreate; reads route
+  // through it via the standard entity stack.
+  itemP->snapTenantP = snapshotTenantCreate(tenantP, itemP->snapSeq);
+  if (itemP->snapTenantP == NULL)
+  {
+    ldSnapshotCacheItemDelete(cacheP, idP->value.s);
+    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+            "snapshot tenant setup failed");
+    return true;
+  }
+
+  // § 5.16 — temporal capture lives on the snap-tenant's TRoE store.
+  // Plugins that need per-tenant setup (timescale schemas, ...) hook
+  // here; current plugins set tenantSetup=NULL and the call is a no-op.
+  if (troe.tenantSetup != NULL)
+    troe.tenantSetup((Tenant*) itemP->snapTenantP);
+
+  // Persist the snapshot metadata BEFORE running the queries. The
+  // initial status is "preparing" — async mode returns 201 right
+  // afterwards and the worker thread updates the status when capture
+  // completes; sync mode runs the capture inline and overwrites the
+  // status before persistence (we still write twice — once here as
+  // "preparing", once at the end with the final status — to keep the
+  // crash-recovery contract identical for sync and async paths).
+  if (db.snapshotCreate != NULL)
+  {
+    if (kjLookup(itemP->tree, "_snapSeq") == NULL)
+      kjChildAdd(itemP->tree, kjInteger(NULL, "_snapSeq", itemP->snapSeq));
+    db.snapshotCreate(tenantP, itemP->id, itemP->tree);
+  }
+
+  if (asyncSnapshot)
+  {
+    // § 5.16.1.4 — "the following is executed in the background".
+    // Worker spawns, mutates itemP->tree + itemP->status, calls
+    // db.snapshotUpdate, fires the notification. POST returns 201
+    // immediately with snapshotStatus="preparing".
+    ldSnapshotCaptureAsync(cacheP, itemP, tenantP,
+                            swNgsild.splitEntitiesSet,
+                            swNgsild.splitEntitiesVal);
+  }
+  else
+  {
+    // Inline (sync) capture path.
+    ldSnapshotExecQueries(cacheP, itemP, tenantP);
+    ldSnapshotExecTemporalQueries(cacheP, itemP, tenantP);
+
+    // Re-persist with the final status + both detail arrays.
+    if (db.snapshotUpdate != NULL && itemP->tree != NULL)
+    {
+      KjNode* fragment = kjObject(swRest.kjsonP, NULL);
+      KjNode* sP       = kjLookup(itemP->tree, "snapshotStatus");
+      if (sP != NULL && sP->type == KjString)
+        kjChildAdd(fragment, kjString(swRest.kjsonP, "snapshotStatus", sP->value.s));
+      KjNode* dP = kjLookup(itemP->tree, "snapshotQueriesDetails");
+      if (dP != NULL)
+        kjChildAdd(fragment, kjClone(swRest.kjsonP, dP));
+      KjNode* tdP = kjLookup(itemP->tree, "snapshotTemporalQueriesDetails");
+      if (tdP != NULL)
+        kjChildAdd(fragment, kjClone(swRest.kjsonP, tdP));
+      if (fragment->value.firstChildP != NULL)
+        db.snapshotUpdate(tenantP, itemP->id, fragment);
+    }
+
+    // § 5.16.6 — fire SnapshotNotification after capture is fully done.
+    ldSnapshotNotify(itemP, false);
   }
 
   // 201 Created + Location: /ngsi-ld/v1/snapshots/{id}

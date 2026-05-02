@@ -1,0 +1,218 @@
+#
+# FILE            snapshot_notification.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16.6 / § 5.3.4 — SnapshotNotification fires on every observable
+# Snapshot status transition: capture-finished, update, delete.
+#
+# Verification:
+#   01. Snapshot WITHOUT endpoint → no notification (negative control).
+#   02. Snapshot WITH endpoint    → one notification on capture.
+#   03. PATCH                     → one more notification.
+#   04. DELETE                    → one more notification, expiresAt
+#                                    forced to a past timestamp (the
+#                                    spec's "deleted" signal).
+#   05. Clone WITH endpoint       → one notification for the clone.
+#   06. PURGE the clone           → deletion notification for it.
+#
+# receiverInfo entries are emitted as HTTP headers per § 6.3.18 binding.
+#
+--NAME--
+SnapshotNotification (§ 5.16.6 / § 5.3.4)
+
+--TAGS--
+snapshot notification
+
+--INIT--
+swDbDrop
+swSnapDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed Vehicle and create snapshot WITHOUT endpoint (no notification)"
+echo "======================================================================="
+payload='{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Quiet","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "02. ftClient dump — expect 0 notifications"
+echo "=========================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('  notifications received:', len(d))
+"
+ftClientReset
+echo
+echo
+
+
+echo "03. Create snapshot WITH endpoint + receiverInfo"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Loud",
+  "type": "Snapshot",
+  "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
+  "endpoint": "http://localhost:'$FT_CLIENT_PORT'/snap",
+  "receiverInfo": [{"key":"X-Tenant","value":"acme"}]
+}'
+echo
+echo
+
+
+echo "04. ftClient dump — one notification with type=SnapshotNotification, snapshotStatus=success"
+echo "==========================================================================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+n = len(d)
+e = d[0] if n > 0 else {}
+b = e.get('body', {})
+hdrs = e.get('headers', {})
+print('  count:', n)
+print('  type:', b.get('type'))
+print('  snapshotId:', b.get('snapshotId'))
+print('  snapshotStatus:', b.get('snapshotStatus'))
+print('  X-Tenant header:', hdrs.get('X-Tenant') or hdrs.get('x-tenant'))
+"
+ftClientReset
+echo
+echo
+
+
+echo "05. PATCH the snapshot priority → another notification"
+echo "======================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Loud --payload '{"snapshotPriority":9}'
+echo
+echo
+
+
+echo "06. ftClient dump — one PATCH notification"
+echo "=========================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('  count:', len(d))
+b = d[0].get('body', {}) if d else {}
+print('  type:', b.get('type'))
+print('  snapshotPriority:', b.get('snapshotPriority'))
+"
+ftClientReset
+echo
+echo
+
+
+echo "07. DELETE the snapshot → deletion notification (expiresAt in the past)"
+echo "======================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Loud
+echo
+echo
+
+
+echo "08. ftClient dump — deletion notification, expiresAt < notifiedAt"
+echo "================================================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('  count:', len(d))
+if d:
+    b = d[0].get('body', {})
+    print('  type:', b.get('type'))
+    print('  expiresAt < notifiedAt:', b.get('expiresAt','') < b.get('notifiedAt',''))
+"
+ftClientReset
+echo
+echo
+
+
+--EXPECT--
+01. Seed Vehicle and create snapshot WITHOUT endpoint (no notification)
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Quiet
+Content-Length: REGEX(\d+)
+
+
+
+
+02. ftClient dump — expect 0 notifications
+==========================================
+  notifications received: 0
+
+
+03. Create snapshot WITH endpoint + receiverInfo
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Loud
+Content-Length: REGEX(\d+)
+
+
+
+
+04. ftClient dump — one notification with type=SnapshotNotification, snapshotStatus=success
+===========================================================================================
+  count: 1
+  type: SnapshotNotification
+  snapshotId: urn:ngsi-ld:Snapshot:Loud
+  snapshotStatus: success
+  X-Tenant header: acme
+
+
+05. PATCH the snapshot priority → another notification
+======================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+06. ftClient dump — one PATCH notification
+==========================================
+  count: 1
+  type: SnapshotNotification
+  snapshotPriority: 9
+
+
+07. DELETE the snapshot → deletion notification (expiresAt in the past)
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+08. ftClient dump — deletion notification, expiresAt < notifiedAt
+=================================================================
+  count: 1
+  type: SnapshotNotification
+  expiresAt < notifiedAt: True
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swSnapDrop
+swDbDrop

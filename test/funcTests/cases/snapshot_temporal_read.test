@@ -1,0 +1,184 @@
+#
+# FILE            snapshot_temporal_read.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.22 / § 5.5.15 — GET /temporal/entities and GET /temporal/
+# entities/{id} honour the NGSILD-Snapshot header: when present, the
+# temporal retrieve / query routes to the snap-tenant's frozen TRoE
+# store. Distops are bypassed; the snap-tenant view is unaffected by
+# subsequent live-tenant mutations.
+#
+# Requires postgres + the timescale TRoE plugin.
+#
+--NAME--
+Snapshot temporal reads (§ 6.3.22 / Phase #146c)
+
+--TAGS--
+snapshot troe timescale postgres
+
+--INIT--
+swDbDrop
+swSnapDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_rd" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_snap_troe_rd" >/dev/null
+swBrokerStart --troe timescale --troeName sw_snap_troe_rd --troeUser postgres
+
+--RUN--
+
+echo "01. Seed Vehicle V1 + 2 patches (TRoE captures three instances)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
+echo "  seeded V1 + 2 patches"
+echo
+echo
+
+
+echo "02. Create snapshot capturing temporal history"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Frozen",
+  "type": "Snapshot",
+  "snapshotTemporalQueries":[{
+    "type":"Query",
+    "entities":[{"type":"Vehicle"}],
+    "temporalQ":{"timerel":"after","timeAt":"1970-01-01T00:00:00Z","timeproperty":"modifiedAt"}
+  }]
+}' >/dev/null
+echo "  snapshot created"
+echo
+echo
+
+
+echo "03. Mutate the LIVE tenant after the snapshot — adds another instance"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":99}' >/dev/null
+echo "  live-tenant patch applied"
+echo
+echo
+
+
+echo "04. GET /temporal/entities/V1 (no header) — sees the LIVE 4 instances"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+def ic(d):
+    n = 0
+    for k, v in d.items():
+        if k in ('id','type','@context'): continue
+        if isinstance(v, list): n += len(v)
+        elif isinstance(v, dict): n += 1
+    return n
+print('  live instance count:', ic(d))
+"
+echo
+echo
+
+
+echo "05. GET /temporal/entities/V1 with NGSILD-Snapshot — sees FROZEN 3 instances"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+def ic(d):
+    n = 0
+    for k, v in d.items():
+        if k in ('id','type','@context'): continue
+        if isinstance(v, list): n += len(v)
+        elif isinstance(v, dict): n += 1
+    return n
+print('  frozen instance count:', ic(d))
+"
+echo
+echo
+
+
+echo "06. GET /temporal/entities (multi) with NGSILD-Snapshot — frozen view"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  entities returned:', len(d))
+def ic(e):
+    n = 0
+    for k, v in e.items():
+        if k in ('id','type','@context'): continue
+        if isinstance(v, list): n += len(v)
+        elif isinstance(v, dict): n += 1
+    return n
+for e in d:
+    print('  entity', e.get('id'), 'instances:', ic(e))
+"
+echo
+echo
+
+
+echo "07. GET /temporal/entities/Unknown with NGSILD-Snapshot — 404"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:Nope?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' | head -1
+echo
+echo
+
+
+echo "08. GET /temporal/entities with NGSILD-Snapshot pointing at a missing snapshot — 404"
+echo "====================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:DoesNotExist' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed Vehicle V1 + 2 patches (TRoE captures three instances)
+===============================================================
+  seeded V1 + 2 patches
+
+
+02. Create snapshot capturing temporal history
+==============================================
+  snapshot created
+
+
+03. Mutate the LIVE tenant after the snapshot — adds another instance
+=====================================================================
+  live-tenant patch applied
+
+
+04. GET /temporal/entities/V1 (no header) — sees the LIVE 4 instances
+=====================================================================
+  live instance count: 4
+
+
+05. GET /temporal/entities/V1 with NGSILD-Snapshot — sees FROZEN 3 instances
+============================================================================
+  frozen instance count: 3
+
+
+06. GET /temporal/entities (multi) with NGSILD-Snapshot — frozen view
+=====================================================================
+  entities returned: 1
+  entity urn:ngsi-ld:Vehicle:V1 instances: 3
+
+
+07. GET /temporal/entities/Unknown with NGSILD-Snapshot — 404
+=============================================================
+HTTP/1.1 404 Not Found
+
+
+08. GET /temporal/entities with NGSILD-Snapshot pointing at a missing snapshot — 404
+=====================================================================================
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+swBrokerStop
+swSnapDrop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_rd" >/dev/null 2>&1

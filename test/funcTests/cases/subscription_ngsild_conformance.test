@@ -1,0 +1,174 @@
+#
+# FILE            subscription_ngsild_conformance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.12 / § 4.3.6.8 — when a Subscription declares ngsildConformance,
+# notifications are downgraded to that older NGSI-LD version's shape
+# before delivery. Tested transformations:
+#   1.0  → strips datasetId/observedAt/unitCode/scope/expiresAt/valueType,
+#          collapses multi-instance arrays to one element, multi-type to first
+#   1.3  → strips scope/expiresAt/valueType, reformats LanguageProperty/
+#          JsonProperty/VocabProperty/ListProperty/ListRelationship as
+#          plain Property/Relationship
+#   1.4  → strips expiresAt/valueType, reformats 1.8+ kinds (Json/Vocab/
+#          List/ListRelationship) as Property/Relationship; keeps
+#          LanguageProperty
+#   1.8  → strips expiresAt/valueType only; all attribute kinds preserved
+#   1.9  → no downgrade
+# Bad version string → 400 BadRequestData on subscription create.
+#
+--NAME--
+Subscription ngsildConformance — backwards-compat downgrade (§ 5.2.12 / § 4.3.6.8)
+
+--TAGS--
+subscription notification validation
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Subscription with bad ngsildConformance — 400"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:bad",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "ngsildConformance":"oneDotFive",
+  "notification":{"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/notify"}}
+}'
+echo
+echo
+
+
+echo "02. Create four subscriptions targeting v1.0 / v1.3 / v1.4 / v1.8"
+echo "================================================================"
+for v in 1.0 1.3 1.4 1.8; do
+  vTag=$(echo $v | tr -d .)
+  swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+    "id":"urn:ngsi-ld:Subscription:v'"$vTag"'",
+    "type":"Subscription",
+    "entities":[{"type":"Vehicle"}],
+    "ngsildConformance":"'"$v"'",
+    "notification":{"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/notify"}}
+  }' | head -1
+done
+echo
+echo
+
+
+echo "03. POST a Vehicle with ALL the fancy fields → triggers four notifications"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:V1",
+  "type":"Vehicle",
+  "scope":"/parking/A",
+  "expiresAt":"2099-12-31T23:59:59Z",
+  "speed":[
+    {"type":"Property","value":42,"datasetId":"urn:default","observedAt":"2026-01-01T00:00:00Z","unitCode":"KMH","valueType":"http://www.w3.org/2001/XMLSchema#integer","expiresAt":"2099-12-31T23:59:59Z"},
+    {"type":"Property","value":99,"datasetId":"urn:alt"}
+  ],
+  "name":{"type":"LanguageProperty","languageMap":{"en":"Bus","es":"Autobus"}},
+  "config":{"type":"JsonProperty","json":{"k":"v"}},
+  "category":{"type":"VocabProperty","vocab":"transport"},
+  "stops":{"type":"ListProperty","valueList":[1,2,3]},
+  "drivers":{"type":"ListRelationship","objectList":["urn:D1","urn:D2"]}
+}'
+echo
+echo
+
+
+echo "04. ftClient dump — verify per-conformance downgrade"
+echo "===================================================="
+sleep 0.4
+ftClientDump | python3 -c "
+import sys, json
+data = json.loads(sys.stdin.read())
+data.sort(key=lambda e: (e.get('body') or {}).get('subscriptionId', ''))
+for e in data:
+    body = e.get('body', {})
+    sub  = body.get('subscriptionId', '')
+    ents = body.get('data') or []
+    if not ents:
+        continue
+    ent = ents[0]
+    speed     = ent.get('speed')
+    speedKind = type(speed).__name__
+    speedHasDsId = isinstance(speed, dict) and 'datasetId' in speed or (isinstance(speed, list) and any('datasetId' in s for s in speed if isinstance(s, dict)))
+    speedHasObsAt = (isinstance(speed, dict) and 'observedAt' in speed) or (isinstance(speed, list) and any('observedAt' in s for s in speed if isinstance(s, dict)))
+    speedHasValType = (isinstance(speed, dict) and 'valueType' in speed) or (isinstance(speed, list) and any('valueType' in s for s in speed if isinstance(s, dict)))
+    speedHasExp = (isinstance(speed, dict) and 'expiresAt' in speed) or (isinstance(speed, list) and any('expiresAt' in s for s in speed if isinstance(s, dict)))
+    types = lambda k: ent.get(k, {}).get('type') if isinstance(ent.get(k), dict) else 'missing'
+    print(f'sub={sub}')
+    print(f'  entity has scope/expiresAt: scope={\"scope\" in ent} expiresAt={\"expiresAt\" in ent}')
+    print(f'  speed: shape={speedKind} datasetId={speedHasDsId} observedAt={speedHasObsAt} valueType={speedHasValType} expiresAt={speedHasExp}')
+    print(f'  attr-kinds: name={types(\"name\")} config={types(\"config\")} category={types(\"category\")} stops={types(\"stops\")} drivers={types(\"drivers\")}')
+"
+echo
+echo
+
+
+--EXPECT--
+01. Subscription with bad ngsildConformance — 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 195
+
+{
+  "detail": "'ngsildConformance' must be a 'major.minor' version string (got 'oneDotFive')",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Create four subscriptions targeting v1.0 / v1.3 / v1.4 / v1.8
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. POST a Vehicle with ALL the fancy fields → triggers four notifications
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. ftClient dump — verify per-conformance downgrade
+====================================================
+sub=urn:ngsi-ld:Subscription:v10
+  entity has scope/expiresAt: scope=False expiresAt=False
+  speed: shape=dict datasetId=False observedAt=False valueType=False expiresAt=False
+  attr-kinds: name=Property config=Property category=Property stops=Property drivers=Relationship
+sub=urn:ngsi-ld:Subscription:v13
+  entity has scope/expiresAt: scope=False expiresAt=False
+  speed: shape=list datasetId=True observedAt=True valueType=False expiresAt=False
+  attr-kinds: name=Property config=Property category=Property stops=Property drivers=Relationship
+sub=urn:ngsi-ld:Subscription:v14
+  entity has scope/expiresAt: scope=True expiresAt=False
+  speed: shape=list datasetId=True observedAt=True valueType=False expiresAt=False
+  attr-kinds: name=LanguageProperty config=Property category=Property stops=Property drivers=Relationship
+sub=urn:ngsi-ld:Subscription:v18
+  entity has scope/expiresAt: scope=True expiresAt=False
+  speed: shape=list datasetId=True observedAt=True valueType=False expiresAt=False
+  attr-kinds: name=LanguageProperty config=JsonProperty category=VocabProperty stops=ListProperty drivers=ListRelationship
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

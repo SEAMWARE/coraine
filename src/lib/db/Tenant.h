@@ -105,4 +105,18 @@ extern void tenantSubCacheReload(void);
 //
 extern void tenantRegCacheReload(void);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSnapshotCacheReload - load snapshots from DB into cache for all
+// tenants. For each persisted snapshot, the metadata is restored to the
+// cache and the per-snapshot tenant struct is reconstructed (its DB
+// already exists; mongocTenantSetup is idempotent on indexes).
+//
+// nextSnapSeq on each cache is bumped to max(persisted snapSeq) + 1 so
+// new snapshots can't collide with one that's still on disk.
+//
+extern void tenantSnapshotCacheReload(void);
+
 #endif  // DB_TENANT_H_

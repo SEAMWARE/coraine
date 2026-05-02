@@ -1,0 +1,421 @@
+#
+# FILE            snapshot_lifecycle.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16 Snapshot subsystem — Phase 3 lifecycle ops:
+#   - § 5.16.4 PATCH /snapshots/{id} — Update Snapshot Status
+#   - § 5.16.2 POST  /snapshots/{id}/clone — Clone Snapshot
+#   - § 5.16.7 DELETE /snapshots[?q=...] — Purge Snapshots
+#
+# Phase 3 limitation: snapshotLifetime ISO 8601 duration parsing is
+# not yet wired, so PATCH accepts the field but does NOT recompute
+# expiresAt. snapshotPriority is fully effective.
+#
+--NAME--
+Snapshot lifecycle ops (§ 5.16, Phase 3)
+
+--TAGS--
+snapshot
+
+--INIT--
+swDbDrop
+swSnapDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed two Vehicles"
+echo "====================="
+payload='{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create snapshot capturing Vehicles"
+echo "======================================"
+payload='{"id":"urn:ngsi-ld:Snapshot:S1","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
+swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "03. PATCH /snapshots/S1 — bump priority to 9"
+echo "============================================"
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotPriority":9}'
+echo
+echo
+
+
+echo "04. GET /snapshots/S1 → snapshotPriority=9"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+echo
+echo
+
+
+echo "05. PATCH /snapshots/S1 — try to mutate immutable id → 400"
+echo "=========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"id":"urn:ngsi-ld:Snapshot:Other"}'
+echo
+echo
+
+
+echo "06. PATCH /snapshots/S1 — try to mutate snapshotQueries → 400"
+echo "============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotQueries":[{"type":"Query","entities":[{"type":"Building"}]}]}'
+echo
+echo
+
+
+echo "07. PATCH /snapshots/S1 — invalid priority 11 → 400"
+echo "==================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotPriority":11}'
+echo
+echo
+
+
+echo "08. PATCH /snapshots/Unknown → 404"
+echo "=================================="
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch --payload '{"snapshotPriority":2}'
+echo
+echo
+
+
+echo "09. POST /snapshots/S1/clone (no body) → 201, server-generated id"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{}'
+echo
+echo
+
+
+echo "10. POST /snapshots/S1/clone with explicit id → 201"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy","snapshotPriority":7}'
+echo
+echo
+
+
+echo "11. GET S1Copy → frozen entities visible via NGSILD-Snapshot"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:S1Copy'
+echo
+echo
+
+
+echo "12. POST /snapshots/Unknown/clone → 404"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch/clone --payload '{}'
+echo
+echo
+
+
+echo "13. POST /snapshots/S1/clone → AlreadyExists (S1Copy already taken)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy"}'
+echo
+echo
+
+
+echo "14. DELETE /snapshots?q=snapshotPriority>5 → 204; only S1 (prio 9) and S1Copy (prio 7) match"
+echo "============================================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+echo
+echo
+
+
+echo "15. GET /snapshots/S1 → 404 (purged)"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+echo
+echo
+
+
+echo "16. GET /snapshots/S1Copy → 404 (purged)"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1Copy
+echo
+echo
+
+
+echo "17. DELETE /snapshots (no q) → 204, purges remaining"
+echo "===================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/snapshots
+echo
+echo
+
+
+--EXPECT--
+01. Seed two Vehicles
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create snapshot capturing Vehicles
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+Content-Length: REGEX(\d+)
+
+
+
+
+03. PATCH /snapshots/S1 — bump priority to 9
+============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+04. GET /snapshots/S1 → snapshotPriority=9
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 9,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+05. PATCH /snapshots/S1 — try to mutate immutable id → 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "field 'id' cannot be modified via PATCH",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PATCH /snapshots/S1 — try to mutate snapshotQueries → 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "field 'snapshotQueries' cannot be modified via PATCH",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. PATCH /snapshots/S1 — invalid priority 11 → 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'snapshotPriority' must be an integer between 1 and 10",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. PATCH /snapshots/Unknown → 404
+==================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. POST /snapshots/S1/clone (no body) → 201, server-generated id
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/REGEX(urn:ngsi-ld:Snapshot:[0-9a-f]+:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+
+
+
+10. POST /snapshots/S1/clone with explicit id → 201
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1Copy
+Content-Length: REGEX(\d+)
+
+
+
+
+11. GET S1Copy → frozen entities visible via NGSILD-Snapshot
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:S1Copy
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+12. POST /snapshots/Unknown/clone → 404
+=======================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+13. POST /snapshots/S1/clone → AlreadyExists (S1Copy already taken)
+===================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1Copy' already exists",
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+14. DELETE /snapshots?q=snapshotPriority>5 → 204; only S1 (prio 9) and S1Copy (prio 7) match
+=============================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+15. GET /snapshots/S1 → 404 (purged)
+====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+16. GET /snapshots/S1Copy → 404 (purged)
+========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1Copy' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+17. DELETE /snapshots (no q) → 204, purges remaining
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swSnapDrop
+swDbDrop

@@ -49,6 +49,7 @@
 
 #include "db/Tenant.h"                               // Tenant
 
+#include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader
 #include "serviceRoutines/getEntityTemporal.h"       // Own interface
 
 
@@ -316,6 +317,14 @@ bool getEntityTemporal(void)
     return true;
   }
 
+  // § 6.3.22 / § 5.5.15 — NGSILD-Snapshot routes the temporal retrieve
+  // to the snap-tenant's frozen TRoE store. Distop dispatch is bypassed
+  // entirely (the snap-tenant already holds the captured federated view).
+  bool                 snapSeen = false;
+  LdSnapshotCacheItem* snapItem = ldSnapshotItemFromHeader(&snapSeen);
+  if (snapSeen && snapItem == NULL)
+    return true;  // 404 already raised by helper
+
   TroeQueryFilter filter;
   memset(&filter, 0, sizeof(filter));
   filter.timerel      = swNgsild.timerel;
@@ -326,7 +335,9 @@ bool getEntityTemporal(void)
   filter.lastN        = swNgsild.lastN;
   filter.datasetIdV   = swNgsild.datasetIdV;
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (snapItem != NULL)
+                      ? (Tenant*) snapItem->snapTenantP
+                      : (Tenant*) swNgsild.tenantP;
 
   TroeRangeInfo rangeInfo;
   memset(&rangeInfo, 0, sizeof(rangeInfo));
@@ -343,7 +354,7 @@ bool getEntityTemporal(void)
   int              inclN  = 0;
   int              auxN   = 0;
 
-  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (snapItem == NULL && !swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
     exclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
                                         entityId, swNgsild.typeV,

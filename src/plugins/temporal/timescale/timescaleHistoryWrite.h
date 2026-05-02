@@ -19,6 +19,8 @@
 #include "db/Tenant.h"                                    // Tenant
 
 
+extern int timescaleTenantDrop(Tenant* tenantP);
+
 extern int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId);
 
 extern int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,

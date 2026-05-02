@@ -55,6 +55,7 @@
 #include "db/DbDriver.h"                             // db
 #include "db/Tenant.h"                               // Tenant
 
+#include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader
 #include "serviceRoutines/getEntitiesTemporal.h"     // Own interface
 
 
@@ -355,6 +356,15 @@ static void stripInfoAttrsFromArray(KjNode* arrayP, LdRegInfo* riP)
 
 bool getEntitiesTemporal(void)
 {
+  // § 6.3.22 / § 5.5.15 — NGSILD-Snapshot routes the temporal query to
+  // the snap-tenant's frozen TRoE store. Distop dispatch is bypassed,
+  // and snapshot reads count as local for the orderBy-requires-local
+  // check below. Parsed early so all subsequent gates can see it.
+  bool                 snapSeen = false;
+  LdSnapshotCacheItem* snapItem = ldSnapshotItemFromHeader(&snapSeen);
+  if (snapSeen && snapItem == NULL)
+    return true;
+
   // § 6.18.3.2: timerel is mandatory on the multi-entity GET (unlike the
   // single-entity retrieve, where it's optional). When present, timeAt
   // is mandatory; for timerel=between, endTimeAt is too.
@@ -394,7 +404,7 @@ bool getEntitiesTemporal(void)
   // ordering by entity id only.
   if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
   {
-    if (!swNgsild.local)
+    if (!swNgsild.local && snapItem == NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
               "orderBy on temporal queries requires 'local=true' (cannot order across federated sources)");
@@ -439,7 +449,9 @@ bool getEntitiesTemporal(void)
   if (swNgsild.qExpr != NULL)
     filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (snapItem != NULL)
+                      ? (Tenant*) snapItem->snapTenantP
+                      : (Tenant*) swNgsild.tenantP;
 
   TroeRangeInfo rangeInfo;
   memset(&rangeInfo, 0, sizeof(rangeInfo));
@@ -463,7 +475,7 @@ bool getEntitiesTemporal(void)
   // explicitly. First slice: no-split federation only (no entityMap, no
   // multi-source pagination). All filters are forwarded; broker applies
   // pick/omit/orderBy/scopeQ/geoQ on the merged result.
-  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (snapItem == NULL && !swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 

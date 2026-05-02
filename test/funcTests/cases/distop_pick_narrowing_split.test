@@ -53,8 +53,8 @@ echo
 
 echo "02. Query split + no user.pick — forwarded pick = reg.exports"
 echo "============================================================="
-echo "    (split mode forwards no filters; pick narrows to reg.exports"
-echo "    so only the registered slice is returned)"
+echo "    (split mode forwards type/id/idPattern only — never q/geoQ/scopeQ;"
+echo "    pick narrows to reg.exports so only the registered slice is returned)"
 swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true' >/dev/null
 ftClientDump --port 7711 | python3 -c "
 import sys, json
@@ -62,8 +62,11 @@ d = json.load(sys.stdin)
 for e in d:
     p = e.get('params', {})
     pick = sorted(p['pick'].split(',')) if 'pick' in p else None
-    filters = [k for k in ('q','geometry','georel','coordinates','geoproperty','type','scopeQ') if k in p]
-    print('  forwarded pick:', pick, ' filters present (should be []):', filters)
+    # type IS forwarded (allows transitive federation; safe — every fragment carries type).
+    # q/geoQ/scopeQ remain stripped (may reference sharded attrs).
+    type_fwd = p.get('type', '')
+    unsafe = [k for k in ('q','geometry','georel','coordinates','geoproperty','scopeQ') if k in p]
+    print('  forwarded pick:', pick, ' type:', type_fwd, ' unsafe filters (should be []):', unsafe)
 "
 ftClientReset --port 7711
 echo
@@ -132,9 +135,9 @@ Content-Length: 0
 
 02. Query split + no user.pick — forwarded pick = reg.exports
 =============================================================
-    (split mode forwards no filters; pick narrows to reg.exports
-    so only the registered slice is returned)
-  forwarded pick: ['color', 'speed']  filters present (should be []): []
+    (split mode forwards type/id/idPattern only — never q/geoQ/scopeQ;
+    pick narrows to reg.exports so only the registered slice is returned)
+  forwarded pick: ['color', 'speed']  type: Vehicle  unsafe filters (should be []): []
 
 
 03. Query split + user.pick=speed,engine — forwarded pick = {speed} only

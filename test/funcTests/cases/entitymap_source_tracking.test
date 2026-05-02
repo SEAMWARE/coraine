@@ -150,7 +150,10 @@ Map ID captured: REGEX(.*)
   },
   "expiresAt": REGEX(.*)
   "id": REGEX(.*)
-  "linkedMaps": {},
+  "linkedMaps": {
+    "urn:CSR:R1": "REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)",
+    "urn:CSR:R2": "REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)"
+  },
   "type": "EntityMap"
 }
 

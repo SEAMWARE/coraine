@@ -227,6 +227,28 @@ typedef int  (*DbRegistrationQueryFunc)(Tenant* tenantP, int limit, int offset, 
 typedef int  (*DbRegistrationUpdateFunc)(Tenant* tenantP, const char* regId, KjNode* fragmentP);
 typedef int  (*DbRegistrationDeleteFunc)(Tenant* tenantP, const char* regId);
 typedef KjNode* (*DbRegistrationListFunc)(Tenant* tenantP);
+
+//
+// Snapshot persistence (§ 5.16). The snapshot's *metadata* (tree:
+// id, snapshotQueries, snapshotStatus, timestamps, priority,
+// snapshotQueriesDetails, plus a hidden "_snapSeq" used to rebuild
+// the per-snapshot tenant DB name on boot) lives in the originating
+// tenant's "snapshots" collection. Entity bodies live in the
+// per-snapshot tenant DB (see snapshotTenant.{c,h}).
+//
+typedef int  (*DbSnapshotCreateFunc)(Tenant* tenantP, const char* snapId, KjNode* snapP);
+typedef int  (*DbSnapshotQueryFunc)(Tenant* tenantP, KjNode** arrayPP);
+typedef int  (*DbSnapshotUpdateFunc)(Tenant* tenantP, const char* snapId, KjNode* fragmentP);
+typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
+
+//
+// DbTenantDropFunc - drop the entire per-tenant DB. Used by snapshot
+// cleanup (delete/purge) to reclaim the snap-tenant's storage. NULL
+// allowed for plugins that don't persist (ramdb): caller treats a
+// NULL function pointer as a no-op.
+//
+typedef int  (*DbTenantDropFunc)(Tenant* tenantP);
+
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
 typedef void (*DbVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
@@ -269,6 +291,11 @@ typedef struct DbDriver
   DbRegistrationUpdateFunc   registrationUpdate;
   DbRegistrationDeleteFunc   registrationDelete;
   DbRegistrationListFunc     registrationList;
+  DbSnapshotCreateFunc       snapshotCreate;       // NULL-allowed (ramdb)
+  DbSnapshotQueryFunc        snapshotQuery;        // NULL-allowed
+  DbSnapshotUpdateFunc       snapshotUpdate;       // NULL-allowed
+  DbSnapshotDeleteFunc       snapshotDelete;       // NULL-allowed
+  DbTenantDropFunc           tenantDrop;           // NULL-allowed
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
   LdGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications

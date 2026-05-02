@@ -43,6 +43,7 @@
 
 #include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesExpandArrayFlat / Inline
 
+#include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader, snapshotGetEntities
 #include "serviceRoutines/getEntities.h"             // Own interface
 
 
@@ -561,6 +562,88 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
 
 // -----------------------------------------------------------------------------
 //
+// forwardEntityMapToCSR - GET /entityMaps to a CSR for distributed EntityMap build (§ 5.14.4.4).
+//
+// Builds GET <endpoint>/ngsi-ld/v1/entityMaps?<filters> and returns:
+//   - KjArray of synthetic { "id": <entityId> } objects, one per key of the
+//     remote EntityMap's "entityMap" object — feeds the existing dedup/merge
+//     loop without changes
+//   - *remoteMapIdOut → the remote EntityMap's id (if present), so the
+//     local broker can record (csr.regId → remote-map-id) in linkedMaps
+//
+// Note: the spec binds Create-EntityMap-Query-Entity to GET (see
+// spec-doubts #14 and createEntityMap.c) — counterintuitive but it returns
+// 201 Created. The local POST /entityMaps route is a convenience alias
+// that accepts no URL params.
+//
+// Returns NULL on failure.
+//
+static KjNode* forwardEntityMapToCSR(LdRegCacheItem* csr, const char* queryString, char** remoteMapIdOut)
+{
+  if (remoteMapIdOut != NULL)
+    *remoteMapIdOut = NULL;
+
+  if (csr->endpoint == NULL)
+    return NULL;
+
+  const char* base = csr->endpoint;
+  const char* path = "/ngsi-ld/v1/entityMaps?";
+  int baseLen = strlen(base);
+  int pathLen = strlen(path);
+  int qsLen   = strlen(queryString);
+  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+
+  strcpy(url, base);
+  strcpy(url + baseLen, path);
+  strcpy(url + baseLen + pathLen, queryString);
+
+  SwRestClientRequest  req;
+  SwRestClientResponse resp;
+
+  swRestClientRequestInit(&req, SwVerbGet, url, &swRest.kalloc);
+  swRestClientRequestTimeout(&req, 5000, 10000);
+
+  int rc = swRestClientSend(&req, &resp);
+  if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300)
+    return NULL;
+  if (resp.body == NULL || resp.bodyLen == 0)
+    return NULL;
+
+  char* bodyCopy = (char*) kaAlloc(&swRest.kalloc, resp.bodyLen + 1);
+  memcpy(bodyCopy, resp.body, resp.bodyLen);
+  bodyCopy[resp.bodyLen] = 0;
+
+  KjNode* mapTreeP = kjParse(swRest.kjsonP, bodyCopy);
+  if (mapTreeP == NULL || mapTreeP->type != KjObject)
+    return NULL;
+
+  // Pull out the remote EntityMap's id and entityMap.
+  KjNode* idP = kjLookup(mapTreeP, "id");
+  if (idP != NULL && idP->type == KjString && remoteMapIdOut != NULL)
+    *remoteMapIdOut = idP->value.s;
+
+  KjNode* emObj = kjLookup(mapTreeP, "entityMap");
+  if (emObj == NULL || emObj->type != KjObject)
+    return NULL;
+
+  // Synthesize { "id": <entityId> } entries — feeds the existing merge loop.
+  KjNode* idArray = kjArray(swRest.kjsonP, NULL);
+  for (KjNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
+  {
+    if (entryP->name == NULL)
+      continue;
+    KjNode* synth = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(synth, kjString(swRest.kjsonP, "id", entryP->name));
+    kjChildAdd(idArray, synth);
+  }
+
+  return idArray;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // retrieveEntityFromCSR - GET /entities/{id} from a specific CSR.
 //
 // Used by entity-map pagination: the map records the source per entity,
@@ -573,7 +656,8 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
 //
 static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
                                       const char*     entityId,
-                                      const char*     ownAlias)
+                                      const char*     ownAlias,
+                                      const char*     remoteMapId)
 {
   if (csr == NULL || csr->endpoint == NULL)
     return NULL;
@@ -596,8 +680,23 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   int         respBodyLen = 0;
   const char* errDetail   = NULL;
 
-  int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
-                                    &errDetail, &respBody, &respBodyLen);
+  // § 5.14.4.4: when paginating from a local EntityMap that has a
+  // linkedMaps entry for this CSR, forward the corresponding remote map
+  // URI as NGSILD-EntityMap so the CP serves from its frozen snapshot.
+  SwRestKeyValue extraH;
+  int            extraN = 0;
+  char           mapHdr[160];
+  if (remoteMapId != NULL && remoteMapId[0] != 0)
+  {
+    snprintf(mapHdr, sizeof(mapHdr), "/ngsi-ld/v1/entityMaps/%s", remoteMapId);
+    extraH.key   = (char*) "NGSILD-EntityMap";
+    extraH.value = mapHdr;
+    extraN = 1;
+  }
+
+  int status = ldDistOpSendReceiveEx(csr, SwVerbGet, url, NULL, 0, ownAlias,
+                                      (extraN > 0) ? &extraH : NULL, extraN,
+                                      &errDetail, &respBody, &respBodyLen);
   if (status < 200 || status >= 300 || respBody == NULL || respBodyLen == 0)
     return NULL;
 
@@ -718,6 +817,55 @@ static const char* buildQueryString(void)
 
 // -----------------------------------------------------------------------------
 //
+// buildSplitForwardQueryString - URL params for the split-mode forward.
+//
+// Emits only the filters that are guaranteed safe to forward when the
+// receiver may hold partial entities: id, idPattern, type. q/geoQ/scopeQ
+// are NOT forwarded — they may reference sharded attributes the receiver
+// can't fully evaluate. No local=true: snapshot federation should be
+// transitive (loop detection in § 5.12 keeps it bounded).
+//
+// Last-resort fallback: when the request carries none of id/idPattern/
+// type, we have to send local=true to satisfy the receiver's too-wide-
+// query check (this disables transitive fanout for that hop only).
+//
+static const char* buildSplitForwardQueryString(void)
+{
+  char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
+  int   pos = 0;
+
+  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  {
+    const char* key = swRest.in.uriParamV[i].key;
+    if (strcmp(key, "id")        != 0 &&
+        strcmp(key, "idPattern") != 0 &&
+        strcmp(key, "type")      != 0)
+      continue;
+
+    if (pos > 0) qs[pos++] = '&';
+    int kLen = strlen(key);
+    int vLen = strlen(swRest.in.uriParamV[i].value);
+    strcpy(qs + pos, key); pos += kLen;
+    qs[pos++] = '=';
+    strcpy(qs + pos, swRest.in.uriParamV[i].value); pos += vLen;
+  }
+
+  if (pos == 0)
+  {
+    const char* fallback = "local=true";
+    int fLen = strlen(fallback);
+    memcpy(qs, fallback, fLen);
+    pos = fLen;
+  }
+
+  qs[pos] = 0;
+  return qs;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getEntities -
 //
 // -----------------------------------------------------------------------------
@@ -780,7 +928,12 @@ static bool entityMapPaginate(void)
       {
         LdRegCacheItem* csr = ldRegCacheItemLookup((LdRegCache*) tP->regCacheP, src);
         if (csr != NULL)
-          partialP = retrieveEntityFromCSR(csr, entryP->entityId, ownAlias);
+        {
+          // § 5.14.4.4: forward the CP's own EntityMap id (from linkedMaps)
+          // so the CP serves from its frozen snapshot.
+          const char* remoteMapId = ldEntityMapLinkedMapLookup(mapP, src);
+          partialP = retrieveEntityFromCSR(csr, entryP->entityId, ownAlias, remoteMapId);
+        }
       }
       // Source not reachable / deleted / reg removed → skip silently;
       // any other source that still resolves still contributes.
@@ -876,6 +1029,43 @@ bool getEntities(void)
   //
   if (ldParamsValidate())
     return true;
+
+  //
+  // § 6.3.22 / § 5.5.15 — snapshot-aware read. NGSILD-Snapshot header
+  // routes the query to the named snapshot's frozen entity store and
+  // forces local-only behaviour (no distop forwarding).
+  //
+  {
+    bool seen = false;
+    LdSnapshotCacheItem* snapItem = ldSnapshotItemFromHeader(&seen);
+    if (seen)
+    {
+      if (snapItem == NULL) return true;            // 404 raised by helper
+      return snapshotGetEntities(snapItem);
+    }
+  }
+
+  //
+  // § 6.4.3.2 Table 6.4.3.2-2: NGSILD-EntityMap request header is an
+  // alternative to ?entityMap=<id>. Value is the EntityMap URI; extract
+  // the id (last URL segment). URL param takes precedence if both present.
+  //
+  if (swNgsild.entityMapId == NULL)
+  {
+    for (int i = 0; i < swRest.in.httpHeaderCount; i++)
+    {
+      if (strcasecmp(swRest.in.httpHeaderV[i].key, "NGSILD-EntityMap") == 0)
+      {
+        const char* val = swRest.in.httpHeaderV[i].value;
+        if (val != NULL && val[0] != 0)
+        {
+          const char* slash = strrchr(val, '/');
+          swNgsild.entityMapId = (char*) ((slash != NULL && slash[1] != 0) ? slash + 1 : val);
+        }
+        break;
+      }
+    }
+  }
 
   //
   // EntityMap-based pagination — separate flow, dedicated helper.
@@ -983,6 +1173,11 @@ bool getEntities(void)
   KjNode* srcMap = swNgsild.entityMapCreate ? kjObject(swRest.kjsonP, NULL) : NULL;
   srcMapStampLocalFrom(srcMap, arrayP);
 
+  // Linked-maps tracker (§ 5.14.4.4) — KjObject keyed by CSR regId, value =
+  // remote EntityMap id. Populated as each per-CSR forward returns its
+  // own EntityMap; flushed into mapP after the local map is created.
+  KjNode* linkedMapsTracker = swNgsild.entityMapCreate ? kjObject(swRest.kjsonP, NULL) : NULL;
+
   //
   // Distributed query: if registrations match and ?local=true is not set,
   // forward to matching CSRs and merge results.
@@ -1080,28 +1275,26 @@ bool getEntities(void)
 
           if (splitMode)
           {
-            // Split: forward with NO query filters (q/geoQ/scopeQ/type
-            // are stripped per § 5.7.2.4 — single source can't evaluate
-            // them on a partial entity). pick CAN be narrowed: intersect
-            // pickWanted against the union of all infoV[*] exports of
-            // this CSR. Skip the CSR entirely when user.pick is set and
-            // the intersection is empty.
-            //
-            // local=true is appended so the receiver's own too-wide-query
-            // check (§ 5.7.2.4) accepts the request, AND so the receiver
-            // doesn't transitively fan out to its own CSRs (we only want
-            // this CSR's own data in split mode).
+            // Split: forward only the safe filters (id, idPattern, type
+            // — guaranteed on every fragment per § 4.5.5 / § 5.2.6).
+            // q/geoQ/scopeQ are stripped per § 5.7.2.4 — they may
+            // reference sharded attributes a single source can't fully
+            // evaluate. NO local=true: federation should be transitive
+            // through the CSR's own CSRs, bounded by § 5.12 loop
+            // detection. pick CAN be narrowed: intersect pickWanted
+            // against the union of all infoV[*] exports of this CSR.
             char** csrExports = csrUnionExports(csr, &swRest.kalloc);
             bool   skip       = false;
             const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip);
             if (skip)
               continue;
 
-            int   pLen = strlen(pickParam);
-            char* combined = (char*) kaAlloc(&swRest.kalloc, pLen + sizeof("local=true") + 1);
-            strcpy(combined, "local=true");
+            const char* baseQs = buildSplitForwardQueryString();
+            int   bLen = strlen(baseQs), pLen = strlen(pickParam);
+            char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
+            strcpy(combined, baseQs);
             if (pLen > 0)
-              strcpy(combined + 10, pickParam);  // 10 = strlen("local=true"); pickParam starts with "&pick=..."
+              strcpy(combined + bLen, pickParam);  // pickParam starts with "&pick=..."
             fullQs = combined;
           }
           else
@@ -1154,7 +1347,22 @@ bool getEntities(void)
           }
 
           {
-            KjNode* remoteArray = forwardQueryToCSR(csr, fullQs);
+            KjNode* remoteArray;
+
+            if (swNgsild.entityMapCreate)
+            {
+              // § 5.14.4.4: forward GET /entityMaps; record the remote
+              // EntityMap id under csr.regId for the linkedMaps render.
+              char* remoteMapId = NULL;
+              remoteArray = forwardEntityMapToCSR(csr, fullQs, &remoteMapId);
+              if (linkedMapsTracker != NULL && remoteMapId != NULL && csr->regId != NULL)
+                kjChildAdd(linkedMapsTracker, kjString(swRest.kjsonP, csr->regId, remoteMapId));
+            }
+            else
+            {
+              remoteArray = forwardQueryToCSR(csr, fullQs);
+            }
+
             if (remoteArray == NULL || remoteArray->type != KjArray)
               continue;
 
@@ -1326,6 +1534,17 @@ bool getEntities(void)
             if (s->type == KjString)
               srcV[i++] = s->value.s;
           ldEntityMapAddEntry(mapP, idP->value.s, srcV, i);
+        }
+      }
+
+      // Flush per-CSR linkedMaps tracker (§ 5.14.4.4) into the map.
+      if (linkedMapsTracker != NULL)
+      {
+        for (KjNode* p = linkedMapsTracker->value.firstChildP; p != NULL; p = p->next)
+        {
+          if (p->name == NULL || p->type != KjString)
+            continue;
+          ldEntityMapAddLinkedMap(mapP, p->name, p->value.s);
         }
       }
 

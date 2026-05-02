@@ -37,11 +37,16 @@
 // Response: 200 OK + JSON-LD array of CSourceRegistration (§ 5.10.2.5).
 //
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp
 
+#include <regex.h>                                   // regcomp, regfree
+
+#include "kalloc/kaAlloc.h"                          // kaAlloc
+
 #include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
+#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjLookup.h"                          // kjLookup
 
@@ -53,6 +58,8 @@
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldLangReduce.h"                   // ldLangReduce
+#include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -340,11 +347,47 @@ bool getCsourceRegistrations(void)
     int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
     int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : passN;
 
+    // § 5.10.2.5 — return filtered RegistrationInfo. Compile the request
+    // idPattern once for reuse across all matching items.
+    regex_t  idRegex;
+    bool     haveIdRegex = false;
+    if (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0)
+    {
+      if (regcomp(&idRegex, swNgsild.idPattern, REG_EXTENDED | REG_NOSUB) == 0)
+        haveIdRegex = true;
+    }
+
+    char** attrsFilterRsp = hasAttrs ? swNgsild.attrsV : (hasPick ? swNgsild.pickV : NULL);
+    const char* idFilter  = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
+                             ? swNgsild.idV[0] : NULL;
+
     for (int i = skip; i < passN && (i - skip) < limit; i++)
     {
       if (matchV[i]->regTree != NULL)
       {
         KjNode* clone = kjClone(swRest.kjsonP, matchV[i]->regTree);
+
+        // § 5.10.2.5 — strip every information[] entry that doesn't match
+        // the request's discovery filter. The pre-parsed infoV linked list
+        // is in lockstep with the regTree's "information" array, so we
+        // iterate both in parallel and unlink the non-matching JSON nodes.
+        KjNode* infoP = kjLookup(clone, "information");
+        if (infoP != NULL && infoP->type == KjArray)
+        {
+          KjNode*    childP = infoP->value.firstChildP;
+          LdRegInfo* riP    = matchV[i]->infoV;
+          while (childP != NULL && riP != NULL)
+          {
+            KjNode*    nextChild = childP->next;
+            LdRegInfo* nextRi    = riP->next;
+            if (!ldRegInfoDiscoveryMatches(riP, idFilter, swNgsild.typeV,
+                                            haveIdRegex ? &idRegex : NULL,
+                                            attrsFilterRsp))
+              kjChildRemove(infoP, childP);
+            childP = nextChild;
+            riP    = nextRi;
+          }
+        }
 
         // omit strips listed members from the response (mirror of pick,
         // applied on the OUTPUT side only — pick narrows reg matching;
@@ -360,7 +403,22 @@ bool getCsourceRegistrations(void)
       }
     }
 
+    if (haveIdRegex) regfree(&idRegex);
     if (matchV != NULL) free(matchV);
+
+    // § 6.3.10 Link header for pagination — rel=next when more rows
+    // remain past skip+limit, rel=prev/first when offset > 0.
+    bool hasMore = (skip + limit < passN);
+    if (hasMore || skip > 0)
+      ldPaginationLinkHeader(hasMore);
+
+    // § 6.3.5 NGSILD-Results-Count header when ?count=true.
+    if (swNgsild.count)
+    {
+      char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+      snprintf(countStr, 32, "%d", passN);
+      swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+    }
   }
 
   ldContextResolve();

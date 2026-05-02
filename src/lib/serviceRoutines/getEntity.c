@@ -43,6 +43,7 @@
 
 #include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesFlat
 
+#include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader, snapshotGetEntity
 #include "serviceRoutines/getEntity.h"               // Own interface
 
 
@@ -555,6 +556,21 @@ static int forwardAndParse(LdRegCacheItem* csr,
 bool getEntity(void)
 {
   const char* entityId = swRest.in.wildcard[0];
+
+  //
+  // § 6.3.22 / § 5.5.15 — snapshot-aware read. NGSILD-Snapshot header
+  // forces local-only reads from the named snapshot's frozen store.
+  // Distop dispatch is bypassed entirely.
+  //
+  {
+    bool seen = false;
+    LdSnapshotCacheItem* snapItem = ldSnapshotItemFromHeader(&seen);
+    if (seen)
+    {
+      if (snapItem == NULL) return true;            // 404 raised by helper
+      return snapshotGetEntity(snapItem, entityId);
+    }
+  }
 
   //
   // DistOps dispatch (§ 5.7.1.4): always attempt local AND forward to

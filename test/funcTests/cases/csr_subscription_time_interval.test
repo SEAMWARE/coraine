@@ -1,0 +1,103 @@
+#
+# FILE            csr_subscription_time_interval.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11.7 — periodic CSR-Subscription notifications. When a CSR-sub
+# carries `timeInterval`, the broker emits a CsourceNotification every
+# N seconds carrying the currently-matching CSRs (triggerReason
+# "updated"). Implemented via the shared periodic-dispatch engine.
+#
+--NAME--
+CSR-Sub timeInterval — periodic notifications (§ 5.11.7)
+
+--TAGS--
+csr-sub subscription periodic
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Register a CSR (target Vehicle.speed)"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:ngsi-ld:CSR:R1",
+  "type":"ContextSourceRegistration",
+  "endpoint":"http://example.org/csource",
+  "information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]
+}' | head -1
+echo
+echo
+
+
+echo "02. Create CSR-sub with timeInterval=1"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:CSRTimeInterval",
+  "type":"Subscription",
+  "timeInterval": 1,
+  "entities":[{"type":"Vehicle"}],
+  "notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/csrPeriodic"}}
+}' | head -1
+echo
+echo
+
+
+echo "03. Wait ~3.2s (engine ticks once per second; expect 2-3 notifications)"
+echo "======================================================================="
+sleep 3.2
+echo "  done waiting"
+echo
+echo
+
+
+echo "04. ftClient dump — initial newlyMatching + ≥1 periodic 'updated'"
+echo "================================================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+reasons = [n.get('body', {}).get('triggerReason') for n in d]
+print('  total notifications >= 2:', len(d) >= 2)
+print('  has newlyMatching (initial):', 'newlyMatching' in reasons)
+print('  has updated (periodic):', 'updated' in reasons)
+print('  type all-correct:', all(n.get('body', {}).get('type') == 'ContextSourceNotification' for n in d))
+print('  data carries CSR R1:', all(n.get('body', {}).get('data', [{}])[0].get('id') == 'urn:ngsi-ld:CSR:R1' for n in d))
+"
+echo
+echo
+
+
+--EXPECT--
+01. Register a CSR (target Vehicle.speed)
+=========================================
+HTTP/1.1 201 Created
+
+
+02. Create CSR-sub with timeInterval=1
+======================================
+HTTP/1.1 201 Created
+
+
+03. Wait ~3.2s (engine ticks once per second; expect 2-3 notifications)
+=======================================================================
+  done waiting
+
+
+04. ftClient dump — initial newlyMatching + ≥1 periodic 'updated'
+=================================================================
+  total notifications >= 2: True
+  has newlyMatching (initial): True
+  has updated (periodic): True
+  type all-correct: True
+  data carries CSR R1: True
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

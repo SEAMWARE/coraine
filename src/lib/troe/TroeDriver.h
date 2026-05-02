@@ -170,6 +170,7 @@ typedef struct TroeRangeInfo
 typedef int  (*TroeInitFunc)(void);
 typedef void (*TroeCloseFunc)(void);
 typedef int  (*TroeTenantSetupFunc)(Tenant* tenantP);
+typedef int  (*TroeTenantDropFunc)(Tenant* tenantP);
 typedef int  (*TroeMigrateFunc)(Tenant* tenantP);
 
 //
@@ -274,6 +275,7 @@ typedef struct TroeDriver
   TroeInitFunc                      init;
   TroeCloseFunc                     close;
   TroeTenantSetupFunc               tenantSetup;
+  TroeTenantDropFunc                tenantDrop;
   TroeMigrateFunc                   migrate;      // applies pending schema migrations
 
   TroeEntityEventFunc               entityEvent;

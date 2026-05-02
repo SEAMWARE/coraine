@@ -1,0 +1,115 @@
+#
+# FILE            csource_reg_discovery_pagination.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.5.9 / § 6.3.10 — discovery pagination must emit Link rel=next
+# when more rows remain past skip+limit, and Link rel=prev/first when
+# offset > 0. § 6.3.5 — ?count=true emits NGSILD-Results-Count with
+# the total number of matches.
+#
+--NAME--
+CSR discovery pagination — Link header + count (§ 6.3.10 / § 6.3.5)
+
+--TAGS--
+csr discovery pagination
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+# Seed five CSRs so we can exercise multiple pages with limit=2.
+echo "01. Register five CSRs"
+echo "======================"
+for i in 1 2 3 4 5; do
+    swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "{\"id\":\"urn:ngsi-ld:CSR:R$i\",\"type\":\"ContextSourceRegistration\",\"endpoint\":\"http://localhost:9999/$i\",\"information\":[{\"entities\":[{\"type\":\"Vehicle\"}],\"propertyNames\":[\"speed\"]}]}" | head -1
+done
+echo
+echo
+
+
+echo "02. GET first page (offset=0, limit=2) — Link rel=next, no rel=prev"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0' 2>&1 | grep -i '^Link:\|^HTTP'
+echo
+echo
+
+
+echo "03. GET middle page (offset=2, limit=2) — Link with rel=next + rel=prev + rel=first"
+echo "===================================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2' 2>&1 | grep -i '^Link:\|^HTTP'
+echo
+echo
+
+
+echo "04. GET last page (offset=4, limit=2) — Link with rel=prev + rel=first, no rel=next"
+echo "===================================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=4' 2>&1 | grep -i '^Link:\|^HTTP'
+echo
+echo
+
+
+echo "05. GET with count=true — NGSILD-Results-Count header carries 5"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&count=true' 2>&1 | grep -iE '^(NGSILD-Results-Count|HTTP)'
+echo
+echo
+
+
+echo "06. Single page (no pagination needed) — no Link header for paging"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=10' 2>&1 | grep -i '^HTTP\|^Link:'
+echo
+echo
+
+
+--EXPECT--
+01. Register five CSRs
+======================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET first page (offset=0, limit=2) — Link rel=next, no rel=prev
+===================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2>; rel="next"; type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+03. GET middle page (offset=2, limit=2) — Link with rel=next + rel=prev + rel=first
+====================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>; rel="first"; type="application/json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>; rel="prev"; type="application/json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=4>; rel="next"; type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+04. GET last page (offset=4, limit=2) — Link with rel=prev + rel=first, no rel=next
+====================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>; rel="first"; type="application/json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2>; rel="prev"; type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+05. GET with count=true — NGSILD-Results-Count header carries 5
+===============================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 5
+
+
+06. Single page (no pagination needed) — no Link header for paging
+==================================================================
+HTTP/1.1 200 OK
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

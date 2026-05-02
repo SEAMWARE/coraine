@@ -1,0 +1,383 @@
+#
+# FILE            snapshot_persistence.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16 Snapshot — persistence + restart reload (Phase #140).
+#
+# Verifies:
+#   - Snapshot metadata + frozen entities survive a broker restart.
+#   - Multiple snapshots per tenant restore correctly (each into its
+#     own snap-tenant DB).
+#   - lastUsedAt updates on read (post-restart) work against the
+#     reloaded cache.
+#   - Snapshot delete removes both metadata and the snap-tenant DB,
+#     so a subsequent restart finds no leftover.
+#   - Purge by q removes entries from disk too.
+#
+--NAME--
+Snapshot persistence + restart reload (§ 5.16, Phase #140)
+
+--TAGS--
+snapshot persist
+
+--INIT--
+swDbDrop
+swSnapDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed three Vehicles"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
+echo
+echo
+
+
+echo "02. Create two snapshots"
+echo "========================"
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:All","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
+echo
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Fast","type":"Snapshot","snapshotPriority":7,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>50"}]}'
+echo
+echo
+
+
+echo "03. Restart the broker (no DB drop)"
+echo "==================================="
+swBrokerStop
+swBrokerStart
+echo "(restarted)"
+echo
+echo
+
+
+echo "04. GET /snapshots/All — survives restart"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+echo
+echo
+
+
+echo "05. GET /snapshots/Fast — survives restart, snapshotPriority preserved"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+echo
+echo
+
+
+echo "06. Snapshot read on All — frozen entities still in snap-tenant DB"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
+echo
+echo
+
+
+echo "07. Snapshot read on Fast — only V2 (frozen)"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Fast'
+echo
+echo
+
+
+echo "08. PATCH All priority → 9; restart; verify it stuck"
+echo "===================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All --payload '{"snapshotPriority":9}'
+swBrokerStop
+swBrokerStart
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+echo
+echo
+
+
+echo "09. DELETE Fast; restart; verify it's gone (404)"
+echo "================================================"
+swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+swBrokerStop
+swBrokerStart
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+echo
+echo
+
+
+echo "10. DELETE /snapshots?q=snapshotPriority>5 → 204; restart; All gone too"
+echo "======================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+swBrokerStop
+swBrokerStart
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+echo
+echo
+
+
+--EXPECT--
+01. Seed three Vehicles
+=======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V3
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create two snapshots
+========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Restart the broker (no DB drop)
+===================================
+(restarted)
+
+
+04. GET /snapshots/All — survives restart
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:All",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 3,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+05. GET /snapshots/Fast — survives restart, snapshotPriority preserved
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:Fast",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 7,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "q": "speed>50",
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+06. Snapshot read on All — frozen entities still in snap-tenant DB
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V3",
+    "speed": {
+      "type": "Property",
+      "value": 15
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Snapshot read on Fast — only V2 (frozen)
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Fast
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+08. PATCH All priority → 9; restart; verify it stuck
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:All",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 9,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+09. DELETE Fast; restart; verify it's gone (404)
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:Fast' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. DELETE /snapshots?q=snapshotPriority>5 → 204; restart; All gone too
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Snapshot 'urn:ngsi-ld:Snapshot:All' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swSnapDrop
+swDbDrop

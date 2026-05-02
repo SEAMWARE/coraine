@@ -150,7 +150,7 @@ swDbDrop() {
         local db="$SW_ROLE_DB_PREFIX"
         if [ -n "$tenant" ]; then
           db="${db}-${tenant}"
-          mongosh --port $SW_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop()' "$db" > /dev/null 2>&1
+          mongosh --port $SW_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop(); db.snapshots.drop()' "$db" > /dev/null 2>&1
         else
           # No tenant specified → drop default + all tenant-suffixed dbs.
           # Tests that leave tenant state behind shouldn't bleed into later
@@ -173,6 +173,44 @@ swDbDrop() {
 # swDbInit: drop + recreate
 swDbInit() {
   swDbDrop "$@"
+}
+
+
+# -----------------------------------------------------------------------------
+#
+# swSnapDrop [-role <role>]
+#
+# Drop every snapshot-tenant DB belonging to <role> (default: CB). Snap
+# tenants are named "${prefix}-${role}-_snap_<hex>" by snapshotTenantCreate;
+# this enumerates them via listDatabases and dropDatabase()s each.
+#
+# swDbDrop already enumerates ${prefix}-* (so it incidentally cleans
+# snap-tenants too), but swSnapDrop is the explicit, surgical helper for
+# tests that want to assert "snapshots cleaned, nothing else touched".
+# Recommended: call from snapshot tests' INIT (clean leftovers) and
+# TEARDOWN (clean what this test created).
+#
+swSnapDrop() {
+  local role="CB"
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "-role" ]; then role="$2"; shift; fi
+    shift
+  done
+
+  case "$SW_DB_TYPE" in
+    mongoc)
+      swRoleLookup "$role" || return 1
+      local rolePrefix="${SW_ROLE_DB_PREFIX}-"
+      mongosh --port $SW_MONGO_PORT --quiet --eval \
+        "db.adminCommand('listDatabases').databases \
+          .map(d=>d.name) \
+          .filter(n=>n.startsWith(\"$rolePrefix\")&&n.includes(\"-_snap_\")) \
+          .forEach(n=>db.getSiblingDB(n).dropDatabase())" > /dev/null 2>&1
+      ;;
+    ramdb|NONE)
+      ;;
+  esac
 }
 
 

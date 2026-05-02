@@ -1,0 +1,241 @@
+#
+# FILE            local_param_distops_suppress.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.18 — `?local=true` must suppress distops on /types/, /attributes/,
+# and /temporal/entities/ (and their child resources). With a CSR pointing
+# CB→CP1, the default GETs forward and merge; ?local=true stays local.
+#
+--NAME--
+URL parameter ?local=true suppresses distops on /types, /attributes, /temporal/entities (§ 6.3.18)
+
+--TAGS--
+url-param distops query temporal
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --troe ramdb
+swBrokerStart -role CP1 --troe ramdb
+
+--RUN--
+
+echo "01. Seed CP1: Sensor with temp"
+echo "=============================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22,"observedAt":"2026-04-01T00:00:00Z"}}'
+echo
+echo
+
+
+echo "02. Seed CB: Vehicle with speed"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-01T00:00:00Z"}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 inclusive (Sensor)"
+echo "======================================"
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /attributes (default) — speed + temp (forwarded)"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+echo "05. GET /attributes?local=true — only speed (no forward)"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/attributes --urlParams 'local=true'
+echo
+echo
+
+
+echo "06. GET /attributes/temp (default) — found via CP1"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/attributes/temp
+echo
+echo
+
+
+echo "07. GET /attributes/temp?local=true — 404 (not local)"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/attributes/temp --urlParams 'local=true'
+echo
+echo
+
+
+echo "08. GET /temporal/entities/urn:S1 — accepted (plugin layer 422 is fine)"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)"
+echo "============================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1: Sensor with temp
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:S1
+Content-Length: 0
+
+
+
+
+02. Seed CB: Vehicle with speed
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 inclusive (Sensor)
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Content-Length: 0
+
+
+
+
+04. GET /attributes (default) — speed + temp (forwarded)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "attributeList": [
+    "speed",
+    "temp"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+05. GET /attributes?local=true — only speed (no forward)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+{
+  "attributeList": [
+    "speed"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+06. GET /attributes/temp (default) — found via CP1
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 214
+
+{
+  "attributeCount": 1,
+  "attributeName": "temp",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+  "type": "Attribute",
+  "typeNames": [
+    "Sensor"
+  ]
+}
+
+
+
+07. GET /attributes/temp?local=true — 404 (not local)
+=====================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 135
+
+{
+  "detail": "attribute 'temp' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. GET /temporal/entities/urn:S1 — accepted (plugin layer 422 is fine)
+=======================================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 172
+
+{
+  "detail": "active TRoE plugin does not support temporal queries",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)
+=============================================================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 172
+
+{
+  "detail": "active TRoE plugin does not support temporal queries",
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swDbDrop
+swDbDrop -role CP1

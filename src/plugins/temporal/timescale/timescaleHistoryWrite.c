@@ -99,6 +99,62 @@ static bool attrHasRows(const char* tenant, const char* entityId, const char* at
 
 // -----------------------------------------------------------------------------
 //
+// timescaleTenantDrop - drop every temporal row owned by tenantP.
+//
+// Used by the snapshot lifecycle: when a snapshot is deleted or purged,
+// the broker calls db.tenantDrop on the snap-tenant; this is the TRoE
+// counterpart so the per-snapshot temporal rows don't leak.
+//
+// Empty tenant.name → no-op (the default-tenant rows would belong to
+// the live broker, never to a snapshot — never drop those by accident).
+//
+int timescaleTenantDrop(Tenant* tenantP)
+{
+  if (timescaleConn == NULL || tenantP == NULL || tenantP->name[0] == 0)
+    return TROE_OK;
+
+  const char* paramV[1] = { tenantP->name };
+
+  pthread_mutex_lock(&timescaleMutex);
+
+  PGresult* r = PQexec(timescaleConn, "BEGIN");
+  PQclear(r);
+
+  PGresult* aRes = PQexecParams(timescaleConn,
+    "DELETE FROM troe_attrs WHERE tenant = $1",
+    1, NULL, paramV, NULL, NULL, 0);
+  if (PQresultStatus(aRes) != PGRES_COMMAND_OK)
+  {
+    KT_E("timescale: troe_attrs tenant-drop failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(aRes);
+    PQclear(PQexec(timescaleConn, "ROLLBACK"));
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_ERR;
+  }
+  PQclear(aRes);
+
+  PGresult* eRes = PQexecParams(timescaleConn,
+    "DELETE FROM troe_entities WHERE tenant = $1",
+    1, NULL, paramV, NULL, NULL, 0);
+  if (PQresultStatus(eRes) != PGRES_COMMAND_OK)
+  {
+    KT_E("timescale: troe_entities tenant-drop failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(eRes);
+    PQclear(PQexec(timescaleConn, "ROLLBACK"));
+    pthread_mutex_unlock(&timescaleMutex);
+    return TROE_ERR;
+  }
+  PQclear(eRes);
+
+  PQclear(PQexec(timescaleConn, "COMMIT"));
+  pthread_mutex_unlock(&timescaleMutex);
+  return TROE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleEntityTemporalDelete - § 5.6.16 Delete Temporal Evolution.
 //
 int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)

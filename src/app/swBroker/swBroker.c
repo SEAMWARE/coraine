@@ -40,6 +40,8 @@
 #include "linkedEntities/ldLinkedEntities.h"      // ldLinkedEntitiesNotifApiArray
 #include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
 #include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
+#include "swNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
+#include "swNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister
 #include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
@@ -49,6 +51,7 @@
 #include "db/dbInit.h"                            // dbStart
 #include "db/dbClose.h"                           // dbClose
 #include "db/Tenant.h"                            // tenantPreServiceHook
+#include "serviceRoutines/ldSnapshotRead.h"       // ldSnapshotWriteGuard
 
 #include "troe/TroeDriver.h"                      // troe
 #include "troe/troeInit.h"                        // troeStart, troeStop
@@ -193,7 +196,9 @@ char*          csourceAlias = NULL;
 char*          httpEndpoint = NULL;
 char*          contextSourceExtras = NULL;  // path to a JSON file (§ 5.2.40)
 bool           noSplitEntities = false;
-int            subStatsFlushInterval = 60;  // seconds; 0 disables the timer
+bool           asyncSnapshot   = false;
+int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
+int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 
 static KArg kargV[] =
 {
@@ -211,6 +216,8 @@ static KArg kargV[] =
   { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: http://localhost:<port>)" },
   { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
   { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
+  { "--asyncSnapshot",      "-asyncSnapshot",  KaBool, _vp &asyncSnapshot, KaOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
+  { "--maxRequestSize",     "-mrs",            KaInt,  _vp &maxRequestSize, KaOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
   { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   KARGS_END
@@ -467,6 +474,8 @@ static bool brokerPreServiceHook(void)
 {
   if (!tenantPreServiceHook())
     return false;
+  if (!ldSnapshotWriteGuard())
+    return false;
   metricsPreService();
   return true;
 }
@@ -666,6 +675,9 @@ int main(int argC, char* argV[])
   if (prettySpaces > 0)
     swRestSetPrettySpaces(prettySpaces);
 
+  // § 6.3.2 413 threshold. 0 in --maxRequestSize disables the cap.
+  swRestSetMaxRequestSize(((unsigned long long) maxRequestSize) * 1024ULL * 1024ULL);
+
   if (corsOrigin != NULL)
   {
     const char* origin = (strcmp(corsOrigin, "__ALL") == 0) ? "*" : corsOrigin;
@@ -703,15 +715,27 @@ int main(int argC, char* argV[])
   swRest.kjsonP = kjBufferCreate(&swRest.kjson, &swRest.kalloc);
   tenantSubCacheReload();
   tenantRegCacheReload();
+  tenantSnapshotCacheReload();
   contextCacheReload();
 
   contextSourceExtrasLoad(contextSourceExtras);
 
   kaBufferReset(&swRest.kalloc, false);
 
-  // Start pernot loop (periodic notification background thread)
+  // Register the pernot subsystem with the shared periodic-dispatch
+  // engine. The engine itself is launched once below.
   if (tenant0.pernotCacheP != NULL)
     ldPernotLoopStart((LdPernotCache*) tenant0.pernotCacheP, pernotQueryCallback);
+
+  // § 5.11.7 — register the CSR-Sub periodic ticker. Skips items with
+  // timeInterval == 0 (change-driven) by design.
+  if (tenant0.regSubCacheP != NULL && tenant0.regCacheP != NULL)
+    ldCsrSubPeriodicLoopRegister((LdSubCache*) tenant0.regSubCacheP,
+                                  (LdRegCache*) tenant0.regCacheP);
+
+  // Start the shared periodic dispatch thread (1-Hz tick over all
+  // registered consumers).
+  ldPeriodicLoopStart();
 
   // Start the sub-stats periodic flush loop. --subStatsFlushInterval
   // defaults to 60s; 0 disables. The admin endpoint remains available

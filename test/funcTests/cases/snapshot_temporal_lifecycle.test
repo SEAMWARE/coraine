@@ -1,0 +1,193 @@
+#
+# FILE            snapshot_temporal_lifecycle.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16.2 / § 5.16.5 — temporal lifecycle:
+#   - Clone copies temporal rows from source snap-tenant to clone snap-tenant
+#   - Delete drops temporal rows owned by the snap-tenant (no leak)
+#
+# Requires postgres + the timescale TRoE plugin.
+#
+--NAME--
+Snapshot temporal lifecycle — clone + delete (§ 5.16.2 / § 5.16.5 / Phase #146d)
+
+--TAGS--
+snapshot troe timescale postgres
+
+--INIT--
+swDbDrop
+swSnapDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_lc" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_snap_troe_lc" >/dev/null
+swBrokerStart --troe timescale --troeName sw_snap_troe_lc --troeUser postgres
+
+--RUN--
+
+echo "01. Seed Vehicle V1 + 2 patches (3 temporal instances)"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
+echo "  done"
+echo
+echo
+
+
+echo "02. Create snapshot Src capturing temporal history"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Src",
+  "type": "Snapshot",
+  "snapshotTemporalQueries":[{
+    "type":"Query",
+    "entities":[{"type":"Vehicle"}],
+    "temporalQ":{"timerel":"after","timeAt":"1970-01-01T00:00:00Z","timeproperty":"modifiedAt"}
+  }]
+}' >/dev/null
+echo "  Src created"
+echo
+echo
+
+
+echo "03. Row count per scope after capture"
+echo "====================================="
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA -F'|' \
+  -c "SELECT count(*), CASE WHEN tenant LIKE '%_snap_%' THEN 'snap' ELSE 'live' END FROM troe_attrs GROUP BY 2 ORDER BY 2"
+echo
+echo
+
+
+echo "04. POST /snapshots/Src/clone — clone Src to Dst"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Src/clone --payload '{"id":"urn:ngsi-ld:Snapshot:Dst","type":"Snapshot"}'
+echo
+echo
+
+
+echo "05. Distinct snap-tenants in TRoE — expect 2 (Src + Dst)"
+echo "========================================================"
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA \
+  -c "SELECT count(DISTINCT tenant) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
+echo
+echo
+
+
+echo "06. Read temporal via NGSILD-Snapshot: Dst — sees the cloned 3 instances"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Dst' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+def ic(d):
+    n = 0
+    for k, v in d.items():
+        if k in ('id','type','@context'): continue
+        if isinstance(v, list): n += len(v)
+        elif isinstance(v, dict): n += 1
+    return n
+print('  Dst instance count:', ic(d))
+"
+echo
+echo
+
+
+echo "07. DELETE Src — its temporal rows must be removed"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Src -X DELETE | head -1
+echo
+echo
+
+
+echo "08. Distinct snap-tenants left after Src delete — expect 1 (Dst only)"
+echo "====================================================================="
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA \
+  -c "SELECT count(DISTINCT tenant) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
+echo
+echo
+
+
+echo "09. DELETE Dst — both snap-tenants gone"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Dst -X DELETE | head -1
+echo
+echo
+
+
+echo "10. Final snap-tenant TRoE rows — expect 0"
+echo "=========================================="
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA \
+  -c "SELECT count(*) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
+echo
+echo
+
+
+--EXPECT--
+01. Seed Vehicle V1 + 2 patches (3 temporal instances)
+======================================================
+  done
+
+
+02. Create snapshot Src capturing temporal history
+==================================================
+  Src created
+
+
+03. Row count per scope after capture
+=====================================
+3|live
+3|snap
+
+
+04. POST /snapshots/Src/clone — clone Src to Dst
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Dst
+Content-Length: 0
+
+
+
+
+05. Distinct snap-tenants in TRoE — expect 2 (Src + Dst)
+========================================================
+2
+
+
+06. Read temporal via NGSILD-Snapshot: Dst — sees the cloned 3 instances
+========================================================================
+  Dst instance count: 3
+
+
+07. DELETE Src — its temporal rows must be removed
+==================================================
+HTTP/1.1 204 No Content
+
+
+08. Distinct snap-tenants left after Src delete — expect 1 (Dst only)
+=====================================================================
+1
+
+
+09. DELETE Dst — both snap-tenants gone
+=======================================
+HTTP/1.1 204 No Content
+
+
+10. Final snap-tenant TRoE rows — expect 0
+==========================================
+0
+
+
+--TEARDOWN--
+swBrokerStop
+swSnapDrop
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_lc" >/dev/null 2>&1

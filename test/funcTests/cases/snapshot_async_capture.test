@@ -1,0 +1,206 @@
+#
+# FILE            snapshot_async_capture.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.16.1.4 — "the following is executed in the background".
+#
+# Broker started with --asyncSnapshot. POST /snapshots returns 201
+# immediately with snapshotStatus="preparing"; a worker thread runs
+# the queries, updates the cache + persists the result + fires the
+# notification. The client polls /snapshots/{id} until status is
+# terminal (or waits for a SnapshotNotification).
+#
+--NAME--
+Snapshot async background capture (§ 5.16.1.4 / Phase #144)
+
+--TAGS--
+snapshot
+
+--INIT--
+swDbDrop
+swSnapDrop
+ftClientStart
+swBrokerStart -asyncSnapshot
+
+--RUN--
+
+echo "01. Seed two Vehicles"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+echo
+echo
+
+
+echo "02. POST /snapshots — returns 201 immediately (capture runs in background)"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Bg",
+  "type": "Snapshot",
+  "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
+  "endpoint": "http://localhost:'$FT_CLIENT_PORT'/bg"
+}'
+echo
+echo
+
+
+echo "03. Poll /snapshots/Bg until status is terminal (max 5s)"
+echo "========================================================"
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    status=$(swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg 2>/dev/null \
+             | python3 -c "import sys,re,json; b=re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]; print(json.loads(b).get('snapshotStatus',''))")
+    if [ "$status" != "preparing" ] && [ -n "$status" ]; then
+        echo "  status after iteration $i: $status"
+        break
+    fi
+    sleep 0.5
+done
+echo
+echo
+
+
+echo "04. GET /snapshots/Bg — final state with snapshotQueriesDetails"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg
+echo
+echo
+
+
+echo "05. ftClient dump — one notification fired by the worker thread"
+echo "==============================================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('  count:', len(d))
+b = d[0].get('body', {}) if d else {}
+print('  type:', b.get('type'))
+print('  snapshotStatus:', b.get('snapshotStatus'))
+"
+echo
+echo
+
+
+echo "06. Snapshot read works (entities captured by the worker)"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Bg'
+echo
+echo
+
+
+--EXPECT--
+01. Seed two Vehicles
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST /snapshots — returns 201 immediately (capture runs in background)
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Poll /snapshots/Bg until status is terminal (max 5s)
+========================================================
+  status after iteration 1: success
+
+
+04. GET /snapshots/Bg — final state with snapshotQueriesDetails
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "endpoint": "http://localhost:7701/bg",
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:Bg",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 5,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+05. ftClient dump — one notification fired by the worker thread
+===============================================================
+  count: 1
+  type: SnapshotNotification
+  snapshotStatus: success
+
+
+06. Snapshot read works (entities captured by the worker)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Bg
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:ngsi-ld:Vehicle:V2",
+    "speed": {
+      "type": "Property",
+      "value": 80
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swSnapDrop
+swDbDrop

@@ -35,6 +35,13 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postSnapshot.c \
                 src/lib/serviceRoutines/getSnapshot.c \
                 src/lib/serviceRoutines/deleteSnapshot.c \
+                src/lib/serviceRoutines/ldSnapshotExec.c \
+                src/lib/serviceRoutines/ldSnapshotExecTemporal.c \
+                src/lib/serviceRoutines/ldSnapshotCaptureAsync.c \
+                src/lib/serviceRoutines/ldSnapshotRead.c \
+                src/lib/serviceRoutines/patchSnapshot.c \
+                src/lib/serviceRoutines/cloneSnapshot.c \
+                src/lib/serviceRoutines/purgeSnapshots.c \
                 src/lib/serviceRoutines/getEntityAttr.c \
                 src/lib/serviceRoutines/patchEntityAttr.c \
                 src/lib/serviceRoutines/putEntityAttr.c \
@@ -87,7 +94,8 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
 
 DB_SOURCES    = src/lib/db/dbInit.c                    \
                 src/lib/db/dbClose.c                   \
-                src/lib/db/tenant.c
+                src/lib/db/tenant.c                    \
+                src/lib/db/snapshotTenant.c
 
 TROE_SOURCES  = src/lib/troe/troeInit.c                \
                 src/lib/troe/troeDispatch.c            \
@@ -202,6 +210,9 @@ MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
                  $(MONGOC_DIR)/mongocRegistrationCreate.c $(MONGOC_DIR)/mongocRegistrationRetrieve.c \
                  $(MONGOC_DIR)/mongocRegistrationQuery.c $(MONGOC_DIR)/mongocRegistrationUpdate.c \
                  $(MONGOC_DIR)/mongocRegistrationDelete.c \
+                 $(MONGOC_DIR)/mongocSnapshotCreate.c $(MONGOC_DIR)/mongocSnapshotQuery.c \
+                 $(MONGOC_DIR)/mongocSnapshotUpdate.c $(MONGOC_DIR)/mongocSnapshotDelete.c \
+                 $(MONGOC_DIR)/mongocTenantDrop.c \
                  $(MONGOC_DIR)/mongocContext.c \
                  $(MONGOC_DIR)/mongocInjectType.c \
                  src/plugins/shared/geoMatch.c

@@ -33,6 +33,7 @@ void troeRegister(TroeDriver* driverP)
   driverP->init         = timescaleInit;
   driverP->close        = timescaleClose;
   driverP->tenantSetup  = NULL;
+  driverP->tenantDrop   = timescaleTenantDrop;
   driverP->migrate      = NULL;  // run inline by init; no per-tenant work yet
   driverP->entityEvent  = timescaleEntityEvent;
   driverP->attrEvent    = timescaleAttrEvent;

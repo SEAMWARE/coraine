@@ -7,12 +7,12 @@
 #
 # § 5.16 Snapshot subsystem — Phase 1: bare CRUD scaffold.
 #
-# Phase-1 limitations honoured by these checks:
-#   - Status is set to "success" immediately on create (no async query
-#     execution yet).
-#   - snapshotQueriesDetails / snapshotTemporalQueriesDetails are
-#     absent (would be populated once async execution lands).
-#   - Snapshot-aware reads (NGSILD-Snapshot header) not yet wired.
+# Phase-1+2a limitations honoured by these checks:
+#   - Queries run synchronously on POST; the empty DB at INIT time
+#     means every snapshotQuery yields zero matches → snapshotStatus
+#     becomes "empty" with one resultStatus="empty" detail per query.
+#   - Snapshot-aware reads (NGSILD-Snapshot header) not yet wired
+#     (lands in Phase 2b).
 #
 # Coverage:
 #   01. Missing required fields → 400
@@ -34,6 +34,7 @@ snapshot
 
 --INIT--
 swDbDrop
+swSnapDrop
 swBrokerStart
 
 --RUN--
@@ -209,7 +210,12 @@ Content-Length: REGEX(\d+)
       "type": "Query"
     }
   ],
-  "snapshotStatus": "success",
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "empty"
+    }
+  ],
+  "snapshotStatus": "empty",
   "type": "Snapshot"
 }
 
@@ -271,4 +277,5 @@ Content-Length: REGEX(\d+)
 
 --TEARDOWN--
 swBrokerStop
+swSnapDrop
 swDbDrop

@@ -1,0 +1,168 @@
+#
+# FILE            url_param_contained_by.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.1.4 / § 6.4.3.2 / § 6.5.3.1 — `?containedBy=` is a comma-separated
+# list of entity ids already encountered while traversing the linked-
+# entity graph. The broker pre-seeds the visited-set with these ids so
+# they're not added to the result and their relationships are not
+# followed. Only applicable when `joinLevel` is also present.
+#
+# Spec: "Empty array (0 length) is not allowed".
+#
+--NAME--
+URL param ?containedBy= seeds the visited-set on linked-entity retrieval (§ 5.7.1.4)
+
+--TAGS--
+retrieve linked-entities url-param
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+# Graph:  V1 → P1 → P2 (two-hop chain)
+#         (independent)  P3 → P3  (self-cycle, irrelevant here)
+
+echo "01. Seed P2 (leaf)"
+echo "=================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}' | head -1
+echo
+echo
+
+
+echo "02. Seed P1 → P2"
+echo "================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","manager":{"type":"Relationship","object":"urn:P2"}}' | head -1
+echo
+echo
+
+
+echo "03. Seed V1 → P1"
+echo "================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","owner":{"type":"Relationship","object":"urn:P1"}}' | head -1
+echo
+echo
+
+
+echo "04. Baseline: GET V1?join=flat&joinLevel=10 — full chain V1 + P1 + P2"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  count:', len(d))
+print('  ids:', sorted(e['id'] for e in d))
+"
+echo
+echo
+
+
+echo "05. GET V1 with containedBy=urn:P2 — P2 is suppressed (visited preseeded)"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P2' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  count:', len(d))
+print('  ids:', sorted(e['id'] for e in d))
+"
+echo
+echo
+
+
+echo "06. GET V1 with containedBy=urn:P1,urn:P2 — both targets suppressed, only V1 left"
+echo "================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P1,urn:P2' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  count:', len(d))
+print('  ids:', sorted(e['id'] for e in d))
+"
+echo
+echo
+
+
+echo "07. GET V1 with empty containedBy= — 400 BadRequestData (spec § 5.7.1.4)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy='
+echo
+echo
+
+
+echo "08. GET /entities?type=Vehicle with containedBy=urn:P1 — only V1 (P1 skipped → P2 not reached)"
+echo "=============================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=10&containedBy=urn:P1' | python3 -c "
+import sys, re, json
+b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
+d = json.loads(b)
+print('  count:', len(d))
+print('  ids:', sorted(e['id'] for e in d))
+"
+echo
+echo
+
+
+--EXPECT--
+01. Seed P2 (leaf)
+==================
+HTTP/1.1 201 Created
+
+
+02. Seed P1 → P2
+================
+HTTP/1.1 201 Created
+
+
+03. Seed V1 → P1
+================
+HTTP/1.1 201 Created
+
+
+04. Baseline: GET V1?join=flat&joinLevel=10 — full chain V1 + P1 + P2
+=====================================================================
+  count: 3
+  ids: ['urn:P1', 'urn:P2', 'urn:V1']
+
+
+05. GET V1 with containedBy=urn:P2 — P2 is suppressed (visited preseeded)
+=========================================================================
+  count: 2
+  ids: ['urn:P1', 'urn:V1']
+
+
+06. GET V1 with containedBy=urn:P1,urn:P2 — both targets suppressed, only V1 left
+=================================================================================
+  count: 1
+  ids: ['urn:V1']
+
+
+07. GET V1 with empty containedBy= — 400 BadRequestData (spec § 5.7.1.4)
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: 145
+
+{
+  "detail": "'containedBy' shall not be empty",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET /entities?type=Vehicle with containedBy=urn:P1 — only V1 (P1 skipped → P2 not reached)
+==============================================================================================
+  count: 1
+  ids: ['urn:V1']
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

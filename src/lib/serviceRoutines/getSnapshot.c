@@ -12,6 +12,7 @@
 
 #include "swRest/SwRestState.h"                          // swRest
 #include "kjson/kjLookup.h"                              // kjLookup
+#include "kjson/kjBuilder.h"                             // kjChildRemove
 #include "kjson/kjClone.h"                               // kjClone
 
 #include "swNgsild/swNgsild.h"                           // ldError, swNgsild
@@ -56,8 +57,15 @@ bool getSnapshot(void)
 
   itemP->lastUsedAt = swRest.requestStartTime;
 
-  // Clone into the per-request kalloc so swRest can render it.
-  swRest.out.responseTree   = kjClone(swRest.kjsonP, itemP->tree);
+  // Clone into the per-request kalloc so swRest can render it. Strip
+  // the hidden "_snapSeq" field used for boot reload — it's an
+  // implementation detail not part of the public Snapshot data type.
+  KjNode* clone = kjClone(swRest.kjsonP, itemP->tree);
+  KjNode* seqP  = (clone != NULL) ? kjLookup(clone, "_snapSeq") : NULL;
+  if (seqP != NULL)
+    kjChildRemove(clone, seqP);
+
+  swRest.out.responseTree   = clone;
   swRest.out.httpStatusCode = 200;
   return true;
 }

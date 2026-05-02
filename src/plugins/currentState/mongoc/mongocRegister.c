@@ -43,6 +43,11 @@
 #include "currentState/mongoc/mongocRegistrationQuery.h"            // mongocRegistrationQuery
 #include "currentState/mongoc/mongocRegistrationUpdate.h"           // mongocRegistrationUpdate
 #include "currentState/mongoc/mongocRegistrationDelete.h"           // mongocRegistrationDelete
+#include "currentState/mongoc/mongocSnapshotCreate.h"               // mongocSnapshotCreate
+#include "currentState/mongoc/mongocSnapshotQuery.h"                // mongocSnapshotQuery
+#include "currentState/mongoc/mongocSnapshotUpdate.h"               // mongocSnapshotUpdate
+#include "currentState/mongoc/mongocSnapshotDelete.h"               // mongocSnapshotDelete
+#include "currentState/mongoc/mongocTenantDrop.h"                   // mongocTenantDrop
 
 
 
@@ -118,6 +123,12 @@ void dbRegister(DbDriver* driverP)
   driverP->registrationQuery     = mongocRegistrationQuery;
   driverP->registrationUpdate    = mongocRegistrationUpdate;
   driverP->registrationDelete    = mongocRegistrationDelete;
+
+  driverP->snapshotCreate        = mongocSnapshotCreate;
+  driverP->snapshotQuery         = mongocSnapshotQuery;
+  driverP->snapshotUpdate        = mongocSnapshotUpdate;
+  driverP->snapshotDelete        = mongocSnapshotDelete;
+  driverP->tenantDrop            = mongocTenantDrop;
 
   driverP->contextSave           = mongocContextSave;
   driverP->contextDelete         = mongocContextDelete;

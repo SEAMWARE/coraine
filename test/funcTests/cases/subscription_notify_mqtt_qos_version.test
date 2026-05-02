@@ -1,0 +1,159 @@
+#
+# FILE            subscription_notify_mqtt_qos_version.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2 Table 7.2-1 — round-trip notification with non-default QoS and
+# MQTT-Version. Two subscriptions:
+#   S1: QoS=1, MQTT-Version=mqtt3.1.1   (legacy protocol)
+#   S2: QoS=2, MQTT-Version=mqtt5.0     (modern, QoS 2 ack handshake)
+#
+# Both should land in ftClient's MQTT dump with the published payload.
+#
+--NAME--
+Subscription notification - MQTT QoS + MQTT-Version round-trip (§ 7.2)
+
+--TAGS--
+subscription notification mqtt
+
+--INIT--
+swDbDrop
+echo "listener 11883
+allow_anonymous true" > /tmp/mqtt-qosver-mosquitto.conf
+mosquitto -d -c /tmp/mqtt-qosver-mosquitto.conf
+sleep 0.3
+ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
+swBrokerStart
+
+--RUN--
+
+echo "01. Create S1: QoS=1, mqtt3.1.1"
+echo "==============================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:mqtt-S1",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-QoS","value":"1"},
+        {"key":"MQTT-Version","value":"mqtt3.1.1"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create S2: QoS=2, mqtt5.0"
+echo "============================="
+payload='{
+  "id":"urn:ngsi-ld:Subscription:mqtt-S2",
+  "type":"Subscription",
+  "entities":[{"type":"Drone"}],
+  "notification":{
+    "endpoint":{
+      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "notifierInfo":[
+        {"key":"MQTT-QoS","value":"2"},
+        {"key":"MQTT-Version","value":"mqtt5.0"}
+      ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. POST a Vehicle (triggers S1 → QoS=1, v3.1.1)"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "04. POST a Drone (triggers S2 → QoS=2, v5.0)"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"Drone","altitude":{"type":"Property","value":120}}'
+echo
+echo
+
+
+echo "05. Verify both notifications landed via MQTT"
+echo "============================================="
+sleep 0.6
+ftClientDump | grep -cE '"verb": "MQTT"'
+ftClientDump | grep -cE 'subscriptionId.*mqtt-S1'
+ftClientDump | grep -cE 'subscriptionId.*mqtt-S2'
+ftClientDump | grep -cE 'urn:V1.*type.*Vehicle'
+ftClientDump | grep -cE 'urn:D1.*type.*Drone'
+echo
+echo
+
+
+--EXPECT--
+01. Create S1: QoS=1, mqtt3.1.1
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:mqtt-S1
+Content-Length: 0
+
+
+
+
+02. Create S2: QoS=2, mqtt5.0
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:mqtt-S2
+Content-Length: 0
+
+
+
+
+03. POST a Vehicle (triggers S1 → QoS=1, v3.1.1)
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. POST a Drone (triggers S2 → QoS=2, v5.0)
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:D1
+Content-Length: 0
+
+
+
+
+05. Verify both notifications landed via MQTT
+=============================================
+2
+1
+1
+1
+1
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
+pkill -f "mosquitto -d -c /tmp/mqtt-qosver-mosquitto.conf" 2>/dev/null
+\rm -f /tmp/mqtt-qosver-mosquitto.conf

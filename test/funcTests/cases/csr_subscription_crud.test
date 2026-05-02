@@ -105,8 +105,8 @@ echo
 echo
 
 
-echo "08. POST with timeInterval - 422"
-echo "================================"
+echo "08. POST with timeInterval - 201 (periodic CSR-sub, § 5.11.7)"
+echo "=============================================================="
 payload='{
   "id": "urn:ngsi-ld:Subscription:CSR3",
   "type": "Subscription",
@@ -154,7 +154,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -164,7 +164,7 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
@@ -192,7 +192,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR2
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -202,7 +202,7 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 [
@@ -274,7 +274,7 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
@@ -297,18 +297,14 @@ Content-Length: REGEX(\d+)
 
 
 
-08. POST with timeInterval - 422
-================================
-HTTP/1.1 422 Unprocessable Content
+08. POST with timeInterval - 201 (periodic CSR-sub, § 5.11.7)
+==============================================================
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR3
 Content-Length: REGEX(\d+)
 
-{
-  "detail": "periodic CSR subscriptions ('timeInterval') are not supported",
-  "title": "Not Implemented",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
 
 
 
@@ -326,7 +322,7 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 [
@@ -348,6 +344,23 @@ Content-Length: REGEX(\d+)
     "watchedAttributes": [
       "temperature"
     ]
+  },
+  {
+    "entities": [
+      {
+        "type": "X"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:CSR3",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1234/pernot"
+      }
+    },
+    "status": "active",
+    "timeInterval": 30,
+    "type": "Subscription"
   }
 ]
 

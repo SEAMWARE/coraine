@@ -25,6 +25,9 @@
 #include "serviceRoutines/postSnapshot.h"        // postSnapshot
 #include "serviceRoutines/getSnapshot.h"         // getSnapshot
 #include "serviceRoutines/deleteSnapshot.h"      // deleteSnapshot
+#include "serviceRoutines/patchSnapshot.h"       // patchSnapshot
+#include "serviceRoutines/cloneSnapshot.h"       // cloneSnapshot
+#include "serviceRoutines/purgeSnapshots.h"      // purgeSnapshots
 #include "serviceRoutines/getEntityAttr.h"       // getEntityAttr
 #include "serviceRoutines/patchEntityAttr.h"     // patchEntityAttr
 #include "serviceRoutines/putEntityAttr.h"       // putEntityAttr
@@ -167,9 +170,12 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
 
   // Snapshots — § 5.16
-  { SwVerbPost,   "/ngsi-ld/v1/snapshots",                          postSnapshot,                  0,                                 LdOpCreateSnapshot   },
+  { SwVerbPost,   "/ngsi-ld/v1/snapshots",                          postSnapshot,                  LD_PARAMS_POST_SNAPSHOT,           LdOpCreateSnapshot   },
   { SwVerbGet,    "/ngsi-ld/v1/snapshots/*",                        getSnapshot,                   0,                                 LdOpRetrieveSnapshot },
-  { SwVerbDelete, "/ngsi-ld/v1/snapshots/*",                        deleteSnapshot,                0,                                 LdOpDeleteSnapshot   }
+  { SwVerbDelete, "/ngsi-ld/v1/snapshots/*",                        deleteSnapshot,                0,                                 LdOpDeleteSnapshot   },
+  { SwVerbPatch,  "/ngsi-ld/v1/snapshots/*",                        patchSnapshot,                 0,                                 LdOpUpdateSnapshot   },
+  { SwVerbPost,   "/ngsi-ld/v1/snapshots/*/clone",                  cloneSnapshot,                 0,                                 LdOpCloneSnapshot    },
+  { SwVerbDelete, "/ngsi-ld/v1/snapshots",                          purgeSnapshots,                LD_PARAMS_PURGE_SNAPSHOTS,         LdOpPurgeSnapshots   }
 };
 
 int ngsildCoreServiceCount = sizeof(ngsildCoreServices) / sizeof(ngsildCoreServices[0]);

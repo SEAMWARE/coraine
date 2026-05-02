@@ -1,0 +1,85 @@
+#
+# FILE            http_405_method_not_allowed.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.2 / RFC 7231 § 7.4.1 — when a path is registered for some
+# HTTP methods but not the one in the request, the broker returns
+# 405 with the Allow: header listing the supported methods. When the
+# path is unknown for ALL methods, 404 stays.
+#
+--NAME--
+HTTP 405 Method Not Allowed carries Allow header (§ 6.3.2)
+
+--TAGS--
+error http
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+# /ngsi-ld/v1/entities is registered for GET (query) and POST (create),
+# but NOT PATCH or PUT. Hitting it with PATCH should yield 405 + Allow.
+echo "01. PATCH /entities — 405 with Allow header listing GET, POST, DELETE"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities -X PATCH --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+echo
+echo
+
+
+# Same path, PUT — also not registered for /entities (PUT is for /entities/*).
+echo "02. PUT /entities — 405"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities -X PUT --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+echo
+echo
+
+
+# Wildcard route: /entities/{id} accepts GET, DELETE, PATCH, PUT (REPLACE);
+# POST is not registered there.
+echo "03. POST /entities/urn:V1 — 405 (POST registered on /entities, not /entities/{id})"
+echo "==================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+echo
+echo
+
+
+# Genuinely unknown path: 404, no Allow.
+echo "04. PATCH /not/a/route — 404 (no Allow because the path is unknown for ALL verbs)"
+echo "================================================================================="
+swCurl --url /not/a/route -X PATCH --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+echo
+echo
+
+
+--EXPECT--
+01. PATCH /entities — 405 with Allow header listing GET, POST, DELETE
+=====================================================================
+HTTP/1.1 405 Method Not Allowed
+Allow: GET, POST, DELETE, HEAD, OPTIONS
+
+
+02. PUT /entities — 405
+=======================
+HTTP/1.1 405 Method Not Allowed
+Allow: GET, POST, DELETE, HEAD, OPTIONS
+
+
+03. POST /entities/urn:V1 — 405 (POST registered on /entities, not /entities/{id})
+===================================================================================
+HTTP/1.1 405 Method Not Allowed
+Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
+
+
+04. PATCH /not/a/route — 404 (no Allow because the path is unknown for ALL verbs)
+=================================================================================
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

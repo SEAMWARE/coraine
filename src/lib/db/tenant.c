@@ -22,7 +22,8 @@
 #include "swNgsild/ldPernotCache.h"                      // ldPernotCacheCreate
 #include "swNgsild/LdEntityMap.h"                         // LdEntityMapStore
 #include "swNgsild/ldEntityMap.h"                         // ldEntityMapStoreCreate
-#include "swNgsild/LdSnapshotCache.h"                     // ldSnapshotCacheCreate
+#include "swNgsild/LdSnapshotCache.h"                     // ldSnapshotCacheCreate, ldSnapshotCacheItemAdd, ldSnapshotCacheItemDelete
+#include "db/snapshotTenant.h"                            // snapshotTenantCreate, snapshotTenantDestroy
 #include "swNgsild/LdRegCache.h"                          // LdRegCache
 #include "swNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
 #include "kjson/kjLookup.h"                              // kjLookup
@@ -377,4 +378,92 @@ void tenantRegCacheReload(void)
 
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
     tenantRegCacheLoad(tP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSnapshotCacheLoad - load persisted snapshots for one tenant.
+//
+// Each persisted snapshot has a hidden "_snapSeq" field — used to
+// rebuild the snap-tenant. Without it the entity store can't be
+// located after restart, so the snapshot is skipped (and logged).
+//
+static void tenantSnapshotCacheLoad(Tenant* tP)
+{
+  if (tP->snapshotCacheP == NULL || db.snapshotQuery == NULL)
+    return;
+
+  KjNode* arrayP = NULL;
+  int     r      = db.snapshotQuery(tP, &arrayP);
+  if (r != DB_OK || arrayP == NULL)
+    return;
+
+  LdSnapshotCache* cacheP = (LdSnapshotCache*) tP->snapshotCacheP;
+
+  int  count   = 0;
+  int  maxSeq  = -1;
+
+  for (KjNode* snapP = arrayP->value.firstChildP; snapP != NULL; snapP = snapP->next)
+  {
+    KjNode* seqP = kjLookup(snapP, "_snapSeq");
+    if (seqP == NULL || (seqP->type != KjInt && seqP->type != KjFloat))
+    {
+      KT_E("tenant '%s': persisted snapshot missing _snapSeq — skipped", tP->name[0] ? tP->name : "(default)");
+      continue;
+    }
+    int snapSeq = (seqP->type == KjInt) ? (int) seqP->value.i : (int) seqP->value.f;
+
+    // ldSnapshotCacheItemAdd assigns its own snapSeq from cacheP->nextSnapSeq;
+    // override that with the persisted one so the snap-tenant DB name matches
+    // what's already on disk. We do that by bumping nextSnapSeq right before.
+    int saved = cacheP->nextSnapSeq;
+    cacheP->nextSnapSeq = snapSeq;
+
+    LdSnapshotCacheItem* itemP = ldSnapshotCacheItemAdd(cacheP, snapP);
+
+    cacheP->nextSnapSeq = saved;
+
+    if (itemP == NULL)
+    {
+      KT_E("tenant '%s': failed to add persisted snapshot to cache", tP->name[0] ? tP->name : "(default)");
+      continue;
+    }
+
+    itemP->snapSeq     = snapSeq;
+    itemP->snapTenantP = snapshotTenantCreate(tP, snapSeq);
+    if (itemP->snapTenantP == NULL)
+    {
+      KT_E("tenant '%s': snapshot '%s': failed to reconstruct snap-tenant",
+           tP->name[0] ? tP->name : "(default)", itemP->id);
+      ldSnapshotCacheItemDelete(cacheP, itemP->id);
+      continue;
+    }
+
+    if (snapSeq > maxSeq)
+      maxSeq = snapSeq;
+    count++;
+  }
+
+  if (maxSeq >= 0 && cacheP->nextSnapSeq <= maxSeq)
+    cacheP->nextSnapSeq = maxSeq + 1;
+
+  if (count > 0)
+    KT_I("tenant '%s': loaded %d snapshot(s) into cache (nextSnapSeq=%d)",
+         tP->name[0] ? tP->name : "(default)", count, cacheP->nextSnapSeq);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSnapshotCacheReload -
+//
+void tenantSnapshotCacheReload(void)
+{
+  tenantSnapshotCacheLoad(&tenant0);
+
+  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+    tenantSnapshotCacheLoad(tP);
 }
