@@ -82,6 +82,7 @@ SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
                 src/lib/serviceRoutines/postEntityBatchDelete.c     \
                 src/lib/serviceRoutines/postEntityBatchQuery.c      \
                 src/lib/serviceRoutines/getSourceIdentity.c \
+                src/lib/serviceRoutines/getVersion.c \
                 src/lib/serviceRoutines/getEntityTemporal.c        \
                 src/lib/serviceRoutines/getEntitiesTemporal.c      \
                 src/lib/serviceRoutines/postTemporalEntityBatchQuery.c \

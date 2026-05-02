@@ -169,11 +169,7 @@ static void contextCacheReload(void)
 
 
 
-// -----------------------------------------------------------------------------
-//
-// SWBROKER_VERSION
-//
-#define SWBROKER_VERSION "post-0.2.0"
+#include "swBrokerVersion.h"                      // SWBROKER_VERSION
 
 
 
@@ -656,7 +652,10 @@ int main(int argC, char* argV[])
   signal(SIGTERM, onSignal);
   signal(SIGSEGV, onCrash);
 
-  if (swRestClientInit(4, 60, "swBroker") != 0)
+  // User-Agent format follows the orionld/<version> convention — bare
+  // product names (e.g. "swBroker") are blocked by some @context CDNs
+  // (uri.etsi.org via Cloudflare) but slash-versioned tokens pass.
+  if (swRestClientInit(4, 60, "swBroker/" SWBROKER_VERSION) != 0)
     KT_X(1, "swRestClientInit failed");
 
   static KAlloc  contextAlloc;

@@ -68,6 +68,7 @@
 #include "serviceRoutines/postEntityBatchDelete.h"     // postEntityBatchDelete
 #include "serviceRoutines/postEntityBatchQuery.h"      // postEntityBatchQuery
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
+#include "serviceRoutines/getVersion.h"                // getVersion
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
 #include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h" // postTemporalEntityBatchQuery
@@ -156,6 +157,9 @@ SwRestServiceSimplified ngsildCoreServices[] =
 
   // Context Source Identity (§ 5.15 / § 6.33)
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone },
+
+  // Broker product / version handshake (non-NGSI-LD).
+  { SwVerbGet,    "/version",                  getVersion,        0, LdOpNone },
 
   // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
   // More-specific routes first — the router matches in registration order.

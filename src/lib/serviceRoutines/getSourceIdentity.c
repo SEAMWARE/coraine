@@ -29,6 +29,7 @@
 #include "swNgsild/swNgsild.h"                       // swNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
+#include "swBrokerVersion.h"                         // SWBROKER_VERSION (-Isrc/app/swBroker)
 #include "serviceRoutines/getSourceIdentity.h"       // Own interface
 
 
@@ -113,11 +114,14 @@ bool getSourceIdentity(void)
   nowIsoUtc(timeAtBuf, sizeof(timeAtBuf));
 
   KjNode* body = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(body, kjString(swRest.kjsonP, "id",                  idBuf));
-  kjChildAdd(body, kjString(swRest.kjsonP, "type",                "ContextSourceIdentity"));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceAlias",  alias));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceUptime", uptimeBuf));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceTimeAt", timeAtBuf));
+  kjChildAdd(body, kjString(swRest.kjsonP, "id",                   idBuf));
+  kjChildAdd(body, kjString(swRest.kjsonP, "type",                 "ContextSourceIdentity"));
+  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceAlias",   alias));
+  // § 5.2.40 — broker product + version
+  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceName",    "swBroker"));
+  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceVersion", SWBROKER_VERSION));
+  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceUptime",  uptimeBuf));
+  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceTimeAt",  timeAtBuf));
 
   // § 5.2.40 contextSourceExtras — opaque JSON, never @context-expanded.
   // Cloned into the request arena so the response renderer doesn't mutate
