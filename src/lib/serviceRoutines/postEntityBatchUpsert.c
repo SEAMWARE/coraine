@@ -673,7 +673,14 @@ bool postEntityBatchUpsert(void)
       // create/update decision still depends on whether THE GROUP sees
       // any local write by the end, so we only decide post-loop.
       //
-      if (!hasAnyNonKeywordAttr(fragP))
+      // Exception: a first-fragment with no non-keyword attrs is still
+      // a legitimate upsert payload (entity carrying only id / type /
+      // scope, e.g. building-with-two-types.jsonld). Without this carve-
+      // out the entity-level shape change (type singular → array, scope
+      // changes) wouldn't reach the bulk-update path and the test
+      // 004_03_05 / 004_08_01 type-mutation assertion fails.
+      bool firstFragmentEmpty = (fi == 0) && !hasAnyNonKeywordAttr(fragP);
+      if (!hasAnyNonKeywordAttr(fragP) && !firstFragmentEmpty)
         continue;
 
       ldApiEntityToDbModel(fragP, &swRest.kalloc);
