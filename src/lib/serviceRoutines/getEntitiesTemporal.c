@@ -399,29 +399,11 @@ bool getEntitiesTemporal(void)
     return true;
   }
 
-  // § 5.7.4.4: orderBy on multi-entity temporal queries is restricted to
-  // local scope (federation can't order across sources reliably) and to
-  // ordering by entity id only.
-  if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
-  {
-    if (!swNgsild.local && snapItem == NULL)
-    {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
-              "orderBy on temporal queries requires 'local=true' (cannot order across federated sources)");
-      return true;
-    }
-    for (int i = 0; i < swNgsild.orderByCount; i++)
-    {
-      const char* an = swNgsild.orderByV[i].attrName;
-      // 'id' may have been JSON-LD-expanded to '@id' by the URL param parser.
-      if (an == NULL || (strcmp(an, "id") != 0 && strcmp(an, "@id") != 0))
-      {
-        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
-                "orderBy on temporal queries may only refer to 'id' (got '%s')", an ? an : "(null)");
-        return true;
-      }
-    }
-  }
+  // § 5.7.4.4 / § 4.23 — orderBy on multi-entity temporal queries can
+  // address any entity member: id, type, scope, an attribute name, an
+  // attribute sub-property like "name.createdAt", etc. No restriction
+  // applied here — the back end orders the local result and federated
+  // sources are best-effort merged in arrival order.
 
   if (troe.entityTemporalQuery == NULL)
   {

@@ -5,12 +5,14 @@
 #
 # Copyright 2026 Seamware
 #
-# § 5.7.4.4: GET /temporal/entities orderBy is restricted to:
-#   - local scope only (?local=true)
-#   - ordering by "id" only (no other entity members or attributes)
+# § 5.7.4.4 / § 4.23 — GET /temporal/entities accepts orderBy on any
+# entity member (id, type, scope, attribute, attribute sub-property).
+# Spec § 4.23: "Sort ordering is never applied to distributed
+# operations" — for a single-broker setup with no peers the broker
+# applies the order locally and returns 200.
 #
 --NAME--
-TRoE timescale - GET /temporal/entities orderBy restrictions (§ 5.7.4.4)
+TRoE timescale - GET /temporal/entities orderBy accepted on any member (§ 5.7.4.4 / § 4.23)
 
 --TAGS--
 troe timescale postgres temporal query orderby validation
@@ -23,60 +25,73 @@ swBrokerStart --troe timescale --troeName sw_troe_orderby --troeUser postgres
 
 --RUN--
 
-echo "01. orderBy=id without local=true - 400"
-echo "======================================="
+echo "01. orderBy=id (no local flag) -> 200"
+echo "====================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id'
 echo
 echo
 
 
-echo "02. orderBy=speed (non-id) with local=true - 400"
-echo "================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=speed&local=true'
+echo "02. orderBy=speed (attribute name) -> 200"
+echo "========================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=speed'
 echo
 echo
 
 
-echo "03. orderBy=id with local=true - 200"
-echo "===================================="
+echo "03. orderBy=id with local=true -> 200"
+echo "====================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id&local=true'
 echo
 echo
 
 
+echo "04. orderBy=name.createdAt (sub-property) -> 200"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=name.createdAt'
+echo
+echo
+
+
 --EXPECT--
-01. orderBy=id without local=true - 400
-=======================================
-HTTP/1.1 400 Bad Request
+01. orderBy=id (no local flag) -> 200
+=====================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
-{
-  "detail": "orderBy on temporal queries requires 'local=true' (cannot order across federated sources)",
-  "title": "Bad Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
+[]
 
 
 
-02. orderBy=speed (non-id) with local=true - 400
+02. orderBy=speed (attribute name) -> 200
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+03. orderBy=id with local=true -> 200
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+04. orderBy=name.createdAt (sub-property) -> 200
 ================================================
-HTTP/1.1 400 Bad Request
-Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
-
-{
-  "detail": "orderBy on temporal queries may only refer to 'id' (got 'https://uri.etsi.org/ngsi-ld/default-context/speed')",
-  "title": "Bad Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
-
-
-
-03. orderBy=id with local=true - 200
-====================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
