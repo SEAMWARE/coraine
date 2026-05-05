@@ -523,7 +523,9 @@ bool postEntityBatchUpdate(void)
     total++;
   }
 
-  if (total == 0)
+  bool hasPreErrors = (swNgsild.batchPreErrors != NULL &&
+                       swNgsild.batchPreErrors->value.firstChildP != NULL);
+  if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
             "Batch Entity Update: input array is empty");
@@ -532,6 +534,13 @@ bool postEntityBatchUpdate(void)
 
   KjNode* successP = kjArray(swRest.kjsonP, "success");
   KjNode* errorsP  = kjArray(swRest.kjsonP, "errors");
+
+  if (hasPreErrors)
+  {
+    errorsP->value.firstChildP = swNgsild.batchPreErrors->value.firstChildP;
+    errorsP->lastChild         = swNgsild.batchPreErrors->lastChild;
+    swNgsild.batchPreErrors    = NULL;
+  }
 
   //
   // Pass 1 — validate, normalise, group by id.
@@ -587,12 +596,21 @@ bool postEntityBatchUpdate(void)
 
   if (gN == 0)
   {
-    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(respBodyP, successP);
-    kjChildAdd(respBodyP, errorsP);
-    swRest.out.responseTree   = respBodyP;
-    swRest.out.httpStatusCode = 400;
-    swNgsild.rawResponse      = true;
+    int singleStatus = ldBatchErrorsSingleStatus(errorsP);
+    if (singleStatus > 0)
+    {
+      swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+      swRest.out.httpStatusCode = singleStatus;
+    }
+    else
+    {
+      KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+      kjChildAdd(respBodyP, successP);
+      kjChildAdd(respBodyP, errorsP);
+      swRest.out.responseTree   = respBodyP;
+      swRest.out.httpStatusCode = 207;
+      swNgsild.rawResponse      = true;
+    }
     return true;
   }
 
@@ -848,18 +866,28 @@ bool postEntityBatchUpdate(void)
   int errorCount = 0;
   for (KjNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
 
-  if (errorCount == 0 && successCount > 0)
+  // § 5.6.10 — batch update returns 204 when there are no errors. The
+  // (success=0, errors=0) case (e.g. an empty input array) is success.
+  if (errorCount == 0)
   {
-    // All-ok → 204 No Content, no body.
     swRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successP);
-  kjChildAdd(respBodyP, errorsP);
-  swRest.out.responseTree = respBodyP;
-  swRest.out.httpStatusCode = (successCount > 0) ? 207 : 409;
+  int singleStatus = (successCount == 0) ? ldBatchErrorsSingleStatus(errorsP) : -1;
+  if (singleStatus > 0)
+  {
+    swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+    swRest.out.httpStatusCode = singleStatus;
+  }
+  else
+  {
+    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(respBodyP, successP);
+    kjChildAdd(respBodyP, errorsP);
+    swRest.out.responseTree = respBodyP;
+    swRest.out.httpStatusCode = 207;
+  }
   swNgsild.rawResponse      = true;
   return true;
 }

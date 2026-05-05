@@ -410,7 +410,9 @@ bool postEntityBatchMerge(void)
     total++;
   }
 
-  if (total == 0)
+  bool hasPreErrors = (swNgsild.batchPreErrors != NULL &&
+                       swNgsild.batchPreErrors->value.firstChildP != NULL);
+  if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
             "Batch Entity Merge: input array is empty");
@@ -419,6 +421,13 @@ bool postEntityBatchMerge(void)
 
   KjNode* successP = kjArray(swRest.kjsonP, "success");
   KjNode* errorsP  = kjArray(swRest.kjsonP, "errors");
+
+  if (hasPreErrors)
+  {
+    errorsP->value.firstChildP = swNgsild.batchPreErrors->value.firstChildP;
+    errorsP->lastChild         = swNgsild.batchPreErrors->lastChild;
+    swNgsild.batchPreErrors    = NULL;
+  }
 
   //
   // Pass 1 — validate + extract id per fragment. We keep the array order
@@ -477,12 +486,21 @@ bool postEntityBatchMerge(void)
 
   if (fragN == 0)
   {
-    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(respBodyP, successP);
-    kjChildAdd(respBodyP, errorsP);
-    swRest.out.responseTree   = respBodyP;
-    swRest.out.httpStatusCode = 400;
-    swNgsild.rawResponse      = true;
+    int singleStatus = ldBatchErrorsSingleStatus(errorsP);
+    if (singleStatus > 0)
+    {
+      swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+      swRest.out.httpStatusCode = singleStatus;
+    }
+    else
+    {
+      KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+      kjChildAdd(respBodyP, successP);
+      kjChildAdd(respBodyP, errorsP);
+      swRest.out.responseTree   = respBodyP;
+      swRest.out.httpStatusCode = 207;
+      swNgsild.rawResponse      = true;
+    }
     return true;
   }
 
@@ -707,17 +725,33 @@ bool postEntityBatchMerge(void)
   int errorCount = 0;
   for (KjNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
 
-  if (errorCount == 0 && successCount > 0)
+  // § 5.6.17 — batch ops return 204 when there are no errors. The
+  // successCount==0 && errorCount==0 case (e.g. an "empty" merge fragment
+  // that touches nothing) is also a success: nothing failed.
+  if (errorCount == 0)
   {
     swRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successP);
-  kjChildAdd(respBodyP, errorsP);
-  swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = (successCount > 0) ? 207 : 409;
+  // Partial-success → 207 with the BatchOperationResult body. All-failed-
+  // with-one-cause → that cause's plain status + a plain Problem Details
+  // body (cloned from the first error entry); easier on clients than 207
+  // wrapping a uniform error in a multi-status envelope.
+  int singleStatus = (successCount == 0) ? ldBatchErrorsSingleStatus(errorsP) : -1;
+  if (singleStatus > 0)
+  {
+    swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+    swRest.out.httpStatusCode = singleStatus;
+  }
+  else
+  {
+    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(respBodyP, successP);
+    kjChildAdd(respBodyP, errorsP);
+    swRest.out.responseTree   = respBodyP;
+    swRest.out.httpStatusCode = 207;
+  }
   swNgsild.rawResponse      = true;
   return true;
 }

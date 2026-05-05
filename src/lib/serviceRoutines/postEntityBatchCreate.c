@@ -599,7 +599,12 @@ bool postEntityBatchCreate(void)
     total++;
   }
 
-  if (total == 0)
+  // batchPreErrors (set by ldParseHook on per-element @context misses) is
+  // not "empty body" — it carries entries to surface. Empty-array 400 only
+  // applies when nothing arrived AND nothing was pre-rejected.
+  bool hasPreErrors = (swNgsild.batchPreErrors != NULL &&
+                       swNgsild.batchPreErrors->value.firstChildP != NULL);
+  if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
             "Batch Entity Creation: input array is empty");
@@ -608,6 +613,15 @@ bool postEntityBatchCreate(void)
 
   KjNode* successP = kjArray(swRest.kjsonP, "success");
   KjNode* errorsP  = kjArray(swRest.kjsonP, "errors");
+
+  // Splice parse-time per-entity errors (e.g. ld+json element missing
+  // @context) onto errorsP. errorsP is freshly empty here, so this is O(1).
+  if (hasPreErrors)
+  {
+    errorsP->value.firstChildP = swNgsild.batchPreErrors->value.firstChildP;
+    errorsP->lastChild         = swNgsild.batchPreErrors->lastChild;
+    swNgsild.batchPreErrors    = NULL;
+  }
 
   //
   // Pass 1 — validate, normalise, dedup.
@@ -689,12 +703,21 @@ bool postEntityBatchCreate(void)
 
   if (eligN == 0)
   {
-    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(respBodyP, successP);
-    kjChildAdd(respBodyP, errorsP);
-    swRest.out.responseTree   = respBodyP;
-    swRest.out.httpStatusCode = 409;
-    swNgsild.rawResponse      = true;
+    int singleStatus = ldBatchErrorsSingleStatus(errorsP);
+    if (singleStatus > 0)
+    {
+      swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+      swRest.out.httpStatusCode = singleStatus;
+    }
+    else
+    {
+      KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+      kjChildAdd(respBodyP, successP);
+      kjChildAdd(respBodyP, errorsP);
+      swRest.out.responseTree   = respBodyP;
+      swRest.out.httpStatusCode = 207;
+      swNgsild.rawResponse      = true;
+    }
     return true;
   }
 
@@ -839,18 +862,34 @@ bool postEntityBatchCreate(void)
   int errorCount = 0;
   for (KjNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successP);
-  kjChildAdd(respBodyP, errorsP);
-  swRest.out.responseTree = respBodyP;
-
+  // § 6.14.3.1 — Batch Entity Creation response shape:
+  //   201 Created: body is String[] (URIs of successfully-created entities).
+  //   207 Multi-Status: body is BatchOperationResult { success, errors }.
+  //   All-failed: collapse to plain status when uniform (e.g. all-409 from
+  //   AlreadyExists), otherwise 207 with the multi-status envelope.
   if (errorCount == 0)
+  {
+    successP->name = NULL;                    // unwrap into a top-level array
+    swRest.out.responseTree   = successP;
     swRest.out.httpStatusCode = 201;
-  else if (successCount > 0)
-    swRest.out.httpStatusCode = 207;
-  else
-    swRest.out.httpStatusCode = 409;
+    swNgsild.rawResponse      = true;
+    return true;
+  }
 
-  swNgsild.rawResponse = true;
+  int singleStatus = (successCount == 0) ? ldBatchErrorsSingleStatus(errorsP) : -1;
+  if (singleStatus > 0)
+  {
+    swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+    swRest.out.httpStatusCode = singleStatus;
+  }
+  else
+  {
+    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(respBodyP, successP);
+    kjChildAdd(respBodyP, errorsP);
+    swRest.out.responseTree   = respBodyP;
+    swRest.out.httpStatusCode = 207;
+    swNgsild.rawResponse      = true;
+  }
   return true;
 }

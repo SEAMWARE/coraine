@@ -492,7 +492,9 @@ bool postEntityBatchUpsert(void)
     total++;
   }
 
-  if (total == 0)
+  bool hasPreErrors = (swNgsild.batchPreErrors != NULL &&
+                       swNgsild.batchPreErrors->value.firstChildP != NULL);
+  if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
             "Batch Entity Upsert: input array is empty");
@@ -501,6 +503,13 @@ bool postEntityBatchUpsert(void)
 
   KjNode* successP = kjArray(swRest.kjsonP, "success");
   KjNode* errorsP  = kjArray(swRest.kjsonP, "errors");
+
+  if (hasPreErrors)
+  {
+    errorsP->value.firstChildP = swNgsild.batchPreErrors->value.firstChildP;
+    errorsP->lastChild         = swNgsild.batchPreErrors->lastChild;
+    swNgsild.batchPreErrors    = NULL;
+  }
 
   bool updateMode = swNgsild.upsertUpdate;  // false (default) → replace semantics
 
@@ -558,12 +567,21 @@ bool postEntityBatchUpsert(void)
 
   if (gN == 0)
   {
-    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(respBodyP, successP);
-    kjChildAdd(respBodyP, errorsP);
-    swRest.out.responseTree   = respBodyP;
-    swRest.out.httpStatusCode = 400;
-    swNgsild.rawResponse      = true;
+    int singleStatus = ldBatchErrorsSingleStatus(errorsP);
+    if (singleStatus > 0)
+    {
+      swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+      swRest.out.httpStatusCode = singleStatus;
+    }
+    else
+    {
+      KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+      kjChildAdd(respBodyP, successP);
+      kjChildAdd(respBodyP, errorsP);
+      swRest.out.responseTree   = respBodyP;
+      swRest.out.httpStatusCode = 207;
+      swNgsild.rawResponse      = true;
+    }
     return true;
   }
 
@@ -679,6 +697,7 @@ bool postEntityBatchUpsert(void)
       // out the entity-level shape change (type singular → array, scope
       // changes) wouldn't reach the bulk-update path and the test
       // 004_03_05 / 004_08_01 type-mutation assertion fails.
+      //
       bool firstFragmentEmpty = (fi == 0) && !hasAnyNonKeywordAttr(fragP);
       if (!hasAnyNonKeywordAttr(fragP) && !firstFragmentEmpty)
         continue;
@@ -1008,11 +1027,11 @@ bool postEntityBatchUpsert(void)
   //   207 Multi-Status — some success + some errors.
   //   409 Conflict — all failed.
   //
-  if (errorCount == 0 && successCount > 0)
+  // § 5.6.8 — batch upsert: 201 if anything was created, 204 if all updates,
+  // both also require errors=0. The (success=0, errors=0) case is success too.
+  if (errorCount == 0)
   {
     swRest.out.httpStatusCode = (createdCount > 0) ? 201 : 204;
-    // For 201, the spec body can be a BatchOperationResult but is often empty.
-    // We emit the body for consistency with the other batch ops.
     if (createdCount > 0)
     {
       KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
@@ -1024,11 +1043,20 @@ bool postEntityBatchUpsert(void)
     return true;
   }
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successP);
-  kjChildAdd(respBodyP, errorsP);
-  swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = (successCount > 0) ? 207 : 409;
+  int singleStatus = (successCount == 0) ? ldBatchErrorsSingleStatus(errorsP) : -1;
+  if (singleStatus > 0)
+  {
+    swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+    swRest.out.httpStatusCode = singleStatus;
+  }
+  else
+  {
+    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(respBodyP, successP);
+    kjChildAdd(respBodyP, errorsP);
+    swRest.out.responseTree   = respBodyP;
+    swRest.out.httpStatusCode = 207;
+  }
   swNgsild.rawResponse      = true;
   return true;
 }
