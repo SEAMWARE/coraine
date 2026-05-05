@@ -38,6 +38,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrDeleted
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
@@ -329,8 +330,33 @@ bool deleteEntityAttr(void)
             anySucceeded = true;
 
             if (tenantP->subCacheP != NULL)
+            {
+              // Build a minimal merge report so the subscription matcher
+              // can recognise this as an attributeDeleted change (otherwise
+              // a sub with notificationTrigger=["attributeDeleted"] would
+              // never fire on attr-delete).
+              //
+              // Per § 5.8.6: when only one dataset instance was removed
+              // (datasetId variant or @none default with deleteAll=false),
+              // record the deleted dsKey on the report entry so the
+              // notification renderer can inject a per-instance null marker
+              // alongside the surviving instances.
+              const char* deletedDsKey = NULL;
+              if (!swNgsild.deleteAll)
+                deletedDsKey = (swNgsild.datasetId != NULL) ? swNgsild.datasetId : "@none";
+
+              LdMergeReport report;
+              report.changes = kjArray(swRest.kjsonP, "changes");
+              KjNode* entry = kjObject(swRest.kjsonP, NULL);
+              kjChildAdd(entry, kjString(swRest.kjsonP, "attr",   attrIri));
+              kjChildAdd(entry, kjString(swRest.kjsonP, "reason", "attributeDeleted"));
+              if (deletedDsKey != NULL)
+                kjChildAdd(entry, kjString(swRest.kjsonP, "datasetId", deletedDsKey));
+              kjChildAdd(report.changes, entry);
+
               ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
-                            LdNotifyEntityUpdate, NULL);
+                            LdNotifyEntityUpdate, &report);
+            }
 
             // TRoE: defer one attrDeleted event.
             {
