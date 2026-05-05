@@ -1,0 +1,147 @@
+#
+# FILE            post_entity_query_geojson_accept.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.3 — POST /entityOperations/query is a read op; Accept:
+# application/geo+json must be honoured (broker returns a GeoJSON
+# FeatureCollection), not 406.
+#
+--NAME--
+POST /entityOperations/query honours Accept: application/geo+json (§ 5.7.3)
+
+--TAGS--
+query
+batch
+geojson
+accept
+context
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST a Vehicle with a GeoProperty
+# 02. POST /entityOperations/query Accept=geo+json → 200 FeatureCollection
+# 03. POST /entityOperations/query Accept=ld+json  → 200 ld+json (control)
+#
+
+echo "01. POST Vehicle with location"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:ngsi-ld:Vehicle:V1",
+  "type":"Vehicle",
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1.0,2.0]}}
+}'
+echo
+echo
+
+
+echo "02. POST /entityOperations/query Accept=geo+json → 200 FeatureCollection"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
+  "type":"Query","entities":[{"type":"Vehicle"}]
+}' -H 'Accept: application/geo+json'
+echo
+echo
+
+
+echo "03. POST /entityOperations/query Accept=ld+json → 200 (control)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
+  "type":"Query","entities":[{"type":"Vehicle"}]
+}' -H 'Accept: application/ld+json'
+echo
+echo
+
+
+--EXPECT--
+01. POST Vehicle with location
+==============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST /entityOperations/query Accept=geo+json → 200 FeatureCollection
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "features": [
+    {
+      "geometry": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      },
+      "id": "urn:ngsi-ld:Vehicle:V1",
+      "properties": {
+        "location": {
+          "type": "GeoProperty",
+          "value": {
+            "coordinates": [
+              1,
+              2
+            ],
+            "type": "Point"
+          }
+        },
+        "type": "Vehicle"
+      },
+      "type": "Feature"
+    }
+  ],
+  "type": "FeatureCollection"
+}
+
+
+
+03. POST /entityOperations/query Accept=ld+json → 200 (control)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
