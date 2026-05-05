@@ -1,0 +1,259 @@
+#
+# FILE            subscription_jsonldContext_expiresAt_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.12 — Subscription / CSR-Subscription field validation:
+#   - jsonldContext shall be an http(s) URL (broker downloads it).
+#     URN, bare short name, or any other shape → 400 BadRequestData.
+#   - expiresAt at create time must lie in the future. Past timestamp at
+#     create → 400. (Update is left unrestricted so a sub can be
+#     immediately expired by PATCHing expiresAt to the past.)
+#
+--NAME--
+Subscription jsonldContext (http(s) URL) and expiresAt-future validation (§ 5.2.12)
+
+--TAGS--
+subscription
+validation
+error
+context
+expiration
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+swBrokerStart
+
+--RUN--
+
+#
+# 01. jsonldContext='unknownContext'                  → 400
+# 02. jsonldContext='urn:foo:ctx'                     → 400
+# 03. jsonldContext='https://example.org/ctx.jsonld'  → 201
+# 04. CSR sub jsonldContext='unknownContext'          → 400
+# 05. expiresAt in past at create                     → 400
+# 06. CSR sub expiresAt in past at create             → 400
+# 07. expiresAt in future                             → 201
+# 08. PATCH expiresAt to past on existing sub         → 204
+#
+
+echo "01. jsonldContext='unknownContext' → 400"
+echo "========================================"
+swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s1","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "jsonldContext":"unknownContext",
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "02. jsonldContext='urn:foo:ctx' (URN, not downloadable) → 400"
+echo "============================================================="
+swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s2","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "jsonldContext":"urn:foo:ctx",
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "03. jsonldContext='https://example.org/ctx.jsonld' → 201"
+echo "========================================================"
+swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s3","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "jsonldContext":"https://example.org/ctx.jsonld",
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "04. CSR sub jsonldContext='unknownContext' → 400"
+echo "================================================"
+swCurl --in jsonld --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s4","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "jsonldContext":"unknownContext",
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "05. expiresAt in past at create → 400"
+echo "====================================="
+swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s5","type":"Subscription",
+  "expiresAt":"2018-08-01T22:07:00Z",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "06. CSR sub expiresAt in past → 400"
+echo "==================================="
+swCurl --in jsonld --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s6","type":"Subscription",
+  "expiresAt":"2018-08-01T22:07:00Z",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "07. expiresAt in future → 201"
+echo "============================="
+swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s7","type":"Subscription",
+  "expiresAt":"2099-08-01T22:07:00Z",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+echo "08. PATCH s7 expiresAt to past — also rejected → 400"
+echo "===================================================="
+swCurl --in jsonld -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s7 --payload '{
+  "expiresAt":"2018-08-01T22:07:00Z",
+  "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+echo
+echo
+
+
+--EXPECT--
+01. jsonldContext='unknownContext' → 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'jsonldContext' must be an http(s) URL: 'unknownContext'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. jsonldContext='urn:foo:ctx' (URN, not downloadable) → 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'jsonldContext' must be an http(s) URL: 'urn:foo:ctx'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. jsonldContext='https://example.org/ctx.jsonld' → 201
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s3
+Content-Length: REGEX(\d+)
+
+
+
+
+04. CSR sub jsonldContext='unknownContext' → 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'jsonldContext' must be an http(s) URL: 'unknownContext'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. expiresAt in past at create → 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'expiresAt' must be in the future",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. CSR sub expiresAt in past → 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'expiresAt' must be in the future",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. expiresAt in future → 201
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s7
+Content-Length: REGEX(\d+)
+
+
+
+
+08. PATCH s7 expiresAt to past — also rejected → 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'expiresAt' must be a DateTime in the future",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
