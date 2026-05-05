@@ -1,0 +1,210 @@
+#
+# FILE            subscription_pick_omit_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.21 / § 5.2.12 — pick, omit, and the deprecated attributes alias on
+# notification are mutually exclusive sets:
+#   - pick + omit sharing a member  → 400 BadRequestData
+#   - pick + attributes             → 400
+#   - omit + attributes             → 400
+# pick + omit on disjoint members is valid (white + black list).
+#
+--NAME--
+Subscription pick/omit/attributes mutual exclusion (§ 4.21)
+
+--TAGS--
+subscription
+validation
+error
+context
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+swBrokerStart
+
+--RUN--
+
+#
+# 01. pick + omit overlap on "a" → 400
+# 02. pick + attributes          → 400
+# 03. omit + attributes          → 400
+# 04. pick + omit disjoint       → 201
+# 05. pick alone                 → 201
+# 06. omit alone                 → 201
+# 07. attributes alone           → 201
+#
+
+echo "01. pick + omit overlap (member 'a' in both) → 400"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s1","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a","b"],"omit":["a","c"]}
+}'
+echo
+echo
+
+
+echo "02. pick + attributes → 400"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s2","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a"],"attributes":["b"]}
+}'
+echo
+echo
+
+
+echo "03. omit + attributes → 400"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s3","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"omit":["a"],"attributes":["b"]}
+}'
+echo
+echo
+
+
+echo "04. pick + omit on disjoint members → 201"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s4","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a","b"],"omit":["c","d"]}
+}'
+echo
+echo
+
+
+echo "05. pick alone → 201"
+echo "===================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s5","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a"]}
+}'
+echo
+echo
+
+
+echo "06. omit alone → 201"
+echo "===================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s6","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"omit":["a"]}
+}'
+echo
+echo
+
+
+echo "07. attributes alone → 201"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:s7","type":"Subscription",
+  "entities":[{"type":"Building"}],
+  "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"attributes":["a"]}
+}'
+echo
+echo
+
+
+--EXPECT--
+01. pick + omit overlap (member 'a' in both) → 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification.pick' and 'notification.omit' must not share member 'a'",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. pick + attributes → 400
+===========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification.pick' and 'notification.attributes' are mutually exclusive",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. omit + attributes → 400
+===========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification.omit' and 'notification.attributes' are mutually exclusive",
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. pick + omit on disjoint members → 201
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s4
+Content-Length: REGEX(\d+)
+
+
+
+
+05. pick alone → 201
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s5
+Content-Length: REGEX(\d+)
+
+
+
+
+06. omit alone → 201
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s6
+Content-Length: REGEX(\d+)
+
+
+
+
+07. attributes alone → 201
+==========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s7
+Content-Length: REGEX(\d+)
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
