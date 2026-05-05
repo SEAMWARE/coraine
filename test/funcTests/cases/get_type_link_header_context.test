@@ -1,0 +1,128 @@
+#
+# FILE            get_type_link_header_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.7 — GET /types/{type} must accept a short type name and resolve
+# it against the @context provided in the Link HTTP header. This used to
+# fail because the broker only resolved the Link-header context lazily
+# from ldParamHook (per URL param). A request with no URL params ended
+# up looking up the literal short name and 404'ing.
+#
+--NAME--
+GET /types/{type} expands short name via Link-header @context (§ 5.7.7)
+
+--TAGS--
+types
+discovery
+context
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxT '{
+  "@context": {
+    "Vehicle": "https://example.org/Vehicle",
+    "speed":   "https://example.org/Vehicle.speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST a Vehicle entity with the test context via Link header
+# 02. GET /types/Vehicle (short name) with the same Link → 200 (was 404 before)
+# 03. GET /types/Bicycle (short name, never created) → 404
+#
+
+echo "01. POST Vehicle (Link header @context)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 100 }
+}' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxT>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "02. GET /types/Vehicle (short name) with Link header → 200"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/types/Vehicle \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxT>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET /types/Bicycle (unknown short name) → 404"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/types/Bicycle \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxT>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--EXPECT--
+01. POST Vehicle (Link header @context)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET /types/Vehicle (short name) with Link header → 200
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <http://localhost:7080/jsonldContexts/ctxT>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "attributeDetails": [
+    {
+      "attributeName": "speed",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://example.org/Vehicle.speed",
+      "type": "Attribute"
+    }
+  ],
+  "entityCount": 1,
+  "id": "https://example.org/Vehicle",
+  "type": "EntityTypeInfo",
+  "typeName": "Vehicle"
+}
+
+
+
+03. GET /types/Bicycle (unknown short name) → 404
+=================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity type 'Bicycle' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop
