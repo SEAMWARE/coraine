@@ -117,6 +117,15 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
       KjNode*     reasonP  = kjLookup(change, "reason");
       const char* reason   = (reasonP != NULL && reasonP->type == KjString) ? reasonP->value.s : "";
       const char* attrName = attrNameP->value.s;
+
+      // Entity-level type / scope changes are signalled in the report
+      // so we know to bump them, but the always-write block below
+      // appends them once to $set — appending here as well would make
+      // mongo reject the bulk update with a "conflict at 'type'" /
+      // "conflict at 'scope'" error.
+      if (strcmp(attrName, "type")             == 0) { hasSet = true; continue; }
+      if (strcmp(attrName, LD_VOCAB_SCOPE)     == 0) { hasSet = true; continue; }
+
       const char* escaped  = mongocEscapeDotsInKey(attrName);
 
       if (strcmp(reason, "attributeDeleted") == 0)

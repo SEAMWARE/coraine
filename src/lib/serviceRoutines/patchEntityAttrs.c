@@ -319,15 +319,24 @@ bool patchEntityAttrs(void)
   }
 
   //
-  // Local path.
+  // Local path. The merge runs when the fragment has anything to merge —
+  // user attributes, OR a type/scope mutation (§ 5.6.2.4 + § 4.16: type
+  // append-union, scope replace) which are still "attrs" for the purposes
+  // of this op even though they aren't user attributes. Without the
+  // type/scope branch a type-only or scope-only PATCH would short-circuit
+  // and silently drop the change (ETSI 011_06_*).
   //
   bool localHasAttrs = false;
   for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
     if (!isEntityKeyword(c->name)) { localHasAttrs = true; break; }
 
+  bool hasTypeOrScope = (kjLookup(fragment, "type") != NULL ||
+                         kjLookup(fragment, LD_VOCAB_SCOPE) != NULL);
+  bool needLocalMerge = localHasAttrs || hasTypeOrScope;
+
   KjNode* existing = NULL;
   int     rr       = DB_NOT_FOUND;
-  if (localHasAttrs || !anyCsrSucceeded)
+  if (needLocalMerge || !anyCsrSucceeded)
     rr = db.entityRetrieve(tenantP, entityId, &existing);
 
   if (rr != DB_OK && !anyCsrSucceeded)
@@ -336,7 +345,7 @@ bool patchEntityAttrs(void)
     return true;
   }
 
-  if (localHasAttrs && rr == DB_OK && existing != NULL)
+  if (needLocalMerge && rr == DB_OK && existing != NULL)
   {
     //
     // § 5.6.2.4: if the fragment carries scope but the target entity has
