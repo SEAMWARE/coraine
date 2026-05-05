@@ -1,0 +1,127 @@
+#
+# FILE            jsonld_contexts_param_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.13.3.5 — GET /jsonldContexts URL params 'details' and 'kind' must
+# carry only their spec-allowed values, otherwise BadRequestData (400).
+#
+--NAME--
+GET /jsonldContexts URL param validation (§ 5.13.3.5)
+
+--TAGS--
+context
+url-param
+validation
+error
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+swBrokerStart
+
+--RUN--
+
+#
+# 01. details=foo  -> 400
+# 02. kind=foo     -> 400
+# 03. details=true -> 200 (valid)
+# 04. kind=Hosted  -> 200 (valid)
+#
+
+echo "01. GET /jsonldContexts?details=foo (invalid -> 400)"
+echo "===================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=foo"
+echo
+echo
+
+
+echo "02. GET /jsonldContexts?kind=foo (invalid -> 400)"
+echo "================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=foo"
+echo
+echo
+
+
+echo "03. GET /jsonldContexts?details=true (valid -> 200)"
+echo "==================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true"
+echo
+echo
+
+
+echo "04. GET /jsonldContexts?kind=Hosted (valid -> 200, empty list)"
+echo "=============================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+echo
+echo
+
+
+--EXPECT--
+01. GET /jsonldContexts?details=foo (invalid -> 400)
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'details' must be 'true' or 'false'",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. GET /jsonldContexts?kind=foo (invalid -> 400)
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'kind' must be 'Hosted', 'Cached' or 'ImplicitlyCreated'",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET /jsonldContexts?details=true (valid -> 200)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "createdAt": REGEX(\d+),
+    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "kind": "ImplicitlyCreated",
+    "lastUsage": REGEX(\d+),
+    "url": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  }
+]
+
+
+
+04. GET /jsonldContexts?kind=Hosted (valid -> 200, empty list)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
