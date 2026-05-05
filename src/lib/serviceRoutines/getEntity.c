@@ -759,6 +759,8 @@ bool getEntity(void)
 
       if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
         ldPickOmit(destP, swNgsild.pickV, swNgsild.omitV);
+      else if (swNgsild.attrsV != NULL)
+        ldAttrsFilter(destP, swNgsild.attrsV);
       swRest.out.responseTree = destP;
       return true;
     }
@@ -779,9 +781,11 @@ bool getEntity(void)
     return true;
   }
 
-  // Apply pick/omit attribute projection
+  // Apply pick/omit attribute projection (or the legacy attrs alias)
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
     ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+  else if (swNgsild.attrsV != NULL)
+    ldAttrsFilter(entityP, swNgsild.attrsV);
 
   // § 4.5.23 — linked-entity expansion. join=flat returns an array
   // (primary + targets); join=inline nests targets as `entity` sub-

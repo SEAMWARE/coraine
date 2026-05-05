@@ -1001,6 +1001,13 @@ static bool entityMapPaginate(void)
     for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
       ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
   }
+  else if (swNgsild.attrsV != NULL)
+  {
+    // § 6.4.3.2 deprecated `attrs` — attribute-only filter, preserves
+    // id / type / scope / @context (unlike pick which can strip them).
+    for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+      ldAttrsFilter(ep, swNgsild.attrsV);
+  }
 
   applyLinkedQPostFilter(arrayP);
 
@@ -1587,12 +1594,17 @@ bool getEntities(void)
   ldPaginationLinkHeader(hasMore);
 
   //
-  // Apply pick/omit attribute projection
+  // Apply pick/omit attribute projection (or the legacy attrs alias)
   //
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
   {
     for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+  }
+  else if (swNgsild.attrsV != NULL)
+  {
+    for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+      ldAttrsFilter(entityP, swNgsild.attrsV);
   }
 
   // § 4.9 LinkedEntityRelation — post-filter when q contains a sub-q.
