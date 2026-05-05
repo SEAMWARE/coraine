@@ -468,6 +468,11 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
 //
 static bool brokerPreServiceHook(void)
 {
+  // Resolve @context unconditionally so service routines see swNgsild.contextP
+  // populated whether the request had URL params, a body, or neither
+  // (e.g. GET /types/Building with just a Link header).
+  ldContextResolve();
+
   if (!tenantPreServiceHook())
     return false;
   if (!ldSnapshotWriteGuard())
