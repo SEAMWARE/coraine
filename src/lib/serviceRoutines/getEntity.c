@@ -781,11 +781,77 @@ bool getEntity(void)
     return true;
   }
 
-  // Apply pick/omit attribute projection (or the legacy attrs alias)
+  // Apply pick/omit attribute projection (or the legacy attrs alias).
+  // Each path then enforces its own 404-on-empty rule:
+  //
+  //   pick / omit (§ 6.3.6): "If the resulting Entity contains no
+  //     members, the operation shall return ResourceNotFound." Members
+  //     are id / type / optional scope / user attributes. @context is a
+  //     JSON-LD expansion aux (not a member). createdAt / modifiedAt /
+  //     expiresAt are SystemAttributes — included only when
+  //     ?sysAttrs=true, so without that flag they'd be stripped before
+  //     render and don't count.
+  //
+  //   attrs (§ 6.4.3.2 / § 5.10.2): the deprecated alias is "show only
+  //     the listed attributes AND only on entities that have at least
+  //     one of them". For single-entity retrieve, none-matching → 404.
+  //     Entity members (id / type / scope) are preserved by the filter
+  //     but don't count toward the "at least one matching attribute"
+  //     test — only user attributes do.
+  //
+  // ETSI 018_03_02 / 018_19_*.
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  {
     ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+
+    bool hasMembers = false;
+    for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+    {
+      if (c->name == NULL)                          continue;
+      if (strcmp(c->name, "@context")        == 0)  continue;
+      if (!swNgsild.sysAttrs &&
+          (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0 ||
+           strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0 ||
+           strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0))
+        continue;
+      hasMembers = true;
+      break;
+    }
+    if (!hasMembers)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+              "entity '%s' has no members after pick/omit projection", entityId);
+      return true;
+    }
+  }
   else if (swNgsild.attrsV != NULL)
+  {
     ldAttrsFilter(entityP, swNgsild.attrsV);
+
+    // Count surviving user attributes (skip entity members and
+    // system-managed timestamps — the filter preserves them but they
+    // don't satisfy the attrs existence rule).
+    bool hasUserAttr = false;
+    for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+    {
+      if (c->name == NULL)                            continue;
+      if (strcmp(c->name, "id")               == 0)   continue;
+      if (strcmp(c->name, "type")             == 0)   continue;
+      if (strcmp(c->name, "@context")         == 0)   continue;
+      if (strcmp(c->name, LD_VOCAB_SCOPE)     == 0)   continue;
+      if (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0) continue;
+      if (strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0) continue;
+      if (strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0) continue;
+      hasUserAttr = true;
+      break;
+    }
+    if (!hasUserAttr)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+              "entity '%s' has none of the requested attributes", entityId);
+      return true;
+    }
+  }
 
   // § 4.5.23 — linked-entity expansion. join=flat returns an array
   // (primary + targets); join=inline nests targets as `entity` sub-
