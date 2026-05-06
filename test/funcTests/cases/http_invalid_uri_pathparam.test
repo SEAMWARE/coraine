@@ -1,0 +1,122 @@
+#
+# FILE            http_invalid_uri_pathparam.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Invalid URI in {entityId} / {subscriptionId} / {regId} path -> 400 BadRequestData
+
+--TAGS--
+http routing validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. GET /entities/<not-a-uri>
+#
+echo "01. GET /entities/<not-a-uri> - 400"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/thisisaninvaliduri
+echo
+echo
+
+
+#
+# 02. DELETE /entities/<not-a-uri>
+#
+echo "02. DELETE /entities/<not-a-uri> - 400"
+echo "======================================"
+swCurl -X DELETE --url /ngsi-ld/v1/entities/badid
+echo
+echo
+
+
+#
+# 03. DELETE /subscriptions/<not-a-uri>
+#
+echo "03. DELETE /subscriptions/<not-a-uri> - 400"
+echo "==========================================="
+swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/notauri
+echo
+echo
+
+
+#
+# 04. GET /entities/<valid-but-unknown> - still 404
+#
+echo "04. GET /entities/<valid-but-unknown> - 404"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:does-not-exist
+echo
+echo
+
+
+--EXPECT--
+01. GET /entities/<not-a-uri> - 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'thisisaninvaliduri' is not a valid URI",
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. DELETE /entities/<not-a-uri> - 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'badid' is not a valid URI",
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. DELETE /subscriptions/<not-a-uri> - 400
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notauri' is not a valid URI",
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. GET /entities/<valid-but-unknown> - 404
+===========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:ngsi-ld:T:does-not-exist' not found",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

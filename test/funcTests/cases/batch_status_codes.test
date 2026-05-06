@@ -1,0 +1,150 @@
+#
+# FILE            batch_status_codes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Batch ops collapse uniform errors to a plain status; 204 when no errors
+
+--TAGS--
+batch error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity (setup)
+#
+
+echo "01. Create entity"
+echo "================="
+payload='{"id":"urn:E1","type":"T","a":{"type":"Property","value":1}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+#
+# 02. Batch merge of empty fragment on existing entity -> 204 (no errors)
+#
+
+echo "02. Batch merge with empty fragment -> 204 (was 409)"
+echo "===================================================="
+payload='[{"id":"urn:E1","type":"T"}]'
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$payload"
+echo
+echo
+
+
+#
+# 03. Batch merge into non-existent entity -> 404 (uniform → plain status, was 409)
+#
+
+echo "03. Batch merge into non-existent entity -> 404 (was 409)"
+echo "========================================================="
+payload='[{"id":"urn:E2","type":"T","a":{"type":"Property","value":2}}]'
+swCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$payload"
+echo
+echo
+
+
+#
+# 04. Batch update into non-existent entity -> 404 (uniform → plain status)
+#
+
+echo "04. Batch update into non-existent entity -> 404 (was 409)"
+echo "=========================================================="
+payload='[{"id":"urn:E3","type":"T","a":{"type":"Property","value":3}}]'
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+echo
+echo
+
+
+#
+# 05. Batch delete of non-existent entity -> 404 (uniform → plain status)
+#
+
+echo "05. Batch delete of non-existent entity -> 404 (was 409)"
+echo "========================================================"
+payload='["urn:E4"]'
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity
+=================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. Batch merge with empty fragment -> 204 (was 409)
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+03. Batch merge into non-existent entity -> 404 (was 409)
+=========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityId": "urn:E2",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. Batch update into non-existent entity -> 404 (was 409)
+==========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityId": "urn:E3",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. Batch delete of non-existent entity -> 404 (was 409)
+========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "entityId": "urn:E4",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

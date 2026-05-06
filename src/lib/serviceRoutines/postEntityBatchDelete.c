@@ -532,17 +532,30 @@ bool postEntityBatchDelete(void)
   int errorCount = 0;
   for (KjNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
 
-  if (errorCount == 0 && successCount > 0)
+  if (errorCount == 0)
   {
     swRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successP);
-  kjChildAdd(respBodyP, errorsP);
-  swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = (successCount > 0) ? 207 : 409;
-  swNgsild.rawResponse      = true;
+  // § 5.6.10 / § 6.13.x: full failure with one common error status
+  // collapses to that status + bare ProblemDetails (so deleting only
+  // missing entities surfaces 404 with the proper body, not a 409
+  // wrapper). Mixed / multi-status results stay 207 + {success, errors}.
+  int singleStatus = (successCount == 0) ? ldBatchErrorsSingleStatus(errorsP) : -1;
+  if (singleStatus > 0)
+  {
+    swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+    swRest.out.httpStatusCode = singleStatus;
+  }
+  else
+  {
+    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(respBodyP, successP);
+    kjChildAdd(respBodyP, errorsP);
+    swRest.out.responseTree   = respBodyP;
+    swRest.out.httpStatusCode = 207;
+    swNgsild.rawResponse      = true;
+  }
   return true;
 }

@@ -1,0 +1,107 @@
+#
+# FILE            response_compaction_with_link_header.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+GET responses compact user-vocabulary terms using the Link header @context
+
+--TAGS--
+context routing http retrieve
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity using a user @context (defines a Building type + name attr)
+#
+echo "01. Create entity (ld+json, body @context)"
+echo "=========================================="
+payload='{
+  "id": "urn:ngsi-ld:Building:E1",
+  "type": "Building",
+  "name": { "type": "Property", "value": "Eiffel Tower" },
+  "@context": "https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld"
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
+echo
+echo
+
+#
+# 02. GET with Link header carrying the same context — body must be COMPACTED
+#     (Building, name — not the expanded https://… IRIs)
+#
+echo "02. GET with Link header — terms compacted"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1 \
+       -H 'Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+#
+# 03. GET with no Link header — falls back to core context, user terms stay
+#     expanded (broker can't invent a vocabulary). Behaviour spec'd by § 6.3.5.
+#
+echo "03. GET without Link — user terms remain expanded"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1
+echo
+echo
+
+--EXPECT--
+01. Create entity (ld+json, body @context)
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1
+Content-Length: 0
+
+
+
+
+02. GET with Link header — terms compacted
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Building:E1",
+  "name": {
+    "type": "Property",
+    "value": "Eiffel Tower"
+  },
+  "type": "Building"
+}
+
+
+
+03. GET without Link — user terms remain expanded
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://ngsi-ld-test-suite/context#name": {
+    "type": "Property",
+    "value": "Eiffel Tower"
+  },
+  "id": "urn:ngsi-ld:Building:E1",
+  "type": "https://ngsi-ld-test-suite/context#Building"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

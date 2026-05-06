@@ -1,0 +1,141 @@
+#
+# FILE            url_param_format_options_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+?format= and ?options= reject unknown values with 400 InvalidRequest
+
+--TAGS--
+url-param validation error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. ?format=invalidFormat -> 400 InvalidRequest
+#
+echo "01. GET /entities?format=invalidFormat -> 400 InvalidRequest"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&format=invalidFormat'
+echo
+echo
+
+
+#
+# 02. ?options=invalidOptions -> 400 InvalidRequest
+#
+echo "02. GET /entities?options=invalidOptions -> 400 InvalidRequest"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&options=invalidOptions'
+echo
+echo
+
+
+#
+# 03. ?options=temporalValues,invalidOptions -> 400 (mixed valid + invalid)
+#
+echo "03. GET /entities?options=temporalValues,invalidOptions -> 400 InvalidRequest"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&options=temporalValues,invalidOptions'
+echo
+echo
+
+
+#
+# 04. ?options=keyValues,sysAttrs (all valid) -> 200
+#
+echo "04. GET /entities?options=keyValues,sysAttrs -> 200 (no entities, but valid)"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues,sysAttrs'
+echo
+echo
+
+
+#
+# 05. ?format=normalized (valid) -> 200
+#
+echo "05. GET /entities?format=normalized -> 200 (no entities, but valid)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&format=normalized'
+echo
+echo
+
+
+--EXPECT--
+01. GET /entities?format=invalidFormat -> 400 InvalidRequest
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "unknown 'format' value 'invalidFormat' (expected: normalized, concise, simplified|keyValues, temporalValues, aggregatedValues)",
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+02. GET /entities?options=invalidOptions -> 400 InvalidRequest
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "unknown 'options' token 'invalidOptions'",
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+03. GET /entities?options=temporalValues,invalidOptions -> 400 InvalidRequest
+=============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "unknown 'options' token 'invalidOptions'",
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+04. GET /entities?options=keyValues,sysAttrs -> 200 (no entities, but valid)
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+05. GET /entities?format=normalized -> 200 (no entities, but valid)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop

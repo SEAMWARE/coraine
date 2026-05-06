@@ -1,0 +1,108 @@
+#
+# FILE            http_trailing_slash.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+URL paths with a trailing '/' resolve to the same route as without
+
+--TAGS--
+http routing
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "a1": { "type": "Property", "value": 1 }
+}'
+
+#
+# 01. POST /ngsi-ld/v1/entities/  (trailing slash) — should 201
+#
+
+echo "01. POST /ngsi-ld/v1/entities/ (trailing slash) - 201"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/ --payload "$payload"
+echo
+echo
+
+
+#
+# 02. GET /ngsi-ld/v1/entities/  (trailing slash, query) — should 200 and return E1
+#
+
+echo "02. GET /ngsi-ld/v1/entities/?type=T (trailing slash) - 200"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities/?type=T'
+echo
+echo
+
+
+#
+# 03. GET /  (root, single slash) — must NOT be stripped, still 404
+#
+
+echo "03. GET / (root) - 404"
+echo "======================"
+swCurl --url /
+echo
+echo
+
+
+--EXPECT--
+01. POST /ngsi-ld/v1/entities/ (trailing slash) - 201
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. GET /ngsi-ld/v1/entities/?type=T (trailing slash) - 200
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "a1": {
+      "type": "Property",
+      "value": 1
+    },
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+03. GET / (root) - 404
+======================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "GET / is not a recognized resource",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
