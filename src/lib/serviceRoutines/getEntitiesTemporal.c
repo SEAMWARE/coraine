@@ -269,7 +269,7 @@ static KjNode* forwardTemporalQueryToCSR(LdRegCacheItem* csr,
   if (treeP == NULL || treeP->type != KjArray)
     return NULL;
 
-  swldExpandTree(treeP, &swRest.kalloc);
+  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
   ldStripAtContext(treeP);
   return treeP;
 }

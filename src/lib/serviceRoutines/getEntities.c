@@ -711,7 +711,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   if (treeP == NULL)
     return NULL;
 
-  swldExpandTree(treeP, &swRest.kalloc);
+  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
   ldStripAtContext(treeP);
   apiAttrToStorageWrap(treeP);
 
@@ -1405,7 +1405,10 @@ bool getEntities(void)
               }
 
               remoteEntity->next = NULL;
-              swldExpandTree(remoteEntity, &swRest.kalloc);
+              // Expand in the user's context — post-merge type/attr filters
+              // compare like-for-like only when the remote entity's terms
+              // resolve to the same IRIs as the user's typeExpr / qExpr.
+              swldExpandTree(remoteEntity, swNgsild.contextP, &swRest.kalloc);
               apiAttrToStorageWrap(remoteEntity);
 
               if (existingP == NULL)

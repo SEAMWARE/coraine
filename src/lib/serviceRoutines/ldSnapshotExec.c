@@ -504,7 +504,7 @@ static int streamRemoteEntitiesSplit(KjNode* arrayP, Tenant* snapTenantP)
     KjNode* idP = kjLookup(entityP, "id");
     if (idP == NULL || idP->type != KjString) continue;
 
-    swldExpandTree(entityP, &swRest.kalloc);
+    swldExpandTree(entityP, swNgsild.contextP, &swRest.kalloc);
     ldApiEntityToDbModel(entityP, &swRest.kalloc);
 
     KjNode* existing = NULL;
@@ -659,7 +659,7 @@ static int streamRemoteEntitiesIntoSnapshot(KjNode* arrayP, Tenant* snapTenantP)
 
     // CSR responses are in API form — expand short names + wrap attrs
     // into the broker's storage format that db.entityCreate expects.
-    swldExpandTree(entityP, &swRest.kalloc);
+    swldExpandTree(entityP, swNgsild.contextP, &swRest.kalloc);
     ldApiEntityToDbModel(entityP, &swRest.kalloc);
 
     int wr = db.entityCreate(snapTenantP, idP->value.s, entityP);

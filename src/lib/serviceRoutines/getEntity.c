@@ -530,7 +530,7 @@ static int forwardAndParse(LdRegCacheItem* csr,
     return 502;
   }
 
-  swldExpandTree(treeP, &swRest.kalloc);
+  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
   ldStripAtContext(treeP);
 
   // Convert upstream's API form into the storage format the renderHook

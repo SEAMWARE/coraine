@@ -271,7 +271,7 @@ static int forwardTemporalAndParse(LdRegCacheItem* csr,
     return 502;
   }
 
-  swldExpandTree(treeP, &swRest.kalloc);
+  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
   ldStripAtContext(treeP);
 
   *upstreamPP = treeP;

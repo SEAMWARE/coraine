@@ -250,7 +250,7 @@ int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
           // drop @context, then API → storage so the walker / q-evaluator
           // reads (datasetId wrappers, "value" instead of "object") line
           // up with the local-fetched shape.
-          swldExpandTree(tree, &swRest.kalloc);
+          swldExpandTree(tree, swNgsild.contextP, &swRest.kalloc);
           ldStripAtContext(tree);
           ldApiEntityToDbModel(tree, &swRest.kalloc);
           *entityPP = tree;
