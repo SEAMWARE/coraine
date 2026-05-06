@@ -94,7 +94,6 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:V1",
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
@@ -102,8 +101,7 @@ Content-Length: REGEX(\d+)
         "type": "Property",
         "value": 10
       }
-    ],
-    "type": "Vehicle"
+    ]
   }
 ]
 
@@ -119,7 +117,6 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "id": "urn:V1",
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
@@ -127,11 +124,9 @@ Content-Length: REGEX(\d+)
         "type": "Property",
         "value": 10
       }
-    ],
-    "type": "Vehicle"
+    ]
   },
   {
-    "id": "urn:V2",
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
@@ -139,8 +134,7 @@ Content-Length: REGEX(\d+)
         "type": "Property",
         "value": 20
       }
-    ],
-    "type": "Vehicle"
+    ]
   }
 ]
 
