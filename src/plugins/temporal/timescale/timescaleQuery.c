@@ -288,8 +288,15 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
                               : (timescaleInstanceCap > 0 ? timescaleInstanceCap : TROE_DEFAULT_INSTANCE_CAP);
 
   const char* tCol          = timeColumn(timeProp);
-  bool        createdAtOnly = (timeProp != NULL && strcmp(timeProp, "createdAt") == 0);
-  const char* opPred        = createdAtOnly ? " AND op = 'created'" : "";
+  // § 5.7.3 / § 4.5.x — when timeproperty selects a system temporal
+  // property, the query is restricted to the rows that *carry* that
+  // property: createdAt → only the creation row, deletedAt → only the
+  // deletion row. modifiedAt and observedAt match every row.
+  const char* opPred = "";
+  if (timeProp != NULL && strcmp(timeProp, "createdAt") == 0)
+    opPred = " AND op = 'created'";
+  else if (timeProp != NULL && strcmp(timeProp, "deletedAt") == 0)
+    opPred = " AND op = 'deleted'";
   const char* attrPred      = attrsInClause(attrV, &swRest.kalloc);
   const char* dsPred        = datasetIdsInClause(datasetIdV, &swRest.kalloc);
 
@@ -330,10 +337,14 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
 
   if (timerel != NULL)
   {
+    // § 4.11.4 timerel bounds:
+    //   before  — timeAt is EXCLUSIVE (strict less-than)
+    //   after   — timeAt is INCLUSIVE (≥)
+    //   between — [timeAt, endTimeAt): lower inclusive, upper exclusive
     if (strcmp(timerel, "before") == 0)
     {
       char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
-      snprintf(buf, 64, " AND %s <= $3::timestamptz", tCol);
+      snprintf(buf, 64, " AND %s < $3::timestamptz", tCol);
       timePred = buf;
       paramV[2] = timeAt;
       nParams   = 3;
@@ -349,7 +360,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     else if (strcmp(timerel, "between") == 0)
     {
       char* buf = (char*) kaAlloc(&swRest.kalloc, 96);
-      snprintf(buf, 96, " AND %s >= $3::timestamptz AND %s <= $4::timestamptz", tCol, tCol);
+      snprintf(buf, 96, " AND %s >= $3::timestamptz AND %s < $4::timestamptz", tCol, tCol);
       timePred = buf;
       paramV[2] = timeAt;
       paramV[3] = endTimeAt;
@@ -491,16 +502,20 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
         kjChildAdd(inst, vNode);
     }
 
-    // § 6.3.11: createdAt / modifiedAt / deletedAt are gated by sysAttrs.
+    // § 6.3.11: createdAt / modifiedAt are gated by sysAttrs. deletedAt
+    // is the marker that distinguishes a deletion-instance from a regular
+    // one (§ 4.5.4) — it travels with the deleted row regardless of
+    // sysAttrs, so a query that asks for the deletion history (e.g.
+    // ?timeproperty=deletedAt) actually surfaces the timestamp.
     if (swNgsild.sysAttrs)
     {
       if (crAtIso != NULL)
         kjChildAdd(inst, kjString(kjsonP, "createdAt",  kaStrdup(&swRest.kalloc, crAtIso)));
       if (modAtIso != NULL)
         kjChildAdd(inst, kjString(kjsonP, "modifiedAt", kaStrdup(&swRest.kalloc, modAtIso)));
-      if (isDeleted && modAtIso != NULL)
-        kjChildAdd(inst, kjString(kjsonP, "deletedAt",  kaStrdup(&swRest.kalloc, modAtIso)));
     }
+    if (isDeleted && modAtIso != NULL)
+      kjChildAdd(inst, kjString(kjsonP, "deletedAt",  kaStrdup(&swRest.kalloc, modAtIso)));
     if (obsAtIso != NULL)
       kjChildAdd(inst, kjString(kjsonP, "observedAt", kaStrdup(&swRest.kalloc, obsAtIso)));
     if (dsId != NULL && dsId[0] != 0)
