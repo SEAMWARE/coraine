@@ -579,9 +579,9 @@ bool getEntitiesTemporal(void)
     int   sz  = 96;
     char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
     if (rangeInfo.size > 0)
-      snprintf(buf, sz, "DateTime %s-%s/%d", rangeInfo.rangeStartIso, rangeInfo.rangeEndIso, rangeInfo.size);
+      snprintf(buf, sz, "date-time %s-%s/%d", rangeInfo.rangeStartIso, rangeInfo.rangeEndIso, rangeInfo.size);
     else
-      snprintf(buf, sz, "DateTime %s-%s/*", rangeInfo.rangeStartIso, rangeInfo.rangeEndIso);
+      snprintf(buf, sz, "date-time %s-%s/*", rangeInfo.rangeStartIso, rangeInfo.rangeEndIso);
     swRestOutHeaderAdd("Content-Range", buf);
     swRest.out.httpStatusCode = 206;
   }

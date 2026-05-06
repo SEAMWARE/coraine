@@ -7,7 +7,7 @@
 #
 # § 6.3.10 partial-content: any time the response was capped — by the
 # implementation default cap when ?lastN is absent, OR by the user's
-# explicit ?lastN — broker emits 206 + Content-Range with unit=DateTime.
+# explicit ?lastN — broker emits 206 + Content-Range with unit=date-time.
 # Size is "*" (unknown total) for the default-cap case, the lastN value
 # when ?lastN was specified.
 #
@@ -28,6 +28,14 @@ swBrokerStart --troe timescale --troeName sw_troe_partial --troeUser postgres --
 
 --RUN--
 
+#
+# 01. Seed urn:V1 with 8 speed instances (observedAt 09:00..16:00).
+# 02. GET /temporal/entities/urn:V1 (no lastN) → 206, capped at 5 (the
+#     default cap), Content-Range size=* (unknown total).
+# 03. GET ...?lastN=3 → 206, Content-Range size=3.
+# 04. Multi-entity GET (no lastN) → 206 across the union, size=*.
+#
+
 echo "01. Seed urn:V1 with 8 speed instances at observedAt 09:00..16:00"
 echo "================================================================"
 swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
@@ -43,65 +51,23 @@ echo
 echo
 
 
-echo "02. Single-entity GET (no lastN) → 206 + Content-Range, 5 of 8 instances"
-echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1' --include 2>&1 | python3 -c "
-import sys, re, json
-text = sys.stdin.read()
-sep = text.find('\n\n')
-hdr  = text[:sep] if sep >= 0 else text
-body = text[sep+2:] if sep >= 0 else ''
-status = hdr.splitlines()[0] if hdr else ''
-cr = next((l for l in hdr.splitlines() if l.lower().startswith('content-range')), '(none)')
-d = json.loads(body) if body.strip() else {}
-def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
-sk = next((k for k in d if short(k) == 'speed'), None)
-n  = len(d[sk]) if sk else 0
-print('  status:', status)
-print('  Content-Range:', cr)
-print('  speed instance count:', n)
-"
+echo "02. Single-entity GET (no lastN) → 206 + Content-Range size=*, 5 of 8 instances"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
 echo
 echo
 
 
 echo "03. Single-entity GET (lastN=3) → 206 + Content-Range size=3, 3 instances"
-echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3' --include 2>&1 | python3 -c "
-import sys, re, json
-text = sys.stdin.read()
-sep = text.find('\n\n')
-hdr  = text[:sep] if sep >= 0 else text
-body = text[sep+2:] if sep >= 0 else ''
-status = hdr.splitlines()[0] if hdr else ''
-cr = next((l for l in hdr.splitlines() if l.lower().startswith('content-range')), '(none)')
-d = json.loads(body) if body.strip() else {}
-def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
-sk = next((k for k in d if short(k) == 'speed'), None)
-n  = len(d[sk]) if sk else 0
-print('  status:', status)
-print('  Content-Range:', cr)
-print('  speed instance count:', n)
-"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3'
 echo
 echo
 
 
-echo "04. Multi-entity GET (no lastN) → 206 + Content-Range"
-echo "====================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' --include 2>&1 | python3 -c "
-import sys, re, json
-text = sys.stdin.read()
-sep = text.find('\n\n')
-hdr  = text[:sep] if sep >= 0 else text
-body = text[sep+2:] if sep >= 0 else ''
-status = hdr.splitlines()[0] if hdr else ''
-cr = next((l for l in hdr.splitlines() if l.lower().startswith('content-range')), '(none)')
-arr = json.loads(body) if body.strip() else []
-print('  status:', status)
-print('  Content-Range:', cr)
-print('  entity count:', len(arr))
-"
+echo "04. Multi-entity GET (no lastN) → 206 + Content-Range size=*"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
 echo
 echo
 
@@ -112,25 +78,138 @@ echo
 done
 
 
-02. Single-entity GET (no lastN) → 206 + Content-Range, 5 of 8 instances
-========================================================================
-  status: HTTP/1.1 206 Partial Content
-  Content-Range: Content-Range: DateTime 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
-  speed instance count: 5
+02. Single-entity GET (no lastN) → 206 + Content-Range size=*, 5 of 8 instances
+===============================================================================
+HTTP/1.1 206 Partial Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Range: date-time 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T09:00:00.000Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T10:00:00.000Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T11:00:00.000Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T12:00:00.000Z",
+      "type": "Property",
+      "value": 40
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T13:00:00.000Z",
+      "type": "Property",
+      "value": 50
+    }
+  ],
+  "type": "Vehicle"
+}
+
 
 
 03. Single-entity GET (lastN=3) → 206 + Content-Range size=3, 3 instances
-===========================================================================
-  status: HTTP/1.1 206 Partial Content
-  Content-Range: Content-Range: DateTime 2026-04-28T14:00:00.000Z-2026-04-28T16:00:00.000Z/3
-  speed instance count: 3
+=========================================================================
+HTTP/1.1 206 Partial Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Range: date-time 2026-04-28T14:00:00.000Z-2026-04-28T16:00:00.000Z/3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T16:00:00.000Z",
+      "type": "Property",
+      "value": 80
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T15:00:00.000Z",
+      "type": "Property",
+      "value": 70
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T14:00:00.000Z",
+      "type": "Property",
+      "value": 60
+    }
+  ],
+  "type": "Vehicle"
+}
 
 
-04. Multi-entity GET (no lastN) → 206 + Content-Range
-=====================================================
-  status: HTTP/1.1 206 Partial Content
-  Content-Range: Content-Range: DateTime 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
-  entity count: 1
+
+04. Multi-entity GET (no lastN) → 206 + Content-Range size=*
+============================================================
+HTTP/1.1 206 Partial Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Range: date-time 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+        "observedAt": "2026-04-28T09:00:00.000Z",
+        "type": "Property",
+        "value": 10
+      },
+      {
+        "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+        "observedAt": "2026-04-28T10:00:00.000Z",
+        "type": "Property",
+        "value": 20
+      },
+      {
+        "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+        "observedAt": "2026-04-28T11:00:00.000Z",
+        "type": "Property",
+        "value": 30
+      },
+      {
+        "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+        "observedAt": "2026-04-28T12:00:00.000Z",
+        "type": "Property",
+        "value": 40
+      },
+      {
+        "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+        "observedAt": "2026-04-28T13:00:00.000Z",
+        "type": "Property",
+        "value": 50
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
 
 
 --TEARDOWN--
