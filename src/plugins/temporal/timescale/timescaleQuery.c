@@ -738,6 +738,11 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   const char* patternClause = idPatternClause(fP->idPattern, &swRest.kalloc);
 
   // limit/offset — caller guarantees non-negative; default broker-side.
+  // The LIMIT is applied AFTER per-candidate doc construction so we can
+  // skip entities whose doc has no temporal content (post-filter empty),
+  // rather than letting them eat into the limit. SQL still pre-narrows
+  // by the entity-level predicates and keeps the candidate count
+  // bounded — entities with no troe_entities row are already excluded.
   int limit  = (fP->limit > 0) ? fP->limit : 1000;
   int offset = (fP->offset > 0) ? fP->offset : 0;
 
@@ -752,9 +757,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     "FROM troe_entities WHERE tenant = $1 ORDER BY entity_id, modified_at DESC"
     ") latest "
     "WHERE TRUE%s%s%s "
-    "ORDER BY entity_id "
-    "LIMIT %d OFFSET %d",
-    idClause, typeClause, patternClause, limit, offset);
+    "ORDER BY entity_id",
+    idClause, typeClause, patternClause);
 
   const char* selectorParamV[1] = { tenant };
 
@@ -771,7 +775,12 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   int candN = PQntuples(eRes);
 
-  for (int r = 0; r < candN; r++)
+  // Track how many filter-passing entities we've seen; offset skips
+  // the first N matches; limit caps the total kept.
+  int matched = 0;
+  int kept    = 0;
+
+  for (int r = 0; r < candN && kept < limit; r++)
   {
     const char* entityId   = kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 0));
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 1));
@@ -779,15 +788,38 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     KjNode* docP = NULL;
     int rc = buildEntityTemporalDocLocked(tenant, entityId, entityType, fP, &docP, rangeOut);
 
-    if (rc == TROE_OK && docP != NULL)
-      kjChildAdd(arrP, docP);
-    else if (rc == TROE_ERR)
+    if (rc == TROE_ERR)
     {
       PQclear(eRes);
       pthread_mutex_unlock(&timescaleMutex);
       return TROE_ERR;
     }
-    // TROE_NOT_FOUND → skip silently (entity didn't match q, etc.)
+    if (rc != TROE_OK || docP == NULL)
+      continue;   // TROE_NOT_FOUND — entity didn't match q/etc
+
+    // Drop entities whose doc has no temporal-attribute content. An
+    // entity that's known to TRoE but has no instances matching the
+    // query (timerel / attrs / datasetId / q) is not part of the result
+    // set per § 5.7.4. Without this, leftover rows in troe_entities
+    // surface as bare {id,type} stubs.
+    bool hasAttrs = false;
+    for (KjNode* c = docP->value.firstChildP; c != NULL; c = c->next)
+    {
+      if (c->name == NULL)                         continue;
+      if (strcmp(c->name, "id")    == 0)           continue;
+      if (strcmp(c->name, "type")  == 0)           continue;
+      if (strcmp(c->name, "scope") == 0)           continue;
+      hasAttrs = true;
+      break;
+    }
+    if (!hasAttrs)
+      continue;
+
+    if (matched++ < offset)
+      continue;
+
+    kjChildAdd(arrP, docP);
+    kept++;
   }
 
   PQclear(eRes);
