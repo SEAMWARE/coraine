@@ -19,3 +19,15 @@
 coverage/
 /swBroker
 test/funcTests/ftClient/ftClient
+
+# Editor lock / autosave files
+\#*\#
+.\#*
+
+# Coredumps
+core
+core.[0-9]*
+
+# Misc local-only files
+Francisco
+tee
