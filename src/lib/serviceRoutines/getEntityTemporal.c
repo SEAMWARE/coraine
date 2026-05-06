@@ -38,6 +38,8 @@
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/LdVocab.h"                        // LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT, LD_VOCAB_EXPIRES_AT
+#include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldToTemporalValues.h"             // ldToTemporalValues
 #include "swNgsild/ldStripAtContext.h"               // ldStripAtContext
@@ -282,6 +284,11 @@ static int forwardTemporalAndParse(LdRegCacheItem* csr,
 
 bool getEntityTemporal(void)
 {
+  // § 4.21 / § 6.4.3 — cross-parameter projection validation
+  // (pick ∩ omit, pick + attrs, omit + attrs, etc).
+  if (ldParamsValidate())
+    return true;
+
   const char* entityId = swRest.in.wildcard[0];
 
   if (entityId == NULL || entityId[0] == 0)
@@ -492,8 +499,35 @@ bool getEntityTemporal(void)
 
   // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction
   // and ?format=temporalValues run in renderHook, see ldHooks.c).
+  //
+  // § 6.3.6: "If the resulting Entity contains no members, the operation
+  // shall return ResourceNotFound." Members are id / type / optional
+  // scope / user attributes; @context is JSON-LD aux. createdAt /
+  // modifiedAt are SystemAttributes and only present with ?sysAttrs=true.
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  {
     ldPickOmit(result, swNgsild.pickV, swNgsild.omitV);
+
+    bool hasMembers = false;
+    for (KjNode* c = result->value.firstChildP; c != NULL; c = c->next)
+    {
+      if (c->name == NULL)                          continue;
+      if (strcmp(c->name, "@context")        == 0)  continue;
+      if (!swNgsild.sysAttrs &&
+          (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0 ||
+           strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0 ||
+           strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0))
+        continue;
+      hasMembers = true;
+      break;
+    }
+    if (!hasMembers)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+              "entity '%s' has no members after pick/omit projection", entityId);
+      return true;
+    }
+  }
 
   swRest.out.responseTree = result;
 

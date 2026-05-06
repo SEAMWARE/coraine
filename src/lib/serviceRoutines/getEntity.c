@@ -29,6 +29,7 @@
 #include "swJsonld/swldCompact.h"                    // swldCompact
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
+#include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
@@ -555,6 +556,11 @@ static int forwardAndParse(LdRegCacheItem* csr,
 //
 bool getEntity(void)
 {
+  // § 4.21 / § 6.4.3 — cross-parameter projection validation
+  // (pick ∩ omit, pick + attrs, omit + attrs, etc).
+  if (ldParamsValidate())
+    return true;
+
   const char* entityId = swRest.in.wildcard[0];
 
   //

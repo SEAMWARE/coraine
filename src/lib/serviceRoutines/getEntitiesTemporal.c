@@ -40,6 +40,7 @@
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "swNgsild/ldToTemporalValues.h"             // ldToTemporalValues
@@ -356,6 +357,11 @@ static void stripInfoAttrsFromArray(KjNode* arrayP, LdRegInfo* riP)
 
 bool getEntitiesTemporal(void)
 {
+  // § 4.21 / § 6.4.3 — cross-parameter projection validation
+  // (pick ∩ omit, pick + attrs, omit + attrs, etc).
+  if (ldParamsValidate())
+    return true;
+
   // § 6.3.22 / § 5.5.15 — NGSILD-Snapshot routes the temporal query to
   // the snap-tenant's frozen TRoE store. Distop dispatch is bypassed,
   // and snapshot reads count as local for the orderBy-requires-local
