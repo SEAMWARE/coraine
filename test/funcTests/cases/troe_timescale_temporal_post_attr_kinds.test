@@ -101,7 +101,7 @@ Content-Length: REGEX(\d+)
         "en": "Hello",
         "fr": "Bonjour"
       },
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "LanguageProperty"
     }
   ],
@@ -109,14 +109,14 @@ Content-Length: REGEX(\d+)
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "object": "urn:Bob",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Relationship"
     }
   ],
   "speed": [
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 42
     }
@@ -150,19 +150,19 @@ Content-Length: REGEX(\d+)
   "speed": [
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
     },
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T10:00:00.000Z",
+      "observedAt": "2026-04-28T10:00:00Z",
       "type": "Property",
       "value": 20
     },
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T11:00:00.000Z",
+      "observedAt": "2026-04-28T11:00:00Z",
       "type": "Property",
       "value": 30
     }

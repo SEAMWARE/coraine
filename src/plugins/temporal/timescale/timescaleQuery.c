@@ -132,6 +132,29 @@ static KjNode* makeValueNode(Kjson* kjsonP, const char* vfn,
 
 // -----------------------------------------------------------------------------
 //
+// stripZeroMs - trim trailing ".000Z" → "Z" so a clean second renders
+// without the artificial sub-second padding (matches the canonical
+// fixtures used by ETSI's temporal tests). The buffer is in-place
+// rewritable: postgres' to_char output lives in PQgetvalue's libpq-
+// owned storage, so we kaStrdup first, then trim. Caller passes in the
+// strdup'd copy.
+//
+static char* stripZeroMs(char* s)
+{
+  if (s == NULL) return NULL;
+  size_t n = strlen(s);
+  if (n >= 5 && memcmp(s + n - 5, ".000Z", 5) == 0)
+  {
+    s[n - 5] = 'Z';
+    s[n - 4] = '\0';
+  }
+  return s;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timeColumn - column-name for the requested ?timeproperty.
 //
 static const char* timeColumn(const char* timeProp)
@@ -510,14 +533,14 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     if (swNgsild.sysAttrs)
     {
       if (crAtIso != NULL)
-        kjChildAdd(inst, kjString(kjsonP, "createdAt",  kaStrdup(&swRest.kalloc, crAtIso)));
+        kjChildAdd(inst, kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&swRest.kalloc, crAtIso))));
       if (modAtIso != NULL)
-        kjChildAdd(inst, kjString(kjsonP, "modifiedAt", kaStrdup(&swRest.kalloc, modAtIso)));
+        kjChildAdd(inst, kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
     }
     if (isDeleted && modAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "deletedAt",  kaStrdup(&swRest.kalloc, modAtIso)));
+      kjChildAdd(inst, kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
     if (obsAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "observedAt", kaStrdup(&swRest.kalloc, obsAtIso)));
+      kjChildAdd(inst, kjString(kjsonP, "observedAt", stripZeroMs(kaStrdup(&swRest.kalloc, obsAtIso))));
     if (dsId != NULL && dsId[0] != 0)
       kjChildAdd(inst, kjString(kjsonP, "datasetId", kaStrdup(&swRest.kalloc, dsId)));
     if (instId != NULL)
@@ -550,12 +573,12 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     if (minIso != NULL)
     {
       if (rangeOut->rangeStartIso == NULL || strcmp(minIso, rangeOut->rangeStartIso) < 0)
-        rangeOut->rangeStartIso = kaStrdup(&swRest.kalloc, minIso);
+        rangeOut->rangeStartIso = stripZeroMs(kaStrdup(&swRest.kalloc, minIso));
     }
     if (maxIso != NULL)
     {
       if (rangeOut->rangeEndIso == NULL || strcmp(maxIso, rangeOut->rangeEndIso) > 0)
-        rangeOut->rangeEndIso = kaStrdup(&swRest.kalloc, maxIso);
+        rangeOut->rangeEndIso = stripZeroMs(kaStrdup(&swRest.kalloc, maxIso));
     }
 
     if (lastN > 0 && rangeOut->size == 0)

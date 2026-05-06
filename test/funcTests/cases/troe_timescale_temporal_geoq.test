@@ -96,7 +96,7 @@ Content-Length: REGEX(\d+)
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-        "observedAt": "2026-04-28T09:00:00.000Z",
+        "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 50
       }
@@ -119,7 +119,7 @@ Content-Length: REGEX(\d+)
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-        "observedAt": "2026-04-28T09:00:00.000Z",
+        "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 50
       }
@@ -129,7 +129,7 @@ Content-Length: REGEX(\d+)
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-        "observedAt": "2026-04-28T09:00:00.000Z",
+        "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 60
       }
@@ -152,7 +152,7 @@ Content-Length: REGEX(\d+)
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-        "observedAt": "2026-04-28T09:00:00.000Z",
+        "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 50
       }

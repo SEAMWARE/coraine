@@ -39,7 +39,7 @@ echo
 echo
 
 
-echo "02. timerel=between 09:30..11:30 → speed[20,30] + color[red,blue]"
+echo "02. timerel=between 09:30..11:30 → speed[20,30] + color[red]"
 echo "================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:30:00Z&endTimeAt=2026-04-28T11:30:00Z' | python3 -c "
 import sys, json, re
@@ -111,9 +111,9 @@ echo
 done
 
 
-02. timerel=between 09:30..11:30 → speed[20,30] + color[red,blue]
+02. timerel=between 09:30..11:30 → speed[20,30] + color[red]
 =================================================================
-  color: ['blue', 'red']
+  color: ['red']
   speed: ['20', '30']
 
 

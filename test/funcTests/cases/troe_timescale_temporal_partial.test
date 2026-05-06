@@ -83,7 +83,7 @@ done
 HTTP/1.1 206 Partial Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Range: date-time 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
+Content-Range: date-time 2026-04-28T09:00:00Z-2026-04-28T13:00:00Z/*
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
@@ -92,31 +92,31 @@ Content-Length: REGEX(\d+)
   "speed": [
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
     },
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T10:00:00.000Z",
+      "observedAt": "2026-04-28T10:00:00Z",
       "type": "Property",
       "value": 20
     },
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T11:00:00.000Z",
+      "observedAt": "2026-04-28T11:00:00Z",
       "type": "Property",
       "value": 30
     },
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T12:00:00.000Z",
+      "observedAt": "2026-04-28T12:00:00Z",
       "type": "Property",
       "value": 40
     },
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T13:00:00.000Z",
+      "observedAt": "2026-04-28T13:00:00Z",
       "type": "Property",
       "value": 50
     }
@@ -131,7 +131,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 206 Partial Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Range: date-time 2026-04-28T14:00:00.000Z-2026-04-28T16:00:00.000Z/3
+Content-Range: date-time 2026-04-28T14:00:00Z-2026-04-28T16:00:00Z/3
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
@@ -140,19 +140,19 @@ Content-Length: REGEX(\d+)
   "speed": [
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T16:00:00.000Z",
+      "observedAt": "2026-04-28T16:00:00Z",
       "type": "Property",
       "value": 80
     },
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T15:00:00.000Z",
+      "observedAt": "2026-04-28T15:00:00Z",
       "type": "Property",
       "value": 70
     },
     {
       "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-      "observedAt": "2026-04-28T14:00:00.000Z",
+      "observedAt": "2026-04-28T14:00:00Z",
       "type": "Property",
       "value": 60
     }
@@ -167,7 +167,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 206 Partial Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Range: date-time 2026-04-28T09:00:00.000Z-2026-04-28T13:00:00.000Z/*
+Content-Range: date-time 2026-04-28T09:00:00Z-2026-04-28T13:00:00Z/*
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
@@ -177,31 +177,31 @@ Content-Length: REGEX(\d+)
     "speed": [
       {
         "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-        "observedAt": "2026-04-28T09:00:00.000Z",
+        "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 10
       },
       {
         "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-        "observedAt": "2026-04-28T10:00:00.000Z",
+        "observedAt": "2026-04-28T10:00:00Z",
         "type": "Property",
         "value": 20
       },
       {
         "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-        "observedAt": "2026-04-28T11:00:00.000Z",
+        "observedAt": "2026-04-28T11:00:00Z",
         "type": "Property",
         "value": 30
       },
       {
         "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-        "observedAt": "2026-04-28T12:00:00.000Z",
+        "observedAt": "2026-04-28T12:00:00Z",
         "type": "Property",
         "value": 40
       },
       {
         "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
-        "observedAt": "2026-04-28T13:00:00.000Z",
+        "observedAt": "2026-04-28T13:00:00Z",
         "type": "Property",
         "value": 50
       }

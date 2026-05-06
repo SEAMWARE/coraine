@@ -120,7 +120,7 @@ Content-Length: REGEX(\d+)
     {
       "datasetId": "urn:ds:1",
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 55
     }
@@ -143,7 +143,7 @@ Content-Length: REGEX(\d+)
   "speed": [
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
     }
@@ -167,14 +167,14 @@ Content-Length: REGEX(\d+)
     {
       "datasetId": "urn:ds:1",
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 55
     },
     {
       "datasetId": "urn:ds:2",
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "observedAt": "2026-04-28T09:00:00.000Z",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 99
     }
@@ -199,7 +199,7 @@ Content-Length: REGEX(\d+)
       {
         "datasetId": "urn:ds:1",
         "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-        "observedAt": "2026-04-28T09:00:00.000Z",
+        "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 55
       }
