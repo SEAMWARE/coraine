@@ -287,9 +287,8 @@ static const char* buildPickParam(char** vec, KAlloc* kaP)
     pos += strlen(n);
   }
   if (pos > 6) buf[pos++] = ',';
-  strcpy(buf + pos, "id,type,scope");
-  pos += strlen("id,type,scope");
-  buf[pos] = 0;
+  memcpy(buf + pos, "id,type,scope", sizeof("id,type,scope"));  // includes NUL
+  pos += sizeof("id,type,scope") - 1;
   return buf;
 }
 
