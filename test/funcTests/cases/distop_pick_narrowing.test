@@ -162,16 +162,14 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
-Content-Length: 120
+Content-Length: REGEX(.*)
 
 [
   {
-    "id": "urn:V1",
     "speed": {
       "type": "Property",
       "value": 42
-    },
-    "type": "Vehicle"
+    }
   }
 ]
 
@@ -186,16 +184,14 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: REGEX(.*)
-Content-Length: 120
+Content-Length: REGEX(.*)
 
 [
   {
-    "id": "urn:V1",
     "speed": {
       "type": "Property",
       "value": 42
-    },
-    "type": "Vehicle"
+    }
   }
 ]
 

@@ -128,13 +128,13 @@ Content-Length: 0
 03. geoQ active, default geoproperty=location → forwarded pick includes location
 ================================================================================
     (georel+geometry+coordinates triggers hasGeoQ; geoproperty defaults to 'location')
-  forwarded pick: ['location', 'speed']  georel forwarded (should be False): False
+  forwarded pick: ['id', 'location', 'scope', 'speed', 'type']  georel forwarded (should be False): False
 
 
 04. Accept: application/geo+json + geometryProperty=location → forwarded pick includes location
 ================================================================================================
     (geometryProperty is the GeoProperty used by the geo+json renderer for the geometry field)
-  forwarded pick: ['location', 'speed']
+  forwarded pick: ['id', 'location', 'scope', 'speed', 'type']
 
 
 --TEARDOWN--

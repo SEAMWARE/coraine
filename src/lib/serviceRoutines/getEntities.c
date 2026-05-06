@@ -257,18 +257,23 @@ static char** computeWantedAttrs(KAlloc* kaP)
 // the short form, others stay as IRI). Returns "" if vec is NULL or empty.
 // Allocates in kaP.
 //
+// Always appends id,type,scope so the upstream CSR returns those Entity
+// members alongside the requested Attributes — § 6.3.6 pick strips
+// non-listed members, including id+type, which would leave us unable to
+// aggregate the response by entity id.
+//
 static const char* buildPickParam(char** vec, KAlloc* kaP)
 {
   if (vec == NULL || vec[0] == NULL)
     return "";
 
-  int totalLen = 0, cnt = 0;
+  int totalLen = 0;
   for (int i = 0; vec[i] != NULL; i++)
   {
     const char* c = swldCompact(swldCoreContext(), vec[i]);
     totalLen += strlen(c ? c : vec[i]) + 1;
-    cnt++;
   }
+  totalLen += sizeof("id,type,scope,");  // upper bound on the appended suffix
 
   char* buf = (char*) kaAlloc(kaP, 6 + totalLen + 1);
   strcpy(buf, "&pick=");
@@ -281,6 +286,9 @@ static const char* buildPickParam(char** vec, KAlloc* kaP)
     strcpy(buf + pos, n);
     pos += strlen(n);
   }
+  if (pos > 6) buf[pos++] = ',';
+  strcpy(buf + pos, "id,type,scope");
+  pos += strlen("id,type,scope");
   buf[pos] = 0;
   return buf;
 }

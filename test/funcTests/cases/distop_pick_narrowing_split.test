@@ -137,13 +137,13 @@ Content-Length: 0
 =============================================================
     (split mode forwards type/id/idPattern only — never q/geoQ/scopeQ;
     pick narrows to reg.exports so only the registered slice is returned)
-  forwarded pick: ['color', 'speed']  type: Vehicle  unsafe filters (should be []): []
+  forwarded pick: ['color', 'id', 'scope', 'speed', 'type']  type: Vehicle  unsafe filters (should be []): []
 
 
 03. Query split + user.pick=speed,engine — forwarded pick = {speed} only
 ========================================================================
     (intersect({speed,engine}, reg.exports={speed,color}) = {speed})
-  forwarded pick: ['speed']
+  forwarded pick: ['id', 'scope', 'speed', 'type']
 
 
 04. Query split + user.pick=engine,temp — CSR skipped (intersect empty)
@@ -156,7 +156,7 @@ Content-Length: 0
 ===================================================================================
     q-attrs unioned into wanted; intersect with reg.exports keeps both.
     q itself is NOT forwarded (split-mode strips filters).
-  forwarded pick: ['color', 'speed']  q forwarded (should be False): False
+  forwarded pick: ['color', 'id', 'scope', 'speed', 'type']  q forwarded (should be False): False
 
 
 --TEARDOWN--
