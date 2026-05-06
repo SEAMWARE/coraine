@@ -7,12 +7,11 @@
 //
 // Read path: single-entity retrieve and multi-entity query.
 //
-// § 6.3.10 temporal pagination: when ?lastN is NOT supplied, an
-// implementation-default instance cap kicks in. Per-entity, when an
-// attribute's instance count would exceed the cap, the result is
-// truncated and TroeRangeInfo->truncated is set so the service routine
-// emits 206 + Content-Range. With ?lastN, that's the user's explicit
-// cap — no truncation flag, no 206.
+// § 6.3.10 temporal pagination: any time the response was capped — by
+// the user's ?lastN OR by the implementation-default instance cap when
+// ?lastN is absent — TroeRangeInfo->truncated is set so the service
+// routine emits 206 + Content-Range. The Content-Range size field is
+// the lastN value when lastN was used, otherwise "*" (unknown total).
 //
 // Result tree shape (NGSI-LD § 5.7.4 TemporalEntity):
 //   {
@@ -407,9 +406,16 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
 
   int rowN = PQntuples(aRes);
 
-  // Detect cap-driven truncation (only when lastN absent).
+  // Detect cap-driven truncation. With ?lastN the cap is the user-supplied
+  // value (always reported as truncation per § 6.3.10); without ?lastN the
+  // cap is the implementation default and we know we exceeded it because
+  // the SQL fetched (cap+1) rows.
   bool truncated = false;
-  if (lastN <= 0 && rowN > instanceCap)
+  if (lastN > 0)
+  {
+    truncated = true;
+  }
+  else if (rowN > instanceCap)
   {
     rowN      = instanceCap;  // Drop the sentinel row
     truncated = true;

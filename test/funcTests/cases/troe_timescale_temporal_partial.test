@@ -5,9 +5,11 @@
 #
 # Copyright 2026 Seamware
 #
-# § 6.3.10 partial-content: when the per-entity attribute-instance cap
-# is exceeded, the broker truncates and emits 206 + Content-Range with
-# unit=DateTime. With ?lastN, that's the user's explicit cap so no 206.
+# § 6.3.10 partial-content: any time the response was capped — by the
+# implementation default cap when ?lastN is absent, OR by the user's
+# explicit ?lastN — broker emits 206 + Content-Range with unit=DateTime.
+# Size is "*" (unknown total) for the default-cap case, the lastN value
+# when ?lastN was specified.
 #
 # Broker is started with --troeInstanceCap 5 so we can exceed the cap
 # with only a handful of PATCHes.
@@ -63,8 +65,8 @@ echo
 echo
 
 
-echo "03. Single-entity GET (lastN=3) → 200, 3 instances, no Content-Range"
-echo "===================================================================="
+echo "03. Single-entity GET (lastN=3) → 206 + Content-Range size=3, 3 instances"
+echo "==========================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3' --include 2>&1 | python3 -c "
 import sys, re, json
 text = sys.stdin.read()
@@ -117,10 +119,10 @@ done
   speed instance count: 5
 
 
-03. Single-entity GET (lastN=3) → 200, 3 instances, no Content-Range
-====================================================================
-  status: HTTP/1.1 200 OK
-  Content-Range: (none)
+03. Single-entity GET (lastN=3) → 206 + Content-Range size=3, 3 instances
+===========================================================================
+  status: HTTP/1.1 206 Partial Content
+  Content-Range: Content-Range: DateTime 2026-04-28T14:00:00.000Z-2026-04-28T16:00:00.000Z/3
   speed instance count: 3
 
 
