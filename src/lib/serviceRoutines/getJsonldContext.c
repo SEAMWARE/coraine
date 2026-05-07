@@ -18,23 +18,66 @@
 //
 
 #include <stddef.h>                                    // NULL
-#include <string.h>                                    // strlen
+#include <stdio.h>                                     // snprintf
+#include <string.h>                                    // strlen, memcpy
+#include <time.h>                                      // gmtime_r, struct tm
 
 #include "swRest/SwRestState.h"                        // swRest
 #include "kjson/kjson.h"                               // Kjson
+#include "kjson/kjBuilder.h"                           // kjObject, kjString, kjInteger, kjChildAdd
 #include "kjson/kjBufferCreate.h"                      // kjBufferCreate
 #include "kjson/kjParse.h"                             // kjParse
 #include "kjson/kjLookup.h"                            // kjLookup
+#include "kalloc/kaAlloc.h"                            // kaAlloc
 #include "kalloc/kaStrdup.h"                           // kaStrdup
 #include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
 #include "swJsonld/SwldContextCache.h"                 // SwldContextCache
 #include "swJsonld/swldCache.h"                        // swldCacheLookup, swldCacheInsert
 #include "swJsonld/swldContextParse.h"                 // swldContextFromObject
 #include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/SwNgsild.h"                         // ldBrokerHttpEndpoint
 
 #include "db/DbDriver.h"                               // db, DB_OK, DB_CONTEXT_KIND_*
 
 #include "serviceRoutines/getJsonldContext.h"          // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// kindString - NGSI-LD § 5.13.1 kind name
+//
+static const char* kindString(SwldContextKind k)
+{
+  switch (k)
+  {
+    case SwldKindHosted:   return "Hosted";
+    case SwldKindCached:   return "Cached";
+    case SwldKindImplicit: return "ImplicitlyCreated";
+  }
+  return "ImplicitlyCreated";
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// epochToIso - render a unix-epoch (seconds, with optional fractional ms)
+// as an ISO 8601 DateTime string in UTC. Buffer lives in swRest.kalloc.
+// § 5.13.3.5 createdAt / lastUsage are DateTime strings (parseable by
+// ETSI's `Parse Ngsild Date`), not Unix timestamps.
+//
+static char* epochToIso(double t)
+{
+  time_t   secs = (time_t) t;
+  struct tm tm;
+  gmtime_r(&secs, &tm);
+  char* buf = (char*) kaAlloc(&swRest.kalloc, 32);
+  snprintf(buf, 32, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
+           tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+           tm.tm_hour, tm.tm_min, tm.tm_sec);
+  return buf;
+}
 
 
 
@@ -131,6 +174,62 @@ bool getJsonldContext(void)
     return true;
   }
 
+  // § 5.13.4.4 / § 5.13.3.5: ?details=true returns metadata about the
+  // @context (URL, localId, kind, createdAt, ...) instead of the body
+  // itself.
+  //
+  // URL field semantics:
+  //   - Cached:  the URL the broker downloaded from (stored as contextP->url).
+  //   - Hosted / ImplicitlyCreated: the URL where the broker serves the
+  //     context. Built from --httpEndpoint when set, otherwise as a
+  //     server-relative path (the test fixtures only require a non-empty
+  //     string).
+  if (swNgsild.details)
+  {
+    const char* localId = (contextP->id != NULL) ? contextP->id : contextId;
+    const char* urlOut  = contextP->url;
+    if (urlOut == NULL)
+    {
+      const char* prefix = "/ngsi-ld/v1/jsonldContexts/";
+      const char* base   = (ldBrokerHttpEndpoint != NULL) ? ldBrokerHttpEndpoint : "";
+      int   baseLen      = strlen(base);
+      int   prefixLen    = strlen(prefix);
+      int   idLen        = strlen(localId);
+      char* buf          = (char*) kaAlloc(&swRest.kalloc, baseLen + prefixLen + idLen + 1);
+      memcpy(buf, base, baseLen);
+      memcpy(buf + baseLen, prefix, prefixLen);
+      memcpy(buf + baseLen + prefixLen, localId, idLen);
+      buf[baseLen + prefixLen + idLen] = 0;
+      urlOut = buf;
+    }
+
+    KjNode* meta = kjObject(swRest.kjsonP, NULL);
+    kjChildAdd(meta, kjString(swRest.kjsonP, "URL",       (char*) urlOut));
+    kjChildAdd(meta, kjString(swRest.kjsonP, "localId",   (char*) localId));
+    kjChildAdd(meta, kjString(swRest.kjsonP, "kind",      (char*) kindString(contextP->kind)));
+    kjChildAdd(meta, kjString(swRest.kjsonP, "createdAt", epochToIso(contextP->createdAt)));
+    kjChildAdd(meta, kjString(swRest.kjsonP, "lastUsage", epochToIso(contextP->usedAt)));
+
+    // Bypass the JSON-LD render hook — its ldStripSysAttrs would otherwise
+    // remove the createdAt / modifiedAt members we just put in. The
+    // jsonldContext metadata response is not an Entity / NGSI-LD document.
+    swNgsild.rawResponse      = true;
+    swRest.out.responseTree   = meta;
+    swRest.out.httpStatusCode = 200;
+    return true;
+  }
+
+  // § 5.13.4.4: details=false (or absent) — return the @context body for
+  // Hosted / ImplicitlyCreated; OperationNotSupported for Cached.
+  if (contextP->kind == SwldKindCached)
+  {
+    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+            "Operation Not Supported",
+            "@context '%s' is of kind 'Cached'; only metadata (?details=true) is available",
+            contextId);
+    return true;
+  }
+
   if (contextP->body == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
@@ -140,7 +239,11 @@ bool getJsonldContext(void)
 
   swRest.out.payload     = contextP->body;
   swRest.out.payloadSize = strlen(contextP->body);
-  swRest.out.contentType = (char*) "application/ld+json";
+  // § 6.30.3.1 / § 5.13.4: served as a JSON Object — application/json,
+  // not application/ld+json. The body is a JSON-LD context document
+  // syntactically but the spec's response type column is "JSON Object",
+  // and the ETSI test fixtures pin application/json.
+  swRest.out.contentType = (char*) "application/json";
 
   swRest.out.httpStatusCode = 200;
   return true;
