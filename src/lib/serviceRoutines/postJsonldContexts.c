@@ -110,6 +110,33 @@ bool postJsonldContexts(void)
     }
 
     //
+    // § 5.13.2.5 (ETSI 050_04): "Implementations may also create new
+    // @context entries through references to other @contexts (using
+    // @context arrays). When a referenced @context is not yet stored,
+    // the broker downloads it and adds it as a Cached @context."
+    //
+    // swldContextFromTree just-downloaded each URL element of the
+    // @context array as kind=Implicit; promote those to Cached so a
+    // subsequent GET ?details=true reports the spec-mandated kind.
+    // Inline-object elements stay Implicit (they have no URL — they
+    // can't be Cached per definition).
+    //
+    if (atContextP->type == KjArray)
+    {
+      for (KjNode* el = atContextP->value.firstChildP; el != NULL; el = el->next)
+      {
+        if (el->type != KjString) continue;
+        SwldContext* refP = swldCacheLookup(el->value.s);
+        if (refP != NULL && refP->kind == SwldKindImplicit && refP->url != NULL)
+        {
+          refP->kind = SwldKindCached;
+          if (db.contextSave != NULL && refP->body != NULL)
+            db.contextSave(refP->url, refP->url, DB_CONTEXT_KIND_CACHED, refP->body);
+        }
+      }
+    }
+
+    //
     // Assign broker-minted id and preserve the raw body for later GETs.
     //
     char* id = swldIdGenerate(storeP);

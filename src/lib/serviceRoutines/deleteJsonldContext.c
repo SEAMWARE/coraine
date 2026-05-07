@@ -58,18 +58,26 @@ bool deleteJsonldContext(void)
   // reload is parsed via ldParamHook as a boolean (LD_PARAM_RELOAD).
   // We read it via the URL param registry directly to avoid adding yet
   // another SwNgsild state field when this is the only consumer.
+  // Strict boolean: only "true"/"false" (case-insensitive); anything else
+  // is a malformed URL-param value → 400 (ETSI 051_04_04).
   //
   bool reload = false;
   for (int i = 0; i < swRest.in.uriParamCount; i++)
   {
-    if (swRest.in.uriParamV[i].key != NULL &&
-        strcmp(swRest.in.uriParamV[i].key, "reload") == 0 &&
-        swRest.in.uriParamV[i].value != NULL &&
-        strcmp(swRest.in.uriParamV[i].value, "true") == 0)
+    if (swRest.in.uriParamV[i].key == NULL ||
+        strcmp(swRest.in.uriParamV[i].key, "reload") != 0)
+      continue;
+
+    const char* v = swRest.in.uriParamV[i].value;
+    if      (v != NULL && strcasecmp(v, "true")  == 0) reload = true;
+    else if (v != NULL && strcasecmp(v, "false") == 0) reload = false;
+    else
     {
-      reload = true;
-      break;
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "'reload' must be a boolean ('true' or 'false')");
+      return true;
     }
+    break;
   }
 
   SwldContext* existingP = swldCacheLookup(contextId);
