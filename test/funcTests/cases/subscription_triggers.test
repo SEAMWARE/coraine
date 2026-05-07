@@ -271,8 +271,8 @@ swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
-echo "18. Dump - 1 notification (S2 entityDeleted)"
-echo "==============================================="
+echo "18. Dump - 2 notifications (S2 entityDeleted + S3 attributeDeleted symmetry)"
+echo "============================================================================="
 ftClientDump | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -422,10 +422,11 @@ Content-Type: application/json; charset=utf-8
 
 
 
-18. Dump - 1 notification (S2 entityDeleted)
-===============================================
-1 notifications
+18. Dump - 2 notifications (S2 entityDeleted + S3 attributeDeleted symmetry)
+=============================================================================
+2 notifications
   urn:S2
+  urn:S3
 
 
 --TEARDOWN--
