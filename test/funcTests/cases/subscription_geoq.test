@@ -162,7 +162,7 @@ Content-Length: REGEX(\d+)
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": REGEX(".*"),
-      "User-Agent": "swBroker"
+      "User-Agent": REGEX("swBroker/.*")
     },
     "url": "/notify",
     "verb": "POST"

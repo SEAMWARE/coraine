@@ -162,7 +162,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swBroker"
+      "User-Agent": REGEX("swBroker/.*")
     },
     "url": "/s1",
     "verb": "POST"
@@ -217,7 +217,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swBroker"
+      "User-Agent": REGEX("swBroker/.*")
     },
     "url": "/s1",
     "verb": "POST"
@@ -255,7 +255,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swBroker"
+      "User-Agent": REGEX("swBroker/.*")
     },
     "url": "/s2",
     "verb": "POST"
@@ -310,7 +310,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swBroker"
+      "User-Agent": REGEX("swBroker/.*")
     },
     "url": "/s1",
     "verb": "POST"
@@ -348,7 +348,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swBroker"
+      "User-Agent": REGEX("swBroker/.*")
     },
     "url": "/s2",
     "verb": "POST"
