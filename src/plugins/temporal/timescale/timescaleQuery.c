@@ -552,18 +552,19 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
         kjChildAdd(inst, vNode);
     }
 
-    // § 6.3.11: createdAt / modifiedAt are gated by sysAttrs. deletedAt
-    // is the marker that distinguishes a deletion-instance from a regular
-    // one (§ 4.5.4) — it travels with the deleted row regardless of
-    // sysAttrs, so a query that asks for the deletion history (e.g.
-    // ?timeproperty=deletedAt) actually surfaces the timestamp.
-    if (swNgsild.sysAttrs)
-    {
-      if (crAtIso != NULL)
-        kjChildAdd(inst, kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&swRest.kalloc, crAtIso))));
-      if (modAtIso != NULL)
-        kjChildAdd(inst, kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
-    }
+    // § 6.3.11: createdAt / modifiedAt are sysAttrs and stripped by the
+    // common renderHook when ?sysAttrs is not requested. We populate them
+    // unconditionally so anything that runs BEFORE the strip — orderBy on
+    // ?orderBy=name.createdAt, for instance — actually has values to sort
+    // on. ldStripSysAttrs recurses into per-attribute instance arrays, so
+    // these get cleaned up for non-sysAttr clients.
+    // deletedAt is the marker that distinguishes a deletion-instance from
+    // a regular one (§ 4.5.4) — it travels with the deleted row regardless
+    // of sysAttrs (it's not in the strip list).
+    if (crAtIso != NULL)
+      kjChildAdd(inst, kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&swRest.kalloc, crAtIso))));
+    if (modAtIso != NULL)
+      kjChildAdd(inst, kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
     if (isDeleted && modAtIso != NULL)
       kjChildAdd(inst, kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
     if (obsAtIso != NULL)
