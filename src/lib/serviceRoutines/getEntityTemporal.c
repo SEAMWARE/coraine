@@ -512,11 +512,15 @@ bool getEntityTemporal(void)
     bool hasUserAttr = false;
     for (KjNode* c = result->value.firstChildP; c != NULL; c = c->next)
     {
-      if (c->name == NULL)                              continue;
-      if (c->name[0] == '@')                            continue;
-      if (strcmp(c->name, "id")    == 0)                continue;
-      if (strcmp(c->name, "type")  == 0)                continue;
-      if (strcmp(c->name, "scope") == 0)                continue;
+      if (c->name == NULL)                                  continue;
+      if (c->name[0] == '@')                                continue;
+      if (strcmp(c->name, "id")         == 0)               continue;
+      if (strcmp(c->name, "type")       == 0)               continue;
+      if (strcmp(c->name, "scope")      == 0)               continue;
+      // System temporal properties surfaced by the plugin for orderBy /
+      // sysAttrs handling — not "user attributes" for the empty-result test.
+      if (strcmp(c->name, "createdAt")  == 0)               continue;
+      if (strcmp(c->name, "modifiedAt") == 0)               continue;
       hasUserAttr = true;
       break;
     }

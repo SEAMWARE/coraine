@@ -468,6 +468,33 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   if (entityType != NULL)
     kjChildAdd(root, kjString(kjsonP, "type", entityType));
 
+  // § 4.5.2 / § 4.5.6 createdAt / modifiedAt at the entity level — derived
+  // from troe_entities. createdAt = the modified_at of the earliest 'created'
+  // row; modifiedAt = the most recent modified_at across all rows (which
+  // also covers append / replace updates). Attached unconditionally; the
+  // common renderHook strips them again when ?sysAttrs is not set, so only
+  // sysAttrs-aware consumers (incl. ldOrderSort orderBy=createdAt /
+  // modifiedAt) actually see them.
+  {
+    const char* idParam[2] = { entityId, tenant };
+    PGresult* tRes = PQexecParams(timescaleConn,
+      "SELECT to_char(MIN(modified_at) FILTER (WHERE op = 'created') "
+      "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), "
+      "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') "
+      "FROM troe_entities WHERE entity_id = $1 AND tenant = $2",
+      2, NULL, idParam, NULL, NULL, 0);
+    if (PQresultStatus(tRes) == PGRES_TUPLES_OK && PQntuples(tRes) > 0)
+    {
+      if (!PQgetisnull(tRes, 0, 0))
+        kjChildAdd(root, kjString(kjsonP, "createdAt",
+                                   stripZeroMs(kaStrdup(&swRest.kalloc, PQgetvalue(tRes, 0, 0)))));
+      if (!PQgetisnull(tRes, 0, 1))
+        kjChildAdd(root, kjString(kjsonP, "modifiedAt",
+                                   stripZeroMs(kaStrdup(&swRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+    }
+    PQclear(tRes);
+  }
+
   // Track min/max ts (in tCol axis) for Content-Range. ISO strings sort
   // lexically so straight strcmp is fine.
   const char* minIso = NULL;
@@ -806,9 +833,12 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     for (KjNode* c = docP->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                         continue;
-      if (strcmp(c->name, "id")    == 0)           continue;
-      if (strcmp(c->name, "type")  == 0)           continue;
-      if (strcmp(c->name, "scope") == 0)           continue;
+      if (strcmp(c->name, "id")         == 0)      continue;
+      if (strcmp(c->name, "type")       == 0)      continue;
+      if (strcmp(c->name, "scope")      == 0)      continue;
+      // sysAttrs surfaced for orderBy — not user attributes.
+      if (strcmp(c->name, "createdAt")  == 0)      continue;
+      if (strcmp(c->name, "modifiedAt") == 0)      continue;
       hasAttrs = true;
       break;
     }
