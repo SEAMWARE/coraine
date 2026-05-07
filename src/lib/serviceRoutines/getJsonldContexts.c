@@ -19,7 +19,7 @@
 
 #include <stddef.h>                                    // NULL
 #include <stdio.h>                                     // snprintf
-#include <string.h>                                    // strcmp
+#include <string.h>                                    // strcmp, strlen, memcpy
 #include <time.h>                                      // gmtime_r, struct tm
 
 #include "swRest/SwRestState.h"                        // swRest
@@ -29,6 +29,7 @@
 #include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
 #include "swJsonld/swldCache.h"                        // swldCacheSnapshot
 #include "swNgsild/swNgsild.h"                         // swNgsild
+#include "swNgsild/SwNgsild.h"                         // ldBrokerHttpEndpoint
 
 #include "serviceRoutines/getJsonldContexts.h"         // Own interface
 
@@ -135,17 +136,37 @@ bool getJsonldContexts(void)
     if (contextId == NULL)
       continue;
 
+    // § 5.13.3.5: the no-details response is a list of URLs. For Cached,
+    // c->url is the original download URL. For Hosted / ImplicitlyCreated
+    // there is no source URL — the URL where the broker serves them is
+    // <httpEndpoint>/ngsi-ld/v1/jsonldContexts/{localId}, so we synthesise
+    // it here. (Same shape as the URL field on the ?details=true entries.)
+    const char* urlOut = c->url;
+    if (urlOut == NULL)
+    {
+      const char* prefix = "/ngsi-ld/v1/jsonldContexts/";
+      const char* base   = (ldBrokerHttpEndpoint != NULL) ? ldBrokerHttpEndpoint : "";
+      int   baseLen      = strlen(base);
+      int   prefixLen    = strlen(prefix);
+      int   idLen        = strlen(contextId);
+      char* buf          = (char*) kaAlloc(&swRest.kalloc, baseLen + prefixLen + idLen + 1);
+      memcpy(buf, base, baseLen);
+      memcpy(buf + baseLen, prefix, prefixLen);
+      memcpy(buf + baseLen + prefixLen, contextId, idLen);
+      buf[baseLen + prefixLen + idLen] = 0;
+      urlOut = buf;
+    }
+
     if (!swNgsild.details)
     {
-      kjChildAdd(arrayP, kjString(NULL, NULL, contextId));
+      kjChildAdd(arrayP, kjString(NULL, NULL, (char*) urlOut));
     }
     else
     {
       // § 5.13.3.5 metadata field names (NB. spec uses URL/localId, not
       // url/id; kind is one of Hosted/Cached/ImplicitlyCreated).
       KjNode* obj = kjObject(NULL, NULL);
-      if (c->url != NULL)
-        kjChildAdd(obj, kjString(NULL, "URL",       c->url));
+      kjChildAdd(obj, kjString(NULL, "URL",       (char*) urlOut));
       kjChildAdd(obj, kjString(NULL, "localId",   contextId));
       kjChildAdd(obj, kjString(NULL, "kind",      kindString(c->kind)));
       // § 5.13.3.5: DateTime strings, not Unix timestamps.
