@@ -655,6 +655,15 @@ bool postEntityBatchUpsert(void)
     {
       KjNode* fragP = g->fragV[fi];
 
+      // Track whether the fragment had any user-supplied attribute
+      // BEFORE the chop runs. If the user typed in attrs and all of
+      // them were chopped (claimed by exclusive / redirect CSRs), the
+      // local store has nothing to write and the entity must NOT be
+      // created locally as a bare {id, type} stub. Distinguishing this
+      // from a legit "user posted only id/type/scope" upsert is the
+      // whole point of preChopHadAttrs.
+      bool preChopHadAttrs = hasAnyNonKeywordAttr(fragP);
+
       //
       // Distops chop (order: exclusive → redirect → inclusive).
       //
@@ -691,14 +700,17 @@ bool postEntityBatchUpsert(void)
       // create/update decision still depends on whether THE GROUP sees
       // any local write by the end, so we only decide post-loop.
       //
-      // Exception: a first-fragment with no non-keyword attrs is still
-      // a legitimate upsert payload (entity carrying only id / type /
-      // scope, e.g. building-with-two-types.jsonld). Without this carve-
-      // out the entity-level shape change (type singular → array, scope
+      // Exception: a first-fragment with no non-keyword attrs in the
+      // ORIGINAL user input (preChopHadAttrs == false) is a legit
+      // upsert payload (entity carrying only id / type / scope, e.g.
+      // building-with-two-types.jsonld). Without this carve-out the
+      // entity-level shape change (type singular → array, scope
       // changes) wouldn't reach the bulk-update path and the test
-      // 004_03_05 / 004_08_01 type-mutation assertion fails.
+      // 004_03_05 / 004_08_01 type-mutation assertion fails. But if
+      // the user DID supply attrs and the chop emptied the fragment,
+      // skip local — the entity has nothing to live by here.
       //
-      bool firstFragmentEmpty = (fi == 0) && !hasAnyNonKeywordAttr(fragP);
+      bool firstFragmentEmpty = (fi == 0) && !hasAnyNonKeywordAttr(fragP) && !preChopHadAttrs;
       if (!hasAnyNonKeywordAttr(fragP) && !firstFragmentEmpty)
         continue;
 
