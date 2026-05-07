@@ -587,11 +587,11 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     kjChildAdd(arr, inst);
   }
 
-  PQclear(aRes);
-
   // Accumulate range info for the caller (multi-entity unions, single-entity
   // takes its values straight). Only the first writer fills size — it stays
   // constant across entities for one request.
+  // minIso / maxIso point straight into aRes' libpq-owned storage, so
+  // kaStrdup BEFORE the PQclear that frees them.
   if (rangeOut != NULL)
   {
     if (truncated)
@@ -611,6 +611,8 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     if (lastN > 0 && rangeOut->size == 0)
       rangeOut->size = lastN;
   }
+
+  PQclear(aRes);
 
   *treePP = root;
   return TROE_OK;
