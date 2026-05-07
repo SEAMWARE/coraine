@@ -47,11 +47,16 @@ typedef void (*DbCloseFunc)(void);
 // JSON-LD context persistence (NGSI-LD § 5.13 Context Hosting).
 //
 // Context rows are stored in a fixed, reserved database (e.g. "swBroker")
-// independent of any tenant. Only Hosted and Cached contexts are persisted —
-// Implicit contexts are recreated on demand by request-time downloads.
+// independent of any tenant. Hosted, Cached, and ImplicitlyCreated contexts
+// are persisted. ImplicitlyCreated covers contexts the broker mints on
+// behalf of a request — most notably the one synthesised for a Subscription
+// whose @context is an inline array or object (§ 5.5.5 / § 5.8.1.4): the
+// resulting URL is stored as the subscription's `jsonldContext` and has to
+// resolve again after a restart.
 //
-#define DB_CONTEXT_KIND_CACHED  1
-#define DB_CONTEXT_KIND_HOSTED  2
+#define DB_CONTEXT_KIND_CACHED   1
+#define DB_CONTEXT_KIND_HOSTED   2
+#define DB_CONTEXT_KIND_IMPLICIT 3
 
 typedef struct DbContextRow
 {

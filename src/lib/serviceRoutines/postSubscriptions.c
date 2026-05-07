@@ -19,6 +19,16 @@
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 #include "swJsonld/SwldContext.h"                    // SwldContext
+#include "swJsonld/SwldContextCache.h"               // SwldContextCache
+#include "swJsonld/swldCache.h"                      // swldCacheInsert
+#include "swJsonld/swldContextParse.h"               // swldContextFromObject, swldContextFromTree
+#include "swJsonld/swldIdGen.h"                      // swldIdGenerate
+#include "kjson/kjRender.h"                          // kjFastRender
+#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+
+extern SwldContextCache* swldCacheGet(void);
+#include "swNgsild/SwNgsild.h"                       // ldBrokerHttpEndpoint, swNgsild
+#include "db/DbDriver.h"                             // db, DB_CONTEXT_KIND_IMPLICIT
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldCheckSubscription.h"            // ldCheckSubscription
 #include "swNgsild/LdOp.h"                           // LdOpCreateSubscription
@@ -181,16 +191,88 @@ bool postSubscriptions(void)
   kjChildAdd(subP, statusP);
 
   //
-  // Store the request @context URL for notifications (jsonldContext per spec 5.2.13).
-  // If no user context was provided, use the core context URL.
+  // § 5.5.5 / § 5.8.1.4 — auto-populate `jsonldContext` when the user
+  // didn't supply one. Three flavours, in priority order:
   //
+  //   1. user already gave jsonldContext             → keep as-is
+  //   2. @context is a single URL string             → use that URL
+  //   3. @context is an array or inline-object form  → mint an
+  //      ImplicitlyCreated @context entry, persist it, use its served URL
+  //
+  // Without this, a notification fired by this subscription would carry
+  // a Link header (§ 6.3.19) pointing at a context the receiver can't
+  // dereference (the inline body has no URL of its own).
+  //
+  if (kjLookup(subP, "jsonldContext") == NULL)
   {
-    SwldContext* reqCtxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-    if (reqCtxP != NULL && reqCtxP->url != NULL)
+    const char* jcUrl = NULL;
+
+    SwldContext* reqCtxP = swNgsild.contextP;
+    if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
     {
-      KjNode* jcP = kjString(NULL, "jsonldContext", reqCtxP->url);
-      kjChildAdd(subP, jcP);
+      jcUrl = reqCtxP->url;
     }
+    else if (swNgsild.userContextBody != NULL)
+    {
+      // Mint an Implicit entry from the inline body. The same plumbing
+      // that POST /jsonldContexts uses (id generation, body persistence,
+      // cache insert), but with kind=ImplicitlyCreated since the broker
+      // is the originator, not a client request.
+      SwldContextCache* cacheP = swldCacheGet();
+      KAlloc*           storeP = (cacheP != NULL) ? cacheP->kaP : &swRest.kalloc;
+      char* implicitId = swldIdGenerate(storeP);
+      if (implicitId != NULL)
+      {
+        SwldContext* implicitP = NULL;
+        if (swNgsild.userContextBody->type == KjObject)
+          implicitP = swldContextFromObject(swNgsild.userContextBody, storeP, NULL);
+        else
+          implicitP = swldContextFromTree(swNgsild.userContextBody, storeP);
+
+        int   bodyLen = kjFastRenderSize(swNgsild.userContextBody) + 32;
+        char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
+        if (bodyBuf != NULL && implicitP != NULL)
+        {
+          // The body we persist is the wrapper {"@context": <orig>} so
+          // GET /jsonldContexts/{id} returns a self-contained document.
+          int p = 0;
+          p += snprintf(bodyBuf + p, bodyLen - p, "{\"@context\":");
+          kjFastRender(swNgsild.userContextBody, bodyBuf + p);
+          p += strlen(bodyBuf + p);
+          p += snprintf(bodyBuf + p, bodyLen - p, "}");
+          implicitP->body = bodyBuf;
+          implicitP->id   = implicitId;
+          implicitP->kind = SwldKindImplicit;
+          swldCacheInsert(implicitP);
+          if (db.contextSave != NULL)
+            db.contextSave(implicitId, NULL, DB_CONTEXT_KIND_IMPLICIT, bodyBuf);
+        }
+
+        // jsonldContext URL = served URL = <httpEndpoint>/ngsi-ld/v1/jsonldContexts/{id}
+        const char* prefix = "/ngsi-ld/v1/jsonldContexts/";
+        const char* base   = (ldBrokerHttpEndpoint != NULL) ? ldBrokerHttpEndpoint : "";
+        int   baseLen      = strlen(base);
+        int   prefixLen    = strlen(prefix);
+        int   idLen        = strlen(implicitId);
+        char* urlBuf       = (char*) kaAlloc(&swRest.kalloc, baseLen + prefixLen + idLen + 1);
+        memcpy(urlBuf, base, baseLen);
+        memcpy(urlBuf + baseLen, prefix, prefixLen);
+        memcpy(urlBuf + baseLen + prefixLen, implicitId, idLen);
+        urlBuf[baseLen + prefixLen + idLen] = 0;
+        jcUrl = urlBuf;
+      }
+    }
+    else
+    {
+      // No user context (or only the core was used). Default to the
+      // configured core URL so notifications still carry a workable Link.
+      SwldContext* coreP = swldCoreContext();
+      if (coreP != NULL && coreP->url != NULL)
+        jcUrl = coreP->url;
+    }
+
+    if (jcUrl != NULL)
+      kjChildAdd(subP, kjString(NULL, "jsonldContext", (char*) jcUrl));
   }
 
   //

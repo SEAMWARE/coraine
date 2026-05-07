@@ -33,7 +33,8 @@
 #include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
 #include "swJsonld/SwldContextCache.h"                 // SwldContextCache
 #include "swJsonld/swldCache.h"                        // swldCacheLookup, swldCacheInsert
-#include "swJsonld/swldContextParse.h"                 // swldContextFromObject
+#include "swJsonld/swldContextParse.h"                 // swldContextFromObject, swldContextFromTree
+#include "swJsonld/swldDownload.h"                     // swldContextFromUrl
 #include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/SwNgsild.h"                         // ldBrokerHttpEndpoint
 
@@ -123,16 +124,28 @@ static SwldContext* loadFromDb(const char* contextId)
     return NULL;
 
   KjNode* atContextP = kjLookup(treeP, "@context");
-  if (atContextP == NULL || atContextP->type != KjObject)
+  if (atContextP == NULL)
     return NULL;
 
-  SwldContext* contextP = swldContextFromObject(atContextP, storeP, row.url);
+  // Object → single map; Array → wrapper context; String → indirect URL
+  // (the persisted body says "this @context lives at <url>"). Same code
+  // path as postJsonldContexts; covers Hosted, Cached, and the
+  // ImplicitlyCreated entries auto-generated for Subscription bodies.
+  SwldContext* contextP = NULL;
+  if (atContextP->type == KjObject)
+    contextP = swldContextFromObject(atContextP, storeP, row.url);
+  else if (atContextP->type == KjArray)
+    contextP = swldContextFromTree(atContextP, storeP);
+  else if (atContextP->type == KjString)
+    contextP = swldContextFromUrl(atContextP->value.s, storeP);
   if (contextP == NULL)
     return NULL;
 
   contextP->id   = (row.id != NULL) ? row.id : kaStrdup(storeP, contextId);
   contextP->body = bodyCopy;
-  contextP->kind = (row.kind == DB_CONTEXT_KIND_HOSTED) ? SwldKindHosted : SwldKindCached;
+  contextP->kind = (row.kind == DB_CONTEXT_KIND_HOSTED)   ? SwldKindHosted
+                  : (row.kind == DB_CONTEXT_KIND_IMPLICIT) ? SwldKindImplicit
+                  :                                         SwldKindCached;
 
   swldCacheInsert(contextP);
 
