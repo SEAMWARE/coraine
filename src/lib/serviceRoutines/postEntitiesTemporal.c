@@ -330,15 +330,18 @@ bool postEntitiesTemporal(void)
   // {id, type} body still creates the local temporal evolution.
   bool distopsConsumedAll = (inputHadAttrs && !hasNonKeywordAttr(bodyP));
   bool localCreatedOk     = false;
+  bool localWasUpdate     = false;
 
   if (!distopsConsumedAll)
   {
     int r = troe.entityTemporalCreate(tenantP, bodyP);
 
-    if (r == TROE_OK)
+    if (r == TROE_OK || r == TROE_UPDATED)
     {
       localCreatedOk = true;
       anySucceeded   = true;
+      if (r == TROE_UPDATED)
+        localWasUpdate = true;
     }
     else if (!anySucceeded)
     {
@@ -363,18 +366,24 @@ bool postEntitiesTemporal(void)
 
   if (errorsCount == 0)
   {
-    // 201 Created with Location header. The spec also defines 204 (update)
-    // for the case where the temporal evolution already existed — for v1
-    // we don't distinguish; the plugin's INSERT-ON-CONFLICT-DO-NOTHING
-    // makes both cases observably 201.
-    const char* prefix = "/ngsi-ld/v1/temporal/entities/";
-    int   locLen = (int) strlen(prefix) + (int) strlen(entityId) + 1;
-    char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
-    strcpy(locBuf, prefix);
-    strcat(locBuf, entityId);
-    swRestOutHeaderAdd("Location", locBuf);
+    // § 6.18.3.1: 201 Created when the temporal evolution did not exist
+    // yet (Location header included), 204 No Content when this was an
+    // update of a pre-existing entity (no Location header).
+    if (localWasUpdate)
+    {
+      swRest.out.httpStatusCode = 204;
+    }
+    else
+    {
+      const char* prefix = "/ngsi-ld/v1/temporal/entities/";
+      int   locLen = (int) strlen(prefix) + (int) strlen(entityId) + 1;
+      char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
+      strcpy(locBuf, prefix);
+      strcat(locBuf, entityId);
+      swRestOutHeaderAdd("Location", locBuf);
 
-    swRest.out.httpStatusCode = 201;
+      swRest.out.httpStatusCode = 201;
+    }
     return true;
   }
 

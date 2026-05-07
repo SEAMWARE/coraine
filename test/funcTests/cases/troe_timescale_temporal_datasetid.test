@@ -84,11 +84,14 @@ echo
 echo
 
 
-echo "07. ?datasetId=urn:ds:nope — no match → 200 + just id/type"
-echo "=========================================================="
-# § 6.19.3.1: 404 only when the entity itself doesn't exist. With a
-# datasetId filter that matches nothing, the entity is still there;
-# return a 200 with an empty attribute set.
+echo "07. ?datasetId=urn:ds:nope — no match → 404 ResourceNotFound"
+echo "============================================================="
+# § 5.7.3.4: "if the time series, for all the concerned Attributes of
+# an Entity, does not include data corresponding to the temporal query
+# interval, then such Entity shall be removed from S". A datasetId
+# filter that wipes every instance falls in that bucket — single-entity
+# GET surfaces it as 404. (ETSI 020_08_01 expects the same shape with
+# ?attrs=unknownAttribute.)
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:nope'
 echo
 echo
@@ -210,17 +213,17 @@ Content-Length: REGEX(\d+)
 
 
 
-07. ?datasetId=urn:ds:nope — no match → 200 + just id/type
-==========================================================
-HTTP/1.1 200 OK
+07. ?datasetId=urn:ds:nope — no match → 404 ResourceNotFound
+=============================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 {
-  "id": "urn:V1",
-  "type": "Vehicle"
+  "detail": "no instances match the temporal query for entity 'urn:V1'",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

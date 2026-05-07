@@ -496,6 +496,38 @@ bool getEntityTemporal(void)
     return true;
   }
 
+  // § 5.7.3.4: "if the time series, for all the concerned Attributes of
+  // an Entity, does not include data corresponding to the temporal query
+  // interval, then such Entity shall be removed from S". When ?attrs
+  // (or other narrowing filters) leave the entity with no user
+  // attributes, the spec says it doesn't appear in the result — for the
+  // single-entity endpoint that means 404. Don't trigger this on
+  // unfiltered retrieves: a bare temporal entity with id/type only is
+  // valid (e.g., right after a deleteAttrs that wiped every attr).
+  bool filterApplied = (swNgsild.attrsV     != NULL ||
+                        swNgsild.qExpr      != NULL ||
+                        swNgsild.datasetIdV != NULL);
+  if (filterApplied)
+  {
+    bool hasUserAttr = false;
+    for (KjNode* c = result->value.firstChildP; c != NULL; c = c->next)
+    {
+      if (c->name == NULL)                              continue;
+      if (c->name[0] == '@')                            continue;
+      if (strcmp(c->name, "id")    == 0)                continue;
+      if (strcmp(c->name, "type")  == 0)                continue;
+      if (strcmp(c->name, "scope") == 0)                continue;
+      hasUserAttr = true;
+      break;
+    }
+    if (!hasUserAttr)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+              "no instances match the temporal query for entity '%s'", entityId);
+      return true;
+    }
+  }
+
   // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction
   // and ?format=temporalValues run in renderHook, see ldHooks.c).
   //

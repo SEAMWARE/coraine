@@ -31,6 +31,7 @@
 #define TROE_OK         0
 #define TROE_ERR        -1
 #define TROE_NOT_FOUND  -2
+#define TROE_UPDATED    1   // entityTemporalCreate found a pre-existing entity and appended (§ 5.6.11.4)
 
 
 

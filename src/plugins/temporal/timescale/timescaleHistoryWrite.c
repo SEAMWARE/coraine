@@ -411,31 +411,51 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
 
   const char* entityId   = idP->value.s;
   const char* entityType = typeP->value.s;
+  const char* tenant     = (tenantP != NULL && tenantP->name != NULL) ? tenantP->name : "";
 
   pthread_mutex_lock(&timescaleMutex);
+
+  // § 5.6.11.4: if the temporal evolution already exists, the operation
+  // is an update — instances are appended. Pre-check so the service
+  // routine can return 204 (update) vs 201 (create) per § 6.18.3.1.
+  bool existed = false;
+  {
+    const char* idParam[2] = { entityId, tenant };
+    PGresult* eRes = PQexecParams(timescaleConn,
+      "SELECT 1 FROM troe_entities WHERE entity_id = $1 AND tenant = $2 LIMIT 1",
+      2, NULL, idParam, NULL, NULL, 0);
+    if (PQresultStatus(eRes) == PGRES_TUPLES_OK && PQntuples(eRes) > 0)
+      existed = true;
+    PQclear(eRes);
+  }
 
   PGresult* beginR = PQexec(timescaleConn, "BEGIN");
   PQclear(beginR);
 
-  // Entity row.
-  TroeEvent eEv;
-  memset(&eEv, 0, sizeof(eEv));
-  eEv.op           = TroeOpEntityCreated;
-  eEv.tenantP      = tenantP;
-  eEv.entityId     = entityId;
-  eEv.entityType   = entityType;
-  eEv.modifiedAtNs = swRest.requestStartTime;
-
-  int r = timescaleExecEntityInsertLocked(&eEv);
-  if (r != TROE_OK)
+  // Entity row — only on first creation. For updates the entity row
+  // already exists; we skip the troe_entities insert so we don't pile
+  // up redundant 'created' rows on every append.
+  if (!existed)
   {
-    PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
-    return r;
+    TroeEvent eEv;
+    memset(&eEv, 0, sizeof(eEv));
+    eEv.op           = TroeOpEntityCreated;
+    eEv.tenantP      = tenantP;
+    eEv.entityId     = entityId;
+    eEv.entityType   = entityType;
+    eEv.modifiedAtNs = swRest.requestStartTime;
+
+    int r = timescaleExecEntityInsertLocked(&eEv);
+    if (r != TROE_OK)
+    {
+      PQclear(PQexec(timescaleConn, "ROLLBACK"));
+      pthread_mutex_unlock(&timescaleMutex);
+      return r;
+    }
   }
 
   // Attr rows.
-  r = insertInstanceRows(tenantP, entityId, entityType, rootP, swRest.requestStartTime);
+  int r = insertInstanceRows(tenantP, entityId, entityType, rootP, swRest.requestStartTime);
   if (r != TROE_OK)
   {
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
@@ -445,7 +465,7 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
 
   PQclear(PQexec(timescaleConn, "COMMIT"));
   pthread_mutex_unlock(&timescaleMutex);
-  return TROE_OK;
+  return existed ? TROE_UPDATED : TROE_OK;
 }
 
 
