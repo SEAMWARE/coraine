@@ -101,7 +101,8 @@ DB_SOURCES    = src/lib/db/dbInit.c                    \
 TROE_SOURCES  = src/lib/troe/troeInit.c                \
                 src/lib/troe/troeDispatch.c            \
                 src/lib/troe/troeFromMerge.c           \
-                src/lib/troe/troeQTreeToSql.c
+                src/lib/troe/troeQTreeToSql.c          \
+                src/lib/troe/troeNotAvailable.c
 
 PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
 

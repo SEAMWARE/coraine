@@ -48,6 +48,7 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -318,9 +319,7 @@ bool getEntityTemporal(void)
 
   if (troe.entityTemporalRetrieve == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support temporal queries");
+    troeNotAvailable("temporal-entity retrieve");
     return true;
   }
 

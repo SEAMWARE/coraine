@@ -31,6 +31,7 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -112,9 +113,7 @@ bool deleteEntityTemporalInstance(void)
 
   if (troe.entityTemporalInstanceDelete == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support instance delete");
+    troeNotAvailable("temporal-instance delete");
     return true;
   }
 

@@ -35,6 +35,7 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -141,9 +142,7 @@ bool patchEntityTemporalInstance(void)
 
   if (troe.entityTemporalInstanceModify == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support instance modify");
+    troeNotAvailable("temporal-instance modify");
     return true;
   }
 

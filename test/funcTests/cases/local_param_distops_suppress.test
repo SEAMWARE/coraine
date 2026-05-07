@@ -81,7 +81,7 @@ echo
 echo
 
 
-echo "08. GET /temporal/entities/urn:S1 — accepted (plugin layer 422 is fine)"
+echo "08. GET /temporal/entities/urn:S1 — accepted (plugin layer 501 is fine)"
 echo "======================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z'
 echo
@@ -204,16 +204,16 @@ Content-Length: 135
 
 
 
-08. GET /temporal/entities/urn:S1 — accepted (plugin layer 422 is fine)
+08. GET /temporal/entities/urn:S1 — accepted (plugin layer 501 is fine)
 =======================================================================
-HTTP/1.1 422 Unprocessable Content
+HTTP/1.1 501 Not Implemented
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 172
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "active TRoE plugin does not support temporal queries",
-  "title": "Not Implemented",
+  "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
+  "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 
@@ -221,14 +221,14 @@ Content-Length: 172
 
 09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)
 =============================================================================================
-HTTP/1.1 422 Unprocessable Content
+HTTP/1.1 501 Not Implemented
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 172
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "active TRoE plugin does not support temporal queries",
-  "title": "Not Implemented",
+  "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
+  "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 

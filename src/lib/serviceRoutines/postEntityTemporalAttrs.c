@@ -39,6 +39,7 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -139,9 +140,7 @@ bool postEntityTemporalAttrs(void)
 
   if (troe.entityTemporalAttrsAdd == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support add-attrs on temporal entities");
+    troeNotAvailable("temporal attribute add");
     return true;
   }
 

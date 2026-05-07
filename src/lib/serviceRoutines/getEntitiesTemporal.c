@@ -52,6 +52,7 @@
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/DbDriver.h"                             // db
 #include "db/Tenant.h"                               // Tenant
@@ -413,9 +414,7 @@ bool getEntitiesTemporal(void)
 
   if (troe.entityTemporalQuery == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support multi-entity temporal queries");
+    troeNotAvailable("multi-entity temporal query");
     return true;
   }
 

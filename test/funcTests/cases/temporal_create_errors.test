@@ -1,0 +1,153 @@
+#
+# FILE            temporal_create_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+POST /ngsi-ld/v1/temporal/entities - input validation (id URI, etc.)
+
+--TAGS--
+create temporal error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# These checks must surface BEFORE the active-troe-plugin check,
+# so the test runs with the default (no-troe) broker — the 422 we'd
+# otherwise get for a valid URI would mask any URI-shape regression.
+#
+# 01. id is not a valid URI (no colon)             — 400 Invalid URI
+# 02. id is missing                                — 400 Bad Request (missing id)
+# 03. id is empty                                  — 400 Bad Request (empty id)
+# 04. valid URI, no troe plugin → 422 Not Implemented (sanity)
+#
+
+echo "01. invalid URI for temporal id"
+echo "==============================="
+payload='{
+  "id": "invalidId",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
+  ],
+  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+echo
+echo
+
+
+echo "02. missing id"
+echo "=============="
+payload='{
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
+  ],
+  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+echo
+echo
+
+
+echo "03. empty id"
+echo "============"
+payload='{
+  "id": "",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
+  ],
+  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+echo
+echo
+
+
+echo "04. valid URI but no TRoE plugin → 501 Not Implemented"
+echo "======================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:1",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
+  ],
+  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. invalid URI for temporal id
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Not a valid URI: 'invalidId'",
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. missing id
+==============
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "EntityTemporal must include a non-empty 'id'",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. empty id
+============
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "EntityTemporal must include a non-empty 'id'",
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. valid URI but no TRoE plugin → 501 Not Implemented
+=======================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "broker started without TRoE support; 'temporal-entity create' requires a TRoE plugin",
+  "title": "TRoE Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

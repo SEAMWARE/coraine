@@ -43,12 +43,14 @@
 #include "swJsonld/swldInit.h"                       // SWLD_CORE_CONTEXT_URL
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/ldCheckUri.h"                     // ldCheckUri
 #include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -158,6 +160,8 @@ bool postEntitiesTemporal(void)
             "EntityTemporal must include a non-empty 'id'");
     return true;
   }
+  if (ldCheckUri(idP->value.s) == false)
+    return true;
   if (typeP == NULL || typeP->type != KjString || typeP->value.s[0] == 0)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
@@ -167,9 +171,7 @@ bool postEntitiesTemporal(void)
 
   if (troe.entityTemporalCreate == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support temporal-entity create");
+    troeNotAvailable("temporal-entity create");
     return true;
   }
 

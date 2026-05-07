@@ -34,6 +34,7 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
+#include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -112,9 +113,7 @@ bool deleteEntityTemporalAttr(void)
 
   if (troe.entityTemporalAttrDelete == NULL)
   {
-    ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
-            "active TRoE plugin does not support attribute delete on temporal entities");
+    troeNotAvailable("temporal attribute delete");
     return true;
   }
 
