@@ -48,8 +48,8 @@ echo
 echo
 
 
-echo "02. GET stored body — should be v1"
-echo "=================================="
+echo "02. GET — Cached without ?details is 422 OperationNotSupported (§ 5.13.4.4)"
+echo "==========================================================================="
 swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
 echo
 echo
@@ -64,9 +64,9 @@ contextServerReplace /jsonldContexts/ctxR '{
 }'
 
 
-echo "03. GET stored body — broker still has v1 (no auto-refresh)"
-echo "==========================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
+echo "03. GET ?details=true before reload — kind=Cached, entry present"
+echo "================================================================"
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?details=true"
 echo
 echo
 
@@ -78,9 +78,9 @@ echo
 echo
 
 
-echo "05. GET stored body — should now be v2"
-echo "======================================"
-swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
+echo "05. GET ?details=true after reload — entry survived (re-downloaded body invisible per spec)"
+echo "==========================================================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?details=true"
 echo
 echo
 
@@ -91,32 +91,35 @@ echo
 HTTP/1.1 201 Created
 
 
-02. GET stored body — should be v1
-==================================
-HTTP/1.1 200 OK
+02. GET — Cached without ?details is 422 OperationNotSupported (§ 5.13.4.4)
+===========================================================================
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/json; charset=utf-8
 Content-Length: REGEX(\d+)
 
 {
-  "@context": {
-    "v": "v1"
-  }
+  "detail": "@context 'http://localhost:7080/jsonldContexts/ctxR' is of kind 'Cached'; only metadata (?details=true) is available",
+  "title": "Operation Not Supported",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 
 
 
-03. GET stored body — broker still has v1 (no auto-refresh)
-===========================================================
+03. GET ?details=true before reload — kind=Cached, entry present
+================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 {
-  "@context": {
-    "v": "v1"
-  }
+  "URL": "http://localhost:7080/jsonldContexts/ctxR",
+  "createdAt": REGEX(".*Z"),
+  "kind": "Cached",
+  "lastUsage": REGEX(".*Z"),
+  "localId": "http://localhost:7080/jsonldContexts/ctxR"
 }
 
 
@@ -130,17 +133,20 @@ Content-Type: application/json; charset=utf-8
 
 
 
-05. GET stored body — should now be v2
-======================================
+05. GET ?details=true after reload — entry survived (re-downloaded body invisible per spec)
+===========================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/json; charset=utf-8
+Link: REGEX(.*)
 Content-Length: REGEX(\d+)
 
 {
-  "@context": {
-    "v": "v2"
-  }
+  "URL": "http://localhost:7080/jsonldContexts/ctxR",
+  "createdAt": REGEX(".*Z"),
+  "kind": "Cached",
+  "lastUsage": REGEX(".*Z"),
+  "localId": "http://localhost:7080/jsonldContexts/ctxR"
 }
 
 

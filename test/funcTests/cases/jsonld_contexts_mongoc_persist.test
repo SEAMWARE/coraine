@@ -57,7 +57,7 @@ echo
 
 echo "03. LIST before restart"
 echo "======================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(id|kind)":' | sort
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
 echo
 echo
 
@@ -73,7 +73,7 @@ echo
 
 echo "05. LIST after restart (both still there)"
 echo "========================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(id|kind)":' | sort
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
 echo
 echo
 
@@ -96,7 +96,7 @@ echo
 
 echo "08. LIST after restart (Hosted gone, Cached survives)"
 echo "====================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(id|kind)":' | sort
+swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
 echo
 echo
 
@@ -115,12 +115,12 @@ HTTP/1.1 201 Created
 
 03. LIST before restart
 =======================
-    "id": "http://localhost:7080/jsonldContexts/ctxP",
-    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
-    "id": REGEX("urn:ngsi-ld:Context:.*"),
     "kind": "Cached",
     "kind": "Hosted",
     "kind": "ImplicitlyCreated",
+    "localId": "http://localhost:7080/jsonldContexts/ctxP"
+    "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+    "localId": REGEX("urn:ngsi-ld:Context:.*")
 
 
 04. Restart broker
@@ -130,12 +130,12 @@ restarted
 
 05. LIST after restart (both still there)
 =========================================
-    "id": "http://localhost:7080/jsonldContexts/ctxP",
-    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
-    "id": REGEX("urn:ngsi-ld:Context:.*"),
     "kind": "Cached",
     "kind": "Hosted",
     "kind": "ImplicitlyCreated",
+    "localId": "http://localhost:7080/jsonldContexts/ctxP"
+    "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+    "localId": REGEX("urn:ngsi-ld:Context:.*")
 
 
 06. DELETE the Hosted one
@@ -150,10 +150,10 @@ restarted
 
 08. LIST after restart (Hosted gone, Cached survives)
 =====================================================
-    "id": "http://localhost:7080/jsonldContexts/ctxP",
-    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "kind": "Cached",
     "kind": "ImplicitlyCreated",
+    "localId": "http://localhost:7080/jsonldContexts/ctxP"
+    "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 
 
 --TEARDOWN--

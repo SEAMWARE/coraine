@@ -80,7 +80,7 @@ echo
 =====================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/json; charset=utf-8
 Content-Length: REGEX(\d+)
 
 {

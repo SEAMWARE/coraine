@@ -100,11 +100,11 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "createdAt": REGEX(\d+),
-    "id": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "createdAt": REGEX(".*Z"),
     "kind": "ImplicitlyCreated",
-    "lastUsage": REGEX(\d+),
-    "url": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+    "lastUsage": REGEX(".*Z"),
+    "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
   }
 ]
 
