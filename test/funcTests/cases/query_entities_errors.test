@@ -120,7 +120,7 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 150
 
 {
   "detail": "limit=0 is only valid when count=true",
@@ -135,8 +135,8 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
 
 []
 
@@ -147,7 +147,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 150
 
 {
   "detail": "limit=0 is only valid when count=true",
@@ -162,7 +162,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 205
 
 {
   "detail": "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied",
@@ -177,7 +177,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 164
 
 {
   "detail": "empty type name in type selection expression",
@@ -192,7 +192,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 164
 
 {
   "detail": "empty type name in type selection expression",
@@ -207,12 +207,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 151
 
 {
   "detail": "Unknown/unsupported URL parameter: foo",
-  "title": "Bad Request Data",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
 
@@ -223,7 +223,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -233,17 +233,15 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 78
 
 [
   {
-    "id": "urn:e1",
     "speed": {
       "type": "Property",
       "value": 100
-    },
-    "type": "T"
+    }
   }
 ]
 

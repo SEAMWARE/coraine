@@ -206,8 +206,8 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 40
 
 {
   "type": "Property",
@@ -230,8 +230,8 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 40
 
 {
   "type": "Property",
@@ -254,12 +254,15 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 88
 
 {
   "type": "Property",
-  "value": "green"
+  "value": {
+    "type": "Property",
+    "value": "green"
+  }
 }
 
 
@@ -278,7 +281,7 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "attribute 'brand' not found in entity 'urn:V1'",
@@ -293,7 +296,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 157
 
 {
   "detail": "attribute 'unknown' not found in entity 'urn:V1'",
@@ -308,7 +311,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "attribute 'brand' not found in entity 'urn:V1'",
@@ -323,7 +326,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 162
 
 {
   "detail": "scope cannot be modified via Partial Attribute Update",
@@ -338,7 +341,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "scope cannot be replaced via Replace Attribute",
@@ -353,7 +356,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 138
 
 {
   "detail": "entity 'urn:NoSuch' not found",
@@ -368,7 +371,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 160
 
 {
   "detail": "attribute 'noSuchAttr' not found in entity 'urn:V1'",
@@ -394,8 +397,8 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 63
 
 {
   "datasetId": "ds:A",
@@ -419,8 +422,8 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
 
 {
   "id": "urn:V2",
@@ -447,8 +450,8 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 42
 
 {
   "id": "urn:V2",

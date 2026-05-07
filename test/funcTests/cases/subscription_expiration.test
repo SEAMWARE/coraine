@@ -97,10 +97,10 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 151
 
 {
-  "detail": "'expiresAt' must be a DateTime in the future",
+  "detail": "'expiresAt' must be in the future",
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -113,7 +113,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:FutureExpiry
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -124,7 +124,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -144,17 +144,17 @@ Content-Length: REGEX(\d+)
           "type": "Vehicle"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:ngsi-ld:Subscription:FutureExpiry",
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"
@@ -167,7 +167,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
@@ -176,15 +176,15 @@ Content-Length: REGEX(\d+)
       "type": "Vehicle"
     }
   ],
-  "expiresAt": "2099-12-31T23:59:59Z",
+  "expiresAt": "REGEX(.*)",
   "id": "urn:ngsi-ld:Subscription:FutureExpiry",
   "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
     },
-    "lastNotification": REGEX(".*"),
-    "lastSuccess": REGEX(".*"),
+    "lastNotification": "REGEX(.*)",
+    "lastSuccess": "REGEX(.*)",
     "status": "ok",
     "timesSent": 1
   },

@@ -144,7 +144,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -164,7 +164,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 183
 
 {
   "brand": {
@@ -186,7 +186,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 157
 
 {
   "detail": "Entity 'id' is mandatory for ReplaceEntity",
@@ -201,7 +201,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 205
 
 {
   "detail": "entity id in payload ('urn:ngsi-ld:Vehicle:OTHER') does not match URL ('urn:ngsi-ld:Vehicle:V1')",
@@ -216,7 +216,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 149
 
 {
   "detail": "entity type cannot be changed on Replace",
@@ -231,7 +231,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 162
 
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:DOES_NOT_EXIST' not found",
@@ -246,7 +246,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 411 Length Required
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -256,7 +256,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 161
 
 {
   "detail": "Entity 'type' is mandatory for ReplaceEntity",
@@ -271,13 +271,8 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 415 Unsupported Media Type
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
-{
-  "detail": "supported Content-Types: application/json, application/ld+json",
-  "title": "Unsupported Media Type",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
-}
 
 
 

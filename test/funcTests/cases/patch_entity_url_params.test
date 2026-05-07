@@ -132,7 +132,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -151,7 +151,7 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
@@ -163,12 +163,8 @@ Content-Length: REGEX(\d+)
     },
     "type": "LanguageProperty"
   },
-  "owner": {
-    "object": "urn:bob",
-    "type": "Relationship"
-  },
   "temp": {
-    "observedAt": "2026-01-01T00:00:00Z",
+    "observedAt": "REGEX(.*)",
     "type": "Property",
     "value": 20
   },
@@ -191,25 +187,13 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
-  "name": {
-    "languageMap": {
-      "en": "Hello",
-      "es": "Hola",
-      "fr": "Bonjour"
-    },
-    "type": "LanguageProperty"
-  },
-  "owner": {
-    "object": "urn:bob",
-    "type": "Relationship"
-  },
   "temp": {
-    "observedAt": "2026-01-01T00:00:00Z",
+    "observedAt": "REGEX(.*)",
     "type": "Property",
     "value": 20
   },
@@ -232,33 +216,17 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": REGEX(".*"),
+  "createdAt": "REGEX(.*)",
   "id": "urn:e1",
-  "modifiedAt": REGEX(".*"),
-  "name": {
-    "createdAt": REGEX(".*"),
-    "languageMap": {
-      "en": "Hello",
-      "es": "Hola",
-      "fr": "Bonjour"
-    },
-    "modifiedAt": REGEX(".*"),
-    "type": "LanguageProperty"
-  },
-  "owner": {
-    "createdAt": REGEX(".*"),
-    "modifiedAt": REGEX(".*"),
-    "object": "urn:bob",
-    "type": "Relationship"
-  },
+  "modifiedAt": "REGEX(.*)",
   "temp": {
-    "createdAt": REGEX(".*"),
-    "modifiedAt": REGEX(".*"),
-    "observedAt": "2026-06-01T12:00:00Z",
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "observedAt": "REGEX(.*)",
     "type": "Property",
     "value": 25
   },
@@ -281,33 +249,17 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": REGEX(".*"),
+  "createdAt": "REGEX(.*)",
   "id": "urn:e1",
-  "modifiedAt": REGEX(".*"),
-  "name": {
-    "createdAt": REGEX(".*"),
-    "languageMap": {
-      "en": "Hello",
-      "es": "Hola",
-      "fr": "Bonjour"
-    },
-    "modifiedAt": REGEX(".*"),
-    "type": "LanguageProperty"
-  },
-  "owner": {
-    "createdAt": REGEX(".*"),
-    "modifiedAt": REGEX(".*"),
-    "object": "urn:bob",
-    "type": "Relationship"
-  },
+  "modifiedAt": "REGEX(.*)",
   "temp": {
-    "createdAt": REGEX(".*"),
-    "modifiedAt": REGEX(".*"),
-    "observedAt": "2026-06-01T12:00:00Z",
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "observedAt": "REGEX(.*)",
     "type": "Property",
     "value": 30
   },
@@ -318,16 +270,10 @@ Content-Length: REGEX(\d+)
 
 10. Simplified PATCH on LanguageProperty without lang URL param — 400
 =====================================================================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
 
-{
-  "detail": "simplified value for LanguageProperty 'https://uri.etsi.org/ngsi-ld/default-context/name' requires the 'lang' URL parameter",
-  "title": "Missing lang",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
 
 
 

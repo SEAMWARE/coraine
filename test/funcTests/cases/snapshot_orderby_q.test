@@ -104,7 +104,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -112,7 +112,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -120,7 +120,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V3
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -128,7 +128,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V4
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -136,7 +136,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V5
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -147,7 +147,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Frozen
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -168,7 +168,7 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 668
 
 [
   {
@@ -222,7 +222,7 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 668
 
 [
   {
@@ -276,7 +276,7 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 269
 
 [
   {
@@ -306,48 +306,38 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 373
 
 [
   {
-    "id": "urn:ngsi-ld:Vehicle:V3",
     "speed": {
       "type": "Property",
       "value": 15
-    },
-    "type": "Vehicle"
+    }
   },
   {
-    "id": "urn:ngsi-ld:Vehicle:V5",
     "speed": {
       "type": "Property",
       "value": 25
-    },
-    "type": "Vehicle"
+    }
   },
   {
-    "id": "urn:ngsi-ld:Vehicle:V1",
     "speed": {
       "type": "Property",
       "value": 42
-    },
-    "type": "Vehicle"
+    }
   },
   {
-    "id": "urn:ngsi-ld:Vehicle:V4",
     "speed": {
       "type": "Property",
       "value": 63
-    },
-    "type": "Vehicle"
+    }
   },
   {
-    "id": "urn:ngsi-ld:Vehicle:V2",
     "speed": {
       "type": "Property",
       "value": 80
-    },
-    "type": "Vehicle"
+    }
   }
 ]
 
@@ -361,7 +351,7 @@ Content-Type: application/json; charset=utf-8
 NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
 Link: </ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=0>; rel="first"; type="application/json", </ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=0>; rel="prev"; type="application/json", </ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=3>; rel="next"; type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 269
 
 [
   {

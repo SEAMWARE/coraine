@@ -128,16 +128,13 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 80
+Content-Length: 39
 
-{
-  "errors": [],
-  "success": [
-    "urn:V1",
-    "urn:V2",
-    "urn:V3"
-  ]
-}
+[
+  "urn:V1",
+  "urn:V2",
+  "urn:V3"
+]
 
 
 
@@ -147,16 +144,13 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 80
+Content-Length: 39
 
-{
-  "errors": [],
-  "success": [
-    "urn:V1",
-    "urn:V2",
-    "urn:V3"
-  ]
-}
+[
+  "urn:V1",
+  "urn:V2",
+  "urn:V3"
+]
 
 
 

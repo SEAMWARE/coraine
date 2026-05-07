@@ -98,7 +98,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Pick
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -109,7 +109,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Omit
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -120,7 +120,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Lang
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -131,7 +131,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -143,15 +143,13 @@ Content-Length: REGEX(\d+)
     "body": {
       "data": [
         {
-          "id": "urn:V1",
           "speed": {
             "type": "Property",
             "value": 80
-          },
-          "type": "Vehicle"
+          }
         }
       ],
-      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f]{8}:[0-9]{4})",
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
       "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:ngsi-ld:Subscription:Pick",
       "type": "Notification"
@@ -161,7 +159,7 @@ Content-Length: REGEX(\d+)
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"
@@ -185,7 +183,7 @@ Content-Length: REGEX(\d+)
           "type": "Vehicle"
         }
       ],
-      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f]{8}:[0-9]{4})",
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
       "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:ngsi-ld:Subscription:Omit",
       "type": "Notification"
@@ -195,7 +193,7 @@ Content-Length: REGEX(\d+)
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"
@@ -221,7 +219,7 @@ Content-Length: REGEX(\d+)
           "type": "Vehicle"
         }
       ],
-      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f]{8}:[0-9]{4})",
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
       "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:ngsi-ld:Subscription:Lang",
       "type": "Notification"
@@ -231,7 +229,7 @@ Content-Length: REGEX(\d+)
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"

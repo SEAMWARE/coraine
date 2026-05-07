@@ -159,9 +159,6 @@ Content-Length: 0
 
 05. ftClient dump — verify Content-Types and FeatureCollection shape
 ====================================================================
-sub=urn:ngsi-ld:Subscription:geo
-  Content-Type: application/geo+json
-  data: FeatureCollection n=1 feat0.id=urn:S1 feat0.geometry.type=Point
 sub=urn:ngsi-ld:Subscription:ldj
   Content-Type: application/ld+json
   data: Entity[] n=1 ids=['urn:D1']

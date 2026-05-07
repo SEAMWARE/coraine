@@ -122,7 +122,10 @@ Content-Type: application/json; charset=utf-8
     "body": {
       "data": [
         {
-          "color": "urn:ngsi-ld:null",
+          "color": {
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
           "id": "urn:V1",
           "speed": {
             "type": "Property",
@@ -137,11 +140,11 @@ Content-Type: application/json; charset=utf-8
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "243",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"
@@ -182,7 +185,10 @@ Content-Type: application/json; charset=utf-8
       "data": [
         {
           "id": "urn:V1",
-          "speed": "urn:ngsi-ld:null",
+          "speed": {
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
           "type": "Vehicle"
         }
       ],
@@ -192,11 +198,11 @@ Content-Type: application/json; charset=utf-8
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "204",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"

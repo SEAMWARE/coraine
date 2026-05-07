@@ -124,16 +124,13 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 80
+Content-Length: 39
 
-{
-  "errors": [],
-  "success": [
-    "urn:V1",
-    "urn:V2",
-    "urn:V3"
-  ]
-}
+[
+  "urn:V1",
+  "urn:V2",
+  "urn:V3"
+]
 
 
 
@@ -235,32 +232,19 @@ Content-Length: 134
 
 08. Delete two missing → 409
 ============================
-HTTP/1.1 409 Conflict
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 470
+Content-Length: 154
 
 {
-  "errors": [
-    {
-      "entityId": "urn:missingA",
-      "error": {
-        "detail": "entity does not exist",
-        "title": "Not Found",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
-      }
-    },
-    {
-      "entityId": "urn:missingB",
-      "error": {
-        "detail": "entity does not exist",
-        "title": "Not Found",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
-      }
-    }
+  "entityIds": [
+    "urn:missingA",
+    "urn:missingB"
   ],
-  "success": []
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

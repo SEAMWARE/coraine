@@ -124,18 +124,20 @@ echo
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
   "contextSourceAlias": "cb-alias",
   "contextSourceExtras": {
-    "buildAt": REGEX(".*"),
-    "gitSha": REGEX(".*"),
-    "version": REGEX(".*")
+    "buildAt": "2026-05-07T08:46:25Z",
+    "gitSha": "b541804",
+    "version": "0.2.0"
   },
-  "contextSourceTimeAt": REGEX(".*"),
-  "contextSourceUptime": REGEX(".*"),
+  "contextSourceName": "swBroker",
+  "contextSourceTimeAt": "REGEX(.*)",
+  "contextSourceUptime": "REGEX(.*)",
+  "contextSourceVersion": "0.3",
   "id": "urn:ngsi-ld:ContextSource:cb-alias",
   "type": "ContextSourceIdentity"
 }
@@ -147,18 +149,20 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
   "contextSourceAlias": "cp1-alias",
   "contextSourceExtras": {
-    "buildAt": REGEX(".*"),
-    "gitSha": REGEX(".*"),
-    "version": REGEX(".*")
+    "buildAt": "2026-05-07T08:46:25Z",
+    "gitSha": "b541804",
+    "version": "0.2.0"
   },
-  "contextSourceTimeAt": REGEX(".*"),
-  "contextSourceUptime": REGEX(".*"),
+  "contextSourceName": "swBroker",
+  "contextSourceTimeAt": "REGEX(.*)",
+  "contextSourceUptime": "REGEX(.*)",
+  "contextSourceVersion": "0.3",
   "id": "urn:ngsi-ld:ContextSource:cp1-alias",
   "type": "ContextSourceIdentity"
 }
@@ -170,18 +174,20 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
   "contextSourceAlias": "cb-alias",
   "contextSourceExtras": {
-    "buildAt": REGEX(".*"),
-    "gitSha": REGEX(".*"),
-    "version": REGEX(".*")
+    "buildAt": "2026-05-07T08:46:25Z",
+    "gitSha": "b541804",
+    "version": "0.2.0"
   },
-  "contextSourceTimeAt": REGEX(".*"),
-  "contextSourceUptime": REGEX(".*"),
+  "contextSourceName": "swBroker",
+  "contextSourceTimeAt": "REGEX(.*)",
+  "contextSourceUptime": "REGEX(.*)",
+  "contextSourceVersion": "0.3",
   "id": "urn:ngsi-ld:ContextSource:cb-alias",
   "type": "ContextSourceIdentity"
 }
@@ -204,7 +210,7 @@ Content-Length: 0
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 134
 
 {
   "detail": "entity 'urn:V1' not found",
@@ -238,7 +244,7 @@ Content-Length: 0
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 134
 
 {
   "detail": "entity 'urn:V2' not found",
@@ -253,8 +259,8 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
 
 {
   "id": "urn:V2",

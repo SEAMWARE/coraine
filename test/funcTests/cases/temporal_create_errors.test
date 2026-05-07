@@ -36,7 +36,7 @@ payload='{
   "speed": [
     {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
   ],
-  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
 swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
@@ -50,7 +50,7 @@ payload='{
   "speed": [
     {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
   ],
-  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
 swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
@@ -65,7 +65,7 @@ payload='{
   "speed": [
     {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
   ],
-  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
 swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
@@ -80,7 +80,7 @@ payload='{
   "speed": [
     {"type": "Property", "value": 1, "observedAt": "2020-01-01T00:00:00Z"}
   ],
-  "@context": "https://uri.etsi.org/ngsi-ld/ngsi-ld-core-context-v1.8.jsonld"
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
 swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo

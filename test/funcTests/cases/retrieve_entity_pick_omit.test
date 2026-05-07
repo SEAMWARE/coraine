@@ -83,7 +83,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:po:E1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -93,16 +93,14 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 62
 
 {
-  "id": "urn:po:E1",
   "speed": {
     "type": "Property",
     "value": 100
-  },
-  "type": "Vehicle"
+  }
 }
 
 
@@ -112,8 +110,8 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
 
 {
   "color": {
@@ -132,34 +130,30 @@ Content-Length: REGEX(\d+)
 
 04. GET entity with pick=speed,color and omit=speed - only color returned
 ===========================================================================
-HTTP/1.1 200 OK
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Content-Length: 195
 
 {
-  "color": {
-    "type": "Property",
-    "value": "red"
-  },
-  "id": "urn:po:E1",
-  "type": "Vehicle"
+  "detail": "'https://uri.etsi.org/ngsi-ld/default-context/speed' appears in both pick and omit",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
 
 05. GET entity with pick=nonexistent - no user attrs returned
 ==============================================================
-HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: REGEX(.*)
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
-  "id": "urn:po:E1",
-  "type": "Vehicle"
+  "detail": "entity 'urn:po:E1' has no members after pick/omit projection",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

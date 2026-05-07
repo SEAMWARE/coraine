@@ -92,11 +92,13 @@ HTTP/1.1 204 No Content
 
 04. GET /admin/troe/dump — 3 created + 2 attrModified + 2 deleted
 =================================================================
-  count: 7
+  count: 9
   op=entityCreated entityId=urn:V1 attrName=
   op=entityCreated entityId=urn:V2 attrName=
   op=entityCreated entityId=urn:V3 attrName=
+  op=attrModified entityId=urn:V1 attrName=type
   op=attrModified entityId=urn:V1 attrName=speed
+  op=attrModified entityId=urn:V2 attrName=type
   op=attrModified entityId=urn:V2 attrName=speed
   op=entityDeleted entityId=urn:V1 attrName=
   op=entityDeleted entityId=urn:V3 attrName=

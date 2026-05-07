@@ -1107,12 +1107,12 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 148
 
 {
   "detail": "Entity payload must be a JSON object",
   "title": "Invalid Entity",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
 
@@ -1122,7 +1122,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 411 Length Required
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1132,7 +1132,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 156
 
 {
   "detail": "Entity 'id' is mandatory for CreateEntity",
@@ -1147,7 +1147,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 143
 
 {
   "detail": "Entity 'id' must be a string",
@@ -1162,7 +1162,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 128
 
 {
   "detail": "Not a valid URI: ''",
@@ -1177,7 +1177,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 137
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
@@ -1192,7 +1192,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 132
 
 {
   "detail": "Not a valid URI: 'urn:'",
@@ -1207,7 +1207,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 141
 
 {
   "detail": "Not a valid URI: 'urn:has space'",
@@ -1222,7 +1222,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 142
 
 {
   "detail": "Duplicate 'id' / '@id' in entity",
@@ -1237,7 +1237,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 142
 
 {
   "detail": "Duplicate 'id' / '@id' in entity",
@@ -1252,7 +1252,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 160
 
 {
   "detail": "Entity 'type' is mandatory for CreateEntity",
@@ -1267,7 +1267,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 167
 
 {
   "detail": "Entity 'type' must be a string or array of strings",
@@ -1282,7 +1282,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 148
 
 {
   "detail": "Duplicate 'type' / '@type' in entity",
@@ -1297,7 +1297,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 148
 
 {
   "detail": "Duplicate 'type' / '@type' in entity",
@@ -1312,7 +1312,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 162
 
 {
   "detail": "Entity 'scope' must be a string or array of strings",
@@ -1328,7 +1328,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:dup
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1338,7 +1338,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 142
 
 {
   "detail": "entity 'urn:dup' already exists",
@@ -1353,7 +1353,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 208
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'value'",
@@ -1368,7 +1368,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 218
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)",
@@ -1383,7 +1383,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 212
 
 {
   "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string",
@@ -1398,7 +1398,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 128
 
 {
   "detail": "Not a valid URI: ''",
@@ -1413,7 +1413,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 137
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
@@ -1428,7 +1428,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 209
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' must be a string",
@@ -1443,7 +1443,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 229
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: ''",
@@ -1458,7 +1458,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 239
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'",
@@ -1473,7 +1473,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 205
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'unitCode' must be a string",
@@ -1488,7 +1488,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 211
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'datasetId' must be a URI string",
@@ -1503,7 +1503,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 128
 
 {
   "detail": "Not a valid URI: ''",
@@ -1518,7 +1518,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 137
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
@@ -1533,7 +1533,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 218
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)",
@@ -1548,7 +1548,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 216
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/rel' has 2 value keys (only one allowed)",
@@ -1563,7 +1563,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 216
 
 {
   "detail": "Multi-attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' must not be an empty array",
@@ -1579,7 +1579,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e33
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1590,7 +1590,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e34
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1601,7 +1601,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e35
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1611,7 +1611,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 144
 
 {
   "detail": "GeoJSON value must be an object",
@@ -1626,7 +1626,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 152
 
 {
   "detail": "GeoJSON must have a 'type' string field",
@@ -1641,7 +1641,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 152
 
 {
   "detail": "GeoJSON must have a 'type' string field",
@@ -1656,7 +1656,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 158
 
 {
   "detail": "GeoJSON must have a 'coordinates' array field",
@@ -1671,7 +1671,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 198
 
 {
   "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Hexagon'",
@@ -1686,7 +1686,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 173
 
 {
   "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
@@ -1701,7 +1701,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 173
 
 {
   "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
@@ -1716,7 +1716,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 147
 
 {
   "detail": "GeoJSON longitude must be a number",
@@ -1731,7 +1731,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 146
 
 {
   "detail": "GeoJSON latitude must be a number",
@@ -1746,7 +1746,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 159
 
 {
   "detail": "GeoJSON longitude must be in range [-180, 180]",
@@ -1761,7 +1761,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 159
 
 {
   "detail": "GeoJSON longitude must be in range [-180, 180]",
@@ -1776,7 +1776,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 156
 
 {
   "detail": "GeoJSON latitude must be in range [-90, 90]",
@@ -1791,7 +1791,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 156
 
 {
   "detail": "GeoJSON latitude must be in range [-90, 90]",
@@ -1806,7 +1806,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 162
 
 {
   "detail": "GeoJSON LineString must have at least 2 positions",
@@ -1821,7 +1821,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 146
 
 {
   "detail": "GeoJSON position must be an array",
@@ -1836,7 +1836,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 164
 
 {
   "detail": "GeoJSON polygon ring must have at least 4 positions",
@@ -1851,7 +1851,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 173
 
 {
   "detail": "GeoJSON polygon ring must be closed (first == last position)",
@@ -1866,7 +1866,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 150
 
 {
   "detail": "GeoJSON polygon ring must be an array",
@@ -1881,7 +1881,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 157
 
 {
   "detail": "'languageMap' must be a JSON object",
@@ -1896,7 +1896,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 188
 
 {
   "detail": "languageMap values must be strings or arrays of strings (key 'en')",
@@ -1911,7 +1911,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 234
 
 {
   "detail": "VocabProperty 'https://uri.etsi.org/ngsi-ld/default-context/category': 'vocab' must be a string or array of strings",
@@ -1926,7 +1926,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 212
 
 {
   "detail": "ListProperty 'https://uri.etsi.org/ngsi-ld/default-context/tags': 'valueList' must be an array",
@@ -1941,7 +1941,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "'objectList' must be a JSON array",
@@ -1956,7 +1956,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 160
 
 {
   "detail": "'objectList' items must be URI strings",
@@ -1971,7 +1971,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 137
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
@@ -1983,11 +1983,10 @@ Content-Length: REGEX(\d+)
 
 61. Unsupported Content-Type (text/plain)
 =========================================
-HTTP/1.1 201 Created
+HTTP/1.1 415 Unsupported Media Type
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Location: /ngsi-ld/v1/entities/urn:e61
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -1997,7 +1996,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 172
 
 {
   "detail": "@context is mandatory for Content-Type application/ld+json",
@@ -2012,7 +2011,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 179
 
 {
   "detail": "@context in body not allowed for Content-Type application/json",
@@ -2027,7 +2026,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 192
 
 {
   "detail": "both @context in body and Link header not allowed with application/ld+json",
@@ -2043,7 +2042,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e65
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -2053,7 +2052,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "Entity 'type' array must not be empty",
@@ -2068,7 +2067,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 161
 
 {
   "detail": "Entity 'type' array elements must be strings",
@@ -2084,7 +2083,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:e68
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
