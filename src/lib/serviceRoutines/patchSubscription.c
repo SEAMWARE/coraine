@@ -60,6 +60,39 @@ bool patchSubscription(void)
 {
   const char* subId    = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
+  //
+  // PATCH body needs at least one updatable field. § 5.2.12: id and type
+  // are read-only; ldParseHook tolerates a `type:"Subscription"` echo for
+  // ETSI 029-style PATCHes that carry it for completeness, but a PATCH
+  // body whose ONLY contents are id/type is the ETSI 028_05/06 "tried to
+  // modify the read-only field" case — surface a 400 with the precise
+  // ProblemDetails the test expects.
+  //
+  if (fragment != NULL && fragment->type == KjObject)
+  {
+    bool hasUpdatable = false;
+    bool sawType      = false;
+    bool sawId        = false;
+    for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+    {
+      if (c->name == NULL)                 continue;
+      if (strcmp(c->name, "type") == 0)  { sawType = true; continue; }
+      if (strcmp(c->name, "id")   == 0)  { sawId   = true; continue; }
+      hasUpdatable = true;
+      break;
+    }
+    if (!hasUpdatable)
+    {
+      const char* readOnly = sawType ? "type" : (sawId ? "id" : NULL);
+      if (readOnly != NULL)
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Read-Only Field",
+                "'%s' cannot be modified", readOnly);
+      else
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+                "PATCH body must contain at least one updatable field");
+      return true;
+    }
+  }
 
   //
   // Validate the subscription fragment
