@@ -406,6 +406,9 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
 
   if (lastN > 0)
   {
+    // § 6.3.10 — 206 only when the result is truncated. Fetch one extra row
+    // per (attr, datasetId) partition so the loop can detect whether more
+    // existed than lastN; rn==lastN+1 rows are dropped before serialization.
     snprintf(sql, sqlSize,
       "SELECT * FROM ("
       "SELECT %s, "
@@ -414,7 +417,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
       "WHERE entity_id = $1 AND tenant = $2%s%s%s%s) sub "
       "WHERE rn <= %d "
       "ORDER BY attr_name, dataset_id, %s DESC",
-      selectCols, tCol, timePred, opPred, attrPred, dsPred, lastN, tCol);
+      selectCols, tCol, timePred, opPred, attrPred, dsPred, lastN + 1, tCol);
   }
   else
   {
@@ -440,14 +443,18 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
 
   int rowN = PQntuples(aRes);
 
-  // Detect cap-driven truncation. With ?lastN the cap is the user-supplied
-  // value (always reported as truncation per § 6.3.10); without ?lastN the
-  // cap is the implementation default and we know we exceeded it because
-  // the SQL fetched (cap+1) rows.
+  // Detect cap-driven truncation. With ?lastN we fetched lastN+1 per
+  // partition and detect overflow row-by-row in the loop below (any row
+  // with rn > lastN means a partition exceeded the cap — § 6.3.10 says
+  // 206 only when the implementation can't return the full representation,
+  // so honoring the user's lastN exactly is 200, not 206). Without ?lastN
+  // the cap is the implementation default and we know we exceeded it
+  // because the SQL fetched (cap+1) rows.
   bool truncated = false;
   if (lastN > 0)
   {
-    truncated = true;
+    // Detection happens in the per-row loop; the rn==lastN+1 rows are
+    // dropped via `continue` and `truncated` is set there.
   }
   else if (rowN > instanceCap)
   {
@@ -475,6 +482,19 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
 
   for (int r = 0; r < rowN; r++)
   {
+    // § 6.3.10 — when ?lastN was used we fetched lastN+1 per partition;
+    // rn==lastN+1 means this partition had more than lastN rows so the
+    // result is truncated. Drop the sentinel and flag truncation.
+    if (lastN > 0)
+    {
+      int rn = (int) strtol(PQgetvalue(aRes, r, 15), NULL, 10);
+      if (rn > lastN)
+      {
+        truncated = true;
+        continue;
+      }
+    }
+
     const char* attrName  = PQgetvalue(aRes, r, 0);
     int         attrKind  = (int) strtol(PQgetvalue(aRes, r, 1), NULL, 10);
     const char* dsId      = PQgetisnull(aRes, r, 2) ? NULL : PQgetvalue(aRes, r, 2);

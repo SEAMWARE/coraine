@@ -5,11 +5,14 @@
 #
 # Copyright 2026 Seamware
 #
-# § 6.3.10 partial-content: any time the response was capped — by the
-# implementation default cap when ?lastN is absent, OR by the user's
-# explicit ?lastN — broker emits 206 + Content-Range with unit=date-time.
-# Size is "*" (unknown total) for the default-cap case, the lastN value
-# when ?lastN was specified.
+# § 6.3.10 partial-content: 206 only when the implementation cannot return
+# the full representation at once. That happens when:
+#   - the default instance cap (no ?lastN) clipped the result, OR
+#   - the user's ?lastN was smaller than the actually-available instances.
+# When ?lastN matches or exceeds the available count, the user got the
+# representation they asked for in full → 200 (not 206). ETSI 021_03_01
+# pinned this distinction; it had been misencoded as "always 206 with
+# lastN".
 #
 # Broker is started with --troeInstanceCap 5 so we can exceed the cap
 # with only a handful of PATCHes.
@@ -68,6 +71,20 @@ echo
 echo "04. Multi-entity GET (no lastN) → 206 + Content-Range size=*"
 echo "============================================================"
 swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
+echo
+echo
+
+
+echo "05. Single-entity GET (lastN=8) → 200, all 8 instances (no truncation)"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=8'
+echo
+echo
+
+
+echo "06. Single-entity GET (lastN=20, > total) → 200, all 8 instances"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=20'
 echo
 echo
 
@@ -209,6 +226,136 @@ Content-Length: REGEX(\d+)
     "type": "Vehicle"
   }
 ]
+
+
+
+05. Single-entity GET (lastN=8) → 200, all 8 instances (no truncation)
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T16:00:00Z",
+      "type": "Property",
+      "value": 80
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T15:00:00Z",
+      "type": "Property",
+      "value": 70
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T14:00:00Z",
+      "type": "Property",
+      "value": 60
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T13:00:00Z",
+      "type": "Property",
+      "value": 50
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+06. Single-entity GET (lastN=20, > total) → 200, all 8 instances
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T16:00:00Z",
+      "type": "Property",
+      "value": 80
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T15:00:00Z",
+      "type": "Property",
+      "value": 70
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T14:00:00Z",
+      "type": "Property",
+      "value": 60
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T13:00:00Z",
+      "type": "Property",
+      "value": 50
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
 
 
 
