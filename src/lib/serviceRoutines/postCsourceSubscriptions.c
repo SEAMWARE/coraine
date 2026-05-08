@@ -128,6 +128,12 @@ bool postCsourceSubscriptions(void)
   KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
+  // § 5.2.12 — isActive defaults to true; ETSI fixtures assert it on
+  // every Subscription retrieve. Inject the default when the user
+  // didn't supply one.
+  if (isActiveP == NULL)
+    kjChildAdd(subP, kjBoolean(NULL, "isActive", true));
+
   KjNode* statusP = kjString(NULL, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
 

@@ -104,7 +104,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 325
+Content-Length: 345
 
 {
   "entities": [
@@ -113,6 +113,7 @@ Content-Length: 325
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Qctx",
+  "isActive": true,
   "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
   "notification": {
     "endpoint": {
@@ -132,7 +133,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 327
+Content-Length: 347
 
 {
   "entities": [
@@ -141,6 +142,7 @@ Content-Length: 327
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Qctx",
+  "isActive": true,
   "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
   "notification": {
     "endpoint": {
@@ -160,7 +162,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 403
+Content-Length: 423
 
 {
   "entities": [
@@ -169,6 +171,7 @@ Content-Length: 403
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Qctx",
+  "isActive": true,
   "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
   "notification": {
     "endpoint": {

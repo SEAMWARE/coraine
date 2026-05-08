@@ -178,6 +178,7 @@ Content-Length: REGEX(\d+)
   ],
   "expiresAt": "REGEX(.*)",
   "id": "urn:ngsi-ld:Subscription:FutureExpiry",
+  "isActive": true,
   "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {

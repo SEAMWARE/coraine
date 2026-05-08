@@ -173,6 +173,13 @@ bool postSubscriptions(void)
   KjNode* expiresAtP = kjLookup(subP, LD_VOCAB_EXPIRES_AT);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
+  // § 5.2.12 / § 6.3.13 — `isActive` defaults to true when unspecified,
+  // and the spec response examples include it on every subscription.
+  // ETSI fixtures assert `isActive: true` on retrieve. Inject the
+  // default if the user didn't supply one.
+  if (isActiveP == NULL)
+    kjChildAdd(subP, kjBoolean(NULL, "isActive", true));
+
   //
   // Per spec 5.8.1.4: expiresAt in the past is an error
   //
