@@ -71,7 +71,7 @@ echo
 
 echo "04. GET entities?id=urn:e1,urn:e3 - E1 and E3 returned, E2 excluded"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?id=urn:e1,urn:e3'
+swCurl --url '/ngsi-ld/v1/entities?id=urn:e1,urn:e3&type=Vehicle'
 echo
 echo
 

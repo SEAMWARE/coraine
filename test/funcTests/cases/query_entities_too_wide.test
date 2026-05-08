@@ -34,15 +34,15 @@ echo
 echo
 
 
-echo "03. GET /entities?id=urn:V1 - 200 OK (id counts)"
-echo "================================================"
+echo "03. GET /entities?id=urn:V1 - 400 (id alone is too wide per § 5.7.2.4)"
+echo "======================================================================"
 swCurl --url '/ngsi-ld/v1/entities?id=urn:V1'
 echo
 echo
 
 
-echo "04. GET /entities?local=true - 200 OK (local counts)"
-echo "===================================================="
+echo "04. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')"
+echo "==================================================================================="
 swCurl --url '/ngsi-ld/v1/entities?local=true'
 echo
 echo
@@ -57,8 +57,8 @@ Content-Type: application/json; charset=utf-8
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied",
-  "title": "Bad Request",
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery, 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)",
+  "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -76,20 +76,23 @@ Content-Length: REGEX(\d+)
 
 
 
-03. GET /entities?id=urn:V1 - 200 OK (id counts)
-================================================
-HTTP/1.1 200 OK
+03. GET /entities?id=urn:V1 - 400 (id alone is too wide per § 5.7.2.4)
+======================================================================
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
-[]
+{
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery, 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)",
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
-04. GET /entities?local=true - 200 OK (local counts)
-====================================================
+04. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')
+===================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
