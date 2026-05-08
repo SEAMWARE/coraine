@@ -102,7 +102,7 @@ Done sleeping
 
 04. ftClient received notifications (grep for Pernot1)
 ======================================================
-REGEX([1-9][0-9]*)
+2
 
 
 --TEARDOWN--

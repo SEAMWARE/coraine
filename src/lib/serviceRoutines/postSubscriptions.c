@@ -212,6 +212,19 @@ bool postSubscriptions(void)
     {
       jcUrl = reqCtxP->url;
     }
+    // An @context body that's an array of a single string URL is
+    // semantically the same as just that URL — use it directly instead
+    // of minting an Implicit. ETSI 046_10 / 046_11 supply their @context
+    // this way, and a notification's Link header is expected to point
+    // at the user's URL, not at a broker-minted alias.
+    else if (swNgsild.userContextBody != NULL &&
+             swNgsild.userContextBody->type == KjArray &&
+             swNgsild.userContextBody->value.firstChildP != NULL &&
+             swNgsild.userContextBody->value.firstChildP->next == NULL &&
+             swNgsild.userContextBody->value.firstChildP->type == KjString)
+    {
+      jcUrl = swNgsild.userContextBody->value.firstChildP->value.s;
+    }
     else if (swNgsild.userContextBody != NULL)
     {
       // Mint an Implicit entry from the inline body. The same plumbing

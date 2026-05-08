@@ -115,7 +115,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:GeoNear
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -126,7 +126,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:Madrid
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -152,17 +152,17 @@ Content-Length: REGEX(\d+)
           "type": "City"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:ngsi-ld:Subscription:GeoNear",
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
-      "Link": REGEX(".*"),
-      "User-Agent": REGEX("swBroker/.*")
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
     "verb": "POST"
@@ -181,7 +181,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:Paris
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
