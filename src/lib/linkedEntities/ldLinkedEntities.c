@@ -21,7 +21,9 @@
 #include "swRest/SwRestVerb.h"                        // SwVerbGet
 
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
-#include "swNgsild/SwNgsild.h"                        // ldLocalOnly
+#include "swNgsild/SwNgsild.h"                        // ldLocalOnly, swNgsild
+#include "swNgsild/LdProj.h"                          // LdProjItem, ldProjectionFindChild, ldProjectionTopLevelNames
+#include "swNgsild/ldPickOmit.h"                      // ldPickOmit
 #include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieve
 #include "swNgsild/ldDistOp.h"                        // ldDistOpSendReceive, ldDistOpCsrWouldLoop
@@ -277,12 +279,24 @@ int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
 // the initial frontier malloc; the helper frees it (and the per-level
 // next-frontier).
 //
-static void flatBfs(KjNode*          outArr,
-                    KjNode**         frontier,
-                    int              frontierCount,
-                    int              joinLevel,
-                    Tenant*          tenantP,
-                    VisitedNode**    visitedPP)
+// Flat-BFS frontier carries per-entity pick/omit sub-trees so the
+// projection's `parent{child1,child2}` clause applies to entities reached
+// via that parent relationship — and recurses into deeper {…} clauses
+// across BFS levels.
+typedef struct FlatFrontier
+{
+  KjNode*      entityP;
+  LdProjItem*  pickSub;
+  LdProjItem*  omitSub;
+} FlatFrontier;
+
+
+static void flatBfs(KjNode*         outArr,
+                    FlatFrontier*   frontier,
+                    int             frontierCount,
+                    int             joinLevel,
+                    Tenant*         tenantP,
+                    VisitedNode**   visitedPP)
 {
   if (frontier == NULL || frontierCount <= 0)
     return;
@@ -294,44 +308,88 @@ static void flatBfs(KjNode*          outArr,
 
   for (int depth = 0; depth < joinLevel; depth++)
   {
-    const char** targets   = NULL;
-    int          targetN   = 0;
-    int          targetCap = 0;
+    FlatFrontier* nextFrontier      = NULL;
+    int           nextFrontierCount = 0;
+    int           nextFrontierCap   = 0;
 
     for (int i = 0; i < frontierCount; i++)
-      collectRelationshipTargets(frontier[i], &targets, &targetN, &targetCap);
-
-    KjNode** nextFrontier      = NULL;
-    int      nextFrontierCount = 0;
-    int      nextFrontierCap   = 0;
-
-    for (int t = 0; t < targetN; t++)
     {
-      const char* tid = targets[t];
+      KjNode*     fromP    = frontier[i].entityP;
+      LdProjItem* fromPick = frontier[i].pickSub;
+      LdProjItem* fromOmit = frontier[i].omitSub;
 
-      if (visitedContains(*visitedPP, tid))
-        continue;
-
-      KjNode* targetEntityP = NULL;
-      int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
-      if (r != 0 || targetEntityP == NULL)
+      // Walk the from-entity's relationship attributes, fetching each
+      // target with the projection sub-tree determined by the from-side
+      // pick/omit's child for THIS attribute name.
+      for (KjNode* attrP = fromP->value.firstChildP; attrP != NULL; attrP = attrP->next)
       {
-        *visitedPP = visitedAppend(*visitedPP, tid);
-        continue;
-      }
+        if (attrP->name == NULL)                                      continue;
+        if (attrP->name[0] == '@')                                    continue;
+        if (attrP->type != KjObject)                                  continue;
+        if (strcmp(attrP->name, "id")         == 0)                   continue;
+        if (strcmp(attrP->name, "type")       == 0)                   continue;
+        if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
+        if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
+        if (strcmp(attrP->name, "scope")      == 0)                   continue;
 
-      kjChildAdd(outArr, targetEntityP);
-      *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+        LdProjItem* subPick = ldProjectionFindChild(fromPick, attrP->name);
+        LdProjItem* subOmit = ldProjectionFindChild(fromOmit, attrP->name);
 
-      if (nextFrontierCount >= nextFrontierCap)
-      {
-        nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
-        nextFrontier    = (KjNode**) realloc(nextFrontier, nextFrontierCap * sizeof(KjNode*));
+        for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+        {
+          if (instP->type != KjObject)
+            continue;
+
+          KjNode* typeP = kjLookup(instP, "type");
+          if (typeP == NULL || typeP->type != KjString)               continue;
+          if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
+
+          KjNode* valP = kjLookup(instP, "value");
+          if (valP == NULL || valP->type != KjString || valP->value.s == NULL)
+            continue;
+
+          const char* tid = valP->value.s;
+          if (visitedContains(*visitedPP, tid))
+            continue;
+
+          KjNode* targetEntityP = NULL;
+          int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+          if (r != 0 || targetEntityP == NULL)
+          {
+            *visitedPP = visitedAppend(*visitedPP, tid);
+            continue;
+          }
+
+          // Apply pick/omit on the linked entity in storage form (the
+          // projection trees carry expanded IRIs). renderHook converts
+          // to API form afterwards.
+          if (subPick != NULL || subOmit != NULL)
+          {
+            char** subPickV = (subPick != NULL)
+                              ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)
+                              : NULL;
+            char** subOmitV = (subOmit != NULL)
+                              ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false)
+                              : NULL;
+            ldPickOmit(targetEntityP, subPickV, subOmitV);
+          }
+
+          kjChildAdd(outArr, targetEntityP);
+          *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+
+          if (nextFrontierCount >= nextFrontierCap)
+          {
+            nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
+            nextFrontier    = (FlatFrontier*) realloc(nextFrontier, nextFrontierCap * sizeof(FlatFrontier));
+          }
+          nextFrontier[nextFrontierCount].entityP = targetEntityP;
+          nextFrontier[nextFrontierCount].pickSub = subPick;
+          nextFrontier[nextFrontierCount].omitSub = subOmit;
+          nextFrontierCount++;
+        }
       }
-      nextFrontier[nextFrontierCount++] = targetEntityP;
     }
 
-    free(targets);
     free(frontier);
     frontier      = nextFrontier;
     frontierCount = nextFrontierCount;
@@ -364,10 +422,12 @@ KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 
   kjChildAdd(outArr, primaryP);
 
-  VisitedNode* visited     = visitedAppend(NULL, primaryId);
-  visited                  = visitedSeedFromContainedBy(visited);
-  KjNode**     frontier    = (KjNode**) malloc(sizeof(KjNode*));
-  frontier[0]              = primaryP;
+  VisitedNode*   visited  = visitedAppend(NULL, primaryId);
+  visited                 = visitedSeedFromContainedBy(visited);
+  FlatFrontier*  frontier = (FlatFrontier*) malloc(sizeof(FlatFrontier));
+  frontier[0].entityP     = primaryP;
+  frontier[0].pickSub     = swNgsild.pickTree;
+  frontier[0].omitSub     = swNgsild.omitTree;
   flatBfs(outArr, frontier, 1, joinLevel, tenantP, &visited);
 
   visitedFree(visited);
@@ -400,11 +460,17 @@ void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tena
   visited = visitedSeedFromContainedBy(visited);
 
   // Build a frontier snapshot (kjChildAdd inside the BFS would otherwise
-  // mutate the live ->next chain we're iterating).
-  KjNode** frontier = (KjNode**) malloc(primaryCount * sizeof(KjNode*));
-  int      idx      = 0;
+  // mutate the live ->next chain we're iterating). Each primary inherits
+  // the request's top-level pick/omit sub-trees as its starting point.
+  FlatFrontier* frontier = (FlatFrontier*) malloc(primaryCount * sizeof(FlatFrontier));
+  int           idx      = 0;
   for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
-    frontier[idx++] = eP;
+  {
+    frontier[idx].entityP = eP;
+    frontier[idx].pickSub = swNgsild.pickTree;
+    frontier[idx].omitSub = swNgsild.omitTree;
+    idx++;
+  }
 
   flatBfs(arrayP, frontier, primaryCount, joinLevel, tenantP, &visited);
 
@@ -448,7 +514,9 @@ void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* te
 static void inlineWalk(KjNode*       entityP,
                        int           remaining,
                        VisitedNode** visitedPP,
-                       Tenant*       tenantP)
+                       Tenant*       tenantP,
+                       LdProjItem*   pickTree,
+                       LdProjItem*   omitTree)
 {
   if (entityP == NULL || remaining <= 0)
     return;
@@ -463,6 +531,14 @@ static void inlineWalk(KjNode*       entityP,
     if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
     if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
     if (strcmp(attrP->name, "scope")      == 0)                   continue;
+
+    // § 4.21 / § 4.5.23 attribute projection: when pick/omit is
+    // `parent{child1,child2}`, the {…} sub-projection applies to the
+    // linked entity reached through `parent`. Compute the per-relationship
+    // sub-trees here once; both inline-recursion and fetch-time
+    // pick/omit at this level use them.
+    LdProjItem* subPick = ldProjectionFindChild(pickTree, attrP->name);
+    LdProjItem* subOmit = ldProjectionFindChild(omitTree, attrP->name);
 
     for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
     {
@@ -492,8 +568,25 @@ static void inlineWalk(KjNode*       entityP,
       *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetP));
 
       // Recurse while target is still in storage so the storage
-      // walker can find its Relationships.
-      inlineWalk(targetP, remaining - 1, visitedPP, tenantP);
+      // walker can find its Relationships. The target's pick/omit
+      // sub-trees become the "current level" for one more step.
+      inlineWalk(targetP, remaining - 1, visitedPP, tenantP, subPick, subOmit);
+
+      // Apply pick/omit to the linked entity BEFORE API-conversion —
+      // the parsed projection trees carry expanded IRIs, matching the
+      // storage form of attribute names. Top-level pick/omit on the
+      // primary entity is applied by the service routine; this is the
+      // analogous step for each linked level.
+      if (subPick != NULL || subOmit != NULL)
+      {
+        char** subPickV = (subPick != NULL)
+                          ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)
+                          : NULL;
+        char** subOmitV = (subOmit != NULL)
+                          ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false)
+                          : NULL;
+        ldPickOmit(targetP, subPickV, subOmitV);
+      }
 
       // Convert the target itself to API (post-order). Its inlined
       // children are already API-converted from the recursion above.
@@ -523,7 +616,7 @@ KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 
   VisitedNode* visited = visitedAppend(NULL, primaryId);
   visited              = visitedSeedFromContainedBy(visited);
-  inlineWalk(primaryP, joinLevel, &visited, tenantP);
+  inlineWalk(primaryP, joinLevel, &visited, tenantP, swNgsild.pickTree, swNgsild.omitTree);
   visitedFree(visited);
 
   return primaryP;

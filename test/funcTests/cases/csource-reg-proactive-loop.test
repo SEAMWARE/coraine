@@ -130,8 +130,8 @@ Content-Length: REGEX(\d+)
 {
   "contextSourceAlias": "cb-alias",
   "contextSourceExtras": {
-    "buildAt": "2026-05-07T08:46:25Z",
-    "gitSha": "b541804",
+    "buildAt": "REGEX([^"]+)",
+    "gitSha": "REGEX([0-9a-f]+)",
     "version": "0.2.0"
   },
   "contextSourceName": "swBroker",
@@ -155,8 +155,8 @@ Content-Length: REGEX(\d+)
 {
   "contextSourceAlias": "cp1-alias",
   "contextSourceExtras": {
-    "buildAt": "2026-05-07T08:46:25Z",
-    "gitSha": "b541804",
+    "buildAt": "REGEX([^"]+)",
+    "gitSha": "REGEX([0-9a-f]+)",
     "version": "0.2.0"
   },
   "contextSourceName": "swBroker",
@@ -180,8 +180,8 @@ Content-Length: REGEX(\d+)
 {
   "contextSourceAlias": "cb-alias",
   "contextSourceExtras": {
-    "buildAt": "2026-05-07T08:46:25Z",
-    "gitSha": "b541804",
+    "buildAt": "REGEX([^"]+)",
+    "gitSha": "REGEX([0-9a-f]+)",
     "version": "0.2.0"
   },
   "contextSourceName": "swBroker",
