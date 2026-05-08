@@ -35,6 +35,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdOp.h"                           // LdOpAppendAttrs
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
+#include "swNgsild/ldNameContentCheck.h"             // ldIsValidName
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
@@ -127,6 +128,19 @@ bool putEntityAttr(void)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
             "attribute fragment must be a JSON object");
+    return true;
+  }
+
+  // § 4.6.2 — the {attrId} URL path component must be a syntactically valid
+  // NGSI-LD name (URN-style colon-separated segments, no leading '@', no
+  // forbidden chars). ldCheckNamesAndContent runs only over body trees and
+  // doesn't see the path component, so validate here. ETSI 055_03_03 sends
+  // attrId="@invalid" and expects 400 BadRequestData; without this check
+  // the broker would expand the bogus name via @vocab and 404 on lookup.
+  if (!ldIsValidName(attrWild))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+            "Invalid attribute name '%s' in URL path", attrWild);
     return true;
   }
 
