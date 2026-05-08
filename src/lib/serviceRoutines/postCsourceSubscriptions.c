@@ -128,9 +128,11 @@ bool postCsourceSubscriptions(void)
   KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
-  // § 5.2.12 — isActive defaults to true; ETSI fixtures assert it on
-  // every Subscription retrieve. Inject the default when the user
-  // didn't supply one.
+  // § 5.2.12 — `isActive` is cardinality 0..1, "true by default". When the
+  // user creates a CSR-Subscription WITHOUT isActive, treat it as true and
+  // emit that on retrieve so the field is observable. The user's explicit
+  // value (e.g. `isActive: false` for a paused sub) is preserved unchanged;
+  // this branch only fires when the field is missing entirely.
   if (isActiveP == NULL)
     kjChildAdd(subP, kjBoolean(NULL, "isActive", true));
 

@@ -173,10 +173,11 @@ bool postSubscriptions(void)
   KjNode* expiresAtP = kjLookup(subP, LD_VOCAB_EXPIRES_AT);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
-  // § 5.2.12 / § 6.3.13 — `isActive` defaults to true when unspecified,
-  // and the spec response examples include it on every subscription.
-  // ETSI fixtures assert `isActive: true` on retrieve. Inject the
-  // default if the user didn't supply one.
+  // § 5.2.12 — `isActive` is cardinality 0..1, "true by default". When the
+  // user creates a subscription WITHOUT isActive, treat it as true and emit
+  // that on retrieve so the field is observable. The user's explicit value
+  // (e.g. `isActive: false` for a paused sub) is preserved unchanged; this
+  // branch only fires when the field is missing entirely.
   if (isActiveP == NULL)
     kjChildAdd(subP, kjBoolean(NULL, "isActive", true));
 
