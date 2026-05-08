@@ -63,7 +63,8 @@ bool postJsonldContexts(void)
   //
   if (bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "payload must be a JSON object");
+    // § 5.13.2.4: structurally-wrong @context POST body → InvalidRequest.
+    ldError(400, LD_ERROR_INVALID_REQUEST, "Invalid Request", "payload must be a JSON object");
     return true;
   }
 
@@ -212,7 +213,11 @@ bool postJsonldContexts(void)
   }
   else
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    // § 5.13.2.4: "If the payload is incorrect, an error of type
+    // InvalidRequest shall be raised." A body that's a JSON object but
+    // carries neither '@context' nor 'url' is structurally wrong, not
+    // bad data — InvalidRequest is the right type per ETSI 050_02_01.
+    ldError(400, LD_ERROR_INVALID_REQUEST, "Invalid Request",
             "payload must contain either '@context' (Hosted) or 'url' (Cached)");
     return true;
   }

@@ -290,8 +290,8 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "payload must contain either '@context' (Hosted) or 'url' (Cached)",
-  "title": "Bad Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
 
