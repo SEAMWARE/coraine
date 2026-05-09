@@ -499,6 +499,7 @@ void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* te
 
 
 #include "swNgsild/ldEntityToApi.h"                   // ldEntityToApi
+#include "swNgsild/ldStripSysAttrs.h"                 // ldStripSysAttrs
 
 
 
@@ -717,8 +718,11 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
       }
 
       // linkedFetchOne returns storage shape — convert to API to match
-      // the existing entries in the notification's data[] array.
+      // the existing entries in the notification's data[] array. Strip
+      // sysAttrs so the linked entity matches the primary's behavior
+      // (buildNotifDataEntry strips them unconditionally).
       ldEntityToApi(targetEntityP, &swRest.kalloc);
+      ldStripSysAttrs(targetEntityP);
 
       kjChildAdd(outArr, targetEntityP);
       *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
@@ -793,6 +797,7 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, VisitedNode** visit
       }
 
       ldEntityToApi(targetEntityP, &swRest.kalloc);
+      ldStripSysAttrs(targetEntityP);
       *visitedPP  = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
       targetEntityP->name = (char*) "entity";
       kjChildAdd(instances[i], targetEntityP);
