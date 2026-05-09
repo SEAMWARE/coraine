@@ -29,6 +29,7 @@
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd, kjArray
 #include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjClone.h"                           // kjClone
 
 #include "swJsonld/swldExpand.h"                     // swldExpand
 #include "swJsonld/swldInit.h"                       // swldCoreContext
@@ -303,6 +304,14 @@ bool deleteEntityAttr(void)
       }
       else
       {
+        // Snapshot the attribute wrapper BEFORE applyLocalDelete so the
+        // showChanges renderer can emit previousValue/Object/Vocab/Json.
+        // kjClone runs on the request-scoped kjson; preSnapshot stays valid
+        // through db.entityReplace (the kalloc behind both is the same
+        // request arena).
+        KjNode* preSrc      = kjLookup(targetEntity, attrIri);
+        KjNode* preSnapshot = (preSrc != NULL) ? kjClone(swRest.kjsonP, preSrc) : NULL;
+
         bool changed = applyLocalDelete(targetEntity, attrIri);
 
         if (changed)
@@ -352,6 +361,11 @@ bool deleteEntityAttr(void)
               kjChildAdd(entry, kjString(swRest.kjsonP, "reason", "attributeDeleted"));
               if (deletedDsKey != NULL)
                 kjChildAdd(entry, kjString(swRest.kjsonP, "datasetId", deletedDsKey));
+              if (preSnapshot != NULL)
+              {
+                preSnapshot->name = (char*) "preValue";
+                kjChildAdd(entry, preSnapshot);
+              }
               kjChildAdd(report.changes, entry);
 
               ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
