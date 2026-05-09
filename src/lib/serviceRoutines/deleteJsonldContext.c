@@ -55,6 +55,34 @@ bool deleteJsonldContext(void)
   }
 
   //
+  // § 5.13.5.4: a context-id that is not a valid URI shall result in 400
+  // BadRequestData. RFC 3986 scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+  // followed by ':'. Cheap-and-correct check: a leading ALPHA, then
+  // scheme chars up to a ':'. Anything else (bare word, leading slash, …)
+  // is not a URI.
+  //
+  {
+    const char* p = contextId;
+    if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')))
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "context id '%s' is not a valid URI", contextId);
+      return true;
+    }
+    while (*p &&
+           ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
+            (*p >= '0' && *p <= '9') ||
+             *p == '+' || *p == '-' || *p == '.'))
+      p++;
+    if (*p != ':')
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "context id '%s' is not a valid URI", contextId);
+      return true;
+    }
+  }
+
+  //
   // reload is parsed via ldParamHook as a boolean (LD_PARAM_RELOAD).
   // We read it via the URL param registry directly to avoid adding yet
   // another SwNgsild state field when this is the only consumer.
