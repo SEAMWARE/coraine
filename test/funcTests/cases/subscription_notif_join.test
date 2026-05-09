@@ -63,6 +63,37 @@ echo
 echo
 
 
+echo "05. Replace sub with sysAttrs:true and trigger again"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Flat -X DELETE | head -1
+ftClientReset --port 7711 > /dev/null
+payload='{
+  "id": "urn:ngsi-ld:Subscription:FlatSys",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "join": "flat",
+    "joinLevel": 1,
+    "sysAttrs": true,
+    "endpoint": {
+      "uri": "http://localhost:7711/notify",
+      "cooldown": 1
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":100}}' | head -1
+echo
+echo
+
+
+echo "06. ftClient dump — both V1 and linked P1 carry createdAt + modifiedAt"
+echo "======================================================================"
+ftClientDump --port 7711 | grep -cE '"createdAt"'
+echo
+echo
+
+
 --EXPECT--
 01. Seed Person urn:P1 and Vehicle urn:V1 with parking → urn:P1
 ===============================================================
@@ -84,6 +115,18 @@ HTTP/1.1 204 No Content
 =============================================
           "id": "urn:P1",
           "id": "urn:V1",
+
+
+05. Replace sub with sysAttrs:true and trigger again
+====================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+06. ftClient dump — both V1 and linked P1 carry createdAt + modifiedAt
+======================================================================
+5
 
 
 --TEARDOWN--

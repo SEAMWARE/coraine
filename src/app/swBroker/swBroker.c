@@ -512,9 +512,9 @@ static void brokerNotifyStatsHook(bool csrSub, bool success)
 //
 // brokerLinkedEntitiesHook - called by swNgsild when notification.join is set
 //
-static void brokerLinkedEntitiesHook(KjNode* dataArrayP, const char* mode, int joinLevel, void* tenantP)
+static void brokerLinkedEntitiesHook(KjNode* dataArrayP, const char* mode, int joinLevel, bool sysAttrs, void* tenantP)
 {
-  ldLinkedEntitiesNotifApiArray(dataArrayP, mode, joinLevel, (Tenant*) tenantP);
+  ldLinkedEntitiesNotifApiArray(dataArrayP, mode, joinLevel, sysAttrs, (Tenant*) tenantP);
 }
 
 

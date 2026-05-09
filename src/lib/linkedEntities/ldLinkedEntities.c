@@ -686,7 +686,7 @@ static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP
 // notifFlatBfs - § 4.5.23.3 BFS for the API-format notification path
 //
 static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
-                         int joinLevel, Tenant* tenantP, VisitedNode** visitedPP)
+                         int joinLevel, bool sysAttrs, Tenant* tenantP, VisitedNode** visitedPP)
 {
   if (frontier == NULL || frontierCount <= 0) return;
   if (joinLevel < 1 || tenantP == NULL) { free(frontier); return; }
@@ -719,10 +719,11 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
 
       // linkedFetchOne returns storage shape — convert to API to match
       // the existing entries in the notification's data[] array. Strip
-      // sysAttrs so the linked entity matches the primary's behavior
-      // (buildNotifDataEntry strips them unconditionally).
+      // sysAttrs unless the subscription explicitly asked for them, so
+      // the linked entity matches the primary's behavior.
       ldEntityToApi(targetEntityP, &swRest.kalloc);
-      ldStripSysAttrs(targetEntityP);
+      if (!sysAttrs)
+        ldStripSysAttrs(targetEntityP);
 
       kjChildAdd(outArr, targetEntityP);
       *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
@@ -750,7 +751,7 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
 //
 // notifInlineWalk - § 4.5.23.2 inline walk on API-format primary
 //
-static void notifInlineWalk(KjNode* primaryP, int joinLevel, VisitedNode** visitedPP, Tenant* tenantP)
+static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP)
 {
   if (joinLevel < 1) return;
 
@@ -797,13 +798,14 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, VisitedNode** visit
       }
 
       ldEntityToApi(targetEntityP, &swRest.kalloc);
-      ldStripSysAttrs(targetEntityP);
+      if (!sysAttrs)
+        ldStripSysAttrs(targetEntityP);
       *visitedPP  = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
       targetEntityP->name = (char*) "entity";
       kjChildAdd(instances[i], targetEntityP);
 
       if (joinLevel > 1)
-        notifInlineWalk(targetEntityP, joinLevel - 1, visitedPP, tenantP);
+        notifInlineWalk(targetEntityP, joinLevel - 1, sysAttrs, visitedPP, tenantP);
     }
   }
 }
@@ -814,7 +816,7 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, VisitedNode** visit
 //
 // ldLinkedEntitiesNotifApiArray -
 //
-void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, Tenant* tenantP)
+void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, bool sysAttrs, Tenant* tenantP)
 {
   if (arrayP == NULL || arrayP->type != KjArray || mode == NULL || tenantP == NULL) return;
   if (arrayP->value.firstChildP == NULL) return;
@@ -835,7 +837,7 @@ void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLev
     for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
       frontier[idx++] = eP;
 
-    notifFlatBfs(arrayP, frontier, primaryCount, joinLevel, tenantP, &visited);
+    notifFlatBfs(arrayP, frontier, primaryCount, joinLevel, sysAttrs, tenantP, &visited);
     visitedFree(visited);
   }
   else if (strcmp(mode, "inline") == 0)
@@ -845,7 +847,7 @@ void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLev
       const char* id = entityIdOf(eP);
       if (id == NULL) continue;
       VisitedNode* visited = visitedAppend(NULL, id);
-      notifInlineWalk(eP, joinLevel, &visited, tenantP);
+      notifInlineWalk(eP, joinLevel, sysAttrs, &visited, tenantP);
       visitedFree(visited);
     }
   }

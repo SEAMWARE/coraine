@@ -18,6 +18,7 @@
 //                "entity" carrying the target's tree. (Slice C; not
 //                yet implemented.)
 //
+#include <stdbool.h>                                  // bool
 #include "kjson/KjNode.h"                            // KjNode
 
 #include "db/Tenant.h"                               // Tenant
@@ -112,6 +113,6 @@ extern int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenan
 // inline → each Relationship instance gets an "entity" sub-attribute
 //          carrying the target tree (also API-converted).
 //
-extern void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, Tenant* tenantP);
+extern void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, bool sysAttrs, Tenant* tenantP);
 
 #endif  // LE_LDLINKEDENTITIES_H_
