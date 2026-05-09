@@ -1,0 +1,295 @@
+#
+# FILE            subscription_notif_show_changes_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# notification.showChanges (§ 5.2.14.1 / § 5.8.6) on the two delete
+# paths:
+#
+#   * DELETE /entities/{id}/attrs/{attr}      → previousValue beside
+#                                               value=urn:ngsi-ld:null
+#   * DELETE /entities/{id} + entityDeleted   → every attribute carries
+#     trigger + showChanges                     value=urn:ngsi-ld:null
+#                                               and previousValue
+#
+# previous<X> is type-driven (previousValue / previousObject /
+# previousLanguageMap / previousVocab / previousJson), so the test
+# exercises Property + Relationship to verify the dispatch.
+#
+--NAME--
+notification.showChanges — previous<X> on attribute & entity delete
+
+--TAGS--
+subscription delete
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1 {speed=10, parent=urn:V0}"
+echo "====================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 10
+  },
+  "parent": {
+    "type": "Relationship",
+    "object": "urn:V0"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Sub S1 attributeDeleted+showChanges"
+echo "======================================="
+sub1='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notificationTrigger": ["attributeDeleted"],
+  "notification": {
+    "showChanges": true,
+    "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$sub1"
+echo
+echo
+
+
+echo "03. DELETE V1.parent — Relationship → previousObject"
+echo "===================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/parent
+echo
+echo
+
+
+echo "04. ftClientDump — S1 fires with previousObject=urn:V0"
+echo "======================================================"
+ftClientDump
+echo
+echo
+
+
+echo "05. ftClientReset + delete S1 (only S2 should fire on the entity-delete)"
+echo "========================================================================"
+ftClientReset
+swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
+echo
+echo
+
+
+echo "06. Seed V2 {speed=20, parent=urn:V0}"
+echo "====================================="
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 20
+  },
+  "parent": {
+    "type": "Relationship",
+    "object": "urn:V0"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Sub S2 entityDeleted+showChanges (id-bound to V2)"
+echo "====================================================="
+sub2='{
+  "id": "urn:S2",
+  "type": "Subscription",
+  "entities": [{"id": "urn:V2", "type": "Vehicle"}],
+  "notificationTrigger": ["entityDeleted"],
+  "notification": {
+    "showChanges": true,
+    "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$sub2"
+echo
+echo
+
+
+echo "08. DELETE entity V2"
+echo "===================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+echo "09. ftClientDump — entityDeleted notif: previousValue=20 + previousObject=urn:V0"
+echo "================================================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 {speed=10, parent=urn:V0}
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. Sub S1 attributeDeleted+showChanges
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Content-Length: 0
+
+
+
+
+03. DELETE V1.parent — Relationship → previousObject
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+04. ftClientDump — S1 fires with previousObject=urn:V0
+======================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "parent": {
+            "object": "urn:ngsi-ld:null",
+            "previousObject": "urn:V0",
+            "type": "Relationship"
+          },
+          "speed": {
+            "type": "Property",
+            "value": 10
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. ftClientReset + delete S1 (only S2 should fire on the entity-delete)
+========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+06. Seed V2 {speed=20, parent=urn:V0}
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+
+07. Sub S2 entityDeleted+showChanges (id-bound to V2)
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Content-Length: 0
+
+
+
+
+08. DELETE entity V2
+====================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+
+
+
+
+09. ftClientDump — entityDeleted notif: previousValue=20 + previousObject=urn:V0
+================================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "deletedAt": "REGEX(.*)",
+          "id": "urn:V2",
+          "parent": {
+            "object": "urn:ngsi-ld:null",
+            "previousObject": "urn:V0",
+            "type": "Relationship"
+          },
+          "speed": {
+            "previousValue": 20,
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S2",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
