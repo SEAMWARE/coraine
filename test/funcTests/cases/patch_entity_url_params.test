@@ -163,6 +163,10 @@ Content-Length: REGEX(\d+)
     },
     "type": "LanguageProperty"
   },
+  "owner": {
+    "object": "urn:bob",
+    "type": "Relationship"
+  },
   "temp": {
     "observedAt": "REGEX(.*)",
     "type": "Property",
@@ -192,6 +196,18 @@ Content-Length: REGEX(\d+)
 
 {
   "id": "urn:e1",
+  "name": {
+    "languageMap": {
+      "en": "Hello",
+      "es": "Hola",
+      "fr": "Bonjour"
+    },
+    "type": "LanguageProperty"
+  },
+  "owner": {
+    "object": "urn:bob",
+    "type": "Relationship"
+  },
   "temp": {
     "observedAt": "REGEX(.*)",
     "type": "Property",
@@ -223,6 +239,22 @@ Content-Length: REGEX(\d+)
   "createdAt": "REGEX(.*)",
   "id": "urn:e1",
   "modifiedAt": "REGEX(.*)",
+  "name": {
+    "createdAt": "REGEX(.*)",
+    "languageMap": {
+      "en": "Hello",
+      "es": "Hola",
+      "fr": "Bonjour"
+    },
+    "modifiedAt": "REGEX(.*)",
+    "type": "LanguageProperty"
+  },
+  "owner": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "object": "urn:bob",
+    "type": "Relationship"
+  },
   "temp": {
     "createdAt": "REGEX(.*)",
     "modifiedAt": "REGEX(.*)",
@@ -256,6 +288,22 @@ Content-Length: REGEX(\d+)
   "createdAt": "REGEX(.*)",
   "id": "urn:e1",
   "modifiedAt": "REGEX(.*)",
+  "name": {
+    "createdAt": "REGEX(.*)",
+    "languageMap": {
+      "en": "Hello",
+      "es": "Hola",
+      "fr": "Bonjour"
+    },
+    "modifiedAt": "REGEX(.*)",
+    "type": "LanguageProperty"
+  },
+  "owner": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "object": "urn:bob",
+    "type": "Relationship"
+  },
   "temp": {
     "createdAt": "REGEX(.*)",
     "modifiedAt": "REGEX(.*)",
@@ -270,10 +318,16 @@ Content-Length: REGEX(\d+)
 
 10. Simplified PATCH on LanguageProperty without lang URL param — 400
 =====================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
+Content-Length: 233
 
+{
+  "detail": "simplified value for LanguageProperty 'https://uri.etsi.org/ngsi-ld/default-context/name' requires the 'lang' URL parameter",
+  "title": "Missing lang",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 

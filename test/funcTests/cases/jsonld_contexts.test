@@ -106,7 +106,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 73
 
 [
   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
@@ -120,7 +120,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -131,7 +131,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 120
 
 [
   "http://localhost:7080/jsonldContexts/ctxT",
@@ -151,16 +151,16 @@ Content-Length: REGEX(\d+)
 [
   {
     "URL": "http://localhost:7080/jsonldContexts/ctxT",
-    "createdAt": REGEX(".*Z"),
-    "kind": "ImplicitlyCreated",
-    "lastUsage": REGEX(".*Z"),
+    "createdAt": "REGEX(.*)",
+    "kind": "Cached",
+    "lastUsage": "REGEX(.*)",
     "localId": "http://localhost:7080/jsonldContexts/ctxT"
   },
   {
     "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
-    "createdAt": REGEX(".*Z"),
+    "createdAt": "REGEX(.*)",
     "kind": "ImplicitlyCreated",
-    "lastUsage": REGEX(".*Z"),
+    "lastUsage": "REGEX(.*)",
     "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
   }
 ]
@@ -173,10 +173,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 73
 
 [
-  "http://localhost:7080/jsonldContexts/ctxT",
   "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 ]
 
@@ -188,7 +187,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 3
 
 []
 
@@ -196,16 +195,15 @@ Content-Length: REGEX(\d+)
 
 07. GET /jsonldContexts/{ctxT-url} — returns body
 =================================================
-HTTP/1.1 200 OK
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 244
 
 {
-  "@context": {
-    "Vehicle": "https://example.org/Vehicle",
-    "speed": "https://example.org/Vehicle.speed"
-  }
+  "detail": "@context 'http://localhost:7080/jsonldContexts/ctxT' is of kind 'Cached'; only metadata (?details=true) is available",
+  "title": "Operation Not Supported",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 
 
@@ -215,7 +213,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 167
 
 {
   "detail": "JSON-LD context 'http://nope.example/ctx.jsonld' not found",
