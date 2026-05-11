@@ -26,6 +26,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldCheckRegistration.h"            // ldCheckRegistration
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "swNgsild/LdNormalizeInput.h"               // ldWrapAsGeoProperty
 #include "swNgsild/LdOp.h"                           // LdOpCreateRegistration
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheItemAdd
@@ -390,6 +391,23 @@ bool postCsourceRegistration(void)
   // Validate the registration
   if (ldCheckRegistration(regP, LdOpCreateRegistration, &swRest.kalloc) == false)
     return true;
+
+  // Normalize geo-coverage fields at intake. § 5.2.9 declares location / observationSpace / operationSpace
+  // as bare GeoJSON Geometry on the wire; storage and output use the normalized GeoProperty wrapper, same
+  // as every entity-side location field. ldWrapAsGeoProperty replaces the bare GeoJSON in place with
+  // {type:GeoProperty, value:<orig>}. Skip when the client already sent the wrapped form.
+  {
+    static const char* geoFields[] = { "location", "observationSpace", "operationSpace" };
+    for (size_t gf = 0; gf < sizeof(geoFields) / sizeof(geoFields[0]); gf++)
+    {
+      KjNode* geoP = kjLookup(regP, geoFields[gf]);
+      if (geoP == NULL || geoP->type != KjObject) continue;
+      KjNode* tNode = kjLookup(geoP, "type");
+      if (tNode == NULL || tNode->type != KjString) continue;
+      if (strcmp(tNode->value.s, "GeoProperty") == 0) continue;   // already normalized
+      ldWrapAsGeoProperty(regP, geoP, &swRest.kalloc);
+    }
+  }
 
   // Extract or generate registration id
   KjNode* idP = kjLookup(regP, "id");
