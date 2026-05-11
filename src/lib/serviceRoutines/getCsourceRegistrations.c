@@ -175,23 +175,28 @@ static bool csrTemporalMatch(KjNode* regTree)
   if (!intervalNs(intervalP, &startNs, &endNs))
     return false;  // CSR has no relevant interval — no match per spec
 
+  // § 5.10.2.4: match the CSR's interval against the query's time range. The natural reading (and what ETSI 037_09_01..04
+  // fixtures assert) is interval-overlap, not "timeAt contained in interval":
+  //   before timeAt        → CSR has data observed before timeAt → interval.start ≤ timeAt
+  //   after  timeAt        → CSR has data observed after  timeAt → interval.end   ≥ timeAt (or open-ended)
+  //   between qStart qEnd  → CSR's interval overlaps with [qStart, qEnd]
+  //
   if (strcmp(swNgsild.timerel, "between") == 0)
   {
     uint64_t qStart = swNgsild.timeAtNs;
     uint64_t qEnd   = swNgsild.endTimeAtNs;
-    // Overlap test: max(qStart, startNs) ≤ min(qEnd, endNs); endNs=0 = open
-    uint64_t lo = (qStart > startNs) ? qStart : startNs;
+    // Overlap: interval [startNs, endNs|∞] intersects [qStart, qEnd].
     if (endNs == 0)
-      return lo <= qEnd;
-    uint64_t hi = (qEnd < endNs) ? qEnd : endNs;
-    return lo <= hi;
+      return startNs <= qEnd;
+    return (startNs <= qEnd) && (endNs >= qStart);
   }
 
-  // before / after: timeAt within the interval (inclusive endpoints).
   uint64_t qAt = swNgsild.timeAtNs;
-  if (qAt < startNs) return false;
-  if (endNs == 0)    return true;   // open interval: anything ≥ startNs matches
-  return qAt <= endNs;
+  if (strcmp(swNgsild.timerel, "before") == 0)
+    return startNs <= qAt;
+  // after
+  if (endNs == 0) return true;       // open-ended interval extends to +∞
+  return endNs >= qAt;
 }
 
 
