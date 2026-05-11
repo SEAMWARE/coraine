@@ -59,6 +59,7 @@
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldLangReduce.h"                   // ldLangReduce
 #include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
+#include "swNgsild/LdNormalizeInput.h"               // ldWrapAsGeoProperty
 #include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 
 #include "db/DbDriver.h"                             // db, DB_OK
@@ -367,25 +368,28 @@ bool getCsourceRegistrations(void)
       {
         KjNode* clone = kjClone(swRest.kjsonP, matchV[i]->regTree);
 
-        // § 5.10.2.5 — strip every information[] entry that doesn't match
-        // the request's discovery filter. The pre-parsed infoV linked list
-        // is in lockstep with the regTree's "information" array, so we
-        // iterate both in parallel and unlink the non-matching JSON nodes.
-        KjNode* infoP = kjLookup(clone, "information");
-        if (infoP != NULL && infoP->type == KjArray)
+        // § 5.10.2.5 — strip every information[] entry that doesn't match the request's discovery filter. The pre-parsed
+        // infoV linked list is in lockstep with the regTree's "information" array, so we iterate both in parallel and unlink
+        // the non-matching JSON nodes. § 5.10.2.5 wording is "should", not "shall"; --testConformance flips the broker into
+        // ETSI mode (keep the full information[] of every matched CSR) — see spec-doubts § 26 / testsuite-doubts § 25.
+        if (!ldTestConformance)
         {
-          KjNode*    childP = infoP->value.firstChildP;
-          LdRegInfo* riP    = matchV[i]->infoV;
-          while (childP != NULL && riP != NULL)
+          KjNode* infoP = kjLookup(clone, "information");
+          if (infoP != NULL && infoP->type == KjArray)
           {
-            KjNode*    nextChild = childP->next;
-            LdRegInfo* nextRi    = riP->next;
-            if (!ldRegInfoDiscoveryMatches(riP, idFilter, swNgsild.typeV,
-                                            haveIdRegex ? &idRegex : NULL,
-                                            attrsFilterRsp))
-              kjChildRemove(infoP, childP);
-            childP = nextChild;
-            riP    = nextRi;
+            KjNode*    childP = infoP->value.firstChildP;
+            LdRegInfo* riP    = matchV[i]->infoV;
+            while (childP != NULL && riP != NULL)
+            {
+              KjNode*    nextChild = childP->next;
+              LdRegInfo* nextRi    = riP->next;
+              if (!ldRegInfoDiscoveryMatches(riP, idFilter, swNgsild.typeV,
+                                              haveIdRegex ? &idRegex : NULL,
+                                              attrsFilterRsp))
+                kjChildRemove(infoP, childP);
+              childP = nextChild;
+              riP    = nextRi;
+            }
           }
         }
 
@@ -398,6 +402,23 @@ bool getCsourceRegistrations(void)
         // lang reduces LanguageProperty attrs on user-Properties.
         if (swNgsild.lang != NULL)
           ldLangReduce(clone, swNgsild.lang, &swRest.kalloc);
+
+        // --testConformance: wrap CSR geo-coverage fields as GeoProperty on this list endpoint. § 5.2.9 says these are
+        // bare GeoJSON on the wire; ETSI 037_07 / 037_05 / 037_08 fixtures expect the normalized GeoProperty wrapper on
+        // discovery responses (the single-CSR retrieve endpoint must keep bare per ETSI 033_01_03). See spec-doubts § 26.
+        if (ldTestConformance)
+        {
+          static const char* geoFields[] = { "location", "observationSpace", "operationSpace" };
+          for (size_t gf = 0; gf < sizeof(geoFields) / sizeof(geoFields[0]); gf++)
+          {
+            KjNode* geoP = kjLookup(clone, geoFields[gf]);
+            if (geoP == NULL || geoP->type != KjObject) continue;
+            KjNode* tNode = kjLookup(geoP, "type");
+            if (tNode == NULL || tNode->type != KjString) continue;
+            if (strcmp(tNode->value.s, "GeoProperty") == 0) continue;   // already wrapped
+            ldWrapAsGeoProperty(clone, geoP, &swRest.kalloc);
+          }
+        }
 
         kjChildAdd(arrayP, clone);
       }
