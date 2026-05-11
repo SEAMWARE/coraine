@@ -325,23 +325,36 @@ bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry,
 
   if (geoRel->rel == LdGeoNear)
   {
-    // For "near" we want any point of the CSR's region within maxDistance.
-    // GEOSDistance is planar (degrees) but the spec's maxDistance is meters,
-    // so we convert with an equator-scale 111320 m/degree factor — accuracy
-    // is not critical here (any false positive just costs an extra forward;
-    // the responding broker re-applies the precise filter).
-    double distanceDegrees = -1;
-    if (GEOSDistance_r(geosCtx, refGeom, csrGeom, &distanceDegrees) == 1)
+    if (geoRel->maxDistance < 0)
     {
-      if (geoRel->maxDistance >= 0)
+      // No maxDistance bound — every CSR is a candidate.
+      match = true;
+    }
+    else
+    {
+      // Two Points → exact haversine. Otherwise convert GEOS planar distance to metres with a per-axis correction:
+      // longitude shrinks as cos(avg-lat), so a flat 111320 m/° factor over-reports by up to a few-x at high latitudes and
+      // *underreports* matches near maxDistance. We measure the per-axis δ in GEOS-space and scale before sqrt — exact
+      // for Point-Point, conservative-enough for non-point CSR coverage.
+      double distanceMeters = -1;
+      double xRef, yRef, xCsr, yCsr;
+      if (GEOSGeomTypeId_r(geosCtx, refGeom) == GEOS_POINT &&
+          GEOSGeomTypeId_r(geosCtx, csrGeom) == GEOS_POINT &&
+          GEOSGeomGetX_r(geosCtx, refGeom, &xRef) == 1 &&
+          GEOSGeomGetY_r(geosCtx, refGeom, &yRef) == 1 &&
+          GEOSGeomGetX_r(geosCtx, csrGeom, &xCsr) == 1 &&
+          GEOSGeomGetY_r(geosCtx, csrGeom, &yCsr) == 1)
       {
-        double distanceMeters = distanceDegrees * 111320.0;
-        match = (distanceMeters <= geoRel->maxDistance);
+        distanceMeters = haversineDistance(xRef, yRef, xCsr, yCsr);
       }
       else
       {
-        match = true;  // no maxDistance bound — every CSR is a candidate
+        double distanceDegrees = -1;
+        if (GEOSDistance_r(geosCtx, refGeom, csrGeom, &distanceDegrees) == 1)
+          distanceMeters = distanceDegrees * 111320.0;
       }
+      if (distanceMeters >= 0)
+        match = (distanceMeters <= geoRel->maxDistance);
     }
   }
   else
