@@ -102,29 +102,6 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
 
 
 
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL) return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0) return true;
-  }
-  return false;
-}
-
-static bool infoCoversAttr(LdRegInfo* riP, const char* attrIri)
-{
-  if (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL)
-    return true;
-  for (int i = 0; riP->propertyNamesV != NULL && riP->propertyNamesV[i] != NULL; i++)
-    if (strcmp(riP->propertyNamesV[i], attrIri) == 0) return true;
-  for (int i = 0; riP->relationshipNamesV != NULL && riP->relationshipNamesV[i] != NULL; i++)
-    if (strcmp(riP->relationshipNamesV[i], attrIri) == 0) return true;
-  return false;
-}
-
-
-
 // -----------------------------------------------------------------------------
 //
 // applyLocalDelete - remove attr / instance(s) from target, respecting params.
@@ -212,72 +189,37 @@ bool deleteEntityAttr(void)
                                                   entityId, NULL, NULL,
                                                   LdRegModeInclusive, &inclV);
 
-    LdRegCacheItem** groups[] = { exclV,       redirV,     inclV      };
-    int              counts[] = { exclN,       redirN,     inclN      };
-    const char*      tag[]    = { "exclusive", "redirect", "inclusive" };
-    bool             opConf[] = { true,        true,       false      };
-    bool             detach[] = { true,        true,       false      };
+    LdDistOpGroup groups[] = {
+      { exclV,  exclN,  "exclusive", true  },
+      { redirV, redirN, "redirect",  true  },
+      { inclV,  inclN,  "inclusive", false },
+    };
+    static const bool detach[] = { true, true, false };
 
-    int total = exclN + redirN + inclN;
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-    bool* itemDetach = (bool*) kaAlloc(&swRest.kalloc, total * sizeof(bool));
-    int   itemCount  = 0;
-    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+    LdDistOpEntry* items;
+    int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
+                                  swRest.serviceP->ldOp, "deleteAttrs",
+                                  entityId, /*perRi=*/true, entityId, attrIri,
+                                  errorsArrayP, &items);
 
-    for (int g = 0; g < 3; g++)
+    for (int i = 0; i < n; i++)
+      items[i].url = attrUrl(items[i].csr->endpoint, entityId, attrWild);
+
+    ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
+
+    for (int i = 0; i < n; i++)
     {
-      for (int i = 0; i < counts[g]; i++)
+      int sc = items[i].statusCode;
+      if (sc >= 200 && sc < 300)
       {
-        LdRegCacheItem* csr = groups[g][i];
-        if (csr->endpoint == NULL) continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-
-        bool matched = false;
-        for (LdRegInfo* riP = csr->infoV; riP != NULL && !matched; riP = riP->next)
-          if (entityInfoCoversId(riP, entityId) && infoCoversAttr(riP, attrIri))
-            matched = true;
-
-        if (!matched) continue;
-
-        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
-        {
-          if (!opConf[g]) continue;
-          char detail[256];
-          snprintf(detail, sizeof(detail),
-                   "%s registration does not support deleteAttrs", tag[g]);
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
-          continue;
-        }
-
-        items[itemCount].csr     = csr;
-        items[itemCount].url     = attrUrl(csr->endpoint, entityId, attrWild);
-        items[itemCount].body    = NULL;
-        items[itemCount].bodyLen = 0;
-        itemDetach[itemCount]    = detach[g];
-        itemCount++;
+        anySucceeded = true;
+        if (detach[items[i].modeIdx]) localApply = false;
       }
-    }
-
-    if (itemCount > 0)
-    {
-      ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
-
-      for (int i = 0; i < itemCount; i++)
-      {
-        int upCode = results[i].statusCode;
-        if (upCode >= 200 && upCode < 300)
-        {
-          anySucceeded = true;
-          if (itemDetach[i]) localApply = false;
-        }
-        else if (upCode != 404)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
-                                items[i].csr->regId);
-      }
+      else if (sc != 404)
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                              ldDistOpForwardFailureReason(sc, items[i].errorDetail),
+                              items[i].csr->regId);
     }
 
     if (exclV  != NULL) free(exclV);
