@@ -234,6 +234,13 @@ bool patchEntityAttr(void)
     bool             opConf[] = { true,        true,       false      };
     bool             detach[] = { true,        true,       false      };
 
+    int total = exclN + redirN + inclN;
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    bool* itemDetach = (bool*) kaAlloc(&swRest.kalloc, total * sizeof(bool));
+    int   itemCount  = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
@@ -247,8 +254,7 @@ bool patchEntityAttr(void)
           if (entityInfoCoversId(riP, entityId) && infoCoversAttr(riP, attrIri))
             matched = true;
 
-        if (!matched)
-          continue;
+        if (!matched) continue;
 
         if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
@@ -261,28 +267,38 @@ bool patchEntityAttr(void)
           continue;
         }
 
-        // Forward the raw attribute fragment body (still in API form under attrCopy).
-        // Build a fresh body object holding only the attribute fields.
         KjNode* fwdBody = kjObject(swRest.kjsonP, NULL);
         for (KjNode* c = attrCopy->value.firstChildP; c != NULL; c = c->next)
           kjChildAdd(fwdBody, c);
 
         char* bodyStr = renderBodyWithContext(fwdBody);
 
-        const char* upErr  = NULL;
-        int         upCode = ldDistOpSend(csr, SwVerbPatch,
-                                          attrUrl(csr->endpoint, entityId, attrWild),
-                                          bodyStr, strlen(bodyStr), ownAlias, &upErr);
+        items[itemCount].csr     = csr;
+        items[itemCount].url     = attrUrl(csr->endpoint, entityId, attrWild);
+        items[itemCount].body    = bodyStr;
+        items[itemCount].bodyLen = strlen(bodyStr);
+        itemDetach[itemCount]    = detach[g];
+        itemCount++;
+      }
+    }
 
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbPatch, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int upCode = results[i].statusCode;
         if (upCode >= 200 && upCode < 300)
         {
           anySucceeded = true;
-          if (detach[g]) localApply = false;
+          if (itemDetach[i]) localApply = false;
         }
         else if (upCode != 404)
           ldDistOpBatchErrorAdd(errorsArrayP, entityId,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, upErr), csr->regId);
+                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                items[i].csr->regId);
       }
     }
 

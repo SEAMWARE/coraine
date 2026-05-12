@@ -166,37 +166,78 @@ bool patchEntityTemporalInstance(void)
       int   fwdBodyLen = strlen(fwdBody);
 
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
+      LdRegCacheItem** matchV[3] = { NULL, NULL, NULL };
+      int              matchN[3] = { 0, 0, 0 };
+      int              total     = 0;
       for (int m = 0; m < 3; m++)
       {
-        LdRegCacheItem** matchV = NULL;
-        int matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
-                                                entityId, NULL, modes[m], &matchV);
+        matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
+                                               entityId, NULL, modes[m], &matchV[m]);
+        total += matchN[m];
+      }
 
-        for (int i = 0; i < matchN; i++)
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      int                  itemCount = 0;
+      memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+      for (int m = 0; m < 3; m++)
+      {
+        for (int i = 0; i < matchN[m]; i++)
         {
-          LdRegCacheItem* csr = matchV[i];
+          LdRegCacheItem* csr = matchV[m][i];
           if (csr->endpoint == NULL)                                  continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias))                    continue;
           if (!ldRegOpSupported(csr, LdOpUpdateAttrInstanceTemporal)) continue;
           if (!csrCoversAttr(csr, attrIri))                           continue;
 
-          const char* upErr  = NULL;
-          int         upCode = forwardPatchInstance(csr, entityId, attrWild, instanceId,
-                                                    fwdBody, fwdBodyLen, ownAlias, &upErr);
+          const char* prefix = "/ngsi-ld/v1/temporal/entities/";
+          const char* midSep = "/attrs/";
+          int baseLen = strlen(csr->endpoint);
+          int prefLen = strlen(prefix);
+          int idLen   = strlen(entityId);
+          int midLen  = strlen(midSep);
+          int atLen   = strlen(attrWild);
+          int inLen   = strlen(instanceId);
+          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
+          int pos = 0;
+          memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
+          memcpy(url + pos, prefix, prefLen);        pos += prefLen;
+          memcpy(url + pos, entityId, idLen);        pos += idLen;
+          memcpy(url + pos, midSep, midLen);         pos += midLen;
+          memcpy(url + pos, attrWild, atLen);        pos += atLen;
+          url[pos++] = '/';
+          memcpy(url + pos, instanceId, inLen);      pos += inLen;
+          url[pos] = 0;
 
-          if (upCode == 404)
-            continue;
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = url;
+          items[itemCount].body    = fwdBody;
+          items[itemCount].bodyLen = fwdBodyLen;
+          itemCount++;
+        }
+      }
+
+      if (itemCount > 0)
+      {
+        ldDistOpSendMulti(items, itemCount, SwVerbPatch, ownAlias, results);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          int upCode = results[i].statusCode;
+          if (upCode == 404) continue;
           if (upCode < 200 || upCode >= 300)
             ldDistOpBatchErrorAdd(errorsArrayP, entityId,
                                   LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                  ldDistOpForwardFailureReason(upCode, upErr),
-                                  csr->regId);
+                                  ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                  items[i].csr->regId);
           else
             anySucceeded = true;
         }
-
-        if (matchV != NULL) free(matchV);
       }
+
+      for (int m = 0; m < 3; m++)
+        if (matchV[m] != NULL) free(matchV[m]);
     }
   }
 

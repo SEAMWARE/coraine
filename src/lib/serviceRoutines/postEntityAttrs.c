@@ -356,6 +356,17 @@ bool postEntityAttrs(void)
     bool             detach[]  = { true,        true,       false      };
     bool             opConf[]  = { true,        true,       false      };
 
+    int total = 0;
+    for (int g = 0; g < 3; g++)
+      for (int i = 0; i < counts[g]; i++)
+        for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    KjNode**             itemFrag = (KjNode**) kaAlloc(&swRest.kalloc, total * sizeof(KjNode*));
+    int                  itemCount = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
@@ -368,17 +379,14 @@ bool postEntityAttrs(void)
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId))
-            continue;
+          if (!entityInfoCoversId(riP, entityId)) continue;
 
           KjNode* fragP = ldEntityFragmentForInfo(fragment, riP, swRest.kjsonP, detach[g]);
-          if (fragP == NULL)
-            continue;
+          if (fragP == NULL) continue;
 
           if (!opSupported)
           {
-            if (!opConf[g])
-              continue;  // inclusive silent-skip
+            if (!opConf[g]) continue;
             char reason[256];
             snprintf(reason, sizeof(reason),
                      "%s registration does not support appendAttrs", modeTag[g]);
@@ -386,26 +394,35 @@ bool postEntityAttrs(void)
             continue;
           }
 
-          // Render + forward
-          char*       body   = renderFragmentWithContext(fragP);
-          const char* upErr  = NULL;
-          int         upCode = ldDistOpSend(csr, SwVerbPost,
-                                            attrsUrl(csr->endpoint, entityId, noOverwrite),
-                                            body, strlen(body), ownAlias, &upErr);
+          char* body = renderFragmentWithContext(fragP);
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = attrsUrl(csr->endpoint, entityId, noOverwrite);
+          items[itemCount].body    = body;
+          items[itemCount].bodyLen = strlen(body);
+          itemFrag[itemCount]      = fragP;
+          itemCount++;
+        }
+      }
+    }
 
-          if (upCode >= 200 && upCode < 300)
-          {
-            anyCsrSucceeded = true;
-            recordFragmentAttrsUpdated(updatedP, fragP);
-          }
-          else if (upCode != 404)
-          {
-            char reason[256];
-            snprintf(reason, sizeof(reason), "%s",
-                     ldDistOpForwardFailureReason(upCode, upErr));
-            recordFragmentAttrsNotUpdated(notUpdatedP, fragP, reason, csr->regId);
-          }
-          // upCode == 404 tolerated silently
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int upCode = results[i].statusCode;
+        if (upCode >= 200 && upCode < 300)
+        {
+          anyCsrSucceeded = true;
+          recordFragmentAttrsUpdated(updatedP, itemFrag[i]);
+        }
+        else if (upCode != 404)
+        {
+          char reason[256];
+          snprintf(reason, sizeof(reason), "%s",
+                   ldDistOpForwardFailureReason(upCode, results[i].errorDetail));
+          recordFragmentAttrsNotUpdated(notUpdatedP, itemFrag[i], reason, items[i].csr->regId);
         }
       }
     }

@@ -285,6 +285,12 @@ bool purgeEntities(void)
     const char*      modeTag[]    = { "exclusive", "redirect", "inclusive" };
     bool             opConflict[] = { true,        true,       false      };
 
+    int total = exclN + redirN + inclN;
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    int                  itemCount = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
@@ -295,8 +301,7 @@ bool purgeEntities(void)
 
         if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {
-          if (!opConflict[g])
-            continue;
+          if (!opConflict[g]) continue;
           char detail[256];
           snprintf(detail, sizeof(detail),
                    "%s registration does not support purgeEntity", modeTag[g]);
@@ -305,17 +310,28 @@ bool purgeEntities(void)
           continue;
         }
 
-        const char* upErr  = NULL;
-        int         upCode = ldDistOpSend(csr, SwVerbDelete,
-                                          forwardUrl(csr->endpoint),
-                                          NULL, 0, ownAlias, &upErr);
+        items[itemCount].csr     = csr;
+        items[itemCount].url     = forwardUrl(csr->endpoint);
+        items[itemCount].body    = NULL;
+        items[itemCount].bodyLen = 0;
+        itemCount++;
+      }
+    }
 
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int upCode = results[i].statusCode;
         if (upCode >= 200 && upCode < 300)
-          kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, csr->regId));
+          kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, items[i].csr->regId));
         else if (upCode != 404)
-          ldDistOpBatchErrorAdd(errorsArrayP, csr->regId,
+          ldDistOpBatchErrorAdd(errorsArrayP, items[i].csr->regId,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, upErr), csr->regId);
+                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                items[i].csr->regId);
       }
     }
 

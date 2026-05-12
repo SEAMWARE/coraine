@@ -504,170 +504,118 @@ bool postEntities(void)
 
     if (exclN > 0 || redirN > 0 || inclN > 0)
     {
+      //
+      // Two-phase concurrent dispatch (§ 4.3.6 sequence: exclusive → redirect
+      // → inclusive). Phase 1 builds per-RegistrationInfo fragments, chops
+      // claimed attrs from entityP (exclusive/redirect, NOT inclusive), and
+      // pre-emits Conflict errors for unsupported-op cases. Phase 2 fires all
+      // forwards in parallel via swRestClientMulti; phase 3 walks results.
+      //
+      // The semantic order of chopping is preserved because phase 1 runs the
+      // same exclusive → redirect → inclusive sweep. The forwards themselves
+      // are mutually independent (different endpoints).
+      //
+      LdRegCacheItem** groups[]  = { exclV,  redirV,  inclV  };
+      int              counts[]  = { exclN,  redirN,  inclN  };
+      const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
+      bool             detach[]  = { true,   true,    false  };
+      bool             opConf[]  = { true,   true,    false  };
 
-      //
-      // Exclusive pass — per-CSR, per-RegistrationInfo.
-      //
-      // Each claimed fragment is chopped from entityP (§ 4.3.6.3:
-      // broker must not hold exclusive-claimed Attributes locally).
-      //
-      // - CSR supports createEntity → forward; on non-2xx, record each
-      //   claimed attr in notCreated so the client sees which source
-      //   refused and why.
-      // - CSR does NOT support createEntity → spec § 5.6.1.4 says this
-      //   is an "error of type Conflict ... or a partial success":
-      //   the chop stands (invariant wins), and every chopped attr is
-      //   recorded in notCreated with reason "createEntity not in
-      //   registration's operations". Combined with any other success
-      //   this becomes a 207; with no other success, a 409 Conflict.
-      //
-      for (int i = 0; i < exclN; i++)
+      int  total = 0;
+      for (int g = 0; g < 3; g++)
+        for (int i = 0; i < counts[g]; i++)
+          for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      KjNode**             itemFrag = (KjNode**) kaAlloc(&swRest.kalloc, total * sizeof(KjNode*));
+      int                  itemCount = 0;
+      memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+      const char* path    = "/ngsi-ld/v1/entities";
+      int         pathLen = strlen(path);
+
+      for (int g = 0; g < 3; g++)
       {
-        LdRegCacheItem* csr = exclV[i];
-        if (!csrGeoCoverEntity(csr, entityP)) continue;
-        if (csr->endpoint == NULL)
+        for (int i = 0; i < counts[g]; i++)
         {
-          ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                  "exclusive registration '%s' has no endpoint", csr->regId);
-          if (exclV  != NULL) free(exclV);
-          if (redirV != NULL) free(redirV);
-          if (inclV  != NULL) free(inclV);
-          return true;
-        }
-
-        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))
-          continue;
-
-        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
-
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-        {
-          if (!entityInfoCoversId(riP, entityId))
-            continue;
-
-          KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, true);
-          if (fragP == NULL)
-            continue;
-
-          if (!opSupported)
+          LdRegCacheItem* csr = groups[g][i];
+          if (!csrGeoCoverEntity(csr, entityP)) continue;
+          if (csr->endpoint == NULL)
           {
-            char detail[384];
-            snprintf(detail, sizeof(detail),
-                     "exclusive registration does not support createEntity; affected attributes: %s",
-                     fragmentShortAttrList(fragP));
-            appendBatchEntityError(errorsArrayP, entityId,
-                                   LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+            // Exclusive fail-fast (§ 4.3.6.3 invariant). Redirect/inclusive
+            // missing endpoint is just "skip" — endpoint=NULL means the CSR
+            // isn't usable as a forward target.
+            if (g == 0)
+            {
+              ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                      "exclusive registration '%s' has no endpoint", csr->regId);
+              if (exclV  != NULL) free(exclV);
+              if (redirV != NULL) free(redirV);
+              if (inclV  != NULL) free(inclV);
+              return true;
+            }
             continue;
           }
+          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
-          const char* upErr  = NULL;
-          int         upCode = forwardCreateEntity(csr, fragP, ownAlias, &upErr);
+          bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
-          if (upCode < 200 || upCode >= 300)
+          for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
           {
-            char detail[512];
-            snprintf(detail, sizeof(detail), "%s; affected attributes: %s",
-                     forwardFailureReason(upCode, upErr), fragmentShortAttrList(fragP));
-            appendBatchEntityError(errorsArrayP, entityId,
-                                   LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                   detail, csr->regId);
+            if (!entityInfoCoversId(riP, entityId)) continue;
+
+            KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, detach[g]);
+            if (fragP == NULL) continue;
+
+            if (!opSupported)
+            {
+              if (!opConf[g]) continue;   // inclusive silent-skip
+              char detail[384];
+              snprintf(detail, sizeof(detail),
+                       "%s registration does not support createEntity; affected attributes: %s",
+                       modeTag[g], fragmentShortAttrList(fragP));
+              appendBatchEntityError(errorsArrayP, entityId,
+                                     LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+              continue;
+            }
+
+            int   baseLen = strlen(csr->endpoint);
+            char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
+            strcpy(url, csr->endpoint);
+            strcpy(url + baseLen, path);
+
+            char* body = renderFragmentWithContext(fragP);
+
+            items[itemCount].csr     = csr;
+            items[itemCount].url     = url;
+            items[itemCount].body    = body;
+            items[itemCount].bodyLen = strlen(body);
+            itemFrag[itemCount]      = fragP;
+            itemCount++;
           }
-          else
-            anySucceeded = true;
-        }
-      }
-
-      //
-      // Redirect pass — each CSR independent; attrs chopped per fragment.
-      // Failures become BatchEntityError entries just like exclusive.
-      //
-      for (int i = 0; i < redirN; i++)
-      {
-        LdRegCacheItem* csr = redirV[i];
-        if (!csrGeoCoverEntity(csr, entityP)) continue;
-        if (csr->endpoint == NULL)    continue;
-
-        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))
-          continue;
-
-        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
-
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-        {
-          if (!entityInfoCoversId(riP, entityId))
-            continue;
-
-          KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, true);
-          if (fragP == NULL)
-            continue;
-
-          if (!opSupported)
-          {
-            char detail[384];
-            snprintf(detail, sizeof(detail),
-                     "redirect registration does not support createEntity; affected attributes: %s",
-                     fragmentShortAttrList(fragP));
-            appendBatchEntityError(errorsArrayP, entityId,
-                                   LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
-            continue;
-          }
-
-          const char* upErr  = NULL;
-          int         upCode = forwardCreateEntity(csr, fragP, ownAlias, &upErr);
-
-          if (upCode < 200 || upCode >= 300)
-          {
-            char detail[512];
-            snprintf(detail, sizeof(detail), "%s; affected attributes: %s",
-                     forwardFailureReason(upCode, upErr), fragmentShortAttrList(fragP));
-            appendBatchEntityError(errorsArrayP, entityId,
-                                   LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                   detail, csr->regId);
-          }
-          else
-            anySucceeded = true;
         }
       }
 
-      //
-      // Inclusive pass — forward each, KEEP attrs on entityP for local store.
-      // Inclusive failures still become BatchEntityError entries — the remote
-      // copy didn't land even though the local copy will — so the client
-      // can see per-source divergence.
-      //
-      for (int i = 0; i < inclN; i++)
+      if (itemCount > 0)
       {
-        LdRegCacheItem* csr = inclV[i];
-        if (!csrGeoCoverEntity(csr, entityP)) continue;
-        if (csr->endpoint == NULL)                   continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))     continue;  // § 5.12 proactive
-        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp)) continue;
+        ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
 
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+        for (int i = 0; i < itemCount; i++)
         {
-          if (!entityInfoCoversId(riP, entityId))
-            continue;
-
-          KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, false);
-          if (fragP == NULL)
-            continue;
-
-          const char* upErr  = NULL;
-          int         upCode = forwardCreateEntity(csr, fragP, ownAlias, &upErr);
-
-          if (upCode < 200 || upCode >= 300)
+          int upCode = results[i].statusCode;
+          if (upCode >= 200 && upCode < 300)
+            anySucceeded = true;
+          else
           {
             char detail[512];
             snprintf(detail, sizeof(detail), "%s; affected attributes: %s",
-                     forwardFailureReason(upCode, upErr), fragmentShortAttrList(fragP));
+                     forwardFailureReason(upCode, results[i].errorDetail),
+                     fragmentShortAttrList(itemFrag[i]));
             appendBatchEntityError(errorsArrayP, entityId,
                                    LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                   detail, csr->regId);
+                                   detail, items[i].csr->regId);
           }
-          else
-            anySucceeded = true;
         }
       }
 

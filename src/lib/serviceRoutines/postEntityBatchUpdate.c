@@ -750,61 +750,95 @@ bool postEntityBatchUpdate(void)
   }
 
   //
-  // Pass 3 — synchronous distops forward, one POST /entityOperations/update
-  // per accumulating CSR.
+  // Pass 3 — concurrent distops forward, one POST /entityOperations/update
+  // per accumulating CSR, all in flight at once via ldDistOpSendMulti.
   //
-  for (int ai = 0; ai < csrAccumsN; ai++)
   {
-    CsrAccum* a   = &csrAccums[ai];
-    LdRegCacheItem* csr = a->csr;
+    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
+    int                  bIdx[csrAccumsN];   // map batch index → csrAccums index
+    int                  bCount   = 0;
+    memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
 
-    if (a->count == 0)
-      continue;
+    const char* batchPath = "/ngsi-ld/v1/entityOperations/update";
+    int         batchPathLen = strlen(batchPath);
 
-    if (!ldRegOpSupported(csr, LdOpBatchUpdate))
+    for (int ai = 0; ai < csrAccumsN; ai++)
     {
-      if (a->mode == LdRegModeExclusive || a->mode == LdRegModeRedirect)
+      CsrAccum* a   = &csrAccums[ai];
+      LdRegCacheItem* csr = a->csr;
+
+      if (a->count == 0) continue;
+
+      if (!ldRegOpSupported(csr, LdOpBatchUpdate))
       {
-        const char* detail = (a->mode == LdRegModeExclusive)
-                             ? "exclusive registration does not support updateBatch"
-                             : "redirect registration does not support updateBatch";
-        for (int i = 0; i < a->count; i++)
-          addBatchError(errorsP, a->idV[i],
-                        LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+        if (a->mode == LdRegModeExclusive || a->mode == LdRegModeRedirect)
+        {
+          const char* detail = (a->mode == LdRegModeExclusive)
+                               ? "exclusive registration does not support updateBatch"
+                               : "redirect registration does not support updateBatch";
+          for (int i = 0; i < a->count; i++)
+            addBatchError(errorsP, a->idV[i],
+                          LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+        }
+        continue;
       }
-      // Inclusive + no updateBatch: silent skip — local already has it.
-      continue;
+
+      KjNode* batchArr = kjArray(swRest.kjsonP, NULL);
+      for (int i = 0; i < a->count; i++)
+        kjChildAdd(batchArr, a->fragV[i]);
+
+      int   baseLen = strlen(csr->endpoint);
+      char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + batchPathLen + 1);
+      strcpy(url, csr->endpoint);
+      strcpy(url + baseLen, batchPath);
+
+      char* body = renderBatchBody(csr, batchArr);
+
+      bItems[bCount].csr     = csr;
+      bItems[bCount].url     = url;
+      bItems[bCount].body    = body;
+      bItems[bCount].bodyLen = strlen(body);
+      bIdx[bCount]           = ai;
+      bCount++;
     }
 
-    //
-    // Build the KjArray body from the accumulated fragments.
-    //
-    KjNode* batchArr = kjArray(swRest.kjsonP, NULL);
-    for (int i = 0; i < a->count; i++)
-      kjChildAdd(batchArr, a->fragV[i]);
-
-    KjNode* respTreeP = NULL;
-    int     status    = forwardBatchToCSR(csr, batchArr, ownAlias, &respTreeP);
-
-    bool* groupOk = (bool*) kaAlloc(&swRest.kalloc, sizeof(bool) * a->count);
-    for (int k = 0; k < a->count; k++) groupOk[k] = false;
-
-    applyRemoteBatchResult(status, respTreeP, csr->regId, errorsP,
-                           groupOk, a->idV, a->count);
-
-    //
-    // Map the per-fragment groupOk back to the top-level anySuccessV[gi]
-    // by entity id.
-    //
-    for (int k = 0; k < a->count; k++)
+    if (bCount > 0)
     {
-      if (!groupOk[k]) continue;
-      for (int gi = 0; gi < gN; gi++)
+      ldDistOpSendMulti(bItems, bCount, SwVerbPost, ownAlias, bResults);
+
+      for (int bi = 0; bi < bCount; bi++)
       {
-        if (strcmp(allIdV[gi], a->idV[k]) == 0)
+        CsrAccum* a = &csrAccums[bIdx[bi]];
+
+        KjNode* respTreeP = NULL;
+        if (bResults[bi].responseBody != NULL && bResults[bi].responseBodyLen > 0)
         {
-          anySuccessV[gi] = true;
-          break;
+          KjNode* treeP = kjParse(swRest.kjsonP, bResults[bi].responseBody);
+          if (treeP != NULL)
+          {
+            ldStripAtContext(treeP);
+            respTreeP = treeP;
+          }
+        }
+
+        bool* groupOk = (bool*) kaAlloc(&swRest.kalloc, sizeof(bool) * a->count);
+        for (int k = 0; k < a->count; k++) groupOk[k] = false;
+
+        applyRemoteBatchResult(bResults[bi].statusCode, respTreeP, bItems[bi].csr->regId,
+                               errorsP, groupOk, a->idV, a->count);
+
+        for (int k = 0; k < a->count; k++)
+        {
+          if (!groupOk[k]) continue;
+          for (int gi = 0; gi < gN; gi++)
+          {
+            if (strcmp(allIdV[gi], a->idV[k]) == 0)
+            {
+              anySuccessV[gi] = true;
+              break;
+            }
+          }
         }
       }
     }

@@ -161,17 +161,34 @@ bool postEntityTemporalAttrs(void)
     if (!loopSeen)
     {
       LdRegMode modes[]      = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
-      bool      detachOnMode[] = { true, true, false };  // excl/redir chop; incl clones
+      bool      detachOnMode[] = { true, true, false };
+
+      LdRegCacheItem** matchV[3] = { NULL, NULL, NULL };
+      int              matchN[3] = { 0, 0, 0 };
+      int              total     = 0;
+      for (int m = 0; m < 3; m++)
+      {
+        matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
+                                               entityId, NULL, modes[m], &matchV[m]);
+        total += matchN[m];
+      }
+
+      // upper-bound: total CSRs × max riP per CSR; allocate per riP encountered
+      int riCap = 0;
+      for (int m = 0; m < 3; m++)
+        for (int i = 0; i < matchN[m]; i++)
+          for (LdRegInfo* riP = matchV[m][i]->infoV; riP != NULL; riP = riP->next) riCap++;
+
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, riCap * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, riCap * sizeof(LdDistOpBatchResult));
+      int                  itemCount = 0;
+      memset(results, 0, riCap * sizeof(LdDistOpBatchResult));
 
       for (int m = 0; m < 3; m++)
       {
-        LdRegCacheItem** matchV = NULL;
-        int matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
-                                                entityId, NULL, modes[m], &matchV);
-
-        for (int i = 0; i < matchN; i++)
+        for (int i = 0; i < matchN[m]; i++)
         {
-          LdRegCacheItem* csr = matchV[i];
+          LdRegCacheItem* csr = matchV[m][i];
           if (csr->endpoint == NULL)                          continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias))            continue;
 
@@ -193,21 +210,49 @@ bool postEntityTemporalAttrs(void)
               continue;
             }
 
-            const char* upErr  = NULL;
-            int         upCode = forwardAppendAttrs(csr, entityId, fragP, ownAlias, &upErr);
+            const char* prefix = "/ngsi-ld/v1/temporal/entities/";
+            const char* suffix = "/attrs";
+            int baseLen = strlen(csr->endpoint);
+            int prefLen = strlen(prefix);
+            int idLen   = strlen(entityId);
+            int sufLen  = strlen(suffix);
+            char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + sufLen + 1);
+            int pos = 0;
+            memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
+            memcpy(url + pos, prefix, prefLen);        pos += prefLen;
+            memcpy(url + pos, entityId, idLen);        pos += idLen;
+            memcpy(url + pos, suffix, sufLen);         pos += sufLen;
+            url[pos] = 0;
+            char* body = renderFragmentWithContext(fragP);
 
-            if (upCode < 200 || upCode >= 300)
-              ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                    LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                    ldDistOpForwardFailureReason(upCode, upErr),
-                                    csr->regId);
-            else
-              anySucceeded = true;
+            items[itemCount].csr     = csr;
+            items[itemCount].url     = url;
+            items[itemCount].body    = body;
+            items[itemCount].bodyLen = strlen(body);
+            itemCount++;
           }
         }
-
-        if (matchV != NULL) free(matchV);
       }
+
+      if (itemCount > 0)
+      {
+        ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          int upCode = results[i].statusCode;
+          if (upCode < 200 || upCode >= 300)
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                  ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                  items[i].csr->regId);
+          else
+            anySucceeded = true;
+        }
+      }
+
+      for (int m = 0; m < 3; m++)
+        if (matchV[m] != NULL) free(matchV[m]);
     }
   }
 

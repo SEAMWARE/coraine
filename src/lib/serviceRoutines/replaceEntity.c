@@ -321,34 +321,36 @@ bool replaceEntity(void)
     bool             detach[]  = { true,        true,       false      };
     bool             opConf[]  = { true,        true,       false      };
 
+    int total = 0;
+    for (int g = 0; g < 3; g++)
+      for (int i = 0; i < counts[g]; i++)
+        for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    int                  itemCount = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
       {
         LdRegCacheItem* csr = groups[g][i];
-        if (csr->endpoint == NULL)
-          continue;
-
-        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))
-          continue;
+        if (csr->endpoint == NULL) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
         bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId))
-            continue;
+          if (!entityInfoCoversId(riP, entityId)) continue;
 
           KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, detach[g]);
-          if (fragP == NULL)
-            continue;  // nothing in body matches this CSR's claim — skip
+          if (fragP == NULL) continue;
 
           if (!opSupported)
           {
-            if (!opConf[g])
-              continue;
-
+            if (!opConf[g]) continue;
             char detail[256];
             snprintf(detail, sizeof(detail),
                      "%s registration does not support replaceEntity", modeTag[g]);
@@ -357,20 +359,30 @@ bool replaceEntity(void)
             continue;
           }
 
-          const char* upErr  = NULL;
-          int         upCode = forwardReplaceEntity(csr, fragP, entityId, ownAlias, &upErr);
-
-          // 2xx = remote applied the replace.
-          // 404 = remote never had the entity; not a success, not an
-          //       error either — consistent with delete/merge handling.
-          // Anything else → BatchEntityError.
-          if (upCode >= 200 && upCode < 300)
-            anySucceeded = true;
-          else if (upCode != 404)
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                  ldDistOpForwardFailureReason(upCode, upErr), csr->regId);
+          char* body = renderFragmentWithContext(fragP);
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = replaceUrl(csr->endpoint, entityId);
+          items[itemCount].body    = body;
+          items[itemCount].bodyLen = strlen(body);
+          itemCount++;
         }
+      }
+    }
+
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbPut, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int upCode = results[i].statusCode;
+        if (upCode >= 200 && upCode < 300)
+          anySucceeded = true;
+        else if (upCode != 404)
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                items[i].csr->regId);
       }
     }
 

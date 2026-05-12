@@ -218,6 +218,13 @@ bool deleteEntityAttr(void)
     bool             opConf[] = { true,        true,       false      };
     bool             detach[] = { true,        true,       false      };
 
+    int total = exclN + redirN + inclN;
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    bool* itemDetach = (bool*) kaAlloc(&swRest.kalloc, total * sizeof(bool));
+    int   itemCount  = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
@@ -244,20 +251,32 @@ bool deleteEntityAttr(void)
           continue;
         }
 
-        const char* upErr  = NULL;
-        int         upCode = ldDistOpSend(csr, SwVerbDelete,
-                                          attrUrl(csr->endpoint, entityId, attrWild),
-                                          NULL, 0, ownAlias, &upErr);
+        items[itemCount].csr     = csr;
+        items[itemCount].url     = attrUrl(csr->endpoint, entityId, attrWild);
+        items[itemCount].body    = NULL;
+        items[itemCount].bodyLen = 0;
+        itemDetach[itemCount]    = detach[g];
+        itemCount++;
+      }
+    }
 
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int upCode = results[i].statusCode;
         if (upCode >= 200 && upCode < 300)
         {
           anySucceeded = true;
-          if (detach[g]) localApply = false;
+          if (itemDetach[i]) localApply = false;
         }
         else if (upCode != 404)
           ldDistOpBatchErrorAdd(errorsArrayP, entityId,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, upErr), csr->regId);
+                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                items[i].csr->regId);
       }
     }
 

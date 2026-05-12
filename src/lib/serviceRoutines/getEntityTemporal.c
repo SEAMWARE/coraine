@@ -408,78 +408,100 @@ bool getEntityTemporal(void)
   {
     const char* fwdQuery = buildTemporalForwardQuery(&swRest.kalloc);
 
-    // Exclusive (§ 4.3.6.3): strip locally-registered attrs, single source.
-    for (int i = 0; i < exclN; i++)
+    // Pre-strip excl/redir locally-registered attrs (§ 4.3.6.3) regardless
+    // of forward outcome — claim invariant wins.
+    LdRegCacheItem** stripV[2] = { exclV, redirV };
+    int              stripN[2] = { exclN, redirN };
+    for (int g = 0; g < 2; g++)
     {
-      LdRegCacheItem* csr = exclV[i];
-      if (csr->endpoint == NULL || !ldRegOpSupported(csr, LdOpRetrieveTemporal)) continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      for (int i = 0; i < stripN[g]; i++)
       {
-        if (result != NULL) stripInfoAttrsFromTemporal(result, riP);
-        KjNode*     upP   = NULL;
-        const char* upErr = NULL;
-        int code = forwardTemporalAndParse(csr, entityId, fwdQuery, ownAlias, &upP, &upErr);
-        if (code == 404 || upP == NULL) continue;
+        LdRegCacheItem* csr = stripV[g][i];
+        if (csr->endpoint == NULL || !ldRegOpSupported(csr, LdOpRetrieveTemporal)) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+        if (result == NULL) continue;
+        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+          stripInfoAttrsFromTemporal(result, riP);
+      }
+    }
+
+    LdRegCacheItem** groups[]  = { exclV, redirV, inclV, auxV };
+    int              counts[]  = { exclN, redirN, inclN, auxN };
+    // exclusive/redirect: per-riP forward (riP loop body); inclusive/aux:
+    // one forward per CSR (break after first matching riP).
+    bool             oncePerCsr[] = { false, false, true, true };
+
+    int total = 0;
+    for (int g = 0; g < 4; g++)
+      for (int i = 0; i < counts[g]; i++)
+      {
+        if (oncePerCsr[g]) { total++; continue; }
+        for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+      }
+
+    LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    int*                 itemGroup = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
+    int                  itemCount = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+    const char* tpath = "/ngsi-ld/v1/temporal/entities/";
+    int qsLen = (fwdQuery != NULL && fwdQuery[0] != 0) ? (int) strlen(fwdQuery) : 0;
+
+    for (int g = 0; g < 4; g++)
+    {
+      for (int i = 0; i < counts[g]; i++)
+      {
+        LdRegCacheItem* csr = groups[g][i];
+        if (csr->endpoint == NULL || !ldRegOpSupported(csr, LdOpRetrieveTemporal)) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+
+        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+        {
+          (void) riP;
+          int baseLen = strlen(csr->endpoint);
+          int pathLen = strlen(tpath);
+          int idLen   = strlen(entityId);
+          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1 + qsLen + 1);
+          strcpy(url, csr->endpoint);
+          strcpy(url + baseLen, tpath);
+          strcpy(url + baseLen + pathLen, entityId);
+          if (qsLen > 0)
+          {
+            url[baseLen + pathLen + idLen] = '?';
+            strcpy(url + baseLen + pathLen + idLen + 1, fwdQuery);
+          }
+
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = url;
+          items[itemCount].body    = NULL;
+          items[itemCount].bodyLen = 0;
+          itemGroup[itemCount]     = g;
+          itemCount++;
+
+          if (oncePerCsr[g]) break;
+        }
+      }
+    }
+
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int code = results[i].statusCode;
         if (code < 200 || code >= 300) continue;
-        if (result == NULL) result = upP;
-        else                mergeTemporalInto(result, upP, false);
-      }
-    }
+        if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
-    // Redirect (§ 4.3.6.3): strip + forward + merge.
-    for (int i = 0; i < redirN; i++)
-    {
-      LdRegCacheItem* csr = redirV[i];
-      if (csr->endpoint == NULL || !ldRegOpSupported(csr, LdOpRetrieveTemporal)) continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-      {
-        if (result != NULL) stripInfoAttrsFromTemporal(result, riP);
-        KjNode*     upP   = NULL;
-        const char* upErr = NULL;
-        int code = forwardTemporalAndParse(csr, entityId, fwdQuery, ownAlias, &upP, &upErr);
-        if (code < 200 || code >= 300 || upP == NULL) continue;
-        if (result == NULL) result = upP;
-        else                mergeTemporalInto(result, upP, false);
-      }
-    }
+        KjNode* upP = kjParse(swRest.kjsonP, results[i].responseBody);
+        if (upP == NULL) continue;
+        swldExpandTree(upP, swNgsild.contextP, &swRest.kalloc);
+        ldStripAtContext(upP);
 
-    // Inclusive: forward + merge (no strip).
-    for (int i = 0; i < inclN; i++)
-    {
-      LdRegCacheItem* csr = inclV[i];
-      if (csr->endpoint == NULL || !ldRegOpSupported(csr, LdOpRetrieveTemporal)) continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-      {
-        (void) riP;  // inclusive doesn't need per-RegistrationInfo URL constraints
-        KjNode*     upP   = NULL;
-        const char* upErr = NULL;
-        int code = forwardTemporalAndParse(csr, entityId, fwdQuery, ownAlias, &upP, &upErr);
-        if (code < 200 || code >= 300 || upP == NULL) continue;
+        bool keepOnlyMissing = (itemGroup[i] == 3);
         if (result == NULL) result = upP;
-        else                mergeTemporalInto(result, upP, false);
-        break;  // one fetch per CSR is enough for inclusive (the CSR's response covers all its registered attrs)
-      }
-    }
-
-    // Auxiliary (§ 4.3.6.2): fill gaps only — never overrides.
-    for (int i = 0; i < auxN; i++)
-    {
-      LdRegCacheItem* csr = auxV[i];
-      if (csr->endpoint == NULL || !ldRegOpSupported(csr, LdOpRetrieveTemporal)) continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-      {
-        (void) riP;
-        KjNode*     upP   = NULL;
-        const char* upErr = NULL;
-        int code = forwardTemporalAndParse(csr, entityId, fwdQuery, ownAlias, &upP, &upErr);
-        if (code < 200 || code >= 300 || upP == NULL) continue;
-        if (result == NULL) result = upP;
-        else                mergeTemporalInto(result, upP, true);
-        break;
+        else                mergeTemporalInto(result, upP, keepOnlyMissing);
       }
     }
   }

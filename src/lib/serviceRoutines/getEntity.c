@@ -447,34 +447,15 @@ static const char* buildInfoPickParam(LdRegInfo* riP, KAlloc* kaP)
 
 
 
-// forwardAndParse - forward retrieveEntity for ONE RegistrationInfo entry
+// buildForwardUrl - compose retrieveEntity URL for one (csr, riP) pair
 //
-// Each RegistrationInfo within a CSR is a separate dispatch unit — its own
-// (type, attr-set) coverage area. The forwarded URL is constrained to that
-// entry's attrs via &pick= and optionally &type= from the matching EntityInfo.
-//
-static int forwardAndParse(LdRegCacheItem* csr,
-                           LdRegInfo*       riP,
-                           const char*      entityId,
-                           const char*      ownAlias,
-                           KjNode**         upstreamPP,
-                           const char**     errorDetailPP)
+static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId)
 {
-  *upstreamPP    = NULL;
-  *errorDetailPP = NULL;
-
-  //
-  // Build URL: <endpoint>/ngsi-ld/v1/entities/<entityId>?sysAttrs=true[&type=X][&pick=a,b,c]
-  // CSR endpoint is host+port only per spec § 5.2.9 example C.3; broker
-  // appends the standard NGSI-LD API path.
-  //
   const char* base = csr->endpoint;
   const char* path = "/ngsi-ld/v1/entities/";
   const char* qs   = "?sysAttrs=true";
   const char* pick = buildInfoPickParam(riP, &swRest.kalloc);
 
-  // Type constraint: use the EntityInfo's type that matched (not the client's
-  // ?type= param) — this is what the registration covers.
   const char* typePart = "";
   if (riP->entityInfoV != NULL && riP->entityInfoV->type != NULL)
   {
@@ -501,51 +482,36 @@ static int forwardAndParse(LdRegCacheItem* csr,
   strcpy(url + baseLen + pathLen + idLen, qs);
   strcpy(url + baseLen + pathLen + idLen + qsLen, typePart);
   strcpy(url + baseLen + pathLen + idLen + qsLen + typeLen, pick);
+  return url;
+}
 
-  //
-  // Send — all header composition, counter updates, transport handling
-  // delegated to ldDistOpSendReceive.
-  //
-  char* respBody    = NULL;
-  int   respBodyLen = 0;
 
-  int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
-                                   errorDetailPP, &respBody, &respBodyLen);
 
-  if (status == 502)
-    return 502;
-
-  if (status < 200 || status >= 300)
-    return status;
-
+// parseUpstreamBody - shape a 2xx upstream body into our storage form
+//
+// Returns NULL on parse failure (errorDetail set), otherwise the parsed
+// tree ready for merging. Caller has already ruled out non-2xx codes.
+//
+static KjNode* parseUpstreamBody(const char* respBody, int respBodyLen, const char** errorDetailPP)
+{
   if (respBody == NULL || respBodyLen == 0)
   {
     *errorDetailPP = "empty body in upstream 2xx response";
-    return 502;
+    return NULL;
   }
 
   KjNode* treeP = kjParse(swRest.kjsonP, respBody);
   if (treeP == NULL)
   {
     *errorDetailPP = "upstream returned malformed JSON";
-    return 502;
+    return NULL;
   }
 
   swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
   ldStripAtContext(treeP);
-
-  // Convert upstream's API form into the storage format the renderHook
-  // (ldEntityToApi) expects, so the merge result can flow through the
-  // normal output pipeline.
   apiAttrToStorageWrap(treeP, swRest.kjsonP);
-
-  // § 4.5.5.2 — entity-level expiresAt cascades to each Attribute, with
-  // attr-level values further in the future being shortened to the
-  // entity-level value.
   ldExpiresAtPropagate(treeP);
-
-  *upstreamPP = treeP;
-  return status;
+  return treeP;
 }
 
 
@@ -648,106 +614,112 @@ bool getEntity(void)
       // type. This avoids overquerying (§ 4.3.6.1).
       //
 
-      // --- Exclusive (§ 4.3.6.3): strip local + forward, single source ---
+      //
+      // Batched fan-out over all four groups. Each (csr, riP) pair becomes
+      // one item; results processed in original (excl → redir → incl → aux)
+      // order so the local-strip + merge semantics match the sequential
+      // implementation. Exclusive non-2xx still raises a 502 — checked
+      // post-fact via the per-item group tag.
+      //
+      LdRegCacheItem** groups[]  = { exclV, redirV, inclV, auxV };
+      int              counts[]  = { exclN, redirN, inclN, auxN };
+      bool             stripG[]  = { true,  true,   false, false };
+
+      // Exclusive endpoint check: fail-fast 502 BEFORE we batch (the
+      // sequential code did this; preserving that semantic).
       for (int i = 0; i < exclN; i++)
       {
-        LdRegCacheItem* csr = exclV[i];
-        if (csr->endpoint == NULL)
+        if (exclV[i]->endpoint == NULL)
         {
           ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                  "exclusive registration '%s' has no endpoint", csr->regId);
+                  "exclusive registration '%s' has no endpoint", exclV[i]->regId);
           if (exclV  != NULL) free(exclV);
           if (redirV != NULL) free(redirV);
           if (inclV  != NULL) free(inclV);
           if (auxV   != NULL) free(auxV);
           return true;
         }
-        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))
-          continue;
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      }
+
+      int total = 0;
+      for (int g = 0; g < 4; g++)
+        for (int i = 0; i < counts[g]; i++)
+          for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      int*                 itemGroup = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
+      LdRegInfo**          itemRiP   = (LdRegInfo**)          kaAlloc(&swRest.kalloc, total * sizeof(LdRegInfo*));
+      int                  itemCount = 0;
+      memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+      for (int g = 0; g < 4; g++)
+      {
+        for (int i = 0; i < counts[g]; i++)
         {
-          if (!infoEntryMatchesEntity(riP, entityId))
-            continue;
-          if (destP != NULL)
+          LdRegCacheItem* csr = groups[g][i];
+          if (csr->endpoint == NULL) continue;
+          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+
+          for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+          {
+            if (!infoEntryMatchesEntity(riP, entityId)) continue;
+
+            items[itemCount].csr     = csr;
+            items[itemCount].url     = buildForwardUrl(csr, riP, entityId);
+            items[itemCount].body    = NULL;
+            items[itemCount].bodyLen = 0;
+            itemGroup[itemCount]     = g;
+            itemRiP[itemCount]       = riP;
+            itemCount++;
+          }
+        }
+      }
+
+      if (itemCount > 0)
+      {
+        ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          int        g      = itemGroup[i];
+          LdRegInfo* riP    = itemRiP[i];
+          int        upCode = results[i].statusCode;
+
+          // Local-strip for excl/redir happens regardless of forward outcome —
+          // their CSRs claim these attrs, and the local copy must not keep
+          // them (§ 4.3.6.3). Apply the strip BEFORE merging the upstream.
+          if (stripG[g] && destP != NULL)
             stripInfoAttrsFromLocal(destP, riP);
-          KjNode*     upP    = NULL;
-          const char* upErr  = NULL;
-          int         upCode = forwardAndParse(csr, riP, entityId, ownAlias, &upP, &upErr);
-          if (upCode == 404) continue;
+
+          if (upCode == 404 && g == 0) continue;  // exclusive: 404 tolerated
           if (upCode < 200 || upCode >= 300)
           {
-            if (upErr) ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", upErr);
-            else       ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", upCode);
-            if (exclV  != NULL) free(exclV);
-            if (redirV != NULL) free(redirV);
-            if (inclV  != NULL) free(inclV);
-            if (auxV   != NULL) free(auxV);
-            return true;
+            if (g == 0)
+            {
+              // Exclusive non-2xx (except 404) → abort
+              const char* upErr = results[i].errorDetail;
+              if (upErr) ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", upErr);
+              else       ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", upCode);
+              if (exclV  != NULL) free(exclV);
+              if (redirV != NULL) free(redirV);
+              if (inclV  != NULL) free(inclV);
+              if (auxV   != NULL) free(auxV);
+              return true;
+            }
+            continue;  // redir/incl/aux: tolerate failures
           }
-          if (destP == NULL) destP = upP;
-          else               mergeOneSourceInto(destP, upP, nowNs);
-        }
-      }
 
-      // --- Redirect (§ 4.3.6.3): strip local + forward each, merge ---
-      for (int i = 0; i < redirN; i++)
-      {
-        LdRegCacheItem* csr = redirV[i];
-        if (csr->endpoint == NULL) continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;  // § 5.12 proactive
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-        {
-          if (!infoEntryMatchesEntity(riP, entityId))
-            continue;
-          if (destP != NULL)
-            stripInfoAttrsFromLocal(destP, riP);
-          KjNode*     upP    = NULL;
-          const char* upErr  = NULL;
-          int         upCode = forwardAndParse(csr, riP, entityId, ownAlias, &upP, &upErr);
-          if (upCode < 200 || upCode >= 300 || upP == NULL) continue;
-          if (destP == NULL) destP = upP;
-          else               mergeOneSourceInto(destP, upP, nowNs);
-        }
-      }
+          const char* upErr2 = NULL;
+          KjNode* upP = parseUpstreamBody(results[i].responseBody, results[i].responseBodyLen, &upErr2);
+          if (upP == NULL) continue;
 
-      // --- Inclusive: forward each, merge per § 4.5.5.3 ---
-      for (int i = 0; i < inclN; i++)
-      {
-        LdRegCacheItem* csr = inclV[i];
-        if (csr->endpoint == NULL) continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;  // § 5.12 proactive
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-        {
-          if (!infoEntryMatchesEntity(riP, entityId))
-            continue;
-          KjNode*     upP    = NULL;
-          const char* upErr  = NULL;
-          int         upCode = forwardAndParse(csr, riP, entityId, ownAlias, &upP, &upErr);
-          (void) upErr;
-          if (upCode < 200 || upCode >= 300 || upP == NULL) continue;
-          if (destP == NULL) destP = upP;
-          else               mergeOneSourceInto(destP, upP, nowNs);
-        }
-      }
-
-      // --- Auxiliary (§ 4.3.6.2): fill gaps only, never overrides ---
-      for (int i = 0; i < auxN; i++)
-      {
-        LdRegCacheItem* csr = auxV[i];
-        if (csr->endpoint == NULL) continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;  // § 5.12 proactive
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-        {
-          if (!infoEntryMatchesEntity(riP, entityId))
-            continue;
-          KjNode*     upP    = NULL;
-          const char* upErr  = NULL;
-          int         upCode = forwardAndParse(csr, riP, entityId, ownAlias, &upP, &upErr);
-          (void) upErr;
-          if (upCode < 200 || upCode >= 300 || upP == NULL) continue;
-          if (destP == NULL) destP = upP;
-          else               mergeAuxiliaryInto(destP, upP);
+          if (destP == NULL)
+            destP = upP;
+          else if (g == 3)
+            mergeAuxiliaryInto(destP, upP);
+          else
+            mergeOneSourceInto(destP, upP, nowNs);
         }
       }
 

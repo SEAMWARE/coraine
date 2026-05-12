@@ -482,8 +482,21 @@ static void dispatchOneMode(Tenant*       tenantP,
   }
 
   //
-  // Per CSR: build and forward one batch.
+  // Phase 1: build per-CSR batch bodies (skip unsupported-op groups, emit
+  // Conflict errors when relevant). Phase 2: ldDistOpSendMulti across all
+  // supported groups in parallel. Phase 3: apply each per-CSR result.
   //
+  LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, gN * sizeof(LdDistOpBatchItem));
+  LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, gN * sizeof(LdDistOpBatchResult));
+  const char***        bFwdIdV  = (const char***)        kaAlloc(&swRest.kalloc, gN * sizeof(const char**));
+  int**                bFwdOrig = (int**)                kaAlloc(&swRest.kalloc, gN * sizeof(int*));
+  int*                 bFwdN    = (int*)                 kaAlloc(&swRest.kalloc, gN * sizeof(int));
+  int                  bItemCount = 0;
+  memset(bResults, 0, gN * sizeof(LdDistOpBatchResult));
+
+  const char* batchPath = "/ngsi-ld/v1/entityOperations/create";
+  int         batchPathLen = strlen(batchPath);
+
   for (int gi = 0; gi < gN; gi++)
   {
     Group* g = &groups[gi];
@@ -512,10 +525,10 @@ static void dispatchOneMode(Tenant*       tenantP,
       continue;
     }
 
-    KjNode* batchArr = kjArray(swRest.kjsonP, NULL);
-    const char** forwardedIdV = (const char**) kaAlloc(&swRest.kalloc, sizeof(char*) * g->count);
-    int*         forwardedOrigIdx = (int*)   kaAlloc(&swRest.kalloc, sizeof(int)   * g->count);
-    int          forwardedN = 0;
+    KjNode*      batchArr      = kjArray(swRest.kjsonP, NULL);
+    const char** forwardedIdV  = (const char**) kaAlloc(&swRest.kalloc, sizeof(char*) * g->count);
+    int*         forwardedOrigIdx = (int*)      kaAlloc(&swRest.kalloc, sizeof(int)   * g->count);
+    int          forwardedN    = 0;
 
     for (int e = 0; e < g->count; e++)
     {
@@ -534,18 +547,51 @@ static void dispatchOneMode(Tenant*       tenantP,
 
     if (forwardedN == 0) continue;
 
-    KjNode* respTreeP = NULL;
-    int     status    = forwardBatchToCSR(csr, batchArr, ownAlias, &respTreeP);
+    int   baseLen = strlen(csr->endpoint);
+    char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + batchPathLen + 1);
+    strcpy(url, csr->endpoint);
+    strcpy(url + baseLen, batchPath);
 
-    bool* groupOk = (bool*) kaAlloc(&swRest.kalloc, sizeof(bool) * forwardedN);
-    for (int k = 0; k < forwardedN; k++) groupOk[k] = false;
+    char* body    = renderBatchBody(csr, batchArr);
+    int   bodyLen = strlen(body);
 
-    applyRemoteBatchResult(status, respTreeP, csr->regId, errorsP,
-                           groupOk, forwardedIdV, forwardedN);
+    bItems[bItemCount].csr     = csr;
+    bItems[bItemCount].url     = url;
+    bItems[bItemCount].body    = body;
+    bItems[bItemCount].bodyLen = bodyLen;
+    bFwdIdV[bItemCount]        = forwardedIdV;
+    bFwdOrig[bItemCount]       = forwardedOrigIdx;
+    bFwdN[bItemCount]          = forwardedN;
+    bItemCount++;
+  }
 
-    for (int k = 0; k < forwardedN; k++)
-      if (groupOk[k])
-        anySuccessV[forwardedOrigIdx[k]] = true;
+  if (bItemCount > 0)
+  {
+    ldDistOpSendMulti(bItems, bItemCount, SwVerbPost, ownAlias, bResults);
+
+    for (int i = 0; i < bItemCount; i++)
+    {
+      KjNode* respTreeP = NULL;
+      if (bResults[i].responseBody != NULL && bResults[i].responseBodyLen > 0)
+      {
+        KjNode* treeP = kjParse(swRest.kjsonP, bResults[i].responseBody);
+        if (treeP != NULL)
+        {
+          ldStripAtContext(treeP);
+          respTreeP = treeP;
+        }
+      }
+
+      bool* groupOk = (bool*) kaAlloc(&swRest.kalloc, sizeof(bool) * bFwdN[i]);
+      for (int k = 0; k < bFwdN[i]; k++) groupOk[k] = false;
+
+      applyRemoteBatchResult(bResults[i].statusCode, respTreeP, bItems[i].csr->regId, errorsP,
+                             groupOk, bFwdIdV[i], bFwdN[i]);
+
+      for (int k = 0; k < bFwdN[i]; k++)
+        if (groupOk[k])
+          anySuccessV[bFwdOrig[i][k]] = true;
+    }
   }
 }
 

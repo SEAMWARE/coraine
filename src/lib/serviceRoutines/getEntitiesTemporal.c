@@ -471,47 +471,96 @@ bool getEntitiesTemporal(void)
       LdRegMode   modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
       const char* fwdQs   = buildTemporalQueryQs(&swRest.kalloc);
 
+      LdRegCacheItem** matchV[4] = { NULL, NULL, NULL, NULL };
+      int              matchN[4] = { 0, 0, 0, 0 };
+      int              total     = 0;
       for (int m = 0; m < 4; m++)
       {
-        LdRegMode         mode    = modes[m];
-        bool              keepOnlyMissing = (mode == LdRegModeAuxiliary);
-        LdRegCacheItem**  matchV  = NULL;
-        int               matchN  = 0;
-
-        // Auxiliary ignores typeV — it fills gaps regardless of the
-        // user-supplied type filter (matching getEntities's auxiliary call).
+        LdRegMode    mode        = modes[m];
         const char** typeFilterV = (mode == LdRegModeAuxiliary) ? NULL : (const char**) swNgsild.typeV;
+        matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
+                                               NULL, (char**) typeFilterV, mode, &matchV[m]);
+        total += matchN[m];
+      }
 
-        matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
-                                            NULL, (char**) typeFilterV,
-                                            mode, &matchV);
-
-        for (int i = 0; i < matchN; i++)
+      // Pre-strip locals for excl/redir CSRs (§ 4.3.6.3) — independent of
+      // forward outcome, so do it up-front in the original sequence.
+      for (int m = 0; m < 2; m++)  // exclusive (0), redirect (1)
+      {
+        for (int i = 0; i < matchN[m]; i++)
         {
-          LdRegCacheItem* csr = matchV[i];
+          LdRegCacheItem* csr = matchV[m][i];
+          if (csr->endpoint == NULL) continue;
+          if (!ldRegOpSupported(csr, LdOpQueryTemporal)) continue;
+          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+          for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+            stripInfoAttrsFromArray(result, riP);
+        }
+      }
+
+      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      int*                 itemMode  = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
+      int                  itemCount = 0;
+      memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+      const char* tpath = "/ngsi-ld/v1/temporal/entities";
+      int qsLen = (fwdQs != NULL && fwdQs[0] != 0) ? (int) strlen(fwdQs) : 0;
+      int pathLen = strlen(tpath);
+
+      for (int m = 0; m < 4; m++)
+      {
+        for (int i = 0; i < matchN[m]; i++)
+        {
+          LdRegCacheItem* csr = matchV[m][i];
           if (csr->endpoint == NULL) continue;
           if (!ldRegOpSupported(csr, LdOpQueryTemporal)) continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
-          // Exclusive / redirect (§ 4.3.6.3): registered attrs must be
-          // dropped from the local result before the remote replaces them.
-          // Inclusive / auxiliary keep the local attrs intact.
-          if (mode == LdRegModeExclusive || mode == LdRegModeRedirect)
+          int baseLen = strlen(csr->endpoint);
+          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
+          strcpy(url, csr->endpoint);
+          strcpy(url + baseLen, tpath);
+          if (qsLen > 0)
           {
-            for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-              stripInfoAttrsFromArray(result, riP);
+            url[baseLen + pathLen] = '?';
+            strcpy(url + baseLen + pathLen + 1, fwdQs);
           }
+          else
+            url[baseLen + pathLen] = 0;
 
-          KjNode* remoteArray = forwardTemporalQueryToCSR(csr, fwdQs, ownAlias);
-          if (remoteArray == NULL)
-            continue;
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = url;
+          items[itemCount].body    = NULL;
+          items[itemCount].bodyLen = 0;
+          itemMode[itemCount]      = m;
+          itemCount++;
+        }
+      }
 
+      if (itemCount > 0)
+      {
+        ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          int upCode = results[i].statusCode;
+          if (upCode < 200 || upCode >= 300) continue;
+          if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
+
+          KjNode* remoteArray = kjParse(swRest.kjsonP, results[i].responseBody);
+          if (remoteArray == NULL || remoteArray->type != KjArray) continue;
+
+          swldExpandTree(remoteArray, swNgsild.contextP, &swRest.kalloc);
+          ldStripAtContext(remoteArray);
+
+          bool keepOnlyMissing = (modes[itemMode[i]] == LdRegModeAuxiliary);
           mergeRemoteArray(result, remoteArray, keepOnlyMissing);
         }
-
-        if (matchV != NULL)
-          free(matchV);
       }
+
+      for (int m = 0; m < 4; m++)
+        if (matchV[m] != NULL) free(matchV[m]);
     }
   }
 

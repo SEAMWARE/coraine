@@ -214,107 +214,80 @@ bool postEntitiesTemporal(void)
       if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
     }
 
-    // Exclusive — chop fragment from bodyP (detach=true). On forward
-    // failure the chop stands → record BatchEntityError so the client
-    // sees data was lost.
-    for (int i = 0; i < exclN; i++)
+    LdRegCacheItem** groups[]  = { exclV, redirV, inclV };
+    int              counts[]  = { exclN, redirN, inclN };
+    const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
+    bool             detach[]  = { true,  true,   false };
+    bool             opConf[]  = { true,  true,   false };
+
+    int total = 0;
+    for (int g = 0; g < 3; g++)
+      for (int i = 0; i < counts[g]; i++)
+        for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    int                  itemCount = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+    const char* tpath = "/ngsi-ld/v1/temporal/entities";
+
+    for (int g = 0; g < 3; g++)
     {
-      LdRegCacheItem* csr = exclV[i];
-      if (csr->endpoint == NULL)               continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-
-      bool opSupported = ldRegOpSupported(csr, LdOpUpsertTemporal);
-
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      for (int i = 0; i < counts[g]; i++)
       {
-        if (!entityInfoCoversId(riP, entityId)) continue;
+        LdRegCacheItem* csr = groups[g][i];
+        if (csr->endpoint == NULL)               continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
-        KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, true);
-        if (fragP == NULL) continue;
+        bool opSupported = ldRegOpSupported(csr, LdOpUpsertTemporal);
 
-        if (!opSupported)
+        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_CONFLICT, "Conflict",
-                                "exclusive registration does not support upsertTemporal",
-                                csr->regId);
-          continue;
+          if (!entityInfoCoversId(riP, entityId)) continue;
+
+          KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, detach[g]);
+          if (fragP == NULL) continue;
+
+          if (!opSupported)
+          {
+            if (!opConf[g]) continue;
+            char detail[256];
+            snprintf(detail, sizeof(detail),
+                     "%s registration does not support upsertTemporal", modeTag[g]);
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                  LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+            continue;
+          }
+
+          int baseLen = strlen(csr->endpoint);
+          int pathLen = strlen(tpath);
+          char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
+          strcpy(url, csr->endpoint);
+          strcpy(url + baseLen, tpath);
+          char* body = renderTemporalFragment(fragP);
+
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = url;
+          items[itemCount].body    = body;
+          items[itemCount].bodyLen = strlen(body);
+          itemCount++;
         }
-
-        const char* upErr  = NULL;
-        int         upCode = forwardUpsertTemporal(csr, fragP, ownAlias, &upErr);
-
-        if (upCode < 200 || upCode >= 300)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, upErr),
-                                csr->regId);
-        else
-          anySucceeded = true;
       }
     }
 
-    // Redirect — same chop semantic.
-    for (int i = 0; i < redirN; i++)
+    if (itemCount > 0)
     {
-      LdRegCacheItem* csr = redirV[i];
-      if (csr->endpoint == NULL)               continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+      ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
 
-      bool opSupported = ldRegOpSupported(csr, LdOpUpsertTemporal);
-
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      for (int i = 0; i < itemCount; i++)
       {
-        if (!entityInfoCoversId(riP, entityId)) continue;
-
-        KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, true);
-        if (fragP == NULL) continue;
-
-        if (!opSupported)
-        {
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_CONFLICT, "Conflict",
-                                "redirect registration does not support upsertTemporal",
-                                csr->regId);
-          continue;
-        }
-
-        const char* upErr  = NULL;
-        int         upCode = forwardUpsertTemporal(csr, fragP, ownAlias, &upErr);
-
+        int upCode = results[i].statusCode;
         if (upCode < 200 || upCode >= 300)
           ldDistOpBatchErrorAdd(errorsArrayP, entityId,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, upErr),
-                                csr->regId);
-        else
-          anySucceeded = true;
-      }
-    }
-
-    // Inclusive — clone fragment (detach=false), keep attrs on bodyP.
-    for (int i = 0; i < inclN; i++)
-    {
-      LdRegCacheItem* csr = inclV[i];
-      if (csr->endpoint == NULL)               continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-      if (!ldRegOpSupported(csr, LdOpUpsertTemporal)) continue;
-
-      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-      {
-        if (!entityInfoCoversId(riP, entityId)) continue;
-
-        KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, false);
-        if (fragP == NULL) continue;
-
-        const char* upErr  = NULL;
-        int         upCode = forwardUpsertTemporal(csr, fragP, ownAlias, &upErr);
-
-        if (upCode < 200 || upCode >= 300)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, upErr),
-                                csr->regId);
+                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                items[i].csr->regId);
         else
           anySucceeded = true;
       }

@@ -237,46 +237,36 @@ bool patchEntity(void)
     bool             detach[]   = { true,        true,       false      };
     bool             opConf[]   = { true,        true,       false      };
 
+    int total = 0;
+    for (int g = 0; g < 3; g++)
+      for (int i = 0; i < counts[g]; i++)
+        for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    int                  itemCount = 0;
+    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
       {
         LdRegCacheItem* csr = groups[g][i];
-        if (csr->endpoint == NULL)
-          continue;
-
-        // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))
-          continue;
+        if (csr->endpoint == NULL) continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
         bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId))
-            continue;
+          if (!entityInfoCoversId(riP, entityId)) continue;
 
-          //
-          // Extract this CSR's slice of the fragment. Note: for
-          // exclusive/redirect with detach=true the matching attrs
-          // are MOVED out of the original fragment — meaning the
-          // local merge below will not see them, which is exactly
-          // what § 4.3.6.3 mandates for exclusive-claimed Attributes.
-          //
-          // Delete-markers ("urn:ngsi-ld:null") are carried through
-          // unchanged — the extractor is value-agnostic. So a PATCH
-          // that deletes an attr the CSR claims is forwarded as a
-          // delete to the CSR, not applied locally.
-          //
           KjNode* fragP = ldEntityFragmentForInfo(fragment, riP, swRest.kjsonP, detach[g]);
-          if (fragP == NULL)
-            continue;
+          if (fragP == NULL) continue;
 
           if (!opSupported)
           {
-            if (!opConf[g])
-              continue;  // inclusive: silently skip
-
+            if (!opConf[g]) continue;
             char detail[256];
             snprintf(detail, sizeof(detail),
                      "%s registration does not support mergeEntity", modeTag[g]);
@@ -285,21 +275,30 @@ bool patchEntity(void)
             continue;
           }
 
-          const char* upErr  = NULL;
-          int         upCode = forwardMergeEntity(csr, fragP, entityId, ownAlias, &upErr);
-
-          // 2xx = remote confirmed the merge.
-          // 404 = remote never had it; not a success, not an error either —
-          //       skip silently so the overall-404 path still reports
-          //       "entity not found anywhere" if nothing else lands.
-          // Anything else → BatchEntityError.
-          if (upCode >= 200 && upCode < 300)
-            anySucceeded = true;
-          else if (upCode != 404)
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                  ldDistOpForwardFailureReason(upCode, upErr), csr->regId);
+          char* body = renderFragmentWithContext(fragP);
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = mergeUrl(csr->endpoint, entityId);
+          items[itemCount].body    = body;
+          items[itemCount].bodyLen = strlen(body);
+          itemCount++;
         }
+      }
+    }
+
+    if (itemCount > 0)
+    {
+      ldDistOpSendMulti(items, itemCount, SwVerbPatch, ownAlias, results);
+
+      for (int i = 0; i < itemCount; i++)
+      {
+        int upCode = results[i].statusCode;
+        if (upCode >= 200 && upCode < 300)
+          anySucceeded = true;
+        else if (upCode != 404)
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                items[i].csr->regId);
       }
     }
 

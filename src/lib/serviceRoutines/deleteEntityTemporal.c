@@ -86,36 +86,67 @@ bool deleteEntityTemporal(void)
     if (!ldDistOpLoopDetected(ownAlias))
     {
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
+      LdRegCacheItem** matchV[3] = { NULL, NULL, NULL };
+      int              matchN[3] = { 0, 0, 0 };
+      int              total     = 0;
       for (int m = 0; m < 3; m++)
       {
-        LdRegCacheItem** matchV = NULL;
-        int matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
-                                                entityId, NULL, modes[m], &matchV);
+        matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
+                                               entityId, NULL, modes[m], &matchV[m]);
+        total += matchN[m];
+      }
 
-        for (int i = 0; i < matchN; i++)
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      int                  itemCount = 0;
+      memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+      for (int m = 0; m < 3; m++)
+      {
+        for (int i = 0; i < matchN[m]; i++)
         {
-          LdRegCacheItem* csr = matchV[i];
+          LdRegCacheItem* csr = matchV[m][i];
           if (csr->endpoint == NULL)               continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
           if (!ldRegOpSupported(csr, LdOpDeleteTemporal)) continue;
 
-          const char* upErr  = NULL;
-          int         upCode = forwardDeleteTemporal(csr, entityId, ownAlias, &upErr);
+          int idLen   = strlen(entityId);
+          int baseLen = strlen(csr->endpoint);
+          const char* path = "/ngsi-ld/v1/temporal/entities/";
+          int pathLen = strlen(path);
+          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1);
+          strcpy(url, csr->endpoint);
+          strcpy(url + baseLen, path);
+          strcpy(url + baseLen + pathLen, entityId);
 
-          // 404 from a remote source is benign — nothing to delete there.
-          if (upCode == 404)
-            continue;
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = url;
+          items[itemCount].body    = NULL;
+          items[itemCount].bodyLen = 0;
+          itemCount++;
+        }
+      }
+
+      if (itemCount > 0)
+      {
+        ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          int upCode = results[i].statusCode;
+          if (upCode == 404) continue;
           if (upCode < 200 || upCode >= 300)
             ldDistOpBatchErrorAdd(errorsArrayP, entityId,
                                   LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                  ldDistOpForwardFailureReason(upCode, upErr),
-                                  csr->regId);
+                                  ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
+                                  items[i].csr->regId);
           else
             anySucceeded = true;
         }
-
-        if (matchV != NULL) free(matchV);
       }
+
+      for (int m = 0; m < 3; m++)
+        if (matchV[m] != NULL) free(matchV[m]);
     }
   }
 
