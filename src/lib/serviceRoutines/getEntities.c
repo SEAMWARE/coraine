@@ -1214,55 +1214,55 @@ bool getEntities(void)
     if (tP != NULL && tP->regCacheP != NULL)
     {
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
-      const char* baseQs   = NULL;
       const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
       char**      pickWanted = computeWantedAttrs(&swRest.kalloc);
 
+      //
+      // Phase 1 — match all 4 modes up front. First match triggers split-mode
+      // activation (one-shot local re-query without filters). Then build per-CSR
+      // forwarded URLs; phase 2 fires them all concurrently via ldDistOpSendMulti;
+      // phase 3 walks results in mode order so dedup + split-mode merge match the
+      // pre-existing sequential semantics.
+      //
+      LdRegCacheItem** modeMatchV[4] = { NULL, NULL, NULL, NULL };
+      int              modeMatchN[4] = { 0, 0, 0, 0 };
+      int              totalMatch     = 0;
       for (int m = 0; m < 4; m++)
       {
-        matchV = NULL;
-        // Split mode: match ALL registrations regardless of type
-        matchN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                            NULL,
-                                            splitModeSetting ? NULL : swNgsild.typeV,
-                                            modes[m], &matchV);
-        if (matchN == 0)
-          continue;
+        modeMatchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
+                                                   NULL,
+                                                   splitModeSetting ? NULL : swNgsild.typeV,
+                                                   modes[m], &modeMatchV[m]);
+        totalMatch += modeMatchN[m];
+      }
 
-        // Registrations matched — activate split mode if configured
-        if (splitModeSetting && !splitMode)
+      if (totalMatch > 0 && splitModeSetting)
+      {
+        splitMode = true;
+        DbQueryFilter splitFilter = {0};
+        splitFilter.idV       = filter.idV;
+        splitFilter.idPattern = filter.idPattern;
+        splitFilter.limit     = 1000000;
+        arrayP = NULL;
+        db.entityQuery((Tenant*) swNgsild.tenantP, &splitFilter, &arrayP);
+        srcMapStampLocalFrom(srcMap, arrayP);
+      }
+
+      const char* baseQs = (totalMatch > 0) ? (splitMode ? "" : buildQueryString()) : NULL;
+
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
+      int                  itemCount = 0;
+      memset(results, 0, totalMatch * sizeof(LdDistOpBatchResult));
+
+      for (int m = 0; m < 4; m++)
+      {
+        for (int i = 0; i < modeMatchN[m]; i++)
         {
-          splitMode = true;
-          // Re-query local WITHOUT filters (need all candidate entities)
-          DbQueryFilter splitFilter = {0};
-          splitFilter.idV       = filter.idV;
-          splitFilter.idPattern = filter.idPattern;
-          splitFilter.limit     = 1000000;  // effectively unlimited
-          // No type, q, geoQ, scopeQ — applied post-assembly
-          arrayP = NULL;
-          db.entityQuery((Tenant*) swNgsild.tenantP, &splitFilter, &arrayP);
+          LdRegCacheItem* csr = modeMatchV[m][i];
+          if (csr->endpoint == NULL) continue;
+          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
-          // Re-stamp srcMap with the new (unfiltered) local set.
-          srcMapStampLocalFrom(srcMap, arrayP);
-        }
-
-        if (baseQs == NULL)
-          baseQs = splitMode ? "" : buildQueryString();
-
-        for (int i = 0; i < matchN; i++)
-        {
-          LdRegCacheItem* csr = matchV[i];
-          if (csr->endpoint == NULL)
-            continue;
-
-          // Proactive loop-detect (§ 5.12): CSR alias known + in chain → skip
-          if (ldDistOpCsrWouldLoop(csr, ownAlias))
-            continue;
-
-          // § 4.3.6 / § 5.7.1.4: when the request carries a geoQ, drop CSRs
-          // whose stored geo-coverage geometry can't overlap the query
-          // reference. Default geoproperty is "location"; "observationSpace"
-          // and "operationSpace" select the matching CSR field.
           if (swNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
           {
             const char* prop = swNgsild.geoproperty;
@@ -1281,51 +1281,28 @@ bool getEntities(void)
               continue;
           }
 
-          //
-          // Split mode: forward once per CSR (no filters, no per-info pick)
-          // No-split: per-RegistrationInfo dispatch with type + pick
-          //
           const char* fullQs;
-
           if (splitMode)
           {
-            // Split: forward only the safe filters (id, idPattern, type
-            // — guaranteed on every fragment per § 4.5.5 / § 5.2.6).
-            // q/geoQ/scopeQ are stripped per § 5.7.2.4 — they may
-            // reference sharded attributes a single source can't fully
-            // evaluate. NO local=true: federation should be transitive
-            // through the CSR's own CSRs, bounded by § 5.12 loop
-            // detection. pick CAN be narrowed: intersect pickWanted
-            // against the union of all infoV[*] exports of this CSR.
             char** csrExports = csrUnionExports(csr, &swRest.kalloc);
             bool   skip       = false;
             const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip);
-            if (skip)
-              continue;
+            if (skip) continue;
 
-            const char* baseQs = buildSplitForwardQueryString();
-            int   bLen = strlen(baseQs), pLen = strlen(pickParam);
+            const char* splitBase = buildSplitForwardQueryString();
+            int   bLen = strlen(splitBase), pLen = strlen(pickParam);
             char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
-            strcpy(combined, baseQs);
-            if (pLen > 0)
-              strcpy(combined + bLen, pickParam);  // pickParam starts with "&pick=..."
+            strcpy(combined, splitBase);
+            if (pLen > 0) strcpy(combined + bLen, pickParam);
             fullQs = combined;
           }
           else
           {
-            // No-split: per-RegistrationInfo dispatch.
-            // pickWanted (computed once per request, hoisted above the loop)
-            // = NULL if user has no `pick`, else the union of
-            // user.pick ∪ qAttrs ∪ geoproperty ∪ geometryProperty.
-            // For each matching info entry: intersect with that info's
-            // exports; skip the CSR when user.pick yielded an empty
-            // intersection.
             fullQs = baseQs;
             bool csrSkipped = false;
 
             for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
             {
-              // Type check
               if (swNgsild.typeV != NULL)
               {
                 bool typeMatch = false;
@@ -1342,152 +1319,175 @@ bool getEntities(void)
               bool        skip      = false;
               const char* pickParam = intersectAndPick(riP->propertyNamesV, riP->relationshipNamesV,
                                                         pickWanted, &swRest.kalloc, &skip);
-              if (skip)
-              {
-                csrSkipped = true;
-                break;
-              }
+              if (skip) { csrSkipped = true; break; }
 
               int   bLen = strlen(baseQs), pLen = strlen(pickParam);
               char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
               strcpy(combined, baseQs);
               strcpy(combined + bLen, pickParam);
               fullQs = combined;
-              break;  // use first matching info entry
+              break;
             }
 
-            if (csrSkipped)
-              continue;
+            if (csrSkipped) continue;
           }
 
+          const char* path    = swNgsild.entityMapCreate ? "/ngsi-ld/v1/entityMaps?"
+                                                         : "/ngsi-ld/v1/entities?";
+          int   baseLen = strlen(csr->endpoint);
+          int   pathLen = strlen(path);
+          int   qsLen   = strlen(fullQs);
+          char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+          strcpy(url, csr->endpoint);
+          strcpy(url + baseLen, path);
+          strcpy(url + baseLen + pathLen, fullQs);
+
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = url;
+          items[itemCount].body    = NULL;
+          items[itemCount].bodyLen = 0;
+          itemCount++;
+        }
+      }
+
+      if (itemCount > 0)
+      {
+        ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          LdRegCacheItem* csr    = items[i].csr;
+          int             code   = results[i].statusCode;
+
+          if (code < 200 || code >= 300) continue;
+          if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
+
+          KjNode* remoteArray;
+
+          if (swNgsild.entityMapCreate)
           {
-            KjNode* remoteArray;
+            // § 5.14.4.4: response is a single EntityMap object. Pull out
+            // remote map id + synthesise an array of { "id": <entityId> }
+            // entries so the dedup loop below stays format-agnostic.
+            KjNode* mapTreeP = kjParse(swRest.kjsonP, results[i].responseBody);
+            if (mapTreeP == NULL || mapTreeP->type != KjObject) continue;
 
-            if (swNgsild.entityMapCreate)
+            KjNode* idP = kjLookup(mapTreeP, "id");
+            if (linkedMapsTracker != NULL && idP != NULL && idP->type == KjString && csr->regId != NULL)
+              kjChildAdd(linkedMapsTracker, kjString(swRest.kjsonP, csr->regId, idP->value.s));
+
+            KjNode* emObj = kjLookup(mapTreeP, "entityMap");
+            if (emObj == NULL || emObj->type != KjObject) continue;
+
+            remoteArray = kjArray(swRest.kjsonP, NULL);
+            for (KjNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
             {
-              // § 5.14.4.4: forward GET /entityMaps; record the remote
-              // EntityMap id under csr.regId for the linkedMaps render.
-              char* remoteMapId = NULL;
-              remoteArray = forwardEntityMapToCSR(csr, fullQs, &remoteMapId);
-              if (linkedMapsTracker != NULL && remoteMapId != NULL && csr->regId != NULL)
-                kjChildAdd(linkedMapsTracker, kjString(swRest.kjsonP, csr->regId, remoteMapId));
+              if (entryP->name == NULL) continue;
+              KjNode* synth = kjObject(swRest.kjsonP, NULL);
+              kjChildAdd(synth, kjString(swRest.kjsonP, "id", entryP->name));
+              kjChildAdd(remoteArray, synth);
             }
-            else
+          }
+          else
+          {
+            remoteArray = kjParse(swRest.kjsonP, results[i].responseBody);
+            if (remoteArray != NULL) ldStripAtContext(remoteArray);
+          }
+
+          if (remoteArray == NULL || remoteArray->type != KjArray) continue;
+
+          for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
+          {
+            KjNode* nextRemote = remoteEntity->next;
+
+            KjNode* remoteIdP = kjLookup(remoteEntity, "id");
+            if (remoteIdP == NULL || remoteIdP->type != KjString)
             {
-              remoteArray = forwardQueryToCSR(csr, fullQs);
-            }
-
-            if (remoteArray == NULL || remoteArray->type != KjArray)
-              continue;
-
-            // Merge remote entities — dedup by ID
-            for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
-            {
-              KjNode* nextRemote = remoteEntity->next;
-
-              KjNode* remoteIdP = kjLookup(remoteEntity, "id");
-              if (remoteIdP == NULL || remoteIdP->type != KjString)
-              {
-                remoteEntity = nextRemote;
-                continue;
-              }
-
-              // Find existing entity with same ID
-              KjNode* existingP = NULL;
-              for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
-              {
-                KjNode* eidP = kjLookup(ep, "id");
-                if (eidP != NULL && eidP->type == KjString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
-                {
-                  existingP = ep;
-                  break;
-                }
-              }
-
-              remoteEntity->next = NULL;
-              // Expand in the user's context — post-merge type/attr filters
-              // compare like-for-like only when the remote entity's terms
-              // resolve to the same IRIs as the user's typeExpr / qExpr.
-              swldExpandTree(remoteEntity, swNgsild.contextP, &swRest.kalloc);
-              apiAttrToStorageWrap(remoteEntity);
-
-              if (existingP == NULL)
-              {
-                // New entity — add to results
-                kjChildAdd(arrayP, remoteEntity);
-                srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
-              }
-              else if (splitMode)
-              {
-                // Split-mode merge: this CSR contributed attrs to an
-                // entity that also exists locally (or in another CSR).
-                // Record the regId alongside whatever was already there.
-                srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
-                // Split mode: merge remote attrs into existing entity per
-                // § 4.5.5.3 — instance-level conflict resolution per
-                // (attrName, datasetId). Both trees are in storage format.
-                for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
-                {
-                  KjNode* nextSrcAttr = srcAttrP->next;
-
-                  if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
-                      strcmp(srcAttrP->name, "id") == 0 ||
-                      strcmp(srcAttrP->name, "type") == 0 ||
-                      srcAttrP->type != KjObject)
-                  {
-                    srcAttrP = nextSrcAttr;
-                    continue;
-                  }
-
-                  KjNode* destAttrP = kjLookup(existingP, srcAttrP->name);
-
-                  if (destAttrP == NULL)
-                  {
-                    // Attr not in dest — move whole wrapper
-                    srcAttrP->next = NULL;
-                    kjChildAdd(existingP, srcAttrP);
-                  }
-                  else
-                  {
-                    // Attr exists — merge per dsKey instance per § 4.5.5.3
-                    for (KjNode* srcInstP = srcAttrP->value.firstChildP; srcInstP != NULL; )
-                    {
-                      KjNode* nextSrcInst = srcInstP->next;
-                      KjNode* destInstP = kjLookup(destAttrP, srcInstP->name);
-
-                      if (destInstP == NULL)
-                      {
-                        // dsKey not in dest — add (still subject to expiry
-                        // — keep simple, drop expired instances entirely)
-                        if (!ldDistInstanceIsExpired(srcInstP, swRest.requestStartTime))
-                        {
-                          srcInstP->next = NULL;
-                          kjChildAdd(destAttrP, srcInstP);
-                        }
-                      }
-                      else if (ldDistInstanceShouldReplace(destInstP, srcInstP, swRest.requestStartTime))
-                      {
-                        // Replace destInstP with srcInstP in destAttrP
-                        srcInstP->next = NULL;
-                        kjChildReplace(destAttrP, destInstP, srcInstP);
-                      }
-
-                      srcInstP = nextSrcInst;
-                    }
-                  }
-
-                  srcAttrP = nextSrcAttr;
-                }
-              }
-              // else: no-split mode, duplicate — skip
-
               remoteEntity = nextRemote;
+              continue;
             }
+
+            KjNode* existingP = NULL;
+            for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+            {
+              KjNode* eidP = kjLookup(ep, "id");
+              if (eidP != NULL && eidP->type == KjString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
+              {
+                existingP = ep;
+                break;
+              }
+            }
+
+            remoteEntity->next = NULL;
+            swldExpandTree(remoteEntity, swNgsild.contextP, &swRest.kalloc);
+            apiAttrToStorageWrap(remoteEntity);
+
+            if (existingP == NULL)
+            {
+              kjChildAdd(arrayP, remoteEntity);
+              srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
+            }
+            else if (splitMode)
+            {
+              srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
+              for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
+              {
+                KjNode* nextSrcAttr = srcAttrP->next;
+
+                if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
+                    strcmp(srcAttrP->name, "id") == 0 ||
+                    strcmp(srcAttrP->name, "type") == 0 ||
+                    srcAttrP->type != KjObject)
+                {
+                  srcAttrP = nextSrcAttr;
+                  continue;
+                }
+
+                KjNode* destAttrP = kjLookup(existingP, srcAttrP->name);
+
+                if (destAttrP == NULL)
+                {
+                  srcAttrP->next = NULL;
+                  kjChildAdd(existingP, srcAttrP);
+                }
+                else
+                {
+                  for (KjNode* srcInstP = srcAttrP->value.firstChildP; srcInstP != NULL; )
+                  {
+                    KjNode* nextSrcInst = srcInstP->next;
+                    KjNode* destInstP = kjLookup(destAttrP, srcInstP->name);
+
+                    if (destInstP == NULL)
+                    {
+                      if (!ldDistInstanceIsExpired(srcInstP, swRest.requestStartTime))
+                      {
+                        srcInstP->next = NULL;
+                        kjChildAdd(destAttrP, srcInstP);
+                      }
+                    }
+                    else if (ldDistInstanceShouldReplace(destInstP, srcInstP, swRest.requestStartTime))
+                    {
+                      srcInstP->next = NULL;
+                      kjChildReplace(destAttrP, destInstP, srcInstP);
+                    }
+
+                    srcInstP = nextSrcInst;
+                  }
+                }
+
+                srcAttrP = nextSrcAttr;
+              }
+            }
+
+            remoteEntity = nextRemote;
           }
         }
-
-        free(matchV);
       }
+
+      for (int m = 0; m < 4; m++)
+        if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+      (void) matchV;
+      (void) matchN;
     }
 
     // Split mode post-assembly filters (§ 5.7.2.4).
