@@ -110,70 +110,33 @@ bool deleteEntity(void)
                                                   entityId, typeArr, NULL,
                                                   LdRegModeInclusive, &inclV);
 
-    //
-    // All three modes share the same per-CSR loop body for deleteEntity:
-    // check op support, forward, classify. Inclusive differs only in that
-    // op-not-supported is silently skipped (spec § 5.6.6.4: forwarding is
-    // conditional on "Delete Entity operation is supported").
-    //
-    LdRegCacheItem** groups[]       = { exclV,     redirV,    inclV     };
-    int              counts[]       = { exclN,     redirN,    inclN     };
-    const char*      modeTag[]      = { "exclusive", "redirect", "inclusive" };
-    bool             opConflict[]   = { true,      true,      false     };
+    LdDistOpGroup groups[] = {
+      { exclV,  exclN,  "exclusive", true  },
+      { redirV, redirN, "redirect",  true  },
+      { inclV,  inclN,  "inclusive", false },
+    };
 
-    int total = exclN + redirN + inclN;
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-    int                  itemCount = 0;
-    memset(results, 0, total * sizeof(LdDistOpBatchResult));
+    LdDistOpEntry* items;
+    int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
+                                  swRest.serviceP->ldOp, "deleteEntity",
+                                  entityId, /*perRi=*/false, NULL, NULL,
+                                  errorsArrayP, &items);
 
-    for (int g = 0; g < 3; g++)
+    for (int i = 0; i < n; i++)
+      items[i].url = deleteUrl(items[i].csr->endpoint, entityId);
+
+    ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
+
+    for (int i = 0; i < n; i++)
     {
-      for (int i = 0; i < counts[g]; i++)
-      {
-        LdRegCacheItem* csr = groups[g][i];
-        if (csr->endpoint == NULL)
-          continue;
-
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))
-          continue;
-
-        if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
-        {
-          if (!opConflict[g])
-            continue;
-
-          char detail[256];
-          snprintf(detail, sizeof(detail),
-                   "%s registration does not support deleteEntity", modeTag[g]);
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
-          continue;
-        }
-
-        items[itemCount].csr     = csr;
-        items[itemCount].url     = deleteUrl(csr->endpoint, entityId);
-        items[itemCount].body    = NULL;
-        items[itemCount].bodyLen = 0;
-        itemCount++;
-      }
-    }
-
-    if (itemCount > 0)
-    {
-      ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
-
-      for (int i = 0; i < itemCount; i++)
-      {
-        int upCode = results[i].statusCode;
-        if (upCode >= 200 && upCode < 300)
-          anySucceeded = true;
-        else if (upCode != 404)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
-                                items[i].csr->regId);
-      }
+      int sc = items[i].statusCode;
+      if (sc >= 200 && sc < 300)
+        anySucceeded = true;
+      else if (sc != 404)
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                              ldDistOpForwardFailureReason(sc, items[i].errorDetail),
+                              items[i].csr->regId);
     }
 
     if (exclV  != NULL) free(exclV);

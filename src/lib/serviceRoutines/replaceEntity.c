@@ -113,27 +113,6 @@ static bool typeEqual(KjNode* a, KjNode* b)
 
 // -----------------------------------------------------------------------------
 //
-// entityInfoCoversId - does any EntityInfo entry in riP cover entityId?
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // replaceUrl - compose the PUT forward URL for one CSR
 //
 // <endpoint>/ngsi-ld/v1/entities/<entityId>
@@ -309,81 +288,48 @@ bool replaceEntity(void)
                                                   LdRegModeInclusive, &inclV);
 
     //
-    // Shared per-CSR loop across modes.
-    //   - exclusive + redirect: DETACH matching attrs (they must not
-    //     be applied locally — § 4.3.6.3). op-not-supported → Conflict.
-    //   - inclusive: CLONE matching attrs (local keeps them too).
-    //     op-not-supported → silent skip.
+    // exclusive + redirect: DETACH matching attrs (§ 4.3.6.3).
+    // inclusive: CLONE — local keeps the attrs too.
     //
-    LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
-    int              counts[]  = { exclN,       redirN,     inclN      };
-    const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
-    bool             detach[]  = { true,        true,       false      };
-    bool             opConf[]  = { true,        true,       false      };
+    LdDistOpGroup groups[] = {
+      { exclV,  exclN,  "exclusive", true  },
+      { redirV, redirN, "redirect",  true  },
+      { inclV,  inclN,  "inclusive", false },
+    };
+    static const bool detach[] = { true, true, false };
 
-    int total = 0;
-    for (int g = 0; g < 3; g++)
-      for (int i = 0; i < counts[g]; i++)
-        for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+    LdDistOpEntry* items;
+    int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
+                                  swRest.serviceP->ldOp, "replaceEntity",
+                                  entityId, /*perRi=*/true, entityId, NULL,
+                                  errorsArrayP, &items);
 
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-    int                  itemCount = 0;
-    memset(results, 0, total * sizeof(LdDistOpBatchResult));
-
-    for (int g = 0; g < 3; g++)
+    int kept = 0;
+    for (int i = 0; i < n; i++)
     {
-      for (int i = 0; i < counts[g]; i++)
-      {
-        LdRegCacheItem* csr = groups[g][i];
-        if (csr->endpoint == NULL) continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-
-        bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
-
-        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-        {
-          if (!entityInfoCoversId(riP, entityId)) continue;
-
-          KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, detach[g]);
-          if (fragP == NULL) continue;
-
-          if (!opSupported)
-          {
-            if (!opConf[g]) continue;
-            char detail[256];
-            snprintf(detail, sizeof(detail),
-                     "%s registration does not support replaceEntity", modeTag[g]);
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                  LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
-            continue;
-          }
-
-          char* body = renderFragmentWithContext(fragP);
-          items[itemCount].csr     = csr;
-          items[itemCount].url     = replaceUrl(csr->endpoint, entityId);
-          items[itemCount].body    = body;
-          items[itemCount].bodyLen = strlen(body);
-          itemCount++;
-        }
-      }
+      KjNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, swRest.kjsonP,
+                                              detach[items[i].modeIdx]);
+      if (fragP == NULL) continue;
+      char* body = renderFragmentWithContext(fragP);
+      items[kept] = items[i];
+      items[kept].url     = replaceUrl(items[i].csr->endpoint, entityId);
+      items[kept].body    = body;
+      items[kept].bodyLen = strlen(body);
+      kept++;
     }
 
-    if (itemCount > 0)
-    {
-      ldDistOpSendMulti(items, itemCount, SwVerbPut, ownAlias, results);
+    ldDistOpEntriesPerform(items, kept, SwVerbPut, ownAlias);
 
-      for (int i = 0; i < itemCount; i++)
-      {
-        int upCode = results[i].statusCode;
-        if (upCode >= 200 && upCode < 300)
-          anySucceeded = true;
-        else if (upCode != 404)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
-                                items[i].csr->regId);
-      }
+    for (int i = 0; i < kept; i++)
+    {
+      int sc = items[i].statusCode;
+      if (sc >= 200 && sc < 300)
+        anySucceeded = true;
+      else if (sc != 404)
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                              ldDistOpForwardFailureReason(sc, items[i].errorDetail),
+                              items[i].csr->regId);
     }
 
     if (exclV  != NULL) free(exclV);
