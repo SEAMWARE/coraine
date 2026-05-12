@@ -395,14 +395,15 @@ bool getEntitiesTemporal(void)
   }
 
   // § 6.18.3.2: at least one of (id, idPattern, type, attrs, q, georel)
-  // must be present. attrs is also a synonym for pick+q in this route's
-  // table — the deprecated combined form. For this slice we just enforce
-  // the simple "one of" rule.
+  // must be present. Aligned with /entities (§ 5.7.2.4): local=true is
+  // also accepted as a sufficient selector — it scopes the query to the
+  // broker's local set, which is itself a hard bound.
   if (swNgsild.idV == NULL && swNgsild.idPattern == NULL && swNgsild.typeV == NULL
-      && swNgsild.attrsV == NULL && swNgsild.qExpr == NULL && swNgsild.georel == NULL)
+      && swNgsild.attrsV == NULL && swNgsild.qExpr == NULL && swNgsild.georel == NULL
+      && swNgsild.local == false)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
-            "at least one of 'id', 'idPattern', 'type', 'attrs', 'q', 'georel' must be supplied");
+            "at least one of 'id', 'idPattern', 'type', 'attrs', 'q', 'georel', or 'local' must be supplied");
     return true;
   }
 

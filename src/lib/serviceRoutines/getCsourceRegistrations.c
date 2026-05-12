@@ -229,12 +229,17 @@ bool getCsourceRegistrations(void)
     }
   }
 
-  // § 5.10.2.4: at least one of type / attrs / pick / q / geoQ.
+  // § 5.10.2.4: at least one of type / attrs / pick / q / geoQ. id and
+  // idPattern are also accepted — they bound the candidate set at least
+  // as tightly as type (id is an explicit URI list, idPattern is a regex
+  // applied to EntityInfo.id) and ETSI 037_10_01 exercises ?id=A,B alone.
   bool hasType = (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL);
-  if (!hasType && !hasAttrs && !hasPick && !hasQ)
+  bool hasId   = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL);
+  bool hasIdPattern = (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0);
+  if (!hasType && !hasAttrs && !hasPick && !hasQ && !hasId && !hasIdPattern)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Too Wide Query",
-            "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required");
+            "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required");
     return true;
   }
 
@@ -253,8 +258,8 @@ bool getCsourceRegistrations(void)
 
   if (cacheP != NULL)
   {
-    const char* entityIdFilter = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
-                                 ? swNgsild.idV[0] : NULL;
+    char** entityIdFilter = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
+                            ? swNgsild.idV : NULL;
 
     // attrs wins when supplied (deprecated but honoured); otherwise pick.
     char** attrsFilter = hasAttrs ? swNgsild.attrsV : (hasPick ? swNgsild.pickV : NULL);
@@ -364,8 +369,8 @@ bool getCsourceRegistrations(void)
     }
 
     char** attrsFilterRsp = hasAttrs ? swNgsild.attrsV : (hasPick ? swNgsild.pickV : NULL);
-    const char* idFilter  = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
-                             ? swNgsild.idV[0] : NULL;
+    char** idFilterV      = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
+                            ? swNgsild.idV : NULL;
 
     for (int i = skip; i < passN && (i - skip) < limit; i++)
     {
@@ -388,7 +393,7 @@ bool getCsourceRegistrations(void)
             {
               KjNode*    nextChild = childP->next;
               LdRegInfo* nextRi    = riP->next;
-              if (!ldRegInfoDiscoveryMatches(riP, idFilter, swNgsild.typeV,
+              if (!ldRegInfoDiscoveryMatches(riP, idFilterV, swNgsild.typeV,
                                               haveIdRegex ? &idRegex : NULL,
                                               attrsFilterRsp))
                 kjChildRemove(infoP, childP);
