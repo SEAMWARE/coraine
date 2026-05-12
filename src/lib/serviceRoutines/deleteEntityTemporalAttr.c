@@ -154,71 +154,67 @@ bool deleteEntityTemporalAttr(void)
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
       LdRegCacheItem** matchV[3] = { NULL, NULL, NULL };
       int              matchN[3] = { 0, 0, 0 };
-      int              total     = 0;
       for (int m = 0; m < 3; m++)
-      {
         matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
                                                entityId, NULL, modes[m], &matchV[m]);
-        total += matchN[m];
-      }
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      int                  itemCount = 0;
-      memset(results, 0, total * sizeof(LdDistOpBatchResult));
-
+      // Drop CSRs that don't cover this attribute — keeps the dispatch
+      // one-per-csr without forcing the entries-builder to do per-RI walks.
       for (int m = 0; m < 3; m++)
       {
+        int k = 0;
         for (int i = 0; i < matchN[m]; i++)
-        {
-          LdRegCacheItem* csr = matchV[m][i];
-          if (csr->endpoint == NULL)                           continue;
-          if (ldDistOpCsrWouldLoop(csr, ownAlias))             continue;
-          if (!ldRegOpSupported(csr, LdOpDeleteAttrsTemporal)) continue;
-          if (!csrCoversAttr(csr, attrIri))                    continue;
-
-          const char* prefix = "/ngsi-ld/v1/temporal/entities/";
-          const char* midSep = "/attrs/";
-          int baseLen = strlen(csr->endpoint);
-          int prefLen = strlen(prefix);
-          int idLen   = strlen(entityId);
-          int midLen  = strlen(midSep);
-          int atLen   = strlen(attrWild);
-          int qsLen   = (fwdQs != NULL && fwdQs[0] != 0) ? (int) strlen(fwdQs) : 0;
-          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + qsLen + 1);
-          int pos = 0;
-          memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
-          memcpy(url + pos, prefix, prefLen);        pos += prefLen;
-          memcpy(url + pos, entityId, idLen);        pos += idLen;
-          memcpy(url + pos, midSep, midLen);         pos += midLen;
-          memcpy(url + pos, attrWild, atLen);        pos += atLen;
-          if (qsLen > 0) { url[pos++] = '?'; memcpy(url + pos, fwdQs, qsLen); pos += qsLen; }
-          url[pos] = 0;
-
-          items[itemCount].csr     = csr;
-          items[itemCount].url     = url;
-          items[itemCount].body    = NULL;
-          items[itemCount].bodyLen = 0;
-          itemCount++;
-        }
+          if (csrCoversAttr(matchV[m][i], attrIri)) matchV[m][k++] = matchV[m][i];
+        matchN[m] = k;
       }
 
-      if (itemCount > 0)
-      {
-        ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
+      LdDistOpGroup groups[] = {
+        { matchV[0], matchN[0], "exclusive", false },
+        { matchV[1], matchN[1], "redirect",  false },
+        { matchV[2], matchN[2], "inclusive", false },
+      };
 
-        for (int i = 0; i < itemCount; i++)
-        {
-          int upCode = results[i].statusCode;
-          if (upCode == 404) continue;
-          if (upCode < 200 || upCode >= 300)
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                  ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
-                                  items[i].csr->regId);
-          else
-            anySucceeded = true;
-        }
+      LdDistOpEntry* items;
+      int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
+                                    LdOpDeleteAttrsTemporal, "deleteAttrsTemporal",
+                                    entityId, /*perRi=*/false, NULL, NULL,
+                                    errorsArrayP, &items);
+
+      const char* prefix  = "/ngsi-ld/v1/temporal/entities/";
+      const char* midSep  = "/attrs/";
+      int         prefLen = strlen(prefix);
+      int         midLen  = strlen(midSep);
+      int         idLen   = strlen(entityId);
+      int         atLen   = strlen(attrWild);
+      int         qsLen   = (fwdQs != NULL && fwdQs[0] != 0) ? (int) strlen(fwdQs) : 0;
+      for (int i = 0; i < n; i++)
+      {
+        int   baseLen = strlen(items[i].csr->endpoint);
+        char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + qsLen + 1);
+        int pos = 0;
+        memcpy(url + pos, items[i].csr->endpoint, baseLen); pos += baseLen;
+        memcpy(url + pos, prefix, prefLen);                 pos += prefLen;
+        memcpy(url + pos, entityId, idLen);                 pos += idLen;
+        memcpy(url + pos, midSep, midLen);                  pos += midLen;
+        memcpy(url + pos, attrWild, atLen);                 pos += atLen;
+        if (qsLen > 0) { url[pos++] = '?'; memcpy(url + pos, fwdQs, qsLen); pos += qsLen; }
+        url[pos] = 0;
+        items[i].url = url;
+      }
+
+      ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
+
+      for (int i = 0; i < n; i++)
+      {
+        int sc = items[i].statusCode;
+        if (sc == 404) continue;
+        if (sc < 200 || sc >= 300)
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                ldDistOpForwardFailureReason(sc, items[i].errorDetail),
+                                items[i].csr->regId);
+        else
+          anySucceeded = true;
       }
 
       for (int m = 0; m < 3; m++)

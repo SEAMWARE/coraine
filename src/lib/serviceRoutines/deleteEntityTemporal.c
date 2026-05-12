@@ -88,61 +88,48 @@ bool deleteEntityTemporal(void)
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
       LdRegCacheItem** matchV[3] = { NULL, NULL, NULL };
       int              matchN[3] = { 0, 0, 0 };
-      int              total     = 0;
       for (int m = 0; m < 3; m++)
-      {
         matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
                                                entityId, NULL, modes[m], &matchV[m]);
-        total += matchN[m];
+
+      LdDistOpGroup groups[] = {
+        { matchV[0], matchN[0], "exclusive", false },
+        { matchV[1], matchN[1], "redirect",  false },
+        { matchV[2], matchN[2], "inclusive", false },
+      };
+
+      LdDistOpEntry* items;
+      int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
+                                    LdOpDeleteTemporal, "deleteTemporal",
+                                    entityId, /*perRi=*/false, NULL, NULL,
+                                    errorsArrayP, &items);
+
+      const char* path    = "/ngsi-ld/v1/temporal/entities/";
+      int         pathLen = strlen(path);
+      int         idLen   = strlen(entityId);
+      for (int i = 0; i < n; i++)
+      {
+        int   baseLen = strlen(items[i].csr->endpoint);
+        char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1);
+        strcpy(url, items[i].csr->endpoint);
+        strcpy(url + baseLen, path);
+        strcpy(url + baseLen + pathLen, entityId);
+        items[i].url = url;
       }
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      int                  itemCount = 0;
-      memset(results, 0, total * sizeof(LdDistOpBatchResult));
+      ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
 
-      for (int m = 0; m < 3; m++)
+      for (int i = 0; i < n; i++)
       {
-        for (int i = 0; i < matchN[m]; i++)
-        {
-          LdRegCacheItem* csr = matchV[m][i];
-          if (csr->endpoint == NULL)               continue;
-          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-          if (!ldRegOpSupported(csr, LdOpDeleteTemporal)) continue;
-
-          int idLen   = strlen(entityId);
-          int baseLen = strlen(csr->endpoint);
-          const char* path = "/ngsi-ld/v1/temporal/entities/";
-          int pathLen = strlen(path);
-          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1);
-          strcpy(url, csr->endpoint);
-          strcpy(url + baseLen, path);
-          strcpy(url + baseLen + pathLen, entityId);
-
-          items[itemCount].csr     = csr;
-          items[itemCount].url     = url;
-          items[itemCount].body    = NULL;
-          items[itemCount].bodyLen = 0;
-          itemCount++;
-        }
-      }
-
-      if (itemCount > 0)
-      {
-        ldDistOpSendMulti(items, itemCount, SwVerbDelete, ownAlias, results);
-
-        for (int i = 0; i < itemCount; i++)
-        {
-          int upCode = results[i].statusCode;
-          if (upCode == 404) continue;
-          if (upCode < 200 || upCode >= 300)
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
-                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                  ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
-                                  items[i].csr->regId);
-          else
-            anySucceeded = true;
-        }
+        int sc = items[i].statusCode;
+        if (sc == 404) continue;
+        if (sc < 200 || sc >= 300)
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                ldDistOpForwardFailureReason(sc, items[i].errorDetail),
+                                items[i].csr->regId);
+        else
+          anySucceeded = true;
       }
 
       for (int m = 0; m < 3; m++)
