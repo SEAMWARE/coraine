@@ -29,10 +29,14 @@
 //
 // Error codes
 //
-#define DB_OK               0
-#define DB_ERR              -1
-#define DB_ALREADY_EXISTS   -2
-#define DB_NOT_FOUND        -3
+#define DB_OK                  0
+#define DB_ERR                -1
+#define DB_ALREADY_EXISTS     -2
+#define DB_NOT_FOUND          -3
+#define DB_INVALID_GEOMETRY   -4   // geometry is well-formed JSON but the storage
+                                   // layer rejects it (e.g. mongo 2dsphere/S2
+                                   // rejects polygons with self-intersection or
+                                   // degenerate edges that GeoJSON itself allows)
 
 
 

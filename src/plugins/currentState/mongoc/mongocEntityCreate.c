@@ -6,12 +6,13 @@
 // Copyright 2026 Seamware
 //
 
+#include <string.h>                                  // strstr
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one
 
 #include "ktrace/kTrace.h"                               // KT_E
 #include "kjson/KjNode.h"                            // KjNode
 
-#include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
+#include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocKjTreeToBson.h"               // mongocKjTreeToBson
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityCreate.h"               // Own interface
@@ -56,6 +57,16 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
 
     if (error.code == 11000)
       return DB_ALREADY_EXISTS;
+
+    // "Can't extract geo keys" is mongo's 2dsphere/S2 rejection — the
+    // GeoProperty value is well-formed JSON but S2 considers the polygon
+    // self-intersecting / degenerate. Surface as a client error rather
+    // than a generic 500, so the caller can map it to 400 BadRequestData.
+    if (strstr(error.message, "Can't extract geo keys") != NULL)
+    {
+      KT_E("mongoc: entityCreate rejected by 2dsphere: %s", error.message);
+      return DB_INVALID_GEOMETRY;
+    }
 
     KT_E("mongoc: entityCreate failed: %s", error.message);
     return DB_ERR;
