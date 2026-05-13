@@ -700,8 +700,11 @@ bool postEntityBatchUpdate(void)
       kjChildAdd(respBodyP, errorsP);
       swRest.out.responseTree   = respBodyP;
       swRest.out.httpStatusCode = 207;
-      swNgsild.rawResponse      = true;
     }
+    // rawResponse for BOTH branches — neither ProblemDetails nor
+    // BatchOperationResult is an entity tree; ldEntityToApi must not
+    // run on them.
+    swNgsild.rawResponse = true;
     return true;
   }
 
