@@ -128,25 +128,21 @@ bool postCsourceSubscriptions(void)
   KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
-  // § 5.2.12 — `isActive` is cardinality 0..1, "true by default". When the
-  // user creates a CSR-Subscription WITHOUT isActive, treat it as true and
-  // emit that on retrieve so the field is observable. The user's explicit
-  // value (e.g. `isActive: false` for a paused sub) is preserved unchanged;
-  // this branch only fires when the field is missing entirely.
-  if (isActiveP == NULL)
-    kjChildAdd(subP, kjBoolean(NULL, "isActive", true));
-
   KjNode* statusP = kjString(NULL, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
 
   //
-  // jsonldContext (for notification compaction)
+  // jsonldContext: only auto-fill when the user didn't supply one. The
+  // auto-filled URL goes into the broker-internal `_jcResolved` (same
+  // convention as regular subs) so retrieve doesn't surface a synthetic
+  // value.
   //
+  if (kjLookup(subP, "jsonldContext") == NULL)
   {
     SwldContext* reqCtxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
     if (reqCtxP != NULL && reqCtxP->url != NULL)
     {
-      KjNode* jcP = kjString(NULL, "jsonldContext", reqCtxP->url);
+      KjNode* jcP = kjString(NULL, "_jcResolved", reqCtxP->url);
       kjChildAdd(subP, jcP);
     }
   }

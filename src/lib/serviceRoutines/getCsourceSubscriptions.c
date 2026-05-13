@@ -14,7 +14,7 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
+#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd, kjChildRemove
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjLookup.h"                          // kjLookup
 
@@ -61,6 +61,21 @@ bool getCsourceSubscriptions(void)
       KjNode* kindP = kjLookup(subP, "_subKind");
       if (kindP != NULL)
         kjChildRemove(subP, kindP);
+
+      // § 5.2.12: default-emit notificationTrigger when absent.
+      if (kjLookup(subP, "notificationTrigger") == NULL)
+      {
+        KjNode* trigArr = kjArray(swRest.kjsonP, "notificationTrigger");
+        kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeCreated"));
+        kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeUpdated"));
+        kjChildAdd(subP, trigArr);
+      }
+
+      // Strip the broker-internal `_jcResolved` so the response only carries
+      // user-provided `jsonldContext` (if any).
+      KjNode* jcP = kjLookup(subP, "_jcResolved");
+      if (jcP != NULL)
+        kjChildRemove(subP, jcP);
 
       kjChildAdd(arrayP, subP);
     }

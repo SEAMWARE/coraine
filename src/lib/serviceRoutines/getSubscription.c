@@ -69,11 +69,10 @@ bool getSubscription(void)
     kjChildAdd(subP, trigArr);
   }
 
-  // `jsonldContext` is stored internally so notifications can reach
-  // their target's @context, but it's not a user-facing field — the
-  // user provided @context (which is in the response already). Strip
-  // it so we don't leak the broker's internal context-URL alias.
-  KjNode* jcP = kjLookup(subP, "jsonldContext");
+  // `_jcResolved` is the broker-filled @context URL used internally for
+  // notification compaction when the user didn't supply `jsonldContext`.
+  // Strip it from the response so we only emit the spec-visible field.
+  KjNode* jcP = kjLookup(subP, "_jcResolved");
   if (jcP != NULL)
     kjChildRemove(subP, jcP);
 

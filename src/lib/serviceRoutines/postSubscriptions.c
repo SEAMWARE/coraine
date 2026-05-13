@@ -292,8 +292,12 @@ bool postSubscriptions(void)
         jcUrl = coreP->url;
     }
 
+    // Auto-filled URL goes into `_jcResolved` (broker-internal), not into the
+    // user-facing `jsonldContext`. The sub-cache loader picks it up there
+    // when `jsonldContext` is absent, and retrieve render skips `_jcResolved`
+    // so the response shape matches what the user provided.
     if (jcUrl != NULL)
-      kjChildAdd(subP, kjString(NULL, "jsonldContext", (char*) jcUrl));
+      kjChildAdd(subP, kjString(NULL, "_jcResolved", (char*) jcUrl));
   }
 
   //

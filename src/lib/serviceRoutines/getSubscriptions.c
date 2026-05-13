@@ -8,8 +8,10 @@
 #include <stddef.h>                                  // NULL
 
 #include "swRest/SwRestState.h"                      // swRest
-#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
+#include "kjson/KjNode.h"                            // KjNode
+#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
 #include "kjson/kjClone.h"                           // kjClone
+#include "kjson/kjLookup.h"                          // kjLookup
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
@@ -20,6 +22,29 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/getSubscriptions.h"        // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// subPostProcess - mirror of getSubscription's response-shaping steps:
+//   · default-emit notificationTrigger (§ 5.2.12)
+//   · strip broker-internal `_jcResolved`
+//
+static void subPostProcess(KjNode* subP)
+{
+  if (kjLookup(subP, "notificationTrigger") == NULL)
+  {
+    KjNode* trigArr = kjArray(swRest.kjsonP, "notificationTrigger");
+    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeCreated"));
+    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeUpdated"));
+    kjChildAdd(subP, trigArr);
+  }
+
+  KjNode* jcP = kjLookup(subP, "_jcResolved");
+  if (jcP != NULL)
+    kjChildRemove(subP, jcP);
+}
 
 
 
@@ -56,6 +81,7 @@ bool getSubscriptions(void)
       KjNode* subP = kjClone(swRest.kjsonP, it->subTree);
       ldSubscriptionCompactQ(subP, it->qExpr, swNgsild.contextP, &swRest.kalloc);
       ldSubscriptionCountersInject(subP, it);
+      subPostProcess(subP);
       kjChildAdd(arrayP, subP);
       taken++;
     }
@@ -71,6 +97,7 @@ bool getSubscriptions(void)
       KjNode* subP = kjClone(swRest.kjsonP, it->subTree);
       ldSubscriptionCompactQ(subP, it->qExpr, swNgsild.contextP, &swRest.kalloc);
       ldPernotCountersInject(subP, it);
+      subPostProcess(subP);
       kjChildAdd(arrayP, subP);
       taken++;
     }
