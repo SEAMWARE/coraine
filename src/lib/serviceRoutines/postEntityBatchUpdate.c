@@ -771,6 +771,26 @@ bool postEntityBatchUpdate(void)
       KjNode* fragP = g->fragV[fi];
 
       //
+      // Count the fragment's "real" attrs (Object children excluding
+      // entity keywords) BEFORE chopping. If the fragment originally
+      // carried attrs but distops chops all of them, the local leg has
+      // nothing to do — even though `type`/`scope`/etc. may still be
+      // present, those don't count as a successful update on their own
+      // when the user actually asked to update attributes that all got
+      // forwarded. Without this guard the entity is silently reported
+      // as a local success (anyMerge=true → bulkUpdate → success[]) on
+      // top of the per-CSR error, which lifts a single-failure batch
+      // to 207 instead of the expected 409.
+      //
+      int realAttrsBefore = 0;
+      for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+      {
+        if (c->type != KjObject) continue;
+        if (isEntityKeyword(c->name)) continue;
+        realAttrsBefore++;
+      }
+
+      //
       // Distops chop (order matters: exclusive first, then redirect, then
       // inclusive — see § 4.3.6.3).
       //
@@ -809,6 +829,25 @@ bool postEntityBatchUpdate(void)
       //
       if (!hasLocalPayload(fragP))
         continue;
+
+      //
+      // Type-only fragments (5.5.5) are legitimately mergeable with no
+      // attribute payload — let them through. But when the user did
+      // supply attrs and distops chopped them all, we have nothing local
+      // left to write.
+      //
+      if (realAttrsBefore > 0)
+      {
+        int realAttrsAfter = 0;
+        for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+        {
+          if (c->type != KjObject) continue;
+          if (isEntityKeyword(c->name)) continue;
+          realAttrsAfter++;
+        }
+        if (realAttrsAfter == 0)
+          continue;
+      }
 
       ldApiEntityToDbModel(fragP, &swRest.kalloc);
 
