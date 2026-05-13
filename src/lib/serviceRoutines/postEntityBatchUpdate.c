@@ -70,6 +70,7 @@
 #include "swNgsild/LdProblem.h"                      // LD_ERROR_RESOURCE_NOT_FOUND, LD_ERROR_CONFLICT, LD_ERROR_INTERNAL_ERROR
 #include "swNgsild/ldEntityAttrsSet.h"               // ldEntityAttrsSet
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
+#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
@@ -86,6 +87,92 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postEntityBatchUpdate.h"   // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// isEntityKeyword - reserved entity-level field name.
+//
+static bool isEntityKeyword(const char* name)
+{
+  if (name == NULL)                       return true;
+  if (name[0] == '@')                     return true;
+  if (strcmp(name, "id")             == 0) return true;
+  if (strcmp(name, "type")           == 0) return true;
+  if (strcmp(name, LD_VOCAB_SCOPE)   == 0) return true;
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// noOverwriteChopLocal - strip from `fragment` every attribute that already
+// exists on `existing` (matching by attr name and by instance datasetId).
+// Returns the number of attribute conflicts (a "skip" count) — when > 0,
+// the merge had nothing to do at attribute granularity.
+//
+// Mirror of postEntityAttrs::classifyAndChopLocal, minus the updated[] /
+// notUpdated[] reporting (the batch response is a BatchOperationResult,
+// not an UpdateResult — we only need the skip-count to drive 207-vs-204).
+//
+static int noOverwriteChopLocal(KjNode* fragment, KjNode* existing)
+{
+  if (fragment == NULL || existing == NULL)
+    return 0;
+
+  int skipped = 0;
+  KjNode* fAttrP = fragment->value.firstChildP;
+  while (fAttrP != NULL)
+  {
+    KjNode* nextAttr = fAttrP->next;
+    if (isEntityKeyword(fAttrP->name) || fAttrP->type != KjObject)
+    {
+      fAttrP = nextAttr;
+      continue;
+    }
+
+    KjNode* tAttrP    = kjLookup(existing, fAttrP->name);
+    bool    anyConflict = false;
+    bool    anyKept     = false;
+
+    if (tAttrP != NULL)
+    {
+      KjNode* fInstP = fAttrP->value.firstChildP;
+      while (fInstP != NULL)
+      {
+        KjNode* nextInst = fInstP->next;
+        if (fInstP->type == KjObject)
+        {
+          KjNode* tInstP = kjLookup(tAttrP, fInstP->name);
+          if (tInstP != NULL)
+          {
+            anyConflict = true;
+            kjChildRemove(fAttrP, fInstP);
+            fInstP = nextInst;
+            continue;
+          }
+        }
+        anyKept = true;
+        fInstP = nextInst;
+      }
+    }
+    else
+    {
+      anyKept = true;
+    }
+
+    if (anyConflict)
+      skipped++;
+
+    if (!anyKept)
+      kjChildRemove(fragment, fAttrP);
+
+    fAttrP = nextAttr;
+  }
+  return skipped;
+}
 
 
 
@@ -677,7 +764,8 @@ bool postEntityBatchUpdate(void)
     //
     // Apply each fragment in array order: distops chop → local merge → notify.
     //
-    bool anyMerge = false;
+    bool anyMerge        = false;
+    bool anyNoOverwriteSkip = false;
     for (int fi = 0; fi < g->count; fi++)
     {
       KjNode* fragP = g->fragV[fi];
@@ -724,6 +812,36 @@ bool postEntityBatchUpdate(void)
 
       ldApiEntityToDbModel(fragP, &swRest.kalloc);
 
+      //
+      // ?options=noOverwrite — strip any attrs already present on the
+      // entity. Per § 5.6.18 Update Batch, "skipped" attrs aren't an
+      // entity-level error, but if EVERY attr was skipped the entity
+      // had nothing to update and the batch reports 207 with an entry
+      // in errors[] (so the client can see which entities were no-ops).
+      //
+      // Runs AFTER ldApiEntityToDbModel so both fragP and existingDb
+      // share the DB shape (expanded IRIs + @none dataset wrappers).
+      //
+      if (swNgsild.noOverwrite)
+      {
+        if (noOverwriteChopLocal(fragP, existingDb) > 0)
+          anyNoOverwriteSkip = true;
+
+        // Re-check whether any attribute (not just id/type/timestamps)
+        // remains. hasLocalPayload returns true on `type`/`createdAt`/
+        // `modifiedAt` alone, which would still proceed to a no-op merge.
+        bool anyAttrLeft = false;
+        for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+        {
+          if (c->type != KjObject) continue;
+          if (isEntityKeyword(c->name)) continue;
+          anyAttrLeft = true;
+          break;
+        }
+        if (!anyAttrLeft)
+          continue;
+      }
+
       LdMergeReport report = { NULL };
       ldEntityAttrsSet(existingDb, fragP, true /* overwriteScope */,
                        swRest.requestStartTime, &report, swRest.kjsonP);
@@ -750,6 +868,16 @@ bool postEntityBatchUpdate(void)
     {
       finalIdV[finalN++] = g->id;
       kjChildAdd(finals, existingDb);
+    }
+    else if (anyNoOverwriteSkip)
+    {
+      // All attrs skipped by noOverwrite — entity had nothing to update.
+      // Surface as a BatchEntityError so the response status is 207, not
+      // a silent 204 (ETSI 005_02_01 / 005_02_03 expect this).
+      addBatchError(errorsP, g->id,
+                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
+                    "all attrs already exist; nothing to update under noOverwrite",
+                    NULL);
     }
   }
 
