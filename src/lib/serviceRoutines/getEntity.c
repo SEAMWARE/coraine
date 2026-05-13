@@ -846,7 +846,23 @@ bool getEntity(void)
     int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
     if (strcmp(swNgsild.join, "flat") == 0)
     {
-      swRest.out.responseTree = ldLinkedEntitiesFlat(entityP, level, (Tenant*) swNgsild.tenantP);
+      KjNode* flatP = ldLinkedEntitiesFlat(entityP, level, (Tenant*) swNgsild.tenantP);
+      // Single-entity Retrieve shape: if flat returned only the
+      // primary (no linked targets resolved), unwrap the array so the
+      // response stays a plain Entity object. § 4.5.23 doesn't mandate
+      // a single-element array — the array shape is for "primary +
+      // targets" and degenerates to "just the primary" when no targets
+      // were found.
+      if (flatP != NULL && flatP->type == KjArray)
+      {
+        KjNode* first = flatP->value.firstChildP;
+        if (first != NULL && first->next == NULL)
+        {
+          first->name = NULL;
+          flatP = first;
+        }
+      }
+      swRest.out.responseTree = flatP;
       return true;
     }
     if (strcmp(swNgsild.join, "inline") == 0)
