@@ -437,9 +437,21 @@ bool postEntityAttrs(void)
   // removed their claims). If the fragment still has attrs, try local;
   // otherwise skip.
   //
+  // localHasAttrs is true when the fragment carries anything the local
+  // DB layer needs to persist — attributes OR a scope update. type and
+  // id are intentionally NOT counted (POST /attrs doesn't add types,
+  // § 5.6.3 §  4.5.6, and id is immutable). `scope` flows through
+  // ldEntityAttrsSet::applyScope and respects ?options=noOverwrite.
   bool localHasAttrs = false;
   for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
-    if (!isEntityKeyword(c->name)) { localHasAttrs = true; break; }
+  {
+    if (c->name == NULL)               continue;
+    if (c->name[0] == '@')             continue;
+    if (strcmp(c->name, "id")   == 0)  continue;
+    if (strcmp(c->name, "type") == 0)  continue;
+    localHasAttrs = true;
+    break;
+  }
 
   KjNode* existing = NULL;
   int     rr       = DB_NOT_FOUND;
