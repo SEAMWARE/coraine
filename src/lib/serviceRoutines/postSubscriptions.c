@@ -173,13 +173,13 @@ bool postSubscriptions(void)
   KjNode* expiresAtP = kjLookup(subP, LD_VOCAB_EXPIRES_AT);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
-  // § 5.2.12 — `isActive` is cardinality 0..1, "true by default". When the
-  // user creates a subscription WITHOUT isActive, treat it as true and emit
-  // that on retrieve so the field is observable. The user's explicit value
-  // (e.g. `isActive: false` for a paused sub) is preserved unchanged; this
-  // branch only fires when the field is missing entirely.
-  if (isActiveP == NULL)
-    kjChildAdd(subP, kjBoolean(NULL, "isActive", true));
+  // § 5.2.12 — `isActive` is cardinality 0..1 and "true by default". When
+  // the user creates a subscription WITHOUT isActive, do not synthesize a
+  // default value into the stored subTree: the active/paused state is
+  // already observable through `status`, and emitting isActive=true here
+  // would surface it in retrieve responses even though the user didn't
+  // ask for it (ETSI 028_06). The user's explicit value (e.g.
+  // `isActive: false`) is preserved unchanged.
 
   //
   // Per spec 5.8.1.4: expiresAt in the past is an error

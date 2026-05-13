@@ -11,6 +11,8 @@
 #include "swRest/SwRestState.h"                      // swRest
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjClone.h"                           // kjClone
+#include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
@@ -54,6 +56,26 @@ bool getSubscription(void)
   KjNode*  subP  = kjClone(swRest.kjsonP, srcTree);
   LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr : (pernotItem != NULL) ? pernotItem->qExpr : NULL;
   ldSubscriptionCompactQ(subP, qExpr, swNgsild.contextP, &swRest.kalloc);
+
+  // § 5.2.12: notificationTrigger defaults to ["attributeCreated",
+  // "attributeUpdated"] when not specified. Surface the active default
+  // in the response so clients see what the subscription will actually
+  // trigger on, rather than silently inheriting an undocumented value.
+  if (kjLookup(subP, "notificationTrigger") == NULL)
+  {
+    KjNode* trigArr = kjArray(swRest.kjsonP, "notificationTrigger");
+    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeCreated"));
+    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeUpdated"));
+    kjChildAdd(subP, trigArr);
+  }
+
+  // `jsonldContext` is stored internally so notifications can reach
+  // their target's @context, but it's not a user-facing field — the
+  // user provided @context (which is in the response already). Strip
+  // it so we don't leak the broker's internal context-URL alias.
+  KjNode* jcP = kjLookup(subP, "jsonldContext");
+  if (jcP != NULL)
+    kjChildRemove(subP, jcP);
 
   if (cacheItem != NULL) ldSubscriptionCountersInject(subP, cacheItem);
   else                   ldPernotCountersInject(subP, pernotItem);
