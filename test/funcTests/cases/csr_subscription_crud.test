@@ -154,7 +154,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -165,7 +165,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 324
 
 {
   "entities": [
@@ -174,13 +174,15 @@ Content-Length: REGEX(\d+)
     }
   ],
   "id": "urn:ngsi-ld:Subscription:CSR1",
-  "isActive": true,
-  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:1234/csrNotify"
     }
   },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
   "status": "active",
   "type": "Subscription"
 }
@@ -193,7 +195,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR2
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -204,7 +206,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 788
 
 [
   {
@@ -214,13 +216,15 @@ Content-Length: REGEX(\d+)
       }
     ],
     "id": "urn:ngsi-ld:Subscription:CSR1",
-    "isActive": true,
-    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/csrNotify"
       }
     },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
     "status": "active",
     "type": "Subscription"
   },
@@ -231,13 +235,15 @@ Content-Length: REGEX(\d+)
       }
     ],
     "id": "urn:ngsi-ld:Subscription:CSR2",
-    "isActive": true,
-    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/csrNotify2"
       }
     },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
     "status": "active",
     "type": "Subscription",
     "watchedAttributes": [
@@ -253,7 +259,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 174
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' already exists",
@@ -278,7 +284,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 369
 
 {
   "description": "watches all Vehicle CSRs",
@@ -288,13 +294,15 @@ Content-Length: REGEX(\d+)
     }
   ],
   "id": "urn:ngsi-ld:Subscription:CSR1",
-  "isActive": true,
-  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:1234/csrNotify"
     }
   },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
   "status": "active",
   "type": "Subscription"
 }
@@ -307,7 +315,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR3
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -327,7 +335,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 803
 
 [
   {
@@ -337,13 +345,15 @@ Content-Length: REGEX(\d+)
       }
     ],
     "id": "urn:ngsi-ld:Subscription:CSR2",
-    "isActive": true,
-    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/csrNotify2"
       }
     },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
     "status": "active",
     "type": "Subscription",
     "watchedAttributes": [
@@ -357,13 +367,15 @@ Content-Length: REGEX(\d+)
       }
     ],
     "id": "urn:ngsi-ld:Subscription:CSR3",
-    "isActive": true,
-    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/pernot"
       }
     },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
     "status": "active",
     "timeInterval": 30,
     "type": "Subscription"
@@ -377,7 +389,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 149
 
 {
   "detail": "CSR subscription 'urn:no:such' not found",
@@ -392,7 +404,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: REGEX(\d+)
+Content-Length: 167
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' not found",

@@ -155,8 +155,6 @@ Content-Length: REGEX(\d+)
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Persist",
-  "isActive": true,
-  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
@@ -166,6 +164,10 @@ Content-Length: REGEX(\d+)
     "status": "ok",
     "timesSent": 1
   },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
   "status": "active",
   "type": "Subscription"
 }

@@ -104,7 +104,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 345
+Content-Length: 340
 
 {
   "entities": [
@@ -113,13 +113,15 @@ Content-Length: 345
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Qctx",
-  "isActive": true,
-  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
     }
   },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
   "q": "a>5;b<10",
   "status": "active",
   "type": "Subscription"
@@ -133,7 +135,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 347
+Content-Length: 342
 
 {
   "entities": [
@@ -142,13 +144,15 @@ Content-Length: 347
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Qctx",
-  "isActive": true,
-  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
     }
   },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
   "q": "a2>5;b2<10",
   "status": "active",
   "type": "Subscription"
@@ -162,7 +166,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 423
+Content-Length: 418
 
 {
   "entities": [
@@ -171,13 +175,15 @@ Content-Length: 423
     }
   ],
   "id": "urn:ngsi-ld:Subscription:Qctx",
-  "isActive": true,
-  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxA",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
     }
   },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
   "q": "https%3A%2F%2Fexample%2Eorg%2Fspeed%2Emax>5;https%3A%2F%2Fexample%2Eorg%2Ftemp-unit<10",
   "status": "active",
   "type": "Subscription"
