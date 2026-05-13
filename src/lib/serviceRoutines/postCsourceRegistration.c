@@ -199,6 +199,7 @@ static bool blockingMode(LdRegMode newMode, LdRegMode cachedMode)
 static const char* cacheConflict(LdRegCache* cacheP,
                                   LdRegMode   newMode,
                                   const char* entityId,
+                                  const char* entityType,
                                   char**      newProps,
                                   char**      newRels)
 {
@@ -216,13 +217,20 @@ static const char* cacheConflict(LdRegCache* cacheP,
       bool entityMatches = false;
       for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
       {
+        // Type must match if specified — a type-Building registration
+        // doesn't cover a Vehicle entity. eiP->type == NULL means "any
+        // type" (legal per spec but rare).
+        if (eiP->type != NULL && entityType != NULL && strcmp(eiP->type, entityType) != 0)
+          continue;
+
         // Spec § 4.3.6.3: exclusive regs have specific entity ids (no idPattern).
         // For the conflict check we only need exact-id intersection — pattern
         // matching is left to the dispatcher.
         if (eiP->id == NULL)
         {
           // EntityInfo with no id (and no pattern relevant for conflict) →
-          // covers all entities of its type. Treat as matching.
+          // covers all entities of its type. Already type-filtered above,
+          // so this means "any entity of the matching type" → matches.
           if (eiP->idPatternList == NULL)
           {
             entityMatches = true;
@@ -336,8 +344,16 @@ static bool conflictCheck(KjNode* regP, LdRegMode newMode)
 
       const char* entityId = idP->value.s;
 
+      // The new reg's EntityInfo MAY carry a type; if it does, the
+      // conflict check must respect it — a type-Building existing reg
+      // doesn't overlap with a Vehicle entity of any id. NULL = no type
+      // constraint on the new side, in which case every cached type
+      // counts as matching.
+      KjNode*     typeP      = kjLookup(entP, "type");
+      const char* entityType = (typeP != NULL && typeP->type == KjString) ? typeP->value.s : NULL;
+
       // Check 1: cached registration overlap
-      const char* conflictingRegId = cacheConflict(cacheP, newMode, entityId, newProps, newRels);
+      const char* conflictingRegId = cacheConflict(cacheP, newMode, entityId, entityType, newProps, newRels);
       if (conflictingRegId != NULL)
       {
         ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
