@@ -477,10 +477,15 @@ static void chopForMode(Tenant*      tenantP,
 
 // -----------------------------------------------------------------------------
 //
-// hasAnyNonKeywordAttr - true if fragP still carries at least one attribute
-// (i.e. it's not just { id, type, @context } after chopping).
+// hasLocalPayload - true if fragP still carries something to merge
+// locally (i.e. it's not just { id, @context } after chopping).
 //
-static bool hasAnyNonKeywordAttr(KjNode* fragP)
+// `type` and `scope` count — they aren't "attributes" strictly but they
+// trigger entity-level union/replace updates that the local store must
+// see, otherwise a fragment of { id, type: NewType } is silently lost
+// (ETSI 005_05_01: Batch Update used only to add an Entity Type).
+//
+static bool hasLocalPayload(KjNode* fragP)
 {
   if (fragP == NULL || fragP->type != KjObject) return false;
   for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
@@ -488,7 +493,6 @@ static bool hasAnyNonKeywordAttr(KjNode* fragP)
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
     if (strcmp(c->name, "id")   == 0)    continue;
-    if (strcmp(c->name, "type") == 0)    continue;
     return true;
   }
   return false;
@@ -715,7 +719,7 @@ bool postEntityBatchUpdate(void)
       // createdAt/modifiedAt, so a fully-chopped fragment is correctly
       // seen as attr-less.
       //
-      if (!hasAnyNonKeywordAttr(fragP))
+      if (!hasLocalPayload(fragP))
         continue;
 
       ldApiEntityToDbModel(fragP, &swRest.kalloc);
