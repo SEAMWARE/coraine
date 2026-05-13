@@ -797,7 +797,13 @@ bool getEntity(void)
     }
     if (!hasMembers)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      // § 4.21 / § 5.7.1: pick reduced the entity to nothing. The
+      // entity EXISTS (so 404 ResourceNotFound would be wrong), but
+      // the request can't produce a meaningful body. 422 reflects
+      // "the request is well-formed but semantically unprocessable
+      // for this entity" (per discussions in ETSI plenary; spec still
+      // silent on this case).
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Unprocessable Content",
               "entity '%s' has no members after pick/omit projection", entityId);
       return true;
     }

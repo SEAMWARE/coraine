@@ -1007,6 +1007,28 @@ static bool entityMapPaginate(void)
   {
     for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
       ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
+
+    // Drop entities reduced to empty by pick — § 4.21 / § 5.7.2 are
+    // silent on this case (spec only mandates "reduce to specified
+    // members"). ETSI agreed in plenary to filter out empty objects
+    // rather than return an array of `{}` placeholders that carry no
+    // useful information for the client. ?count= will still include
+    // the dropped ones — a count mismatch the spec is yet to address.
+    if (swNgsild.pickV != NULL)
+    {
+      KjNode* ep = arrayP->value.firstChildP;
+      KjNode* prev = NULL;
+      while (ep != NULL)
+      {
+        KjNode* next = ep->next;
+        if (ep->type == KjObject && ep->value.firstChildP == NULL)
+          kjChildRemove(arrayP, ep);
+        else
+          prev = ep;
+        ep = next;
+      }
+      (void) prev;
+    }
   }
   else if (swNgsild.attrsV != NULL)
   {
@@ -1610,6 +1632,20 @@ bool getEntities(void)
   {
     for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+
+    // Drop entities reduced to empty by pick — see the earlier
+    // identical block; spec is silent, ETSI plenary chose to drop.
+    if (swNgsild.pickV != NULL)
+    {
+      KjNode* ep = arrayP->value.firstChildP;
+      while (ep != NULL)
+      {
+        KjNode* next = ep->next;
+        if (ep->type == KjObject && ep->value.firstChildP == NULL)
+          kjChildRemove(arrayP, ep);
+        ep = next;
+      }
+    }
   }
   else if (swNgsild.attrsV != NULL)
   {
