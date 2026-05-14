@@ -1090,10 +1090,16 @@ bool postEntityBatchUpsert(void)
     swRest.out.httpStatusCode = (createdCount > 0) ? 201 : 204;
     if (createdCount > 0)
     {
-      KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
-      kjChildAdd(respBodyP, successP);
-      kjChildAdd(respBodyP, errorsP);
-      swRest.out.responseTree = respBodyP;
+      // § 5.6.8.5: 201 body is the array of newly-created entity IDs (the
+      // "S Array"), not the BatchOperationResult shape — that's reserved
+      // for 207 Multi-Status.
+      KjNode* createdP = kjArray(swRest.kjsonP, NULL);
+      for (int gi = 0; gi < gN; gi++)
+      {
+        if (anySuccessV[gi] && wasCreatedV[gi])
+          kjChildAdd(createdP, kjString(swRest.kjsonP, NULL, (char*) allIdV[gi]));
+      }
+      swRest.out.responseTree = createdP;
       swNgsild.rawResponse    = true;
     }
     return true;
