@@ -75,7 +75,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 785
 
 {
   "height": {
@@ -92,8 +92,10 @@ Content-Length: REGEX(\d+)
     "languageMaps": [
       [
         {
-          "en": "Hello",
-          "fr": "Bonjour"
+          "languageMap": {
+            "en": "Hello",
+            "fr": "Bonjour"
+          }
         },
         "2026-04-28T09:00:00Z"
       ]
@@ -137,7 +139,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 288
 
 [
   {

@@ -145,15 +145,15 @@ Content-Length: 195
 
 05. GET entity with pick=nonexistent - no user attrs returned
 ==============================================================
-HTTP/1.1 404 Not Found
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 169
+Content-Length: 186
 
 {
   "detail": "entity 'urn:po:E1' has no members after pick/omit projection",
-  "title": "Not Found",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+  "title": "Unprocessable Content",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 
 

@@ -1592,10 +1592,10 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 195
+Content-Length: 214
 
 {
-  "detail": "at least one of 'type', 'attrs', 'pick', 'q' or the geo-query quadruple is required",
+  "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
   "title": "Too Wide Query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

@@ -47,7 +47,7 @@ echo
 
 echo "03. Entity selector mandatory → 400 when only timerel given"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | head -1
+swCurl --url '/ngsi-ld/v1/temporal/entities?timerel=after&timeAt=2026-01-01T00:00:00Z' | head -1
 echo
 echo
 

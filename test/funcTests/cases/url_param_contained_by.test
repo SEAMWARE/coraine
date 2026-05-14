@@ -51,39 +51,21 @@ echo
 
 echo "04. Baseline: GET V1?join=flat&joinLevel=10 — full chain V1 + P1 + P2"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  count:', len(d))
-print('  ids:', sorted(e['id'] for e in d))
-"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10'
 echo
 echo
 
 
 echo "05. GET V1 with containedBy=urn:P2 — P2 is suppressed (visited preseeded)"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P2' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  count:', len(d))
-print('  ids:', sorted(e['id'] for e in d))
-"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P2'
 echo
 echo
 
 
 echo "06. GET V1 with containedBy=urn:P1,urn:P2 — both targets suppressed, only V1 left"
 echo "================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P1,urn:P2' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  count:', len(d))
-print('  ids:', sorted(e['id'] for e in d))
-"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P1,urn:P2'
 echo
 echo
 
@@ -97,13 +79,7 @@ echo
 
 echo "08. GET /entities?type=Vehicle with containedBy=urn:P1 — only V1 (P1 skipped → P2 not reached)"
 echo "=============================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=10&containedBy=urn:P1' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  count:', len(d))
-print('  ids:', sorted(e['id'] for e in d))
-"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=10&containedBy=urn:P1'
 echo
 echo
 
@@ -126,20 +102,87 @@ HTTP/1.1 201 Created
 
 04. Baseline: GET V1?join=flat&joinLevel=10 — full chain V1 + P1 + P2
 =====================================================================
-  count: 3
-  ids: ['urn:P1', 'urn:P2', 'urn:V1']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+[
+  {
+    "id": "urn:V1",
+    "owner": {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:P1",
+    "manager": {
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "type": "Person"
+  },
+  {
+    "id": "urn:P2",
+    "name": {
+      "type": "Property",
+      "value": "Bob"
+    },
+    "type": "Person"
+  }
+]
+
 
 
 05. GET V1 with containedBy=urn:P2 — P2 is suppressed (visited preseeded)
 =========================================================================
-  count: 2
-  ids: ['urn:P1', 'urn:V1']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 260
+
+[
+  {
+    "id": "urn:V1",
+    "owner": {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:P1",
+    "manager": {
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "type": "Person"
+  }
+]
+
 
 
 06. GET V1 with containedBy=urn:P1,urn:P2 — both targets suppressed, only V1 left
 =================================================================================
-  count: 1
-  ids: ['urn:V1']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "object": "urn:P1",
+    "type": "Relationship"
+  },
+  "type": "Vehicle"
+}
+
 
 
 07. GET V1 with empty containedBy= — 400 BadRequestData (spec § 5.7.1.4)
@@ -159,8 +202,23 @@ Content-Length: 145
 
 08. GET /entities?type=Vehicle with containedBy=urn:P1 — only V1 (P1 skipped → P2 not reached)
 ==============================================================================================
-  count: 1
-  ids: ['urn:V1']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 131
+
+[
+  {
+    "id": "urn:V1",
+    "owner": {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    "type": "Vehicle"
+  }
+]
+
 
 
 --TEARDOWN--
