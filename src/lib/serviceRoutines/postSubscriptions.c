@@ -213,7 +213,8 @@ bool postSubscriptions(void)
   //
   if (kjLookup(subP, "jsonldContext") == NULL)
   {
-    const char* jcUrl = NULL;
+    const char* jcUrl     = NULL;
+    bool        isImplicit = false;   // true when the URL points to a broker-minted Implicit @context
 
     SwldContext* reqCtxP = swNgsild.contextP;
     if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
@@ -238,7 +239,11 @@ bool postSubscriptions(void)
       // Mint an Implicit entry from the inline body. The same plumbing
       // that POST /jsonldContexts uses (id generation, body persistence,
       // cache insert), but with kind=ImplicitlyCreated since the broker
-      // is the originator, not a client request.
+      // is the originator, not a client request. Per § 5.13 the
+      // resulting URL is the SPEC-visible `jsonldContext` on the
+      // subscription (clients use it to dereference the minted
+      // @context) — not the internal `_jcResolved` alias used by the
+      // other auto-fill branches.
       SwldContextCache* cacheP = swldCacheGet();
       KAlloc*           storeP = (cacheP != NULL) ? cacheP->kaP : &swRest.kalloc;
       char* implicitId = swldIdGenerate(storeP);
@@ -281,6 +286,7 @@ bool postSubscriptions(void)
         memcpy(urlBuf + baseLen + prefixLen, implicitId, idLen);
         urlBuf[baseLen + prefixLen + idLen] = 0;
         jcUrl = urlBuf;
+        isImplicit = true;
       }
     }
     else
@@ -292,12 +298,17 @@ bool postSubscriptions(void)
         jcUrl = coreP->url;
     }
 
-    // Auto-filled URL goes into `_jcResolved` (broker-internal), not into the
-    // user-facing `jsonldContext`. The sub-cache loader picks it up there
-    // when `jsonldContext` is absent, and retrieve render skips `_jcResolved`
-    // so the response shape matches what the user provided.
+    // For Implicit-minted contexts the URL is spec-visible (§ 5.13) — the
+    // client needs `jsonldContext` to dereference the broker-stored entry.
+    // For passed-through URL or core-default fallbacks the URL is internal
+    // (`_jcResolved`): the sub-cache loader picks it up when `jsonldContext`
+    // is absent, retrieve render skips it, so the response shape matches
+    // what the user provided.
     if (jcUrl != NULL)
-      kjChildAdd(subP, kjString(NULL, "_jcResolved", (char*) jcUrl));
+    {
+      const char* fieldName = isImplicit ? "jsonldContext" : "_jcResolved";
+      kjChildAdd(subP, kjString(NULL, fieldName, (char*) jcUrl));
+    }
   }
 
   //
