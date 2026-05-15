@@ -34,6 +34,7 @@
 #include "kalloc/kaAlloc.h"                       // kaAlloc
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
+#include "swNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "swNgsild/ldNotifyStatsHook.h"           // ldNotifyStatsHookSet
 #include "swNgsild/ldLinkedEntitiesHook.h"        // ldLinkedEntitiesHookSet
@@ -475,6 +476,8 @@ static bool brokerPreServiceHook(void)
   // (e.g. GET /types/Building with just a Link header).
   ldContextResolve();
 
+  if (!ldUrlWildcardCheck())
+    return false;
   if (!tenantPreServiceHook())
     return false;
   if (!ldSnapshotWriteGuard())
@@ -706,6 +709,7 @@ int main(int argC, char* argV[])
   metricsInit();
   ldNotifyStatsHookSet(brokerNotifyStatsHook);
   ldLinkedEntitiesHookSet(brokerLinkedEntitiesHook);
+  swRestSetServiceInitHook(ldUrlWildcardOptionsInit);
   swRestSetPreServiceHook(brokerPreServiceHook);
   swRestSetPostResponseHook(brokerPostResponseHook);
 
