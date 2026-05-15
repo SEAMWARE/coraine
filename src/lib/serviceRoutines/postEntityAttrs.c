@@ -141,7 +141,10 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 static char* attrsUrl(const char* endpoint, const char* entityId, bool noOverwrite)
 {
   const char* path    = "/ngsi-ld/v1/entities/";
-  const char* suffix  = "/attrs";
+  const char* suffix  = "/attrs/";   // trailing slash matches the § 6.6.3 spec
+                                     // URI template — and the ETSI HttpCtrl
+                                     // stub matcher is strict on URL, so a
+                                     // stubbed `…/attrs/` won't match `…/attrs`.
   const char* qs      = noOverwrite ? "?options=noOverwrite" : "";
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);

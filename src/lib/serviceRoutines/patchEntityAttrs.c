@@ -139,7 +139,7 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 static char* attrsUrl(const char* endpoint, const char* entityId)
 {
   const char* path    = "/ngsi-ld/v1/entities/";
-  const char* suffix  = "/attrs";
+  const char* suffix  = "/attrs/";   // trailing slash per § 6.6.3 spec URI template
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);
   int         idLen   = strlen(entityId);

@@ -101,7 +101,7 @@ static int forwardAppendAttrs(LdRegCacheItem* csr,
                               const char**    errorDetailPP)
 {
   const char* prefix = "/ngsi-ld/v1/temporal/entities/";
-  const char* suffix = "/attrs";
+  const char* suffix = "/attrs/";   // trailing slash per spec URI template
   int   baseLen = strlen(csr->endpoint);
   int   prefLen = strlen(prefix);
   int   idLen   = strlen(entityId);
@@ -211,7 +211,7 @@ bool postEntityTemporalAttrs(void)
             }
 
             const char* prefix = "/ngsi-ld/v1/temporal/entities/";
-            const char* suffix = "/attrs";
+            const char* suffix = "/attrs/";   // trailing slash per spec URI template
             int baseLen = strlen(csr->endpoint);
             int prefLen = strlen(prefix);
             int idLen   = strlen(entityId);
