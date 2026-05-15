@@ -369,11 +369,17 @@ bool patchEntityAttrs(void)
     //
     // § 5.6.2.4: if the fragment carries scope but the target entity has
     // no scope, the fragment's scope must be ignored (unlike Append where
-    // it replaces). Strip it here so the downstream merge never sees it.
+    // it replaces). Strip it here so the downstream merge never sees it,
+    // and report it in notUpdated[] so the response is 207 (not 204) —
+    // ETSI 011_05_02.
     //
     KjNode* fragScope = kjLookup(fragment, LD_VOCAB_SCOPE);
     if (fragScope != NULL && kjLookup(existing, LD_VOCAB_SCOPE) == NULL)
+    {
       kjChildRemove(fragment, fragScope);
+      addNotUpdated(notUpdatedP, "scope",
+                    "scope cannot be added to an entity that has no scope", NULL);
+    }
 
     //
     // Record every non-keyword attr in the fragment into updated[] — spec

@@ -148,10 +148,23 @@ Content-Type: application/json; charset=utf-8
 
 06. PATCH /attrs on V2 with scope=/x (target has no scope → ignore)
 ===================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 171
 
+{
+  "notUpdated": [
+    {
+      "attributeName": "scope",
+      "reason": "scope cannot be added to an entity that has no scope"
+    }
+  ],
+  "updated": [
+    "alt"
+  ]
+}
 
 
 

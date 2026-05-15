@@ -910,12 +910,22 @@ bool postEntityBatchUpdate(void)
     {
       finalIdV[finalN++] = g->id;
       kjChildAdd(finals, existingDb);
+
+      // Mixed outcome: some attrs were merged, some were skipped by
+      // noOverwrite. § 5.6.18: per-entity partial success is reported
+      // in errors[] alongside the entity's id in success[], driving the
+      // overall response to 207 instead of 204 (ETSI 005_02_03).
+      if (anyNoOverwriteSkip)
+        addBatchError(errorsP, g->id,
+                      LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
+                      "some attrs already existed; skipped under noOverwrite",
+                      NULL);
     }
     else if (anyNoOverwriteSkip)
     {
       // All attrs skipped by noOverwrite — entity had nothing to update.
       // Surface as a BatchEntityError so the response status is 207, not
-      // a silent 204 (ETSI 005_02_01 / 005_02_03 expect this).
+      // a silent 204 (ETSI 005_02_01 expects this).
       addBatchError(errorsP, g->id,
                     LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
                     "all attrs already exist; nothing to update under noOverwrite",
