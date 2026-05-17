@@ -7,6 +7,7 @@
 //
 #include <stddef.h>                                  // NULL
 #include <stdio.h>                                   // snprintf
+#include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp, strlen, strcpy
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc

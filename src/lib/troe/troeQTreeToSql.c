@@ -100,7 +100,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
 
   // Pick value column + literal based on value type.
   const char* vCol = NULL;
-  char        lit[256];
+  char        lit[320];
   bool        haveLit = false;
 
   if (tP->valueType == LdQNumber)

@@ -173,18 +173,18 @@ bool getJsonldContexts(void)
       {
         time_t  secs;
         struct  tm tm;
-        char*   ca = (char*) kaAlloc(&swRest.kalloc, 32);
+        char*   ca = (char*) kaAlloc(&swRest.kalloc, 80);
         secs = (time_t) c->createdAt;
         gmtime_r(&secs, &tm);
-        snprintf(ca, 32, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
+        snprintf(ca, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
         kjChildAdd(obj, kjString(NULL, "createdAt", ca));
 
-        char* lu = (char*) kaAlloc(&swRest.kalloc, 32);
+        char* lu = (char*) kaAlloc(&swRest.kalloc, 80);
         secs = (time_t) c->usedAt;
         gmtime_r(&secs, &tm);
-        snprintf(lu, 32, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
+        snprintf(lu, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
         kjChildAdd(obj, kjString(NULL, "lastUsage", lu));

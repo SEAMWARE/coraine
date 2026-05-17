@@ -574,7 +574,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   // For the lastN case the cap applies on a single specific (attr,ds).
   // For the no-lastN case we still emit the window function so we can
   // drop the first group's overflow rows without rebuilding the query.
-  char rnLimit[256];
+  char rnLimit[1280];
   if (firstClipIx >= 0)
   {
     int globalLim = (lastN > 0) ? lastN : firstClipLim;

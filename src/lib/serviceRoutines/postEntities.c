@@ -632,7 +632,6 @@ bool postEntities(void)
   //
   bool distopsConsumedAll = (inputHadAttrs && !hasNonKeywordAttr(entityP));
   bool localAlreadyExists = false;
-  bool localCreatedOk     = false;
 
   if (distopsConsumedAll)
   {
@@ -653,7 +652,6 @@ bool postEntities(void)
     }
     else if (r == DB_OK)
     {
-      localCreatedOk = true;
       anySucceeded   = true;
 
       // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.

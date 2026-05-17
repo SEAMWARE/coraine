@@ -411,7 +411,7 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
 
   const char* entityId   = idP->value.s;
   const char* entityType = typeP->value.s;
-  const char* tenant     = (tenantP != NULL && tenantP->name != NULL) ? tenantP->name : "";
+  const char* tenant     = (tenantP != NULL) ? tenantP->name : "";
 
   pthread_mutex_lock(&timescaleMutex);
 

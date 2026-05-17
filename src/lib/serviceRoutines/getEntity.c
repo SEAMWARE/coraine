@@ -492,7 +492,7 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
 // Returns NULL on parse failure (errorDetail set), otherwise the parsed
 // tree ready for merging. Caller has already ruled out non-2xx codes.
 //
-static KjNode* parseUpstreamBody(const char* respBody, int respBodyLen, const char** errorDetailPP)
+static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char** errorDetailPP)
 {
   if (respBody == NULL || respBodyLen == 0)
   {

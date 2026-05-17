@@ -15,7 +15,7 @@ CC            = gcc
 INCLUDE       = -I.. -Isrc/lib -Isrc/app/swBroker
 
 DFLAGS        =
-CFLAGS        = -O2 -Wall -Wno-unused-function -fstack-protector-all $(DFLAGS) $(INCLUDE)
+CFLAGS        = -O2 -Wall -Werror -Wno-unused-function -fstack-protector-all $(DFLAGS) $(INCLUDE)
 
 #
 # Source files
