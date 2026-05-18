@@ -44,68 +44,28 @@ echo
 
 echo "02. Discovery type=Vehicle — only the Vehicle RegistrationInfo entry comes back"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  csr count:', len(d))
-for csr in d:
-    print('  csr:', csr.get('id'), 'info entries:', len(csr.get('information', [])))
-    for info in csr.get('information', []):
-        et = [e.get('type') for e in info.get('entities', [])]
-        pn = info.get('propertyNames', [])
-        print('    info: types=', et, 'propertyNames=', pn)
-"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
 echo
 echo
 
 
 echo "03. Discovery type=Vehicle,Person — both Vehicle and Person entries come back"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Person' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  csr count:', len(d))
-for csr in d:
-    print('  csr:', csr.get('id'), 'info entries:', len(csr.get('information', [])))
-    for info in csr.get('information', []):
-        et = [e.get('type') for e in info.get('entities', [])]
-        print('    info: types=', et)
-"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Person'
 echo
 echo
 
 
 echo "04. Discovery pick=speed — only the speed entry matches"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&pick=speed' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  csr count:', len(d))
-for csr in d:
-    print('  csr:', csr.get('id'), 'info entries:', len(csr.get('information', [])))
-    for info in csr.get('information', []):
-        print('    info: propertyNames=', info.get('propertyNames', []))
-"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&pick=speed'
 echo
 echo
 
 
 echo "05. Discovery type=Building — Building info entry only"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  csr count:', len(d))
-for csr in d:
-    for info in csr.get('information', []):
-        et = [e.get('type') for e in info.get('entities', [])]
-        pn = info.get('propertyNames', [])
-        print('    info: types=', et, 'propertyNames=', pn)
-"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building'
 echo
 echo
 
@@ -118,30 +78,132 @@ HTTP/1.1 201 Created
 
 02. Discovery type=Vehicle — only the Vehicle RegistrationInfo entry comes back
 ===============================================================================
-  csr count: 1
-  csr: urn:ngsi-ld:CSR:Multi info entries: 1
-    info: types= ['Vehicle'] propertyNames= ['speed']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 322
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
 
 
 03. Discovery type=Vehicle,Person — both Vehicle and Person entries come back
 =============================================================================
-  csr count: 1
-  csr: urn:ngsi-ld:CSR:Multi info entries: 2
-    info: types= ['Vehicle']
-    info: types= ['Person']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 479
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      },
+      {
+        "entities": [
+          {
+            "type": "Person"
+          }
+        ],
+        "propertyNames": [
+          "name"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
 
 
 04. Discovery pick=speed — only the speed entry matches
 =======================================================
-  csr count: 1
-  csr: urn:ngsi-ld:CSR:Multi info entries: 1
-    info: propertyNames= ['speed']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 322
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
 
 
 05. Discovery type=Building — Building info entry only
 ======================================================
-  csr count: 1
-    info: types= ['Building'] propertyNames= ['location']
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 326
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Building"
+          }
+        ],
+        "propertyNames": [
+          "location"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
 
 
 --TEARDOWN--

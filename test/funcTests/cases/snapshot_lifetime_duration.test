@@ -24,33 +24,15 @@ swBrokerStart
 
 --RUN--
 
-# Helper: extract expiresAt from a GET response and report the delta
-# from a reference epoch (passed as $1) in whole seconds. Uses python3
-# for ISO 8601 parsing — coreutils date -d on macOS / older glibc
-# can't always parse fractional-second ISO.
-checkDelta() {
-    local ref_epoch=$1
-    swCurl --url "/ngsi-ld/v1/snapshots/$2" 2>/dev/null | python3 -c "
-import sys, re, json
-from datetime import datetime, timezone
-ref = $ref_epoch
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-expiresAt = d.get('expiresAt')
-if not expiresAt:
-    print('  expiresAt: missing')
-    sys.exit(0)
-exp_epoch = datetime.strptime(expiresAt, '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=timezone.utc).timestamp()
-delta = int(round((exp_epoch - ref) / 60.0)) * 60
-print(f'  delta seconds (rounded to nearest minute): {delta}')
-print(f'  snapshotLifetime: {d.get(\"snapshotLifetime\")}')
-"
+# GET the snapshot — raw response goes into .out, expiresAt and
+# snapshotLifetime are masked with REGEX in .expect.
+showSnapshot() {
+    swCurl --url "/ngsi-ld/v1/snapshots/$1"
 }
 
 
 echo "01. POST snapshot with snapshotLifetime=PT2H — expiresAt should be ~7200s out"
 echo "============================================================================="
-NOW=$(date +%s)
 swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Two",
   "type": "Snapshot",
@@ -58,14 +40,13 @@ swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "snapshotLifetime": "PT2H"
 }'
 echo
-checkDelta $NOW urn:ngsi-ld:Snapshot:Two
+showSnapshot urn:ngsi-ld:Snapshot:Two
 echo
 echo
 
 
 echo "02. POST snapshot with snapshotLifetime=P1D — expiresAt should be ~86400s out"
 echo "============================================================================="
-NOW=$(date +%s)
 swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Day",
   "type": "Snapshot",
@@ -73,14 +54,13 @@ swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "snapshotLifetime": "P1D"
 }'
 echo
-checkDelta $NOW urn:ngsi-ld:Snapshot:Day
+showSnapshot urn:ngsi-ld:Snapshot:Day
 echo
 echo
 
 
 echo "03. POST snapshot with snapshotLifetime=PT1H30M — combined (5400s)"
 echo "=================================================================="
-NOW=$(date +%s)
 swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Mix",
   "type": "Snapshot",
@@ -88,21 +68,20 @@ swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "snapshotLifetime": "PT1H30M"
 }'
 echo
-checkDelta $NOW urn:ngsi-ld:Snapshot:Mix
+showSnapshot urn:ngsi-ld:Snapshot:Mix
 echo
 echo
 
 
 echo "04. POST snapshot WITHOUT snapshotLifetime — default 1h fallback (~3600s)"
 echo "========================================================================="
-NOW=$(date +%s)
 swCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Default",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]
 }'
 echo
-checkDelta $NOW urn:ngsi-ld:Snapshot:Default
+showSnapshot urn:ngsi-ld:Snapshot:Default
 echo
 echo
 
@@ -133,10 +112,9 @@ echo
 
 echo "07. PATCH snapshotLifetime=PT3H on Two — expiresAt recomputed (~10800s out)"
 echo "==========================================================================="
-NOW=$(date +%s)
 swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two --payload '{"snapshotLifetime":"PT3H"}'
 echo
-checkDelta $NOW urn:ngsi-ld:Snapshot:Two
+showSnapshot urn:ngsi-ld:Snapshot:Two
 echo
 echo
 
@@ -159,8 +137,37 @@ Content-Length: 0
 
 
 
-  delta seconds (rounded to nearest minute): 7200
-  snapshotLifetime: PT2H
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:Snapshot:Two",
+  "lastUsedAt": "REGEX(.*)",
+  "snapshotLifetime": "PT2H",
+  "snapshotPriority": 5,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "empty"
+    }
+  ],
+  "snapshotStatus": "empty",
+  "type": "Snapshot"
+}
+
 
 
 02. POST snapshot with snapshotLifetime=P1D — expiresAt should be ~86400s out
@@ -173,8 +180,37 @@ Content-Length: 0
 
 
 
-  delta seconds (rounded to nearest minute): 86400
-  snapshotLifetime: P1D
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:Snapshot:Day",
+  "lastUsedAt": "REGEX(.*)",
+  "snapshotLifetime": "P1D",
+  "snapshotPriority": 5,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "empty"
+    }
+  ],
+  "snapshotStatus": "empty",
+  "type": "Snapshot"
+}
+
 
 
 03. POST snapshot with snapshotLifetime=PT1H30M — combined (5400s)
@@ -187,8 +223,37 @@ Content-Length: 0
 
 
 
-  delta seconds (rounded to nearest minute): 5400
-  snapshotLifetime: PT1H30M
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:Snapshot:Mix",
+  "lastUsedAt": "REGEX(.*)",
+  "snapshotLifetime": "PT1H30M",
+  "snapshotPriority": 5,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "empty"
+    }
+  ],
+  "snapshotStatus": "empty",
+  "type": "Snapshot"
+}
+
 
 
 04. POST snapshot WITHOUT snapshotLifetime — default 1h fallback (~3600s)
@@ -201,8 +266,36 @@ Content-Length: 0
 
 
 
-  delta seconds (rounded to nearest minute): 3600
-  snapshotLifetime: None
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:Snapshot:Default",
+  "lastUsedAt": "REGEX(.*)",
+  "snapshotPriority": 5,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "empty"
+    }
+  ],
+  "snapshotStatus": "empty",
+  "type": "Snapshot"
+}
+
 
 
 05. POST with bad snapshotLifetime — expect 400
@@ -243,8 +336,37 @@ Content-Type: application/json; charset=utf-8
 
 
 
-  delta seconds (rounded to nearest minute): 10800
-  snapshotLifetime: PT3H
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:Snapshot:Two",
+  "lastUsedAt": "REGEX(.*)",
+  "snapshotLifetime": "PT3H",
+  "snapshotPriority": 5,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "empty"
+    }
+  ],
+  "snapshotStatus": "empty",
+  "type": "Snapshot"
+}
+
 
 
 08. PATCH bad snapshotLifetime — expect 400

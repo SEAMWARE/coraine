@@ -65,59 +65,21 @@ echo
 
 echo "04. GET /temporal/entities/V1 (no header) — sees the LIVE 4 instances"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-def ic(d):
-    n = 0
-    for k, v in d.items():
-        if k in ('id','type','@context'): continue
-        if isinstance(v, list): n += len(v)
-        elif isinstance(v, dict): n += 1
-    return n
-print('  live instance count:', ic(d))
-"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt'
 echo
 echo
 
 
 echo "05. GET /temporal/entities/V1 with NGSILD-Snapshot — sees FROZEN 3 instances"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-def ic(d):
-    n = 0
-    for k, v in d.items():
-        if k in ('id','type','@context'): continue
-        if isinstance(v, list): n += len(v)
-        elif isinstance(v, dict): n += 1
-    return n
-print('  frozen instance count:', ic(d))
-"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "06. GET /temporal/entities (multi) with NGSILD-Snapshot — frozen view"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' | python3 -c "
-import sys, re, json
-b = re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]
-d = json.loads(b)
-print('  entities returned:', len(d))
-def ic(e):
-    n = 0
-    for k, v in e.items():
-        if k in ('id','type','@context'): continue
-        if isinstance(v, list): n += len(v)
-        elif isinstance(v, dict): n += 1
-    return n
-for e in d:
-    print('  entity', e.get('id'), 'instances:', ic(e))
-"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
@@ -154,18 +116,113 @@ echo
 
 04. GET /temporal/entities/V1 (no header) — sees the LIVE 4 instances
 =====================================================================
-  live instance count: 4
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 42
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 50
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 55
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 99
+    }
+  ],
+  "type": "Vehicle"
+}
+
 
 
 05. GET /temporal/entities/V1 with NGSILD-Snapshot — sees FROZEN 3 instances
 ============================================================================
-  frozen instance count: 3
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 42
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 50
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 55
+    }
+  ],
+  "type": "Vehicle"
+}
+
 
 
 06. GET /temporal/entities (multi) with NGSILD-Snapshot — frozen view
 =====================================================================
-  entities returned: 1
-  entity urn:ngsi-ld:Vehicle:V1 instances: 3
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json; charset=utf-8
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "instanceId": "REGEX(.*)",
+        "type": "Property",
+        "value": 42
+      },
+      {
+        "instanceId": "REGEX(.*)",
+        "instanceId": "REGEX(.*)",
+        "type": "Property",
+        "value": 50
+      },
+      {
+        "instanceId": "REGEX(.*)",
+        "instanceId": "REGEX(.*)",
+        "type": "Property",
+        "value": 55
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
 
 
 07. GET /temporal/entities/Unknown with NGSILD-Snapshot — 404

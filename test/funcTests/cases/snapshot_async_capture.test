@@ -53,7 +53,7 @@ echo "03. Poll /snapshots/Bg until status is terminal (max 5s)"
 echo "========================================================"
 for i in 1 2 3 4 5 6 7 8 9 10; do
     status=$(swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg 2>/dev/null \
-             | python3 -c "import sys,re,json; b=re.split(r'\r?\n\r?\n', sys.stdin.read(), 1)[1]; print(json.loads(b).get('snapshotStatus',''))")
+             | grep -o '"snapshotStatus": *"[^"]*"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
     if [ "$status" != "preparing" ] && [ -n "$status" ]; then
         echo "  status after iteration $i: $status"
         break
@@ -73,14 +73,7 @@ echo
 
 echo "05. ftClient dump — one notification fired by the worker thread"
 echo "==============================================================="
-ftClientDump | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print('  count:', len(d))
-b = d[0].get('body', {}) if d else {}
-print('  type:', b.get('type'))
-print('  snapshotStatus:', b.get('snapshotStatus'))
-"
+ftClientDump
 echo
 echo
 
@@ -99,7 +92,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -107,7 +100,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -118,7 +111,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -138,9 +131,9 @@ Content-Length: REGEX(\d+)
 
 {
   "endpoint": "http://localhost:7701/bg",
-  "expiresAt": REGEX(".*"),
+  "expiresAt": "REGEX(.*)",
   "id": "urn:ngsi-ld:Snapshot:Bg",
-  "lastUsedAt": REGEX(".*"),
+  "lastUsedAt": "REGEX(.*)",
   "snapshotPriority": 5,
   "snapshotQueries": [
     {
@@ -165,9 +158,32 @@ Content-Length: REGEX(\d+)
 
 05. ftClient dump — one notification fired by the worker thread
 ===============================================================
-  count: 1
-  type: SnapshotNotification
-  snapshotStatus: success
+[
+  {
+    "body": {
+      "expiresAt": "REGEX(.*)",
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "snapshotId": "urn:ngsi-ld:Snapshot:Bg",
+      "snapshotPriority": 5,
+      "snapshotQueriesDetails": [
+        {
+          "resultStatus": "success"
+        }
+      ],
+      "snapshotStatus": "success",
+      "type": "SnapshotNotification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/bg",
+    "verb": "POST"
+  }
+]
 
 
 06. Snapshot read works (entities captured by the worker)
@@ -177,7 +193,7 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Bg
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 269
 
 [
   {
