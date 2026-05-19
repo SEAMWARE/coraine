@@ -91,7 +91,7 @@ swBrokerStart() {
     cmd="$cmd ${extraParams[*]}"
   fi
 
-  $cmd > /dev/null 2>&1 &
+  $cmd > "/tmp/swBroker.${role}.log" 2>&1 &
   echo $! > "$SW_ROLE_PID_FILE"
   swAwaitPort $SW_ROLE_PORT 10
 }
