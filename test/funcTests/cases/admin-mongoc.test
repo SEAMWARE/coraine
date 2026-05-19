@@ -183,7 +183,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 21
 
 {
   "status": "ok"
@@ -200,15 +200,15 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "Next File Descriptor": REGEX([0-9]+),
+  "Next File Descriptor": REGEX(\d+),
   "kalloc": "0.10.1",
   "kargs": "0.10.0",
   "kbase": "0.10.0",
-  "kjson": "0.10.2",
+  "kjson": "0.11.1",
   "ktrace": "0.10.0",
   "mongoc driver": "2.2.2",
   "mongoc plugin": "0.1.0",
-  "mongodb server": "REGEX(\d+\.\d+\.\d+)",
+  "mongodb server": "4.4.30",
   "swBroker version": "unknown",
   "swJsonld": "0.1.0",
   "swNgsild": "post-0.2.0",
@@ -223,7 +223,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 79
 
 {
   "debug": false,
@@ -240,7 +240,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 3
 
 []
 
@@ -252,7 +252,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 49
 
 {
   "api": [
@@ -269,7 +269,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 78
 
 {
   "debug": false,
@@ -286,7 +286,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 78
 
 {
   "debug": false,
@@ -303,7 +303,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 85
 
 {
   "debug": false,
@@ -320,7 +320,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 91
 
 {
   "debug": false,
@@ -337,7 +337,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 87
 
 {
   "debug": false,
@@ -354,7 +354,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 79
 
 {
   "debug": false,
@@ -371,7 +371,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 81
 
 {
   "debug": false,
@@ -389,7 +389,7 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:E1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -401,7 +401,7 @@ Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t2
 Location: /ngsi-ld/v1/entities/urn:E2
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -412,7 +412,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 19
 
 [
   "t2",
@@ -427,7 +427,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 80
 
 {
   "debug": true,
@@ -444,7 +444,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 79
 
 {
   "debug": false,
@@ -461,7 +461,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 79
 
 {
   "debug": false,
