@@ -42,6 +42,19 @@ typedef struct DbQueryFilter
   int     offset;     // entities to skip
   bool    count;      // whether to compute total count
   int64_t totalCount; // OUTPUT: total count (set by plugin when count==true)
+
+  // OUTPUT: error reporting from plugin → service routine.
+  // The plugin fills these in when returning DB_BAD_INPUT or DB_ERR;
+  // the service routine maps them onto ldError so the caller sees a
+  // useful ProblemDetails body (not the generic 500 placeholder).
+  //
+  // errType / errTitle MUST point at string-literal lifetime (e.g. one
+  // of the LD_ERROR_* macros in swNgsild/LdProblem.h) — ldError stores
+  // them as raw pointers without copying.
+  int           errStatus;       // HTTP status to surface (400, 500, …)
+  const char*   errType;         // ProblemDetails type URI (LD_ERROR_*)
+  const char*   errTitle;        // ProblemDetails title (string literal)
+  char          errDetail[256];  // human-readable detail from the storage layer
 } DbQueryFilter;
 
 #endif  // DB_DBQUERYFILTER_H_

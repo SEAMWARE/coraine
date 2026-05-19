@@ -21,6 +21,7 @@
 #include "swNgsild/LdQ.h"                           // LdQNode, LdQTermNode, ...
 #include "swNgsild/LdScopeExpr.h"                    // LdScopeExpr
 #include "swNgsild/ldScopeMatch.h"                    // ldScopeToRegex
+#include "swNgsild/LdProblem.h"                       // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_INTERNAL_ERROR
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
@@ -939,7 +940,26 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   if (mongoc_cursor_error(cursorP, &error))
   {
     KT_E("mongoc: entityQuery failed: %s", error.message);
-    result = DB_ERR;
+    // mongo's PCRE regex validator rejects patterns POSIX regcomp
+    // accepted (e.g. `**`). Distinguish bad-user-input (400) from
+    // genuine 500-class errors so the service routine doesn't have
+    // to know storage-engine specifics.
+    if (strstr(error.message, "Regular expression is invalid") != NULL)
+    {
+      result             = DB_BAD_INPUT;
+      filterP->errStatus = 400;
+      filterP->errType   = LD_ERROR_BAD_REQUEST_DATA;
+      filterP->errTitle  = "Bad Request";
+      snprintf(filterP->errDetail, sizeof(filterP->errDetail), "%s", error.message);
+    }
+    else
+    {
+      result             = DB_ERR;
+      filterP->errStatus = 500;
+      filterP->errType   = LD_ERROR_INTERNAL_ERROR;
+      filterP->errTitle  = "Internal Error";
+      snprintf(filterP->errDetail, sizeof(filterP->errDetail), "%s", error.message);
+    }
   }
   else
   {

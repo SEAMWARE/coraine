@@ -37,6 +37,11 @@
                                    // layer rejects it (e.g. mongo 2dsphere/S2
                                    // rejects polygons with self-intersection or
                                    // degenerate edges that GeoJSON itself allows)
+#define DB_BAD_INPUT          -5   // user-supplied data was structurally accepted
+                                   // by the API layer but rejected by the storage
+                                   // layer's own validator (e.g. mongo's PCRE
+                                   // regex rejects patterns that POSIX regcomp
+                                   // accepted). Caller should respond 400, not 500.
 
 
 

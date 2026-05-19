@@ -1196,7 +1196,12 @@ bool getEntities(void)
 
   if (r != DB_OK)
   {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying entities");
+    // Plugin filled in filter.err* on the way out. Surface to the
+    // client as a ProblemDetails with the storage-layer wording.
+    if (filter.errStatus != 0)
+      ldError(filter.errStatus, filter.errType, filter.errTitle, "%s", filter.errDetail);
+    else
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying entities");
     return true;
   }
 
