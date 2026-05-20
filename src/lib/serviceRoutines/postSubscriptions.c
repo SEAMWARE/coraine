@@ -42,6 +42,8 @@ extern SwldContextCache* swldCacheGet(void);
 #include "swNgsild/ldDistSub.h"                      // ldDistSubFanout
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
+#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
+
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
@@ -211,6 +213,24 @@ bool postSubscriptions(void)
   // a Link header (§ 6.3.19) pointing at a context the receiver can't
   // dereference (the inline body has no URL of its own).
   //
+  //
+  // § 5.8.5 — when the user supplies `jsonldContext`, validate it
+  // is dereferenceable up front. If the URL can't be fetched, the
+  // notification renderer will fail later with no good way to
+  // report it; surface the failure now as 504 (matches
+  // /jsonldContexts create + 043_01_05 CSR-create behaviour).
+  //
+  KjNode* userJcP = kjLookup(subP, "jsonldContext");
+  if (userJcP != NULL && userJcP->type == KjString)
+  {
+    if (swldContextFromUrl(userJcP->value.s, &swRest.kalloc) == NULL)
+    {
+      ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
+              "subscription jsonldContext '%s' could not be fetched", userJcP->value.s);
+      return true;
+    }
+  }
+
   if (kjLookup(subP, "jsonldContext") == NULL)
   {
     const char* jcUrl     = NULL;
