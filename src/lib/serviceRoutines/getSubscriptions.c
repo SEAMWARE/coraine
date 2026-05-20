@@ -17,6 +17,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
+#include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 
 #include "db/Tenant.h"                               // Tenant
@@ -71,6 +72,18 @@ bool getSubscriptions(void)
   int seen  = 0;
   int taken = 0;
 
+  // First pass: count total subscriptions (across change-driven sub
+  // cache and pernot cache) so the pagination Link header can decide
+  // whether a `rel="next"` is needed. § 6.3.10: GET on a collection
+  // is paginated; clients need prev/next/first to walk the set.
+  int total = 0;
+  if (scP != NULL)
+    for (LdSubCacheItem* it = scP->itemList; it != NULL; it = it->next)
+      if (it->subTree != NULL) total++;
+  if (pcP != NULL)
+    for (LdPernotItem* it = pcP->head; it != NULL; it = it->next)
+      if (it->subTree != NULL) total++;
+
   if (scP != NULL)
   {
     for (LdSubCacheItem* it = scP->itemList; it != NULL && (limit < 0 || taken < limit); it = it->next)
@@ -102,6 +115,10 @@ bool getSubscriptions(void)
       taken++;
     }
   }
+
+  bool hasMore = (skip + taken < total);
+  if (hasMore || skip > 0)
+    ldPaginationLinkHeader(hasMore);
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = arrayP;
