@@ -54,7 +54,9 @@ typedef struct DbQueryFilter
   int           errStatus;       // HTTP status to surface (400, 500, …)
   const char*   errType;         // ProblemDetails type URI (LD_ERROR_*)
   const char*   errTitle;        // ProblemDetails title (string literal)
-  char          errDetail[256];  // human-readable detail from the storage layer
+  char          errDetail[512];  // human-readable detail from the storage layer
+                                 // (sized to fit mongo's bson_error_t.message,
+                                 // which is 504 bytes)
 } DbQueryFilter;
 
 #endif  // DB_DBQUERYFILTER_H_
