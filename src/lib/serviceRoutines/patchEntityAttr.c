@@ -296,6 +296,31 @@ bool patchEntityAttr(void)
           }
         }
 
+        // § 5.6.4: the target instance must already exist. Default
+        // instance (no datasetId in the fragment) requires "@none" in
+        // storage; a fragment with datasetId X requires X as a key.
+        // Returning 204 in either no-match case would silently create
+        // a default — that's a merge of a non-existent attribute and
+        // is reported as 404 by 012_03_02 / 012_03_03.
+        if (existingAttr->type == KjObject)
+        {
+          KjNode* dsP = kjLookup(bodyP, "datasetId");
+          const char* key = (dsP != NULL && dsP->type == KjString)
+                              ? dsP->value.s : "@none";
+          if (kjLookup(existingAttr, key) == NULL && !anySucceeded)
+          {
+            if (dsP != NULL && dsP->type == KjString)
+              ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                      "no instance of attribute '%s' with datasetId '%s' on entity '%s'",
+                      attrWild, dsP->value.s, entityId);
+            else
+              ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                      "no default instance of attribute '%s' on entity '%s'",
+                      attrWild, entityId);
+            return true;
+          }
+        }
+
         ldApiEntityToDbModel(entityFrag, &swRest.kalloc);
 
         LdMergeReport report = { NULL };
