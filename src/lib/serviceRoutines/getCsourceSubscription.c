@@ -20,6 +20,8 @@
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
+#include "swNgsild/LdVocab.h"                         // LD_VOCAB_STATUS, LD_VOCAB_EXPIRES_AT
+#include "swNgsild/ldCheckDateTime.h"                 // ldIsoToNanoseconds
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -67,6 +69,24 @@ bool getCsourceSubscription(void)
   KjNode* jcP = kjLookup(subP, "_jcResolved");
   if (jcP != NULL)
     kjChildRemove(subP, jcP);
+
+  //
+  // § 5.2.12: `status` is read-only and computed. It was stored as
+  // "active" / "paused" at create time and never updated. Override
+  // it here when `expiresAt` is in the past so retrieve reflects
+  // the current lifecycle state.
+  //
+  KjNode* expiresAtP = kjLookup(subP, LD_VOCAB_EXPIRES_AT);
+  if (expiresAtP != NULL && expiresAtP->type == KjString)
+  {
+    uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
+    if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+    {
+      KjNode* statusP = kjLookup(subP, LD_VOCAB_STATUS);
+      if (statusP != NULL && statusP->type == KjString)
+        statusP->value.s = "expired";
+    }
+  }
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = subP;

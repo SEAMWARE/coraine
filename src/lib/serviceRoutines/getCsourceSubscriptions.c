@@ -22,6 +22,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
+#include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -36,7 +37,8 @@ bool getCsourceSubscriptions(void)
 
   ldContextResolve();
 
-  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
+  KjNode* arrayP  = kjArray(swRest.kjsonP, NULL);
+  bool    hasMore = false;
 
   if (cacheP != NULL)
   {
@@ -47,7 +49,7 @@ bool getCsourceSubscriptions(void)
     for (LdSubCacheItem* itemP = cacheP->itemList; itemP != NULL; itemP = itemP->next)
     {
       if (idx < skip) { ++idx; continue; }
-      if ((idx - skip) >= limit) break;
+      if ((idx - skip) >= limit) { hasMore = true; break; }
       ++idx;
 
       if (itemP->subTree == NULL)
@@ -80,6 +82,8 @@ bool getCsourceSubscriptions(void)
       kjChildAdd(arrayP, subP);
     }
   }
+
+  ldPaginationLinkHeader(hasMore);
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = arrayP;
