@@ -135,14 +135,31 @@ bool postCsourceSubscriptions(void)
   // jsonldContext: only auto-fill when the user didn't supply one. The
   // auto-filled URL goes into the broker-internal `_jcResolved` (same
   // convention as regular subs) so retrieve doesn't surface a synthetic
-  // value.
+  // value. Mirror the three shapes postSubscriptions handles:
+  //   1. single-URL context           → use the URL directly
+  //   2. array-of-one URL in the body → use that URL directly
+  //   3. anything else (multi-URL or inline object) → fall back to the
+  //      compound's own URL, otherwise the core context
   //
   if (kjLookup(subP, "jsonldContext") == NULL)
   {
+    const char*  jcUrl   = NULL;
     SwldContext* reqCtxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-    if (reqCtxP != NULL && reqCtxP->url != NULL)
+
+    if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
+      jcUrl = reqCtxP->url;
+    else if (swNgsild.userContextBody != NULL &&
+             swNgsild.userContextBody->type == KjArray &&
+             swNgsild.userContextBody->value.firstChildP != NULL &&
+             swNgsild.userContextBody->value.firstChildP->next == NULL &&
+             swNgsild.userContextBody->value.firstChildP->type == KjString)
+      jcUrl = swNgsild.userContextBody->value.firstChildP->value.s;
+    else if (reqCtxP != NULL && reqCtxP->url != NULL)
+      jcUrl = reqCtxP->url;
+
+    if (jcUrl != NULL)
     {
-      KjNode* jcP = kjString(NULL, "_jcResolved", reqCtxP->url);
+      KjNode* jcP = kjString(NULL, "_jcResolved", jcUrl);
       kjChildAdd(subP, jcP);
     }
   }
