@@ -726,21 +726,105 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   bson_destroy(&sort);
 
   //
-  // Count total matching documents (before limit/offset) if requested
+  // Count total matching documents (before limit/offset) if requested.
   //
+  // For georel=near, `$near` inside a regular filter cannot survive
+  // mongoc_collection_count_documents (Mongo silently ignores it in
+  // the synthetic aggregate it builds), so the count would come back
+  // as the unfiltered total. Build a dedicated $geoNear→$count
+  // pipeline instead. All other geo predicates ($geoIntersects /
+  // $geoWithin / etc.) work fine inside count_documents.
+  //
+  bool useGeoNearForCount = (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear);
+
   if (filterP != NULL && filterP->count)
   {
-    bson_error_t countError;
-    int64_t      total = mongoc_collection_count_documents(collP, &filter, NULL, NULL, NULL, &countError);
-
-    if (total < 0)
+    if (useGeoNearForCount)
     {
-      KT_E("mongoc: count_documents failed: %s", countError.message);
+      char fieldPath[1024];
+      snprintf(fieldPath, sizeof(fieldPath), "%s.@none.value", mongocEscapeDotsInKey(filterP->geoproperty));
+
+      bson_t pipeline;
+      bson_init(&pipeline);
+
+      bson_t stages;
+      bson_append_array_begin(&pipeline, "pipeline", 8, &stages);
+      int stageIx = 0;
+
+      // $geoNear stage — mirrors the body pipeline below, sans
+      // distanceField (we only need to count the survivors).
+      {
+        char key[16];
+        int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+        bson_t stageDoc, geoNearDoc;
+        bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+        bson_append_document_begin(&stageDoc, "$geoNear", 8, &geoNearDoc);
+
+        bson_t nearGeometry;
+        bson_init(&nearGeometry);
+        bson_append_utf8(&nearGeometry, "type", 4, filterP->geometry, -1);
+        const char* coordStr = filterP->coordinates;
+        while (*coordStr == ' ') coordStr++;
+        if (*coordStr == '[')
+          bsonAppendCoordArray(&nearGeometry, "coordinates", 11, coordStr);
+        bson_append_document(&geoNearDoc, "near", 4, &nearGeometry);
+        bson_destroy(&nearGeometry);
+
+        bson_append_utf8(&geoNearDoc, "distanceField", 13, "geoDistance", 11);
+        bson_append_utf8(&geoNearDoc, "key", 3, fieldPath, -1);
+        bson_append_bool(&geoNearDoc, "spherical", 9, true);
+
+        if (filterP->geoRel->maxDistance >= 0)
+          bson_append_double(&geoNearDoc, "maxDistance", 11, filterP->geoRel->maxDistance);
+        if (filterP->geoRel->minDistance >= 0)
+          bson_append_double(&geoNearDoc, "minDistance", 11, filterP->geoRel->minDistance);
+
+        bson_append_document_end(&stageDoc, &geoNearDoc);
+        bson_append_document_end(&stages, &stageDoc);
+      }
+
+      // $count stage — emits a single document { n: <total> }.
+      {
+        char key[16];
+        int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+        bson_t stageDoc;
+        bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+        bson_append_utf8(&stageDoc, "$count", 6, "n", 1);
+        bson_append_document_end(&stages, &stageDoc);
+      }
+
+      bson_append_array_end(&pipeline, &stages);
+
+      mongoc_cursor_t* countCursor = mongoc_collection_aggregate(collP, MONGOC_QUERY_NONE, &pipeline, NULL, NULL);
+      bson_destroy(&pipeline);
+
       filterP->totalCount = 0;
+      const bson_t* cdoc;
+      if (mongoc_cursor_next(countCursor, &cdoc))
+      {
+        bson_iter_t iter;
+        if (bson_iter_init_find(&iter, cdoc, "n") && BSON_ITER_HOLDS_NUMBER(&iter))
+          filterP->totalCount = bson_iter_as_int64(&iter);
+      }
+      bson_error_t cerr;
+      if (mongoc_cursor_error(countCursor, &cerr))
+        KT_E("mongoc: $geoNear count aggregation failed: %s", cerr.message);
+      mongoc_cursor_destroy(countCursor);
     }
     else
     {
-      filterP->totalCount = total;
+      bson_error_t countError;
+      int64_t      total = mongoc_collection_count_documents(collP, &filter, NULL, NULL, NULL, &countError);
+
+      if (total < 0)
+      {
+        KT_E("mongoc: count_documents failed: %s", countError.message);
+        filterP->totalCount = 0;
+      }
+      else
+      {
+        filterP->totalCount = total;
+      }
     }
   }
 
