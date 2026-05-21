@@ -53,6 +53,9 @@
 #include "db/DbQueryFilter.h"                        // DbQueryFilter
 #include "db/Tenant.h"                               // Tenant
 
+#include "ktrace/kTrace.h"                           // KT_T
+#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+
 #include "serviceRoutines/purgeEntities.h"           // Own interface
 
 
@@ -314,6 +317,8 @@ bool purgeEntities(void)
         items[itemCount].url     = forwardUrl(csr->endpoint);
         items[itemCount].body    = NULL;
         items[itemCount].bodyLen = 0;
+        KT_T(KtDistOpRequest, "forward: DELETE %s", items[itemCount].url);
+
         itemCount++;
       }
     }
