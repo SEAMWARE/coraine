@@ -704,17 +704,23 @@ bool postEntities(void)
   //     Some CSR leg ran, so the per-leg errors are useful to the client
   //     regardless of whether at least one leg succeeded.
   //
-  if (localAlreadyExists && ldBatchErrorListCount(&errors) == 0 && !anySucceeded)
+  // localAlreadyExists is only an *error* when the broker actually tried
+  // to create locally and got AlreadyExists from the DB (the else-branch
+  // above, `distopsConsumedAll == false`). When distops consumed every
+  // attr the broker skipped the local create on purpose — the existence
+  // check there is informational, not a refusal, and shouldn't pollute
+  // the errors[] array.
+  //
+  bool localAttemptRefused = (localAlreadyExists && !distopsConsumedAll);
+
+  if (localAttemptRefused && ldBatchErrorListCount(&errors) == 0 && !anySucceeded)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
             "entity '%s' already exists", idP->value.s);
     return true;
   }
 
-  // localAlreadyExists is now always reported as one of the entries when
-  // any CSR leg ran (per § 5.2.17), so the client sees both the local
-  // 409 and any remote errors.
-  if (localAlreadyExists)
+  if (localAttemptRefused)
     ldBatchErrorListAdd(&errors, idP->value.s, 409,
                         LD_ERROR_ALREADY_EXISTS, "Already Exists",
                         "entity already exists locally", NULL);
