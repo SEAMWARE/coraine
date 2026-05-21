@@ -44,6 +44,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#include "ktrace/kTrace.h"                           // KT_T
+#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+
 #include "serviceRoutines/patchEntity.h"             // Own interface
 
 
@@ -216,7 +219,6 @@ bool patchEntity(void)
       { redirV, redirN, "redirect",  true  },
       { inclV,  inclN,  "inclusive", false },
     };
-    static const bool detach[] = { true, true, false };
 
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
@@ -225,11 +227,26 @@ bool patchEntity(void)
                                   errorsArrayP, &items);
 
     // Compact: drop entries whose riP yields no matching fragment.
+    //
+    // groups[] is iterated in order exclusive → redirect → inclusive.
+    //   * Exclusive: each CSR owns its claimed attrs uniquely, so
+    //     detach as we go — the chopped attrs never need to be
+    //     visible to a later exclusive iteration (no two exclusives
+    //     should claim the same attribute).
+    //   * Redirect: multiple redirect CSRs covering the same entity
+    //     are meant to ALL receive the merge — clone for each
+    //     forward and do a single detach sweep after the last
+    //     redirect (D008_01_red regressed when redirect chopped
+    //     in-loop and the second CSR saw an empty fragment).
+    //   * Inclusive: clone — the local merge below still applies
+    //     these attrs.
     int kept = 0;
     for (int i = 0; i < n; i++)
     {
+      bool isExclusive = (items[i].modeIdx == 0);
+
       KjNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, swRest.kjsonP,
-                                              detach[items[i].modeIdx]);
+                                              /*detach=*/isExclusive);
       if (fragP == NULL) continue;
 
       char* body = renderFragmentWithContext(fragP);
@@ -237,7 +254,19 @@ bool patchEntity(void)
       items[kept].url     = mergeUrl(items[i].csr->endpoint, entityId);
       items[kept].body    = body;
       items[kept].bodyLen = strlen(body);
+      KT_T(KtDistOpRequest, "forward: PATCH %s", items[kept].url);
       kept++;
+    }
+
+    // Post-loop redirect-detach: strip from the original fragment
+    // every attribute the redirect legs picked up, now that all of
+    // them have their clones.
+    for (int i = 0; i < n; i++)
+    {
+      if (items[i].modeIdx != 1) continue;  // redirect only
+      KjNode* drop = ldEntityFragmentForInfo(fragment, items[i].riP, swRest.kjsonP,
+                                              /*detach=*/true);
+      (void) drop;  // freed with the arena
     }
 
     ldDistOpEntriesPerform(items, kept, SwVerbPatch, ownAlias);
