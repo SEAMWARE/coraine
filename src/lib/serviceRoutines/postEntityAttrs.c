@@ -48,6 +48,9 @@
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
 
+#include "ktrace/kTrace.h"                            // KT_T
+#include "swBrokerTraceLevels.h"                      // KtDistOpRequest
+
 #include "serviceRoutines/postEntityAttrs.h"          // Own interface
 
 
@@ -353,6 +356,9 @@ bool postEntityAttrs(void)
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
 
+    KT_T(KtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
+         entityId, typeArgP != NULL ? typeArr[0] : "(none)", exclN, redirN, inclN);
+
     LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
     int              counts[]  = { exclN,       redirN,     inclN      };
     const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
@@ -402,6 +408,7 @@ bool postEntityAttrs(void)
           items[itemCount].url     = attrsUrl(csr->endpoint, entityId, noOverwrite);
           items[itemCount].body    = body;
           items[itemCount].bodyLen = strlen(body);
+          KT_T(KtDistOpRequest, "forward: POST %s", items[itemCount].url);
           itemFrag[itemCount]      = fragP;
           itemCount++;
         }
