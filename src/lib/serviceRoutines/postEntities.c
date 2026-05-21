@@ -51,6 +51,9 @@
 #include "db/Tenant.h"                               // Tenant
 #include "swNgsild/LdGeoRel.h"                       // LdGeoRel, LdGeoWithin
 
+#include "ktrace/kTrace.h"                           // KT_T
+#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+
 #include "serviceRoutines/postEntities.h"            // Own interface
 
 
@@ -587,6 +590,7 @@ bool postEntities(void)
 
             char* body = renderFragmentWithContext(fragP);
 
+            KT_T(KtDistOpRequest, "forward: POST %s", url);
             items[itemCount].csr     = csr;
             items[itemCount].url     = url;
             items[itemCount].body    = body;
