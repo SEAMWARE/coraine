@@ -652,7 +652,7 @@ int main(int argC, char* argV[])
   }
 
 
-  int r = ktInit("swBroker", NULL, true, NULL, NULL, kaBuiltinVerbose, kaBuiltinDebug, false);
+  int r = ktInit("swBroker", NULL, true, NULL, kaBuiltinTraceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
     KT_X(1, "ktInit failed");
 

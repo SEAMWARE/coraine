@@ -10,6 +10,7 @@
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp, strlen, strcpy
 
+#include "ktrace/kTrace.h"                           // KT_T
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -45,6 +46,9 @@
 #include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesExpandArrayFlat / Inline
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader, snapshotGetEntities
+
+#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+
 #include "serviceRoutines/getEntities.h"             // Own interface
 
 
@@ -701,6 +705,8 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
     extraH.value = mapHdr;
     extraN = 1;
   }
+
+  KT_T(KtDistOpRequest, "forward: GET %s", url);
 
   int status = ldDistOpSendReceiveEx(csr, SwVerbGet, url, NULL, 0, ownAlias,
                                       (extraN > 0) ? &extraH : NULL, extraN,
@@ -1370,6 +1376,7 @@ bool getEntities(void)
           strcpy(url + baseLen, path);
           strcpy(url + baseLen + pathLen, fullQs);
 
+          KT_T(KtDistOpRequest, "forward: GET %s", url);
           items[itemCount].csr     = csr;
           items[itemCount].url     = url;
           items[itemCount].body    = NULL;
