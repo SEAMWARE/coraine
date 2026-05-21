@@ -1394,6 +1394,12 @@ bool getEntities(void)
           LdRegCacheItem* csr    = items[i].csr;
           int             code   = results[i].statusCode;
 
+          KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%.*s",
+               code, results[i].responseBodyLen,
+               results[i].errorDetail != NULL ? results[i].errorDetail : "(none)",
+               (int) (results[i].responseBodyLen > 0 ? results[i].responseBodyLen : 0),
+               results[i].responseBody != NULL ? results[i].responseBody : "");
+
           if (code < 200 || code >= 300) continue;
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
@@ -1427,6 +1433,17 @@ bool getEntities(void)
           {
             remoteArray = kjParse(swRest.kjsonP, results[i].responseBody);
             if (remoteArray != NULL) ldStripAtContext(remoteArray);
+
+            // § 6.3.16 / JSON-LD compaction: a one-element array may be
+            // unwrapped to its member alone. Accept a bare entity object
+            // and re-wrap it so the rest of the merge loop stays array-
+            // typed.
+            if (remoteArray != NULL && remoteArray->type == KjObject)
+            {
+              KjNode* wrap = kjArray(swRest.kjsonP, NULL);
+              kjChildAdd(wrap, remoteArray);
+              remoteArray = wrap;
+            }
           }
 
           if (remoteArray == NULL || remoteArray->type != KjArray) continue;
