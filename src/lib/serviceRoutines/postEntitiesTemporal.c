@@ -246,7 +246,9 @@ bool postEntitiesTemporal(void)
         {
           if (!entityInfoCoversId(riP, entityId)) continue;
 
-          KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, detach[g]);
+          // Exclusive: detach in-loop. Redirect: clone, sweep after
+          // the loop. Inclusive: clone for local-too semantics.
+          KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
 
           if (!opSupported)
@@ -273,6 +275,20 @@ bool postEntitiesTemporal(void)
           items[itemCount].bodyLen = strlen(body);
           itemCount++;
         }
+      }
+    }
+
+    // Post-loop redirect-detach: see the comment in postEntityAttrs.c.
+    for (int i = 0; i < counts[1]; i++)
+    {
+      LdRegCacheItem* csr = groups[1][i];
+      if (csr == NULL || csr->endpoint == NULL)  continue;
+      if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      {
+        if (!entityInfoCoversId(riP, entityId)) continue;
+        KjNode* drop = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, /*detach=*/true);
+        (void) drop;
       }
     }
 

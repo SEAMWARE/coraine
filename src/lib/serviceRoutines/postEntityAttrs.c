@@ -376,6 +376,15 @@ bool postEntityAttrs(void)
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
+    //
+    // groups[] is iterated exclusive → redirect → inclusive.
+    //   * Exclusive (g==0): each CSR owns its claimed attrs uniquely;
+    //     detach as we go.
+    //   * Redirect (g==1): multiple redirect CSRs covering the same
+    //     entity must ALL receive the same fragment; clone here and
+    //     do one detach sweep after the loop.
+    //   * Inclusive (g==2): clone — local merge keeps them.
+    //
     for (int g = 0; g < 3; g++)
     {
       for (int i = 0; i < counts[g]; i++)
@@ -390,7 +399,7 @@ bool postEntityAttrs(void)
         {
           if (!entityInfoCoversId(riP, entityId)) continue;
 
-          KjNode* fragP = ldEntityFragmentForInfo(fragment, riP, swRest.kjsonP, detach[g]);
+          KjNode* fragP = ldEntityFragmentForInfo(fragment, riP, swRest.kjsonP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
 
           if (!opSupported)
@@ -412,6 +421,22 @@ bool postEntityAttrs(void)
           itemFrag[itemCount]      = fragP;
           itemCount++;
         }
+      }
+    }
+
+    // Post-loop redirect-detach: strip from the source fragment every
+    // attribute the redirect group cloned, so the local store below
+    // only sees what's left.
+    for (int i = 0; i < counts[1]; i++)
+    {
+      LdRegCacheItem* csr = groups[1][i];
+      if (csr->endpoint == NULL)                  continue;
+      if (ldDistOpCsrWouldLoop(csr, ownAlias))    continue;
+      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      {
+        if (!entityInfoCoversId(riP, entityId)) continue;
+        KjNode* drop = ldEntityFragmentForInfo(fragment, riP, swRest.kjsonP, /*detach=*/true);
+        (void) drop;
       }
     }
 

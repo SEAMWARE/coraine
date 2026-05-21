@@ -367,6 +367,45 @@ static void chopForMode(Tenant*      tenantP,
 
 
 
+//
+// purgeRedirAttrsFromFragment - strip from `fragP` every attribute
+// that any redirect-matched CSR claims, AFTER the redirect chopForMode
+// call has run with detach=false. Mirrors orion-ld's
+// purgeRedirectedAttributes — we have to defer the detach until all
+// redirect CSRs covering this entity have been served, otherwise the
+// second-and-onwards ones find an empty fragment (D008_01_red-class
+// bug for the batch-merge path).
+//
+static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
+                                         const char* entityId,
+                                         char**      typeArr,
+                                         char**      scopeV,
+                                         KjNode*     fragP,
+                                         const char* ownAlias)
+{
+  if (tenantP->regCacheP == NULL)
+    return;
+
+  LdRegCacheItem** matchV = NULL;
+  int matchN = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                 entityId, typeArr, scopeV,
+                                                 LdRegModeRedirect, &matchV);
+
+  for (int m = 0; m < matchN; m++)
+  {
+    LdRegCacheItem* csr = matchV[m];
+    if (csr->endpoint == NULL)                 continue;
+    if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+
+    for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      (void) ldEntityFragmentForInfo(fragP, riP, swRest.kjsonP, /*detach=*/true);
+  }
+
+  if (matchV != NULL) free(matchV);
+}
+
+
+
 static bool hasAnyNonKeywordAttr(KjNode* fragP)
 {
   if (fragP == NULL || fragP->type != KjObject) return false;
@@ -568,14 +607,20 @@ bool postEntityBatchMerge(void)
         scopeV      = scopeBuf;
       }
 
+      // Exclusive: detach as we accumulate — each excl CSR owns its
+      // attrs uniquely. Redirect: clone (multiple redirect CSRs may
+      // cover the same entity, all must receive a copy), then
+      // purgeRedirAttrsFromFragment chops the redirect-claimed
+      // attrs once. Inclusive: clone — local merge keeps them.
       chopForMode(tenantP, id, typeArr, scopeV, fragP,
-                  LdRegModeExclusive, true,
+                  LdRegModeExclusive, /*detach=*/true,
                   &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
       chopForMode(tenantP, id, typeArr, scopeV, fragP,
-                  LdRegModeRedirect, true,
+                  LdRegModeRedirect,  /*detach=*/false,
                   &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
+      purgeRedirAttrsFromFragment(tenantP, id, typeArr, scopeV, fragP, ownAlias);
       chopForMode(tenantP, id, typeArr, scopeV, fragP,
-                  LdRegModeInclusive, false,
+                  LdRegModeInclusive, /*detach=*/false,
                   &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
     }
 

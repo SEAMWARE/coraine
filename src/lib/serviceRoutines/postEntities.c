@@ -543,7 +543,11 @@ bool postEntities(void)
           {
             if (!entityInfoCoversId(riP, entityId)) continue;
 
-            KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, detach[g]);
+            // Exclusive: detach in-loop (unique owner per attr).
+            // Redirect: clone here, one detach sweep after the loop —
+            // multiple redirect CSRs covering the same entity all need
+            // a copy. Inclusive: clone — local create keeps them.
+            KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, /*detach=*/(g == 0));
             if (fragP == NULL) continue;
 
             if (!opSupported)
@@ -573,6 +577,22 @@ bool postEntities(void)
             itemFrag[itemCount]      = fragP;
             itemCount++;
           }
+        }
+      }
+
+      // Post-loop redirect-detach: strip from entityP every attribute
+      // the redirect group cloned so the local create below only sees
+      // what's left (matches exclusive's "detach as we go").
+      for (int i = 0; i < counts[1]; i++)
+      {
+        LdRegCacheItem* csr = groups[1][i];
+        if (csr == NULL || csr->endpoint == NULL)  continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+        {
+          if (!entityInfoCoversId(riP, entityId)) continue;
+          KjNode* drop = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, /*detach=*/true);
+          (void) drop;
         }
       }
 

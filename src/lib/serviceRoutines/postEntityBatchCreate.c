@@ -786,11 +786,51 @@ bool postEntityBatchCreate(void)
 
   if (dispatch)
   {
-    dispatchOneMode(tenantP, LdRegModeExclusive, true,  true,
+    // Exclusive: detach in-loop (each excl CSR uniquely owns its
+    // attrs). Redirect: clone (multiple redirect CSRs may cover
+    // the same entity, all must receive a copy), then iterate
+    // matched redirect CSRs once more with detach=true so the
+    // local create below only sees what's left. Inclusive: clone.
+    dispatchOneMode(tenantP, LdRegModeExclusive, /*detach=*/true,  /*conflictOnNoOp=*/true,
                     eligibleP, eligIdV, eligN, anySuccessV, errorsP, ownAlias);
-    dispatchOneMode(tenantP, LdRegModeRedirect,  true,  true,
+    dispatchOneMode(tenantP, LdRegModeRedirect,  /*detach=*/false, /*conflictOnNoOp=*/true,
                     eligibleP, eligIdV, eligN, anySuccessV, errorsP, ownAlias);
-    dispatchOneMode(tenantP, LdRegModeInclusive, false, false,
+
+    // Post-redirect detach sweep: strip redirect-claimed attrs
+    // from every entity in eligibleP.
+    for (KjNode* ent = eligibleP->value.firstChildP; ent != NULL; ent = ent->next)
+    {
+      KjNode* idP = kjLookup(ent, "id");
+      if (idP == NULL || idP->type != KjString) continue;
+      char*   slot[2];
+      char**  typeArr     = typeVecOf(ent, slot);
+      KjNode* scopeP      = kjLookup(ent, "scope");
+      char*   scopeBuf[2] = { NULL, NULL };
+      char**  scopeV      = NULL;
+      if (scopeP != NULL && scopeP->type == KjString)
+      {
+        scopeBuf[0] = scopeP->value.s;
+        scopeV      = scopeBuf;
+      }
+      LdRegCacheItem** matchV = NULL;
+      int matchN = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                     idP->value.s, typeArr, scopeV,
+                                                     LdRegModeRedirect, &matchV);
+      for (int m = 0; m < matchN; m++)
+      {
+        LdRegCacheItem* csr = matchV[m];
+        if (csr->endpoint == NULL)              continue;
+        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+        for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+        {
+          if (!entityInfoCoversId(riP, idP->value.s)) continue;
+          (void) ldEntityFragmentForInfo(ent, riP, swRest.kjsonP, /*detach=*/true);
+        }
+      }
+      if (matchV != NULL) free(matchV);
+    }
+
+    dispatchOneMode(tenantP, LdRegModeInclusive, /*detach=*/false, /*conflictOnNoOp=*/false,
                     eligibleP, eligIdV, eligN, anySuccessV, errorsP, ownAlias);
   }
 
