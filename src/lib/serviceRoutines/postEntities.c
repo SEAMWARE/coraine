@@ -45,6 +45,7 @@
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
 #include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
+#include "swNgsild/LdBatchErrors.h"                  // LdBatchErrorList, ldBatchErrorListAdd
 #include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
@@ -282,37 +283,9 @@ static const char* fragmentShortAttrList(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
-// appendBatchEntityError - append one BatchEntityError (§ 5.2.17) to errors[]
-//
-// Per-CSR granularity (NOT per-attribute): each failed forward contributes
-// one entry, with the ProblemDetails embedded as `error`. The affected
-// attribute list is baked into the ProblemDetails.detail string since
-// v1.9.1 ProblemDetails has no native attribute-list field.
-//
-static void appendBatchEntityError(KjNode*      errorsArrayP,
-                                   const char*  entityId,
-                                   const char*  errorType,
-                                   const char*  errorTitle,
-                                   const char*  errorDetail,
-                                   const char*  regId)
-{
-  if (errorsArrayP == NULL)
-    return;
-
-  KjNode* entry = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(entry, kjString(swRest.kjsonP, "entityId", entityId));
-
-  KjNode* pd = kjObject(swRest.kjsonP, "error");
-  kjChildAdd(pd, kjString(swRest.kjsonP, "type",   errorType));
-  kjChildAdd(pd, kjString(swRest.kjsonP, "title",  errorTitle));
-  kjChildAdd(pd, kjString(swRest.kjsonP, "detail", errorDetail));
-  kjChildAdd(entry, pd);
-
-  if (regId != NULL)
-    kjChildAdd(entry, kjString(swRest.kjsonP, "registrationId", regId));
-
-  kjChildAdd(errorsArrayP, entry);
-}
+// Local appendBatchEntityError was a thin duplicate of the canonical
+// builder. It now lives in swNgsild as ldBatchErrorListAdd which records
+// into a struct list and only materialises the JSON tree at finalize time.
 
 
 
@@ -416,8 +389,10 @@ bool postEntities(void)
   // any forward returned 2xx OR the local create succeeded — distinguishes
   // partial-success 207 from complete-failure 409.
   //
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
-  bool    anySucceeded = false;
+  LdBatchErrorList errors;
+  ldBatchErrorListInit(&errors, &swRest.kalloc);
+
+  bool anySucceeded = false;
 
   if (swNgsild.local == false && tenantP->regCacheP != NULL)
   {
@@ -578,8 +553,8 @@ bool postEntities(void)
               snprintf(detail, sizeof(detail),
                        "%s registration does not support createEntity; affected attributes: %s",
                        modeTag[g], fragmentShortAttrList(fragP));
-              appendBatchEntityError(errorsArrayP, entityId,
-                                     LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+              ldBatchErrorListAdd(&errors, entityId, 409,
+                                  LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
               continue;
             }
 
@@ -616,9 +591,10 @@ bool postEntities(void)
             snprintf(detail, sizeof(detail), "%s; affected attributes: %s",
                      forwardFailureReason(upCode, results[i].errorDetail),
                      fragmentShortAttrList(itemFrag[i]));
-            appendBatchEntityError(errorsArrayP, entityId,
-                                   LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                                   detail, items[i].csr->regId);
+            ldBatchErrorListAdd(&errors, entityId,
+                                (upCode >= 400) ? upCode : 502,
+                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                detail, items[i].csr->regId);
           }
         }
       }
@@ -704,9 +680,9 @@ bool postEntities(void)
         char detail[256];
         snprintf(detail, sizeof(detail),
                  "local database error while creating entity '%s'", idP->value.s);
-        appendBatchEntityError(errorsArrayP, idP->value.s,
-                               LD_ERROR_INTERNAL_ERROR, "Internal Error",
-                               detail, NULL);
+        ldBatchErrorListAdd(&errors, idP->value.s, 500,
+                            LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                            detail, NULL);
         // fall through to the response-decision matrix below
       }
       else
@@ -720,24 +696,30 @@ bool postEntities(void)
 
   //
   // Response decision matrix (§ 6.4.3.1):
-  //   - Local AlreadyExists AND nothing else succeeded → 409 AlreadyExists.
-  //   - errors[] empty AND (localCreatedOk OR distopsConsumedAll+noLocal)
-  //     → 201 Created, no body.
-  //   - errors[] non-empty AND anySucceeded → 207 Multi-Status with
-  //     BatchOperationResult body.
-  //   - errors[] non-empty AND nothing succeeded → 409 Conflict with
-  //     the same BatchOperationResult body so the client sees per-CSR
-  //     failures.
+  //   - localAlreadyExists AND no CSR leg ran (errors[] still empty) →
+  //     pure-local 409 AlreadyExists as a single ProblemDetails.
+  //   - errors[] empty otherwise (localCreatedOk OR distops consumed all
+  //     attrs AND no remote error) → 201 Created, no body.
+  //   - errors[] non-empty → 207 Multi-Status with BatchOperationResult.
+  //     Some CSR leg ran, so the per-leg errors are useful to the client
+  //     regardless of whether at least one leg succeeded.
   //
-  int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
-
-  if (localAlreadyExists && !anySucceeded)
+  if (localAlreadyExists && ldBatchErrorListCount(&errors) == 0 && !anySucceeded)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
             "entity '%s' already exists", idP->value.s);
     return true;
   }
+
+  // localAlreadyExists is now always reported as one of the entries when
+  // any CSR leg ran (per § 5.2.17), so the client sees both the local
+  // 409 and any remote errors.
+  if (localAlreadyExists)
+    ldBatchErrorListAdd(&errors, idP->value.s, 409,
+                        LD_ERROR_ALREADY_EXISTS, "Already Exists",
+                        "entity already exists locally", NULL);
+
+  int errorsCount = ldBatchErrorListCount(&errors);
 
   if (errorsCount == 0)
   {
@@ -759,32 +741,19 @@ bool postEntities(void)
   }
 
   //
-  // Build BatchOperationResult response body (§ 5.2.17).
-  // If the entity was AT LEAST partially created (some forward succeeded
-  // OR local create succeeded), list its URI in success[]. Otherwise
-  // success[] is empty.
+  // Build BatchOperationResult response body (§ 5.2.17). Materialise the
+  // errors[] tree now — this is the only path that needs it.
   //
-  // If local AlreadyExists AND some forwards succeeded, add a
-  // BatchEntityError for the local leg so the client knows why local
-  // didn't land.
-  //
-  if (localAlreadyExists)
-  {
-    appendBatchEntityError(errorsArrayP, idP->value.s,
-                           LD_ERROR_ALREADY_EXISTS, "Already Exists",
-                           "entity already exists locally", NULL);
-  }
-
   KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
   if (anySucceeded)
     kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, idP->value.s));
 
   KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
   kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  kjChildAdd(respBodyP, ldBatchErrorListToTree(&errors, swRest.kjsonP));
 
   swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = anySucceeded ? 207 : 409;
+  swRest.out.httpStatusCode = 207;
 
   return true;
 }
