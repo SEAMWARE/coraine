@@ -85,6 +85,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
+#include "ktrace/kTrace.h"                           // KT_T
+#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+
 #include "serviceRoutines/postEntityBatchUpsert.h"   // Own interface
 
 
@@ -186,6 +189,8 @@ static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
   char*       respBody    = NULL;
   int         respBodyLen = 0;
   const char* upErr       = NULL;
+
+  KT_T(KtDistOpRequest, "forward: POST %s", url);
 
   int status = ldDistOpSendReceive(csr, SwVerbPost, url, body, bodyLen,
                                     ownAlias, &upErr,
@@ -936,6 +941,7 @@ bool postEntityBatchUpsert(void)
 
       char* body = renderBatchBody(csr, batchArr);
 
+      KT_T(KtDistOpRequest, "forward: POST %s", url);
       bItems[bCount].csr     = csr;
       bItems[bCount].url     = url;
       bItems[bCount].body    = body;
