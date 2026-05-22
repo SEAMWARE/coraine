@@ -13,6 +13,7 @@
 #include "swRest/SwRestState.h"                          // swRest
 #include "swNgsild/SwNgsild.h"                           // swNgsild
 #include "swNgsild/ldExpandParams.h"                     // ldExpandParams
+#include "swNgsild/ldParamsValidate.h"                   // ldParamsValidate
 #include "swNgsild/ldError.h"                            // ldError
 #include "swNgsild/LdProblem.h"                          // LD_ERROR_NONEXISTENT_TENANT
 
@@ -262,6 +263,16 @@ bool tenantPreServiceHook(void)
   // Expand vocab-bearing URL params (type, pick, omit, etc.) now that
   // @context is resolved and all params are parsed.
   ldExpandParams(&swRest.kalloc);
+
+  // Cross-parameter sanity (pick/omit conflicts, attrs+pick mutex,
+  // geo-query shape, etc.). Hooking here — rather than only inside
+  // each entity-query service routine — also covers routes that take
+  // geo URL params but don't run the per-route validator (e.g.
+  // csourceRegistrations / csourceSubscriptions): a malformed Polygon
+  // on those endpoints is now caught up front instead of sliding
+  // through to the geo matcher.
+  if (ldParamsValidate())
+    return false;
 
   return true;
 }
