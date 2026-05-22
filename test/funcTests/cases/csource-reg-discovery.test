@@ -149,10 +149,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 214
+Content-Length: 231
 
 {
   "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
+  "status": 400,
   "title": "Too Wide Query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -523,11 +524,12 @@ Content-Length: 352
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 192
+Content-Length: 178
 
 {
-  "detail": "'attrs' and 'pick' are mutually exclusive ('attrs' is deprecated; use 'pick')",
-  "title": "Conflicting Query",
+  "detail": "?attrs= cannot be combined with ?pick= or ?omit=",
+  "status": 400,
+  "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -562,10 +564,11 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 214
+Content-Length: 231
 
 {
   "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
+  "status": 400,
   "title": "Too Wide Query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

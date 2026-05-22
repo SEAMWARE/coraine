@@ -133,10 +133,11 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 195
+Content-Length: 212
 
 {
   "detail": "'https://uri.etsi.org/ngsi-ld/default-context/speed' appears in both pick and omit",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -145,15 +146,16 @@ Content-Length: 195
 
 05. GET entity with pick=nonexistent - no user attrs returned
 ==============================================================
-HTTP/1.1 422 Unprocessable Content
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Content-Length: 186
 
 {
   "detail": "entity 'urn:po:E1' has no members after pick/omit projection",
-  "title": "Unprocessable Content",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

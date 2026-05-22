@@ -120,10 +120,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "limit=0 is only valid when count=true",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -132,13 +133,17 @@ Content-Length: 150
 
 02. GET entities?limit=-1 - document current behavior
 =====================================================
-HTTP/1.1 200 OK
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Content-Length: REGEX(\d+)
 
-[]
+{
+  "detail": "'limit' must be a positive integer (got '-1')",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
@@ -147,10 +152,11 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "limit=0 is only valid when count=true",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -162,10 +168,11 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 205
+Content-Length: 222
 
 {
   "detail": "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -177,10 +184,11 @@ Content-Length: 205
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 164
+Content-Length: 181
 
 {
   "detail": "empty type name in type selection expression",
+  "status": 400,
   "title": "Invalid type parameter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -192,10 +200,11 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 164
+Content-Length: 181
 
 {
   "detail": "empty type name in type selection expression",
+  "status": 400,
   "title": "Invalid type parameter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -207,10 +216,11 @@ Content-Length: 164
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 151
+Content-Length: 168
 
 {
   "detail": "Unknown/unsupported URL parameter: foo",
+  "status": 400,
   "title": "Invalid Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }

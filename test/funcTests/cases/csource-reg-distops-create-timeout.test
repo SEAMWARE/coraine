@@ -42,8 +42,8 @@ echo
 echo
 
 
-echo "02. POST urn:V1 → forward times out → 409 Conflict"
-echo "=================================================="
+echo "02. POST urn:V1 → forward times out → 207 Multi-Status"
+echo "======================================================"
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
@@ -66,9 +66,9 @@ Content-Length: REGEX(\d+)
 
 
 
-02. POST urn:V1 → forward times out → 409 Conflict
-==================================================
-HTTP/1.1 409 Conflict
+02. POST urn:V1 → forward times out → 207 Multi-Status
+======================================================
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
@@ -80,6 +80,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": REGEX("forward failed: .*"),
+        "status": 502,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },

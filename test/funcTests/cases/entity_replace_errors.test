@@ -260,10 +260,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 148
+Content-Length: 165
 
 {
   "detail": "Entity payload must be a JSON object",
+  "status": 400,
   "title": "Invalid Entity",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
@@ -275,10 +276,11 @@ Content-Length: 148
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 157
+Content-Length: 174
 
 {
   "detail": "Entity 'id' is mandatory for ReplaceEntity",
+  "status": 400,
   "title": "Missing Entity Id",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -290,10 +292,11 @@ Content-Length: 157
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 143
+Content-Length: 160
 
 {
   "detail": "Entity 'id' must be a string",
+  "status": 400,
   "title": "Invalid Entity Id",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -305,10 +308,11 @@ Content-Length: 143
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 137
+Content-Length: 154
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -320,10 +324,11 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 142
+Content-Length: 159
 
 {
   "detail": "Duplicate 'id' / '@id' in entity",
+  "status": 400,
   "title": "Duplicate Id",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -335,10 +340,11 @@ Content-Length: 142
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 167
+Content-Length: 184
 
 {
   "detail": "Entity 'type' must be a string or array of strings",
+  "status": 400,
   "title": "Invalid Entity Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -350,10 +356,11 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 148
+Content-Length: 165
 
 {
   "detail": "Duplicate 'type' / '@type' in entity",
+  "status": 400,
   "title": "Duplicate Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -365,10 +372,11 @@ Content-Length: 148
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 162
+Content-Length: 179
 
 {
   "detail": "Entity 'scope' must be a string or array of strings",
+  "status": 400,
   "title": "Invalid Scope",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -380,10 +388,11 @@ Content-Length: 162
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 208
+Content-Length: 225
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'value'",
+  "status": 400,
   "title": "Missing Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -395,10 +404,11 @@ Content-Length: 208
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 218
+Content-Length: 235
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' has 2 value keys (only one allowed)",
+  "status": 400,
   "title": "Conflicting Value Keys",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -410,10 +420,11 @@ Content-Length: 218
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 212
+Content-Length: 229
 
 {
   "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string",
+  "status": 400,
   "title": "Invalid Relationship",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -425,10 +436,11 @@ Content-Length: 212
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 239
+Content-Length: 256
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'",
+  "status": 400,
   "title": "Invalid observedAt",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -440,10 +452,11 @@ Content-Length: 239
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 205
+Content-Length: 222
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': 'unitCode' must be a string",
+  "status": 400,
   "title": "Invalid unitCode",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -455,10 +468,11 @@ Content-Length: 205
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 137
+Content-Length: 154
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -470,10 +484,11 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 144
+Content-Length: 161
 
 {
   "detail": "GeoJSON value must be an object",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -485,10 +500,11 @@ Content-Length: 144
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 158
+Content-Length: 175
 
 {
   "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -500,10 +516,11 @@ Content-Length: 158
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

@@ -164,10 +164,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 144
+Content-Length: 161
 
 {
   "detail": "GeoJSON value must be an object",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -179,10 +180,11 @@ Content-Length: 144
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 152
+Content-Length: 169
 
 {
   "detail": "GeoJSON must have a 'type' string field",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -194,10 +196,11 @@ Content-Length: 152
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 197
+Content-Length: 214
 
 {
   "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Square'",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -209,10 +212,11 @@ Content-Length: 197
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 173
+Content-Length: 190
 
 {
   "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -224,10 +228,11 @@ Content-Length: 173
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 156
+Content-Length: 173
 
 {
   "detail": "GeoJSON latitude must be in range [-90, 90]",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -239,10 +244,11 @@ Content-Length: 156
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 173
+Content-Length: 190
 
 {
   "detail": "GeoJSON polygon ring must be closed (first == last position)",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -287,10 +293,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "GeoJSON polygon ring must be an array",
+  "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

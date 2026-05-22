@@ -259,10 +259,11 @@ Content-Length: 788
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 174
+Content-Length: 191
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' already exists",
+  "status": 409,
   "title": "Already Exists",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
@@ -389,10 +390,11 @@ Content-Length: 803
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 149
+Content-Length: 166
 
 {
   "detail": "CSR subscription 'urn:no:such' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -404,10 +406,11 @@ Content-Length: 149
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 167
+Content-Length: 184
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

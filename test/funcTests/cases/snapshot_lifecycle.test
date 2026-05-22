@@ -235,6 +235,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "field 'id' cannot be modified via PATCH",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -250,6 +251,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "field 'snapshotQueries' cannot be modified via PATCH",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -265,6 +267,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'snapshotPriority' must be an integer between 1 and 10",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -280,6 +283,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -347,6 +351,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -362,6 +367,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1Copy' already exists",
+  "status": 409,
   "title": "Already Exists",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
@@ -386,6 +392,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -401,6 +408,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1Copy' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

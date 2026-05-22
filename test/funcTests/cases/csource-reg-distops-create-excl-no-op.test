@@ -104,6 +104,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "exclusive registration does not support createEntity; affected attributes: speed",
+        "status": 409,
         "title": "Conflict",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },

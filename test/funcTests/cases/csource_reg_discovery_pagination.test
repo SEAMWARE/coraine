@@ -80,21 +80,21 @@ HTTP/1.1 201 Created
 02. GET first page (offset=0, limit=2) — Link rel=next, no rel=prev
 ===================================================================
 HTTP/1.1 200 OK
-Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2>; rel="next"; type="application/json"
+Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2>;rel="next";type="application/ld+json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 
 
 03. GET middle page (offset=2, limit=2) — Link with rel=next + rel=prev + rel=first
 ====================================================================================
 HTTP/1.1 200 OK
-Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>; rel="first"; type="application/json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>; rel="prev"; type="application/json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=4>; rel="next"; type="application/json"
+Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>;rel="prev";type="application/ld+json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=4>;rel="next";type="application/ld+json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 
 
 04. GET last page (offset=4, limit=2) — Link with rel=prev + rel=first, no rel=next
 ====================================================================================
 HTTP/1.1 200 OK
-Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=0>; rel="first"; type="application/json", </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2>; rel="prev"; type="application/json"
+Link: </ngsi-ld/v1/csourceRegistrations?type=Vehicle&limit=2&offset=2>;rel="prev";type="application/ld+json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 
 

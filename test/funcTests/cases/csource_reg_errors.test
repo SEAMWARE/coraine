@@ -852,10 +852,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 160
+Content-Length: 177
 
 {
   "detail": "Registration payload must be a JSON object",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -867,10 +868,11 @@ Content-Length: 160
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 153
+Content-Length: 170
 
 {
   "detail": "Registration 'type' is mandatory for create",
+  "status": 400,
   "title": "Missing Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -882,10 +884,11 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 165
+Content-Length: 182
 
 {
   "detail": "Registration 'type' must be 'ContextSourceRegistration'",
+  "status": 400,
   "title": "Invalid Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -897,10 +900,11 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 161
+Content-Length: 178
 
 {
   "detail": "Registration 'endpoint' is mandatory for create",
+  "status": 400,
   "title": "Missing Endpoint",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -912,10 +916,11 @@ Content-Length: 161
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 137
+Content-Length: 154
 
 {
   "detail": "Not a valid URI: 'not-a-uri'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -927,10 +932,11 @@ Content-Length: 137
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 167
+Content-Length: 184
 
 {
   "detail": "Registration 'information' is mandatory for create",
+  "status": 400,
   "title": "Missing Information",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -942,10 +948,11 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 153
+Content-Length: 170
 
 {
   "detail": "'information' must have at least one element",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -957,10 +964,11 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 214
+Content-Length: 231
 
 {
   "detail": "'information' element must have at least one of 'entities', 'propertyNames', 'relationshipNames'",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -972,10 +980,11 @@ Content-Length: 214
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 148
+Content-Length: 165
 
 {
   "detail": "'entities[].type' is mandatory",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -987,10 +996,11 @@ Content-Length: 148
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 201
+Content-Length: 218
 
 {
   "detail": "Registration 'mode' must be one of: inclusive, exclusive, redirect, auxiliary (got 'magic')",
+  "status": 400,
   "title": "Invalid Mode",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1002,10 +1012,11 @@ Content-Length: 201
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 162
+Content-Length: 179
 
 {
   "detail": "'expiresAt' must be a DateTime in the future",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1017,10 +1028,11 @@ Content-Length: 162
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 158
+Content-Length: 175
 
 {
   "detail": "'expiresAt' is not a valid ISO 8601 DateTime",
+  "status": 400,
   "title": "Invalid DateTime",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1032,10 +1044,11 @@ Content-Length: 158
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 231
+Content-Length: 248
 
 {
   "detail": "auxiliary registration 'operations' must be one of: retrieveOps, retrieveEntity, queryEntity (got 'createEntity')",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1058,10 +1071,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 196
+Content-Length: 213
 
 {
   "detail": "contextSourceInfo 'accept' must be 'application/json' or 'application/ld+json'",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1073,10 +1087,11 @@ Content-Length: 196
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "registration 'urn:doesnt:exist' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -1088,10 +1103,11 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 143
+Content-Length: 160
 
 {
   "detail": "registration 'id' must be a string",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1103,10 +1119,11 @@ Content-Length: 143
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 165
+Content-Length: 182
 
 {
   "detail": "Registration 'type' must be 'ContextSourceRegistration'",
+  "status": 400,
   "title": "Invalid Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1118,10 +1135,11 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 165
+Content-Length: 182
 
 {
   "detail": "Registration 'type' must be 'ContextSourceRegistration'",
+  "status": 400,
   "title": "Invalid Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1133,10 +1151,11 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 144
+Content-Length: 161
 
 {
   "detail": "registration 'id' must not be empty",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1148,10 +1167,11 @@ Content-Length: 144
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 141
+Content-Length: 158
 
 {
   "detail": "Not a valid URI: 'no-colon-here'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1163,10 +1183,11 @@ Content-Length: 141
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 152
+Content-Length: 169
 
 {
   "detail": "'information' must be a JSON array",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1178,10 +1199,11 @@ Content-Length: 152
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 158
+Content-Length: 175
 
 {
   "detail": "'information' items must be JSON objects",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1193,10 +1215,11 @@ Content-Length: 158
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 159
+Content-Length: 176
 
 {
   "detail": "'information[].entities' must be an array",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1208,10 +1231,11 @@ Content-Length: 159
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 151
+Content-Length: 168
 
 {
   "detail": "'information[].entities' must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1223,10 +1247,11 @@ Content-Length: 151
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 171
+Content-Length: 188
 
 {
   "detail": "'information[].entities[]' items must be JSON objects",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1238,10 +1263,11 @@ Content-Length: 171
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 154
+Content-Length: 171
 
 {
   "detail": "'entities[].id' must be a URI string",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1253,10 +1279,11 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 136
+Content-Length: 153
 
 {
   "detail": "Not a valid URI: 'no-colon'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1268,10 +1295,11 @@ Content-Length: 136
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 163
+Content-Length: 180
 
 {
   "detail": "'entities[].idPattern' must be a regex string",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1283,10 +1311,11 @@ Content-Length: 163
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 153
+Content-Length: 170
 
 {
   "detail": "'entities[].type' must not be empty",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1298,10 +1327,11 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 172
+Content-Length: 189
 
 {
   "detail": "'entities[].type' must be a string or array of strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1313,10 +1343,11 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "'entities[].type' array must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1328,10 +1359,11 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 163
+Content-Length: 180
 
 {
   "detail": "'entities[].type' array items must be strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1343,10 +1375,11 @@ Content-Length: 163
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 161
+Content-Length: 178
 
 {
   "detail": "'propertyNames' must be an array of strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1358,10 +1391,11 @@ Content-Length: 161
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 178
+Content-Length: 195
 
 {
   "detail": "'information[].propertyNames' / 'relationshipNames' must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1373,10 +1407,11 @@ Content-Length: 178
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 165
+Content-Length: 182
 
 {
   "detail": "'propertyNames' items must be non-empty strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1388,10 +1423,11 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 165
+Content-Length: 182
 
 {
   "detail": "'propertyNames' items must be non-empty strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1403,10 +1439,11 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 165
+Content-Length: 182
 
 {
   "detail": "'relationshipNames' must be an array of strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1418,10 +1455,11 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 178
+Content-Length: 195
 
 {
   "detail": "'information[].propertyNames' / 'relationshipNames' must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1433,10 +1471,11 @@ Content-Length: 178
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 169
+Content-Length: 186
 
 {
   "detail": "'relationshipNames' items must be non-empty strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1448,10 +1487,11 @@ Content-Length: 169
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 169
+Content-Length: 186
 
 {
   "detail": "'relationshipNames' items must be non-empty strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1463,10 +1503,11 @@ Content-Length: 169
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 155
+Content-Length: 172
 
 {
   "detail": "'expiresAt' must be a DateTime string",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1478,10 +1519,11 @@ Content-Length: 155
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 154
+Content-Length: 171
 
 {
   "detail": "Registration 'mode' must be a string",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1493,10 +1535,11 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 154
+Content-Length: 171
 
 {
   "detail": "'contextSourceInfo' must be an array",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1508,10 +1551,11 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 171
+Content-Length: 188
 
 {
   "detail": "'contextSourceInfo' items must be {key,value} objects",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1523,10 +1567,11 @@ Content-Length: 171
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 156
+Content-Length: 173
 
 {
   "detail": "'contextSourceInfo' item missing 'key'",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1538,10 +1583,11 @@ Content-Length: 156
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 158
+Content-Length: 175
 
 {
   "detail": "'contextSourceInfo' item missing 'value'",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1553,10 +1599,11 @@ Content-Length: 158
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 201
+Content-Length: 218
 
 {
   "detail": "contextSourceInfo 'contentType' must be 'application/json' or 'application/ld+json'",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -1592,10 +1639,11 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 214
+Content-Length: 231
 
 {
   "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
+  "status": 400,
   "title": "Too Wide Query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

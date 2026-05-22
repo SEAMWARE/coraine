@@ -130,6 +130,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'type' must be \"Snapshot\"",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -145,6 +146,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'type' must be \"Snapshot\"",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -182,6 +184,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1' already exists",
+  "status": 409,
   "title": "Already Exists",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
@@ -231,6 +234,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:DoesNotExist' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -255,6 +259,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:S1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -270,6 +275,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

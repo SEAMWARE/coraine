@@ -89,6 +89,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "tenant 't1' does not exist",
+  "status": 404,
   "title": "NonexistentTenant",
   "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
 }

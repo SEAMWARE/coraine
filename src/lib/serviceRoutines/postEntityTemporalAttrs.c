@@ -203,7 +203,7 @@ bool postEntityTemporalAttrs(void)
 
             if (!opSupported)
             {
-              ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+              ldDistOpBatchErrorAdd(errorsArrayP, entityId, 409,
                                     LD_ERROR_CONFLICT, "Conflict",
                                     "registration does not support appendAttrsTemporal",
                                     csr->regId);
@@ -242,7 +242,7 @@ bool postEntityTemporalAttrs(void)
         {
           int upCode = results[i].statusCode;
           if (upCode < 200 || upCode >= 300)
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId, (upCode >= 400) ? upCode : 502,
                                   LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                                   ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
                                   items[i].csr->regId);
@@ -284,7 +284,7 @@ bool postEntityTemporalAttrs(void)
       char detail[256];
       snprintf(detail, sizeof(detail),
                "local temporal add-attrs failed for '%s'", entityId);
-      ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+      ldDistOpBatchErrorAdd(errorsArrayP, entityId, 500,
                             LD_ERROR_INTERNAL_ERROR, "Internal Error",
                             detail, NULL);
     }

@@ -131,6 +131,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "forward returned status 503; affected attributes: color",
+        "status": 503,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },

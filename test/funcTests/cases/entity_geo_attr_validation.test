@@ -126,10 +126,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 209
+Content-Length: 226
 
 {
   "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "status": 400,
   "title": "Invalid Attribute",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -141,10 +142,11 @@ Content-Length: 209
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 213
+Content-Length: 230
 
 {
   "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Relationship)",
+  "status": 400,
   "title": "Invalid Attribute",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -167,10 +169,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 217
+Content-Length: 234
 
 {
   "detail": "Attribute 'observationSpace' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "status": 400,
   "title": "Invalid Attribute",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -182,10 +185,11 @@ Content-Length: 217
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 219
+Content-Length: 236
 
 {
   "detail": "Attribute 'operationSpace' is reserved by spec § 4.7 and must be of type GeoProperty (got JsonProperty)",
+  "status": 400,
   "title": "Invalid Attribute",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -219,10 +223,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 209
+Content-Length: 226
 
 {
   "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "status": 400,
   "title": "Invalid Attribute",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

@@ -260,6 +260,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "reload is only valid for Cached contexts",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -275,6 +276,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "JSON-LD context 'urn:ngsi-ld:Context:does-not-exist' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -290,6 +292,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "payload must contain either '@context' (Hosted) or 'url' (Cached)",
+  "status": 400,
   "title": "Invalid Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
@@ -305,6 +308,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'@context' must be a JSON object or array",
+  "status": 400,
   "title": "Invalid Context",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -320,6 +324,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'url' must be a non-empty string",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -335,6 +340,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "unable to retrieve @context from 'http://127.0.0.1:1/nope.jsonld'",
+  "status": 504,
   "title": "Context Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
 }

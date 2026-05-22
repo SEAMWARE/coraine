@@ -349,10 +349,11 @@ Content-Length: 443
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "subscription 'urn:doesnt:exist' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -364,10 +365,11 @@ Content-Length: 150
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 161
+Content-Length: 178
 
 {
   "detail": "subscription 'urn:ngsi-ld:Subscription:S1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -379,10 +381,11 @@ Content-Length: 161
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 168
+Content-Length: 185
 
 {
   "detail": "subscription 'urn:ngsi-ld:Subscription:S2' already exists",
+  "status": 409,
   "title": "Already Exists",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }

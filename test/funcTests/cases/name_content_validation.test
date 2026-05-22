@@ -151,6 +151,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "attribute name '3Vehicle' must start with a letter (§ 4.6.2)",
+  "status": 400,
   "title": "Invalid Attribute Name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -166,6 +167,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "attribute name 'spe!ed' contains a forbidden character (0x21) — § 4.6.2",
+  "status": 400,
   "title": "Invalid Attribute Name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -203,6 +205,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "attribute name 'bad name' contains a forbidden character (0x20) — § 4.6.2",
+  "status": 400,
   "title": "Invalid Attribute Name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -229,6 +232,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "status": 400,
   "title": "Forbidden Characters",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -244,6 +248,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "status": 400,
   "title": "Forbidden Characters",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -259,6 +264,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "status": 400,
   "title": "Forbidden Characters",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -285,6 +291,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "value of 'tags' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "status": 400,
   "title": "Forbidden Characters",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -300,6 +307,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "value of 'note' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
+  "status": 400,
   "title": "Forbidden Characters",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

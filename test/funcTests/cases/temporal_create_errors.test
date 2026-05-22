@@ -97,6 +97,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Not a valid URI: 'invalidId'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -112,6 +113,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "EntityTemporal must include a non-empty 'id'",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -127,6 +129,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "EntityTemporal must include a non-empty 'id'",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -142,6 +145,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "broker started without TRoE support; 'temporal-entity create' requires a TRoE plugin",
+  "status": 501,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

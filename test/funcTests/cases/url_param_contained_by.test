@@ -190,10 +190,11 @@ Content-Length: 111
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 145
+Content-Length: 162
 
 {
   "detail": "'containedBy' shall not be empty",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

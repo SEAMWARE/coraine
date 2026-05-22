@@ -186,10 +186,11 @@ Content-Length: 183
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 157
+Content-Length: 174
 
 {
   "detail": "Entity 'id' is mandatory for ReplaceEntity",
+  "status": 400,
   "title": "Missing Entity Id",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -201,10 +202,11 @@ Content-Length: 157
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 205
+Content-Length: 222
 
 {
   "detail": "entity id in payload ('urn:ngsi-ld:Vehicle:OTHER') does not match URL ('urn:ngsi-ld:Vehicle:V1')",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -216,10 +218,11 @@ Content-Length: 205
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 149
+Content-Length: 166
 
 {
   "detail": "entity type cannot be changed on Replace",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -231,10 +234,11 @@ Content-Length: 149
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 162
+Content-Length: 179
 
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:DOES_NOT_EXIST' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -256,10 +260,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 161
+Content-Length: 178
 
 {
   "detail": "Entity 'type' is mandatory for ReplaceEntity",
+  "status": 400,
   "title": "Missing Entity Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

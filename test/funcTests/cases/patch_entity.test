@@ -204,6 +204,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:DOES_NOT_EXIST' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

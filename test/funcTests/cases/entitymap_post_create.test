@@ -186,6 +186,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Query body must carry \"type\": \"Query\"",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -201,6 +202,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Query body must carry \"type\": \"Query\"",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

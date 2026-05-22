@@ -136,6 +136,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:V1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -192,6 +193,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:V1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -218,6 +220,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": REGEX("forwarded request failed: .*"),
+  "status": 502,
   "title": "Bad Gateway",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
@@ -233,6 +236,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:NoMatch:1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

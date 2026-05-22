@@ -294,6 +294,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "registration 'urn:doesnt:exist' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -309,6 +310,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "registration 'urn:ngsi-ld:CSR:R1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -335,6 +337,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "registration 'urn:ngsi-ld:CSR:R1' already exists",
+  "status": 409,
   "title": "Already Exists",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }

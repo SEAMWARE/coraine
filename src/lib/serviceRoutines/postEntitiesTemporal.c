@@ -257,7 +257,7 @@ bool postEntitiesTemporal(void)
             char detail[256];
             snprintf(detail, sizeof(detail),
                      "%s registration does not support upsertTemporal", modeTag[g]);
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId, 409,
                                   LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
             continue;
           }
@@ -300,7 +300,7 @@ bool postEntitiesTemporal(void)
       {
         int upCode = results[i].statusCode;
         if (upCode < 200 || upCode >= 300)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId, (upCode >= 400) ? upCode : 502,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                                 ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
                                 items[i].csr->regId);
@@ -343,7 +343,7 @@ bool postEntitiesTemporal(void)
       char detail[256];
       snprintf(detail, sizeof(detail),
                "local temporal create failed for entity '%s'", entityId);
-      ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+      ldDistOpBatchErrorAdd(errorsArrayP, entityId, 500,
                             LD_ERROR_INTERNAL_ERROR, "Internal Error",
                             detail, NULL);
     }

@@ -216,7 +216,7 @@ bool deleteEntityAttr(void)
         if (detach[items[i].modeIdx]) localApply = false;
       }
       else if (sc != 404)
-        ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
                               LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);

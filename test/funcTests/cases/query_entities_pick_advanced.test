@@ -217,10 +217,11 @@ Content-Length: 262
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 195
+Content-Length: 212
 
 {
   "detail": "'https://uri.etsi.org/ngsi-ld/default-context/speed' appears in both pick and omit",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

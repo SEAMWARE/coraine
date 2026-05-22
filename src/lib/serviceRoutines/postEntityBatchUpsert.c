@@ -96,7 +96,7 @@
 //
 // addBatchError - append a BatchEntityError (§ 5.2.17) to errors[].
 //
-static void addBatchError(KjNode* errorsP, const char* entityId,
+static void addBatchError(KjNode* errorsP, const char* entityId, int statusCode,
                           const char* errType, const char* title,
                           const char* detail, const char* regId)
 {
@@ -104,9 +104,10 @@ static void addBatchError(KjNode* errorsP, const char* entityId,
   kjChildAdd(err, kjString(swRest.kjsonP, "entityId", (char*) entityId));
 
   KjNode* pd = kjObject(swRest.kjsonP, "error");
-  kjChildAdd(pd, kjString(swRest.kjsonP, "type",   (char*) errType));
-  kjChildAdd(pd, kjString(swRest.kjsonP, "title",  (char*) title));
-  kjChildAdd(pd, kjString(swRest.kjsonP, "detail", (char*) detail));
+  kjChildAdd(pd, kjString (swRest.kjsonP, "type",   (char*) errType));
+  kjChildAdd(pd, kjString (swRest.kjsonP, "title",  (char*) title));
+  kjChildAdd(pd, kjInteger(swRest.kjsonP, "status", statusCode));
+  kjChildAdd(pd, kjString (swRest.kjsonP, "detail", (char*) detail));
   kjChildAdd(err, pd);
 
   if (regId != NULL)
@@ -231,7 +232,7 @@ static void applyRemoteBatchResult(int status, KjNode* respTreeP,
     snprintf(detail, sizeof(detail), "forward to '%s' failed (status %d)",
              csrRegId ? csrRegId : "?", status);
     for (int i = 0; i < N; i++)
-      addBatchError(errorsP, idV[i],
+      addBatchError(errorsP, idV[i], (status >= 400) ? status : 502,
                     LD_ERROR_INTERNAL_ERROR, "Bad Gateway", detail, csrRegId);
     return;
   }
@@ -260,16 +261,19 @@ static void applyRemoteBatchResult(int status, KjNode* respTreeP,
       const char* type   = LD_ERROR_INTERNAL_ERROR;
       const char* title  = "Bad Gateway";
       const char* detail = "forward error";
+      int         status = 502;
       if (errP != NULL && errP->type == KjObject)
       {
         KjNode* tP = kjLookup(errP, "type");
         KjNode* hP = kjLookup(errP, "title");
         KjNode* dP = kjLookup(errP, "detail");
-        if (tP != NULL && tP->type == KjString) type   = tP->value.s;
-        if (hP != NULL && hP->type == KjString) title  = hP->value.s;
-        if (dP != NULL && dP->type == KjString) detail = dP->value.s;
+        KjNode* sP = kjLookup(errP, "status");
+        if (tP != NULL && tP->type == KjString)  type   = tP->value.s;
+        if (hP != NULL && hP->type == KjString)  title  = hP->value.s;
+        if (dP != NULL && dP->type == KjString)  detail = dP->value.s;
+        if (sP != NULL && sP->type == KjInt)     status = sP->value.i;
       }
-      addBatchError(errorsP, eid, type, title, detail, csrRegId);
+      addBatchError(errorsP, eid, status, type, title, detail, csrRegId);
     }
   }
 }
@@ -529,7 +533,7 @@ bool postEntityBatchUpsert(void)
   {
     if (inP->type != KjObject)
     {
-      addBatchError(errorsP, "",
+      addBatchError(errorsP, "", 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
                     "entity must be a JSON object", NULL);
       continue;
@@ -547,7 +551,7 @@ bool postEntityBatchUpsert(void)
       strncpy(snapshot, swRest.out.problemDetail, sizeof(snapshot) - 1);
       snapshot[sizeof(snapshot) - 1] = 0;
 
-      addBatchError(errorsP, eid,
+      addBatchError(errorsP, eid, 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Bad Request", snapshot, NULL);
 
       swRest.out.httpStatusCode   = 0;
@@ -560,7 +564,7 @@ bool postEntityBatchUpsert(void)
     KjNode* idP = kjLookup(inP, "id");
     if (idP == NULL || idP->type != KjString)
     {
-      addBatchError(errorsP, "",
+      addBatchError(errorsP, "", 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
                     "entity id is missing or not a string", NULL);
       continue;
@@ -629,7 +633,7 @@ bool postEntityBatchUpsert(void)
 
     if (db.entityRetrieve == NULL)
     {
-      addBatchError(errorsP, g->id,
+      addBatchError(errorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
                     "entityRetrieve not supported by this DB plugin", NULL);
       continue;
@@ -641,7 +645,7 @@ bool postEntityBatchUpsert(void)
     bool exists = (r == DB_OK && existingDb != NULL);
     if (!exists && r != DB_NOT_FOUND && r != DB_OK)
     {
-      addBatchError(errorsP, g->id,
+      addBatchError(errorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
                     "database error during retrieve", NULL);
       continue;
@@ -923,7 +927,7 @@ bool postEntityBatchUpsert(void)
                                ? "exclusive registration does not support upsertBatch"
                                : "redirect registration does not support upsertBatch";
           for (int i = 0; i < a->count; i++)
-            addBatchError(errorsP, a->idV[i],
+            addBatchError(errorsP, a->idV[i], 409,
                           LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
         }
         continue;
@@ -1016,12 +1020,12 @@ bool postEntityBatchUpsert(void)
           break;
         case DB_ALREADY_EXISTS:
           // Rare race: entity appeared between retrieve and bulk-create.
-          addBatchError(errorsP, eid,
+          addBatchError(errorsP, eid, 409,
                         LD_ERROR_ALREADY_EXISTS, "Already Exists",
                         "entity appeared between retrieve and bulk create", NULL);
           break;
         default:
-          addBatchError(errorsP, eid,
+          addBatchError(errorsP, eid, 500,
                         LD_ERROR_INTERNAL_ERROR, "Internal Error",
                         "database error during batch upsert create", NULL);
           break;
@@ -1051,12 +1055,12 @@ bool postEntityBatchUpsert(void)
           break;
         case DB_NOT_FOUND:
           // Rare race: entity disappeared between retrieve and bulk-update.
-          addBatchError(errorsP, eid,
+          addBatchError(errorsP, eid, 404,
                         LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                         "entity vanished between retrieve and bulk update", NULL);
           break;
         default:
-          addBatchError(errorsP, eid,
+          addBatchError(errorsP, eid, 500,
                         LD_ERROR_INTERNAL_ERROR, "Internal Error",
                         "database error during batch upsert update", NULL);
           break;

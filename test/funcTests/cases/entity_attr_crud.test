@@ -278,10 +278,11 @@ Content-Type: application/json; charset=utf-8
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 155
+Content-Length: 172
 
 {
   "detail": "attribute 'brand' not found in entity 'urn:V1'",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -293,10 +294,11 @@ Content-Length: 155
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 157
+Content-Length: 174
 
 {
   "detail": "attribute 'unknown' not found in entity 'urn:V1'",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -308,10 +310,11 @@ Content-Length: 157
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 155
+Content-Length: 172
 
 {
   "detail": "attribute 'brand' not found in entity 'urn:V1'",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -323,10 +326,11 @@ Content-Length: 155
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 162
+Content-Length: 179
 
 {
   "detail": "scope cannot be modified via Partial Attribute Update",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -338,10 +342,11 @@ Content-Length: 162
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 155
+Content-Length: 172
 
 {
   "detail": "scope cannot be replaced via Replace Attribute",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -353,10 +358,11 @@ Content-Length: 155
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 138
+Content-Length: 155
 
 {
   "detail": "entity 'urn:NoSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -368,10 +374,11 @@ Content-Length: 138
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 160
+Content-Length: 177
 
 {
   "detail": "attribute 'noSuchAttr' not found in entity 'urn:V1'",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

@@ -308,7 +308,7 @@ bool purgeEntities(void)
           char detail[256];
           snprintf(detail, sizeof(detail),
                    "%s registration does not support purgeEntity", modeTag[g]);
-          ldDistOpBatchErrorAdd(errorsArrayP, csr->regId,
+          ldDistOpBatchErrorAdd(errorsArrayP, csr->regId, 409,
                                 LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
           continue;
         }
@@ -333,7 +333,7 @@ bool purgeEntities(void)
         if (upCode >= 200 && upCode < 300)
           kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, items[i].csr->regId));
         else if (upCode != 404)
-          ldDistOpBatchErrorAdd(errorsArrayP, items[i].csr->regId,
+          ldDistOpBatchErrorAdd(errorsArrayP, items[i].csr->regId, (upCode >= 400) ? upCode : 502,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                                 ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
                                 items[i].csr->regId);
@@ -387,7 +387,7 @@ bool purgeEntities(void)
           if (pr == DB_OK)
             kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
           else if (pr != DB_NOT_FOUND)
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId, 500,
                                   LD_ERROR_INTERNAL_ERROR, "Internal Error",
                                   "partial-purge db error", NULL);
         }
@@ -407,7 +407,7 @@ bool purgeEntities(void)
           }
           else if (dr != DB_NOT_FOUND)
           {
-            ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+            ldDistOpBatchErrorAdd(errorsArrayP, entityId, 500,
                                   LD_ERROR_INTERNAL_ERROR, "Internal Error",
                                   "db error on purge", NULL);
           }

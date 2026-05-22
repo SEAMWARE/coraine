@@ -352,6 +352,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "JSON null is not allowed in NGSI-LD (attribute 'https://uri.etsi.org/ngsi-ld/default-context/notes', field 'value')",
+  "status": 400,
   "title": "Invalid Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -367,6 +368,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:vt:E4' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

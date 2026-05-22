@@ -107,6 +107,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "@context is mandatory on every element of an application/ld+json array body",
+        "status": 400,
         "title": "Missing @context",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
@@ -131,6 +132,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "@context is mandatory on every element of an application/ld+json array body",
+        "status": 400,
         "title": "Missing @context",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
@@ -155,6 +157,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "@context is mandatory on every element of an application/ld+json array body",
+        "status": 400,
         "title": "Missing @context",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
@@ -179,6 +182,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "@context is mandatory on every element of an application/ld+json array body",
+        "status": 400,
         "title": "Missing @context",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
@@ -203,6 +207,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V2",
       "error": {
         "detail": "@context is mandatory on every element of an application/ld+json array body",
+        "status": 400,
         "title": "Missing @context",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }

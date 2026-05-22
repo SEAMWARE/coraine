@@ -191,7 +191,7 @@ HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 264
+Content-Length: 287
 
 {
   "errors": [
@@ -199,6 +199,7 @@ Content-Length: 264
       "entityId": "urn:VX",
       "error": {
         "detail": "entity does not exist",
+        "status": 404,
         "title": "Not Found",
         "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
       }
@@ -251,10 +252,11 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "Batch Entity Update: input array is empty",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -266,10 +268,11 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 154
+Content-Length: 171
 
 {
   "detail": "Batch Entity Update: null entry at position 1",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -281,10 +284,11 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 154
+Content-Length: 171
 
 {
   "detail": "Batch Entity Update body must be a JSON array",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

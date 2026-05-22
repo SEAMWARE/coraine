@@ -88,10 +88,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 177
+Content-Length: 194
 
 {
   "detail": "'notification.attributes' must not include 'id' (§ 5.2.12)",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -103,10 +104,11 @@ Content-Length: 177
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 179
+Content-Length: 196
 
 {
   "detail": "'notification.attributes' must not include 'type' (§ 5.2.12)",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -118,10 +120,11 @@ Content-Length: 179
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 180
+Content-Length: 197
 
 {
   "detail": "'notification.attributes' must not include 'scope' (§ 5.2.12)",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

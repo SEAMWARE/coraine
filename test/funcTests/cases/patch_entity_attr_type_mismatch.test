@@ -97,6 +97,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "attribute type mismatch: cannot change 'speed' from 'Property' to 'Relationship'",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

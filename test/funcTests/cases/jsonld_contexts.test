@@ -198,10 +198,11 @@ Content-Length: 3
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 244
+Content-Length: 261
 
 {
   "detail": "@context 'http://localhost:7080/jsonldContexts/ctxT' is of kind 'Cached'; only metadata (?details=true) is available",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -213,10 +214,11 @@ Content-Length: 244
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 167
+Content-Length: 184
 
 {
   "detail": "JSON-LD context 'http://nope.example/ctx.jsonld' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

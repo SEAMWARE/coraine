@@ -96,10 +96,11 @@ HTTP/1.1 201 Created
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 244
+Content-Length: 261
 
 {
   "detail": "@context 'http://localhost:7080/jsonldContexts/ctxR' is of kind 'Cached'; only metadata (?details=true) is available",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

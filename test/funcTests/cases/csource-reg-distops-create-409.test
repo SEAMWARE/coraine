@@ -76,7 +76,7 @@ echo
 echo
 
 
-echo "03. POST urn:V1 {speed, color} → both forwards fail, 0 succeed → 409"
+echo "03. POST urn:V1 {speed, color} → both forwards fail, 0 succeed → 207"
 echo "===================================================================="
 payload='{
   "id": "urn:V1",
@@ -118,9 +118,9 @@ Content-Length: REGEX(\d+)
 
 
 
-03. POST urn:V1 {speed, color} → both forwards fail, 0 succeed → 409
+03. POST urn:V1 {speed, color} → both forwards fail, 0 succeed → 207
 ====================================================================
-HTTP/1.1 409 Conflict
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
@@ -132,6 +132,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "forward returned status 503; affected attributes: speed",
+        "status": 503,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
@@ -141,6 +142,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "forward returned status 403; affected attributes: color",
+        "status": 403,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },

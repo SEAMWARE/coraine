@@ -124,10 +124,11 @@ HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
 NGSILD-Tenant: t1
-Content-Length: 134
+Content-Length: 151
 
 {
   "detail": "entity 'urn:V1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

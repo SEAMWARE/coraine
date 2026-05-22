@@ -79,6 +79,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner' type from 'Property' to 'Relationship' in a Merge Entity operation",
+  "status": 400,
   "title": "Attribute Type Change",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

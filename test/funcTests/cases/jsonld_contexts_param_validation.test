@@ -69,6 +69,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'details' must be 'true' or 'false'",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -84,6 +85,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'kind' must be 'Hosted', 'Cached' or 'ImplicitlyCreated'",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

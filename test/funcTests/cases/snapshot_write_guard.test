@@ -148,10 +148,11 @@ Content-Length: 136
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -163,10 +164,11 @@ Content-Length: 279
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -178,10 +180,11 @@ Content-Length: 279
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -193,10 +196,11 @@ Content-Length: 279
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -208,10 +212,11 @@ Content-Length: 279
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -223,10 +228,11 @@ Content-Length: 279
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -238,10 +244,11 @@ Content-Length: 279
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 279
+Content-Length: 296
 
 {
   "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

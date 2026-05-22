@@ -222,6 +222,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "no instances match the temporal query for entity 'urn:V1'",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

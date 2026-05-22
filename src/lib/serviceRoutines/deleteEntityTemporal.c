@@ -124,7 +124,7 @@ bool deleteEntityTemporal(void)
         int sc = items[i].statusCode;
         if (sc == 404) continue;
         if (sc < 200 || sc >= 300)
-          ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+          ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                                 ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                                 items[i].csr->regId);
@@ -155,7 +155,7 @@ bool deleteEntityTemporal(void)
     char detail[256];
     snprintf(detail, sizeof(detail),
              "local temporal delete failed for entity '%s'", entityId);
-    ldDistOpBatchErrorAdd(errorsArrayP, entityId,
+    ldDistOpBatchErrorAdd(errorsArrayP, entityId, 500,
                           LD_ERROR_INTERNAL_ERROR, "Internal Error",
                           detail, NULL);
   }

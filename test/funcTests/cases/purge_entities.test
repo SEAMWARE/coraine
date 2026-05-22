@@ -120,6 +120,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Purge Entities requires at least one of id, type, idPattern, q, geoquery, scopeQ — or ?local=true",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -171,6 +172,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:V1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -282,6 +284,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:S1' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

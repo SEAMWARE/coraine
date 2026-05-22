@@ -228,10 +228,11 @@ Content-Length: 364
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 182
+Content-Length: 199
 
 {
   "detail": "timerel must be 'before', 'after', or 'between' (got 'during')",
+  "status": 400,
   "title": "Invalid temporal query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

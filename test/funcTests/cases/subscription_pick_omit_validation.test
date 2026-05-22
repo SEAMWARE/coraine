@@ -125,6 +125,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'notification.pick' and 'notification.omit' must not share member 'a'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -140,6 +141,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'notification.pick' and 'notification.attributes' are mutually exclusive",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -155,6 +157,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'notification.omit' and 'notification.attributes' are mutually exclusive",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

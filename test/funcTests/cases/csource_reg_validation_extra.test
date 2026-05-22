@@ -205,10 +205,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 149
+Content-Length: 166
 
 {
   "detail": "'description' must not be empty",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -231,10 +232,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 153
+Content-Length: 170
 
 {
   "detail": "'registrationName' must be a string",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -246,10 +248,11 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 140
+Content-Length: 157
 
 {
   "detail": "'scope' array must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -272,10 +275,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 193
+Content-Length: 210
 
 {
   "detail": "'refreshRate' must be an ISO 8601 duration string (e.g. PT5M, PT1H30M, P1D)",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -298,10 +302,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 160
+Content-Length: 177
 
 {
   "detail": "'observationInterval.startAt' is mandatory",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -313,10 +318,11 @@ Content-Length: 160
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 189
+Content-Length: 206
 
 {
   "detail": "'observationInterval.endAt' must be after 'observationInterval.startAt'",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -350,10 +356,11 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 159
+Content-Length: 176
 
 {
   "detail": "'management.timeout' must be non-negative",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -365,10 +372,11 @@ Content-Length: 159
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 158
+Content-Length: 175
 
 {
   "detail": "'management.localOnly' must be a boolean",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

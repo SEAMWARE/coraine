@@ -66,7 +66,7 @@ echo
 echo
 
 
-echo "03. jsonldContext='https://example.org/ctx.jsonld' → 201"
+echo "03. jsonldContext='https://example.org/ctx.jsonld' → 504"
 echo "========================================================"
 swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s3","type":"Subscription",
@@ -151,6 +151,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'jsonldContext' must be an http(s) URL: 'unknownContext'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -166,20 +167,26 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'jsonldContext' must be an http(s) URL: 'urn:foo:ctx'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 
 
-03. jsonldContext='https://example.org/ctx.jsonld' → 201
+03. jsonldContext='https://example.org/ctx.jsonld' → 504
 ========================================================
-HTTP/1.1 201 Created
+HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s3
 Content-Length: REGEX(\d+)
 
+{
+  "detail": "subscription jsonldContext 'https://example.org/ctx.jsonld' could not be fetched",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
 
 
 
@@ -192,6 +199,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'jsonldContext' must be an http(s) URL: 'unknownContext'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -207,6 +215,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'expiresAt' must be in the future",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -222,6 +231,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'expiresAt' must be in the future",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -248,6 +258,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'expiresAt' must be a DateTime in the future",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

@@ -119,10 +119,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 195
+Content-Length: 212
 
 {
   "detail": "'ngsildConformance' must be a 'major.minor' version string (got 'oneDotFive')",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

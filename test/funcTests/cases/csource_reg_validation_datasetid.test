@@ -117,10 +117,11 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 150
+Content-Length: 167
 
 {
   "detail": "'datasetId' must be a JSON array",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -132,10 +133,11 @@ Content-Length: 150
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 144
+Content-Length: 161
 
 {
   "detail": "'datasetId' array must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -147,10 +149,11 @@ Content-Length: 144
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 151
+Content-Length: 168
 
 {
   "detail": "'datasetId' items must be strings",
+  "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -162,10 +165,11 @@ Content-Length: 151
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 137
+Content-Length: 154
 
 {
   "detail": "Not a valid URI: 'not a uri'",
+  "status": 400,
   "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

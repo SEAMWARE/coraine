@@ -3,7 +3,7 @@
 #
 export SW_BROKER=/home/kz/git/swBroker/swBroker
 export SW_DB_NAME="${SW_DB_NAME:-swTest}"
-SW_MONGO_PORT=${SW_MONGO_PORT:-27018}
+SW_MONGO_PORT=${SW_MONGO_PORT:-27017}
 
 SW_BROKER_DIR=$(dirname $SW_BROKER)
 

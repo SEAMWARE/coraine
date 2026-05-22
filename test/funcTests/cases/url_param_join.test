@@ -159,10 +159,11 @@ Content-Length: 100
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 155
+Content-Length: 172
 
 {
   "detail": "'join' must be 'flat', 'inline' or '@none'",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -174,10 +175,11 @@ Content-Length: 155
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 151
+Content-Length: 168
 
 {
   "detail": "'joinLevel' must be a positive integer",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -189,10 +191,11 @@ Content-Length: 151
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 151
+Content-Length: 168
 
 {
   "detail": "'joinLevel' must be a positive integer",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -204,10 +207,11 @@ Content-Length: 151
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 151
+Content-Length: 168
 
 {
   "detail": "'joinLevel' must be a positive integer",
+  "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

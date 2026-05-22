@@ -179,6 +179,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V2",
       "error": {
         "detail": REGEX("forward (failed|returned status).*"),
+        "status": 502,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },

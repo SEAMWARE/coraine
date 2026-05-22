@@ -37,6 +37,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "GET /nonexistent is not a recognized resource",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

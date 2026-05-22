@@ -340,6 +340,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Subscription 'type' is mandatory for create",
+  "status": 400,
   "title": "Missing Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -355,6 +356,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Subscription 'type' must be 'Subscription'",
+  "status": 400,
   "title": "Invalid Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -370,6 +372,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Subscription must have 'entities' or 'watchedAttributes'",
+  "status": 400,
   "title": "Missing Filter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -385,6 +388,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Subscription 'notification' is mandatory for create",
+  "status": 400,
   "title": "Missing Notification",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -400,6 +404,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'entities' must not be empty",
+  "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -415,6 +420,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'entities' item must have at least 'type', 'id', or 'idPattern'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -430,6 +436,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'entities[].type' must be a string",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -445,6 +452,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'watchedAttributes' must be an array",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -460,6 +468,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'watchedAttributes' items must be strings",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -475,6 +484,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'timeInterval' and 'watchedAttributes' are mutually exclusive",
+  "status": 400,
   "title": "Incompatible Fields",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -490,6 +500,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'throttling' must be a number",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -505,6 +516,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'isActive' must be a boolean",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -520,6 +532,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'notification.endpoint' must not be empty",
+  "status": 400,
   "title": "Empty Object",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -535,6 +548,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'notification' must not be empty",
+  "status": 400,
   "title": "Empty Object",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -550,6 +564,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'expiresAt' is not a valid ISO 8601 DateTime",
+  "status": 400,
   "title": "Invalid DateTime",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -565,6 +580,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'q' must be a string",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -580,6 +596,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'geoQ' requires 'geometry', 'coordinates', and 'georel' — missing 'geometry'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -595,6 +612,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'geoQ.geometry' has invalid value 'Hexagon'",
+  "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -610,6 +628,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entities",
+  "status": 400,
   "title": "Duplicated field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -625,6 +644,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'status' is read-only and cannot be set",
+  "status": 400,
   "title": "Read-Only Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -647,6 +667,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'id' cannot be modified",
+  "status": 400,
   "title": "Read-Only Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -662,6 +683,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'type' cannot be modified",
+  "status": 400,
   "title": "Read-Only Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }

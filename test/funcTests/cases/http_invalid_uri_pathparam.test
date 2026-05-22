@@ -67,6 +67,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'thisisaninvaliduri' is not a valid URI",
+  "status": 400,
   "title": "Bad Request Data",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -82,6 +83,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'badid' is not a valid URI",
+  "status": 400,
   "title": "Bad Request Data",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -97,6 +99,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "'notauri' is not a valid URI",
+  "status": 400,
   "title": "Bad Request Data",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -112,6 +115,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity 'urn:ngsi-ld:T:does-not-exist' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

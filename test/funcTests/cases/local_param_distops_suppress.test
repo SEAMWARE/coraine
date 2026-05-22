@@ -194,10 +194,11 @@ Content-Length: 214
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json; charset=utf-8
-Content-Length: 135
+Content-Length: 152
 
 {
   "detail": "attribute 'temp' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -213,6 +214,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
+  "status": 501,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -228,6 +230,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
+  "status": 501,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

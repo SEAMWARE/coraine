@@ -226,6 +226,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity type 'NoSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
@@ -330,6 +331,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "attribute 'noSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }

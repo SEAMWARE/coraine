@@ -358,15 +358,7 @@ Content-Type: application/json; charset=utf-8
         {
           "endpoint": "http://cp1.example",
           "id": "urn:CSR:A",
-          "information": [
-            {
-              "entities": [
-                {
-                  "type": "Temperature"
-                }
-              ]
-            }
-          ],
+          "information": [],
           "mode": "inclusive",
           "type": "ContextSourceRegistration"
         }
@@ -485,15 +477,7 @@ Content-Type: application/json; charset=utf-8
         {
           "endpoint": "http://cp1.example",
           "id": "urn:CSR:A",
-          "information": [
-            {
-              "entities": [
-                {
-                  "type": "Temperature"
-                }
-              ]
-            }
-          ],
+          "information": [],
           "mode": "inclusive",
           "type": "ContextSourceRegistration"
         }

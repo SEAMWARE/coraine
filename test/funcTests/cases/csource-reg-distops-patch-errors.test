@@ -123,6 +123,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V1",
       "error": {
         "detail": "exclusive registration does not support mergeEntity",
+        "status": 409,
         "title": "Conflict",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
@@ -167,6 +168,7 @@ Content-Length: REGEX(\d+)
       "entityId": "urn:V2",
       "error": {
         "detail": "forward returned status 503",
+        "status": 503,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },

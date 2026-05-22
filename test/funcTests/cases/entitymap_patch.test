@@ -134,6 +134,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "field 'id' cannot be updated on an EntityMap — only expiresAt is mutable",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -149,6 +150,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "field 'entityMap' cannot be updated on an EntityMap — only expiresAt is mutable",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -164,6 +166,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "expiresAt is not a valid ISO 8601 DateTime: 'not a date'",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -179,6 +182,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "Update EntityMap requires expiresAt in the body",
+  "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
@@ -194,6 +198,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": "entity map 'urn:NoSuch' not found",
+  "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
