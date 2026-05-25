@@ -18,6 +18,7 @@
 *.gcda
 *.gcno
 coverage/
+coverage-etsi/
 /swBroker
 test/funcTests/ftClient/ftClient
 

@@ -239,6 +239,10 @@ FTCLIENT_LIBS    = $(LIB_DIR)/swRest/libswRest.a \
 
 PLUGIN_BASE    ?= $(CFLAGS)
 PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
+# Extra flags for the .so link line. Empty for normal builds; the coverage-etsi
+# target sets it to --coverage so each instrumented plugin carries its own
+# libgcov (the broker's static libgcov symbols aren't exported to dlopen'd .so).
+PLUGIN_LDFLAGS ?=
 
 #
 # Targets
@@ -252,11 +256,11 @@ $(BINARY): $(ALL_OBJS)
 
 $(PLUGIN_DIR)/swRamDB.so: $(RAMDB_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(RAMDB_OBJS) -lgeos_c -lm
+	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(RAMDB_OBJS) -lgeos_c -lm
 
 $(PLUGIN_DIR)/admin.so: $(ADMIN_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(ADMIN_OBJS)
+	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(ADMIN_OBJS)
 
 $(RAMDB_DIR)/%.o: $(RAMDB_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
@@ -266,28 +270,28 @@ $(ADMIN_DIR)/%.o: $(ADMIN_DIR)/%.c
 
 $(PLUGIN_DIR)/troeNone.so: $(TROE_NONE_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(TROE_NONE_OBJS)
+	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(TROE_NONE_OBJS)
 
 $(TROE_NONE_DIR)/%.o: $(TROE_NONE_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
 $(PLUGIN_DIR)/troeRamdb.so: $(TROE_RAMDB_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(TROE_RAMDB_OBJS)
+	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(TROE_RAMDB_OBJS)
 
 $(TROE_RAMDB_DIR)/%.o: $(TROE_RAMDB_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
 
 $(PLUGIN_DIR)/troeTimescale.so: $(TROE_TIMESCALE_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(TROE_TIMESCALE_OBJS) $(TROE_TIMESCALE_LDFLAGS)
+	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(TROE_TIMESCALE_OBJS) $(TROE_TIMESCALE_LDFLAGS)
 
 $(TROE_TIMESCALE_DIR)/%.o: $(TROE_TIMESCALE_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) $(TROE_TIMESCALE_CFLAGS) -c $< -o $@
 
 $(PLUGIN_DIR)/mongoc.so: $(MONGOC_OBJS)
 	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared -o $@ $(MONGOC_OBJS) $(MONGOC_LDFLAGS) -lgeos_c -lm
+	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(MONGOC_OBJS) $(MONGOC_LDFLAGS) -lgeos_c -lm
 
 $(MONGOC_DIR)/%.o: $(MONGOC_DIR)/%.c
 	$(CC) $(PLUGIN_CFLAGS) $(MONGOC_CFLAGS) -DMONGOC_PLUGIN_VERSION=\"0.1.0\" -c $< -o $@
@@ -347,6 +351,17 @@ ci:  clean all install
 COV_DIR    = coverage
 COV_CFLAGS = -g -O0 --coverage -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker
 
+# --- ETSI-suite coverage ---
+# Instruments the broker + the NGSI-LD libs (swRest swNgsild swJsonld) + the
+# mongoc & timescale plugins (the two etsiRun loads), runs the ETSI TP suite
+# via etsiRun, then builds an HTML report. k-libs, swPlugin, ramdb, admin and
+# the troe none/ramdb plugins are deliberately NOT instrumented.
+COV_ETSI_DIR    = coverage-etsi
+COV_LIBS        = swRest swNgsild swJsonld
+COV_PLUGIN_BASE = -g -O0 --coverage -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker
+# gcovr lives in the ETSI test-suite venv (gcov-15-aware). Override if needed.
+GCOVR          ?= $(HOME)/git/ngsi-ld-test-suite/.venv/bin/gcovr
+
 coverage:
 	@$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="--coverage" PLUGIN_BASE="-O2 -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker"
 	@find . -name '*.gcda' -delete
@@ -359,10 +374,44 @@ coverage:
 	@echo ""
 	@echo "Coverage report: file://$(CURDIR)/$(COV_DIR)/index.html"
 
+coverage-etsi:
+	@echo ">>> [1/6] Instrumenting NGSI-LD libs ($(COV_LIBS))..."
+	@for d in $(COV_LIBS); do \
+	   $(MAKE) -C $(LIB_DIR)/$$d clean >/dev/null && \
+	   $(MAKE) -C $(LIB_DIR)/$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a || exit 1; \
+	 done
+	@echo ">>> [2/6] Instrumenting broker + mongoc/timescale plugins..."
+	@$(MAKE) clean
+	@$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="--coverage" PLUGIN_BASE="$(COV_PLUGIN_BASE)" PLUGIN_LDFLAGS="--coverage"
+	@echo ">>> [3/6] Installing instrumented broker + plugins (etsiRun loads the installed plugins)..."
+	@$(MAKE) install
+	@echo ">>> [4/6] Wiping stale .gcda counters across broker + lib trees..."
+	@find . $(addprefix $(LIB_DIR)/,$(COV_LIBS)) -name '*.gcda' -delete
+	@echo ">>> [5/6] Running the ETSI TP suite (etsiRun sw)..."
+	@etsiRun sw || true
+	@echo ">>> Stopping broker so gcov flushes .gcda (onSignal -> exit(0))..."
+	@if [ -f /tmp/etsi-swBroker.pid ]; then \
+	   P=$$(cat /tmp/etsi-swBroker.pid); \
+	   kill "$$P" 2>/dev/null || true; \
+	   for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$$P" 2>/dev/null && sleep 1 || break; done; \
+	 fi
+	@echo ">>> [6/6] Generating coverage report..."
+	@mkdir -p $(COV_ETSI_DIR)
+	@$(GCOVR) --root $(HOME)/git --gcov-executable gcov \
+	      -f '$(CURDIR)/src/lib/' -f '$(CURDIR)/src/app/' \
+	      -f '$(CURDIR)/src/plugins/currentState/mongoc/' \
+	      -f '$(CURDIR)/src/plugins/temporal/timescale/' \
+	      -f '$(CURDIR)/src/plugins/shared/' \
+	      -f '$(HOME)/git/swRest/' -f '$(HOME)/git/swNgsild/' -f '$(HOME)/git/swJsonld/' \
+	      --html-details $(COV_ETSI_DIR)/index.html --html-title "swBroker ETSI Coverage" \
+	      $(CURDIR) $(addprefix $(HOME)/git/,$(COV_LIBS))
+	@echo ""
+	@echo "ETSI coverage report: file://$(CURDIR)/$(COV_ETSI_DIR)/index.html"
+
 clean:
 	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(TROE_RAMDB_OBJS) $(TROE_TIMESCALE_OBJS) $(BINARY)
 	rm -f $(FTCLIENT_OBJS) $(FTCLIENT_BINARY)
 	rm -rf $(PLUGIN_DIR) $(COV_DIR)
 	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true
 
-.PHONY: all clean install i ci coverage
+.PHONY: all clean install i ci coverage coverage-etsi
