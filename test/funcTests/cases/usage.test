@@ -68,7 +68,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
                  [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                  [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
-                 [--testConformance/-tc (prefer ETSI test-suite expected shapes where spec wording is permissive ("should") — see swNgsild/doc/spec-doubts.md)]
+                 [--testConformance/-tc (prefer ETSI test-suite expected shapes where spec wording is permissive ("should"))]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
@@ -99,7 +99,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
                  [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                  [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
-                 [--testConformance/-tc (prefer ETSI test-suite expected shapes where spec wording is permissive ("should") — see swNgsild/doc/spec-doubts.md)]
+                 [--testConformance/-tc (prefer ETSI test-suite expected shapes where spec wording is permissive ("should"))]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Database (mongoc) plugin options:
@@ -140,7 +140,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
                  [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                  [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
-                 [--testConformance/-tc (prefer ETSI test-suite expected shapes where spec wording is permissive ("should") — see swNgsild/doc/spec-doubts.md)]
+                 [--testConformance/-tc (prefer ETSI test-suite expected shapes where spec wording is permissive ("should"))]
                  [--foreground/-fg (run in foreground (don't daemonize))]
 
                  Plugins are loaded from /opt/seamware/plugins
