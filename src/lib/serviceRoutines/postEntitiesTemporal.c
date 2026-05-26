@@ -217,7 +217,6 @@ bool postEntitiesTemporal(void)
     LdRegCacheItem** groups[]  = { exclV, redirV, inclV };
     int              counts[]  = { exclN, redirN, inclN };
     const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
-    bool             detach[]  = { true,  true,   false };
     bool             opConf[]  = { true,  true,   false };
 
     int total = 0;

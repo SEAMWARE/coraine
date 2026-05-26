@@ -19,6 +19,9 @@
 *.gcno
 coverage/
 coverage-etsi/
+BUILD_RELEASE/
+BUILD_DEBUG/
+BUILD_COVERAGE/
 /swBroker
 test/funcTests/ftClient/ftClient
 

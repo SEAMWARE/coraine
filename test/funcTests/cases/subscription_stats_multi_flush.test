@@ -27,7 +27,7 @@ subscription stats persist mongoc
 --INIT--
 swDbDrop
 ftClientStart
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 
 --RUN--
 
@@ -76,7 +76,7 @@ echo
 echo "06. Restart, GET sub → timesSent=3 (not 5, not 6)"
 echo "================================================="
 swBrokerStop
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo

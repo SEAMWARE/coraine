@@ -1,0 +1,21 @@
+SET(ADMIN_SOURCES
+  adminRegister.c
+  adminVersion.c
+  adminHealth.c
+  adminLog.c
+  adminTenants.c
+  adminPlugins.c
+  adminTroeDump.c
+)
+IF (SW_FEATURE_METRICS)
+  LIST(APPEND ADMIN_SOURCES adminMetrics.c)
+ENDIF()
+IF (SW_FEATURE_SUBSCRIPTIONS)
+  LIST(APPEND ADMIN_SOURCES adminSubStats.c)
+ENDIF()
+
+ADD_LIBRARY(apiAdmin SHARED ${ADMIN_SOURCES})
+
+TARGET_COMPILE_DEFINITIONS(apiAdmin PRIVATE SWBROKER_VERSION="0.2.0")
+
+SET_TARGET_PROPERTIES(apiAdmin PROPERTIES OUTPUT_NAME "admin" PREFIX "")

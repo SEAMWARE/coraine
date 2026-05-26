@@ -23,14 +23,14 @@ usage
 
 echo "01. Usage with swRamDB plugin (no extra CLI args)"
 echo "=================================================="
-$SW_BROKER -u -db ./plugins/swRamDB.so 2>&1
+$SW_BROKER -u -db swRamDB 2>&1
 echo
 echo
 
 
 echo "02. Usage with mongoc plugin (shows DB connection args)"
 echo "======================================================="
-$SW_BROKER -u -db ./plugins/mongoc.so 2>&1
+$SW_BROKER -u -db mongoc 2>&1
 echo
 echo
 

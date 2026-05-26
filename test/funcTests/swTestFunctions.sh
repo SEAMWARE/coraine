@@ -1,11 +1,13 @@
 #
 # swTestFunctions.sh - repo-specific test functions for swBroker
 #
-export SW_BROKER=/home/kz/git/swBroker/swBroker
+export SW_BROKER="${SW_BROKER:-swBroker}"        # broker from PATH (installed via make di)
 export SW_DB_NAME="${SW_DB_NAME:-swTest}"
 SW_MONGO_PORT=${SW_MONGO_PORT:-27017}
 
-SW_BROKER_DIR=$(dirname $SW_BROKER)
+# Plugins from their install site; ftClient from the repo (cmake builds it there).
+SW_PLUGIN_DIR="${SW_PLUGIN_DIR:-/opt/seamware/plugins}"
+SW_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 
 # -----------------------------------------------------------------------------
@@ -74,8 +76,8 @@ swBrokerStart() {
 
   # Current-state DB plugin
   case "$SW_DB_TYPE" in
-    mongoc) cmd="$cmd --database $SW_BROKER_DIR/plugins/mongoc.so --dbName $SW_ROLE_DB_PREFIX --dbPort $SW_MONGO_PORT" ;;
-    ramdb)  cmd="$cmd --database $SW_BROKER_DIR/plugins/swRamDB.so" ;;
+    mongoc) cmd="$cmd --database $SW_PLUGIN_DIR/db/currentState/mongoc.so --dbName $SW_ROLE_DB_PREFIX --dbPort $SW_MONGO_PORT" ;;
+    ramdb)  cmd="$cmd --database $SW_PLUGIN_DIR/db/currentState/swRamDB.so" ;;
     NONE)   ;;  # compiled-in default
     *)      echo "swBrokerStart: unknown -db type: $SW_DB_TYPE"; return 1 ;;
   esac
@@ -221,7 +223,7 @@ swSnapDrop() {
 # Each instance has its own PID file keyed by port, so multiple ftClients
 # can run concurrently (one per CSR target) and be stopped individually.
 #
-FT_CLIENT=$SW_BROKER_DIR/test/funcTests/ftClient/ftClient
+FT_CLIENT=$SW_REPO_DIR/test/funcTests/ftClient/ftClient
 FT_CLIENT_PORT=7701                          # default port when none given
 
 

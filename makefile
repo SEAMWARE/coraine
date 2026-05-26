@@ -5,388 +5,106 @@
 #
 # Copyright 2026 Seamware
 #
-BINARY        = swBroker
-CC            = gcc
-
-# Include paths:
-#   -I../          for external libs (kalloc/, kjson/, ktrace/, kargs/, kbase/, swRest/, swPlugin/, swJsonld/, swNgsild/)
-#   -Isrc          for the broker's own lib/ headers (db/, plugin/, serviceRoutines/)
-#   -Isrc/lib      for includes like "db/DbDriver.h" from service routines
-INCLUDE       = -I.. -Isrc/lib -Isrc/app/swBroker
-
-DFLAGS        =
-CFLAGS        = -O2 -Wall -Werror -Wno-unused-function -fstack-protector-all $(DFLAGS) $(INCLUDE)
-
+# Convenience wrapper around CMake.
 #
-# Source files
-#
-APP_SOURCES   = src/app/swBroker/swBroker.c           \
-                src/app/swBroker/ngsildServices.c
+PREFIX         = /usr/local
+BUILD_RELEASE  = BUILD_RELEASE
+BUILD_DEBUG    = BUILD_DEBUG
+BUILD_COVERAGE = BUILD_COVERAGE
+COV_DIR        = coverage
+COV_REPORT     = $(COV_DIR)/index.html
+COV_ETSI_DIR   = coverage-etsi
+COV_LIBS       = swRest swNgsild swJsonld
+SWTEST         = $(HOME)/git/swLibs/bin/swTest
+# gcovr lives in the ETSI test-suite venv (gcov-15-aware). Override if needed.
+GCOVR         ?= $(HOME)/git/ngsi-ld-test-suite/.venv/bin/gcovr
 
-SR_SOURCES    = src/lib/serviceRoutines/getEntities.c  \
-                src/lib/serviceRoutines/getEntity.c    \
-                src/lib/serviceRoutines/postEntities.c \
-                src/lib/serviceRoutines/deleteEntity.c \
-                src/lib/serviceRoutines/patchEntity.c  \
-                src/lib/serviceRoutines/replaceEntity.c  \
-                src/lib/serviceRoutines/postEntityAttrs.c \
-                src/lib/serviceRoutines/patchEntityAttrs.c \
-                src/lib/serviceRoutines/purgeEntities.c \
-                src/lib/serviceRoutines/postSnapshot.c \
-                src/lib/serviceRoutines/getSnapshot.c \
-                src/lib/serviceRoutines/deleteSnapshot.c \
-                src/lib/serviceRoutines/ldSnapshotExec.c \
-                src/lib/serviceRoutines/ldSnapshotExecTemporal.c \
-                src/lib/serviceRoutines/ldSnapshotCaptureAsync.c \
-                src/lib/serviceRoutines/ldSnapshotRead.c \
-                src/lib/serviceRoutines/patchSnapshot.c \
-                src/lib/serviceRoutines/cloneSnapshot.c \
-                src/lib/serviceRoutines/purgeSnapshots.c \
-                src/lib/serviceRoutines/getEntityAttr.c \
-                src/lib/serviceRoutines/patchEntityAttr.c \
-                src/lib/serviceRoutines/putEntityAttr.c \
-                src/lib/serviceRoutines/deleteEntityAttr.c \
-                src/lib/serviceRoutines/getTypes.c \
-                src/lib/serviceRoutines/getType.c \
-                src/lib/serviceRoutines/getAttributes.c \
-                src/lib/serviceRoutines/getAttribute.c \
-                src/lib/serviceRoutines/postSubscriptions.c  \
-                src/lib/serviceRoutines/getSubscriptions.c   \
-                src/lib/serviceRoutines/getSubscription.c    \
-                src/lib/serviceRoutines/patchSubscription.c  \
-                src/lib/serviceRoutines/deleteSubscription.c \
-                src/lib/serviceRoutines/postExNotification.c \
-                src/lib/serviceRoutines/getJsonldContexts.c  \
-                src/lib/serviceRoutines/getJsonldContext.c   \
-                src/lib/serviceRoutines/postJsonldContexts.c \
-                src/lib/serviceRoutines/deleteJsonldContext.c \
-                src/lib/serviceRoutines/postCsourceRegistration.c   \
-                src/lib/serviceRoutines/getCsourceRegistrations.c   \
-                src/lib/serviceRoutines/getCsourceRegistration.c    \
-                src/lib/serviceRoutines/patchCsourceRegistration.c  \
-                src/lib/serviceRoutines/deleteCsourceRegistration.c \
-                src/lib/serviceRoutines/postCsourceSubscriptions.c  \
-                src/lib/serviceRoutines/getCsourceSubscriptions.c   \
-                src/lib/serviceRoutines/getCsourceSubscription.c    \
-                src/lib/serviceRoutines/patchCsourceSubscription.c  \
-                src/lib/serviceRoutines/deleteCsourceSubscription.c \
-                src/lib/serviceRoutines/getEntityMap.c              \
-                src/lib/serviceRoutines/deleteEntityMap.c           \
-                src/lib/serviceRoutines/patchEntityMap.c            \
-                src/lib/serviceRoutines/createEntityMap.c           \
-                src/lib/serviceRoutines/postEntityMap.c             \
-                src/lib/serviceRoutines/postEntityBatchCreate.c     \
-                src/lib/serviceRoutines/postEntityBatchUpdate.c     \
-                src/lib/serviceRoutines/postEntityBatchUpsert.c     \
-                src/lib/serviceRoutines/postEntityBatchMerge.c      \
-                src/lib/serviceRoutines/postEntityBatchDelete.c     \
-                src/lib/serviceRoutines/postEntityBatchQuery.c      \
-                src/lib/serviceRoutines/getSourceIdentity.c \
-                src/lib/serviceRoutines/getVersion.c \
-                src/lib/serviceRoutines/getEntityTemporal.c        \
-                src/lib/serviceRoutines/getEntitiesTemporal.c      \
-                src/lib/serviceRoutines/postTemporalEntityBatchQuery.c \
-                src/lib/serviceRoutines/deleteEntityTemporal.c     \
-                src/lib/serviceRoutines/deleteEntityTemporalAttr.c \
-                src/lib/serviceRoutines/postEntitiesTemporal.c     \
-                src/lib/serviceRoutines/postEntityTemporalAttrs.c  \
-                src/lib/serviceRoutines/patchEntityTemporalInstance.c \
-                src/lib/serviceRoutines/deleteEntityTemporalInstance.c
+ifndef CPU_COUNT
+	CPU_COUNT := $(shell nproc)
+endif
 
-DB_SOURCES    = src/lib/db/dbInit.c                    \
-                src/lib/db/dbClose.c                   \
-                src/lib/db/tenant.c                    \
-                src/lib/db/snapshotTenant.c
-
-TROE_SOURCES  = src/lib/troe/troeInit.c                \
-                src/lib/troe/troeDispatch.c            \
-                src/lib/troe/troeFromMerge.c           \
-                src/lib/troe/troeQTreeToSql.c          \
-                src/lib/troe/troeNotAvailable.c
-
-PLUGIN_SOURCES = src/lib/plugin/pluginLoader.c
-
-FWD_SOURCES   = src/lib/forwarding/forwardingHttp.c
-
-LE_SOURCES    = src/lib/linkedEntities/ldLinkedEntities.c
-
-METRICS_SOURCES = src/lib/metrics/metrics.c src/lib/metrics/subStatsFlushAll.c
-
-ALL_SOURCES   = $(APP_SOURCES) $(SR_SOURCES) $(DB_SOURCES) $(TROE_SOURCES) $(PLUGIN_SOURCES) $(FWD_SOURCES) $(LE_SOURCES) $(METRICS_SOURCES)
-ALL_OBJS      = $(ALL_SOURCES:.c=.o)
-
-#
-# Static library paths (sw-libs and k-libs)
-#
-LIB_DIR       = ..
-SW_LIBS       = $(LIB_DIR)/swRest/libswRest.a         \
-                $(LIB_DIR)/swNgsild/libswNgsild.a      \
-                $(LIB_DIR)/swJsonld/libswJsonld.a      \
-                $(LIB_DIR)/swPlugin/libswPlugin.a
-
-K_LIBS        = $(LIB_DIR)/kargs/libkargs.a            \
-                $(LIB_DIR)/ktrace/libktrace.a           \
-                $(LIB_DIR)/kprom/libkprom.a             \
-                $(LIB_DIR)/khash/libkhash.a             \
-                $(LIB_DIR)/klog/libklog.a               \
-                $(LIB_DIR)/kalloc/libkalloc.a           \
-                $(LIB_DIR)/kjson/libkjson.a             \
-                $(LIB_DIR)/kbase/libkbase.a
-
-#
-# System libraries
-#
-SYS_LIBS      = -lmicrohttpd -lssl -lcrypto -lpthread -ldl -lm -lmosquitto
-
-#
-# Plugin directories
-#
-PLUGIN_DIR     = plugins
-RAMDB_DIR      = src/plugins/currentState/swRamDB
-ADMIN_DIR      = src/plugins/api/admin
-TROE_NONE_DIR  = src/plugins/temporal/none
-TROE_RAMDB_DIR = src/plugins/temporal/ramdb
-TROE_TIMESCALE_DIR = src/plugins/temporal/timescale
-
-RAMDB_SOURCES  = $(RAMDB_DIR)/ramdbRegister.c $(RAMDB_DIR)/ramdbInit.c $(RAMDB_DIR)/ramdbClose.c \
-                 $(RAMDB_DIR)/ramdbGlobals.c $(RAMDB_DIR)/ramdbEntityCreate.c \
-                 $(RAMDB_DIR)/ramdbEntityBulkCreate.c $(RAMDB_DIR)/ramdbEntityBulkUpdate.c \
-                 $(RAMDB_DIR)/ramdbEntityBulkMerge.c \
-                 $(RAMDB_DIR)/ramdbEntityBulkDelete.c \
-                 $(RAMDB_DIR)/ramdbEntityRetrieve.c $(RAMDB_DIR)/ramdbEntityQuery.c \
-                 $(RAMDB_DIR)/ramdbEntityDelete.c $(RAMDB_DIR)/ramdbEntityMerge.c \
-                 $(RAMDB_DIR)/ramdbEntityReplace.c $(RAMDB_DIR)/ramdbEntityAttrsSet.c \
-                 $(RAMDB_DIR)/ramdbTypeList.c $(RAMDB_DIR)/ramdbAttrList.c \
-                 $(RAMDB_DIR)/ramdbSubscriptionCreate.c $(RAMDB_DIR)/ramdbSubscriptionRetrieve.c \
-                 $(RAMDB_DIR)/ramdbSubscriptionQuery.c $(RAMDB_DIR)/ramdbSubscriptionUpdate.c \
-                 $(RAMDB_DIR)/ramdbSubscriptionDelete.c \
-                 $(RAMDB_DIR)/ramdbRegistrationCreate.c $(RAMDB_DIR)/ramdbRegistrationRetrieve.c \
-                 $(RAMDB_DIR)/ramdbRegistrationQuery.c $(RAMDB_DIR)/ramdbRegistrationUpdate.c \
-                 $(RAMDB_DIR)/ramdbRegistrationDelete.c \
-                 $(RAMDB_DIR)/ramdbStore.c $(RAMDB_DIR)/ramdbGeoMatch.c \
-                 src/plugins/shared/geoMatch.c
-RAMDB_OBJS     = $(RAMDB_SOURCES:.c=.o)
-
-ADMIN_SOURCES  = $(ADMIN_DIR)/adminRegister.c $(ADMIN_DIR)/adminHealth.c \
-                 $(ADMIN_DIR)/adminVersion.c $(ADMIN_DIR)/adminLog.c \
-                 $(ADMIN_DIR)/adminTenants.c $(ADMIN_DIR)/adminPlugins.c \
-                 $(ADMIN_DIR)/adminMetrics.c $(ADMIN_DIR)/adminSubStats.c \
-                 $(ADMIN_DIR)/adminTroeDump.c
-ADMIN_OBJS     = $(ADMIN_SOURCES:.c=.o)
-
-TROE_NONE_SOURCES = $(TROE_NONE_DIR)/noneRegister.c
-TROE_NONE_OBJS    = $(TROE_NONE_SOURCES:.c=.o)
-
-TROE_RAMDB_SOURCES = $(TROE_RAMDB_DIR)/ramdbRegister.c
-TROE_RAMDB_OBJS    = $(TROE_RAMDB_SOURCES:.c=.o)
-
-TROE_TIMESCALE_SOURCES = $(TROE_TIMESCALE_DIR)/timescaleGlobals.c \
-                         $(TROE_TIMESCALE_DIR)/timescaleInit.c    \
-                         $(TROE_TIMESCALE_DIR)/timescaleMigrate.c \
-                         $(TROE_TIMESCALE_DIR)/timescaleEvent.c   \
-                         $(TROE_TIMESCALE_DIR)/timescaleQuery.c   \
-                         $(TROE_TIMESCALE_DIR)/timescaleHistoryWrite.c \
-                         $(TROE_TIMESCALE_DIR)/timescaleRegister.c
-TROE_TIMESCALE_OBJS    = $(TROE_TIMESCALE_SOURCES:.c=.o)
-TROE_TIMESCALE_CFLAGS  = $(shell pkg-config --cflags libpq)
-TROE_TIMESCALE_LDFLAGS = $(shell pkg-config --libs libpq)
-
-MONGOC_DIR     = src/plugins/currentState/mongoc
-MONGOC_SOURCES = $(MONGOC_DIR)/mongocGlobals.c $(MONGOC_DIR)/mongocRegister.c \
-                 $(MONGOC_DIR)/mongocInit.c $(MONGOC_DIR)/mongocClose.c \
-                 $(MONGOC_DIR)/mongocEntityCreate.c $(MONGOC_DIR)/mongocEntityBulkCreate.c \
-                 $(MONGOC_DIR)/mongocEntityBulkUpdate.c \
-                 $(MONGOC_DIR)/mongocEntityBulkMerge.c \
-                 $(MONGOC_DIR)/mongocEntityBulkDelete.c \
-                 $(MONGOC_DIR)/mongocEntityRetrieve.c \
-                 $(MONGOC_DIR)/mongocEntityDelete.c $(MONGOC_DIR)/mongocEntityMerge.c \
-                 $(MONGOC_DIR)/mongocEntityReplace.c $(MONGOC_DIR)/mongocEntityAttrsSet.c \
-                 $(MONGOC_DIR)/mongocTypeList.c $(MONGOC_DIR)/mongocAttrList.c \
-                 $(MONGOC_DIR)/mongocEntityQuery.c $(MONGOC_DIR)/mongocGeoIndex.c \
-                 $(MONGOC_DIR)/mongocTenantSetup.c $(MONGOC_DIR)/mongocVersion.c \
-                 $(MONGOC_DIR)/mongocKjTreeToBson.c $(MONGOC_DIR)/mongocBsonToKjTree.c \
-                 $(MONGOC_DIR)/mongocDotEscape.c \
-                 $(MONGOC_DIR)/mongocSubscriptionCreate.c $(MONGOC_DIR)/mongocSubscriptionRetrieve.c \
-                 $(MONGOC_DIR)/mongocSubscriptionQuery.c $(MONGOC_DIR)/mongocSubscriptionUpdate.c \
-                 $(MONGOC_DIR)/mongocSubscriptionDelete.c $(MONGOC_DIR)/mongocSubscriptionStatsFlush.c \
-                 $(MONGOC_DIR)/mongocRegistrationCreate.c $(MONGOC_DIR)/mongocRegistrationRetrieve.c \
-                 $(MONGOC_DIR)/mongocRegistrationQuery.c $(MONGOC_DIR)/mongocRegistrationUpdate.c \
-                 $(MONGOC_DIR)/mongocRegistrationDelete.c \
-                 $(MONGOC_DIR)/mongocSnapshotCreate.c $(MONGOC_DIR)/mongocSnapshotQuery.c \
-                 $(MONGOC_DIR)/mongocSnapshotUpdate.c $(MONGOC_DIR)/mongocSnapshotDelete.c \
-                 $(MONGOC_DIR)/mongocTenantDrop.c \
-                 $(MONGOC_DIR)/mongocContext.c \
-                 $(MONGOC_DIR)/mongocInjectType.c \
-                 src/plugins/shared/geoMatch.c
-MONGOC_OBJS    = $(MONGOC_SOURCES:.c=.o)
-MONGOC_CFLAGS  = $(shell pkg-config --cflags mongoc2)
-MONGOC_LDFLAGS = $(shell pkg-config --libs mongoc2)
-
-#
-# ftClient — test notification receiver
-#
-FTCLIENT_DIR     = test/funcTests/ftClient
-FTCLIENT_SOURCES = $(FTCLIENT_DIR)/ftClient.c
-FTCLIENT_OBJS    = $(FTCLIENT_SOURCES:.c=.o)
-FTCLIENT_BINARY  = $(FTCLIENT_DIR)/ftClient
-FTCLIENT_LIBS    = $(LIB_DIR)/swRest/libswRest.a \
-                   $(LIB_DIR)/kargs/libkargs.a \
-                   $(LIB_DIR)/kprom/libkprom.a \
-                   $(LIB_DIR)/ktrace/libktrace.a \
-                   $(LIB_DIR)/kjson/libkjson.a \
-                   $(LIB_DIR)/kalloc/libkalloc.a \
-                   $(LIB_DIR)/kbase/libkbase.a
-
-PLUGIN_BASE    ?= $(CFLAGS)
-PLUGIN_CFLAGS  = $(PLUGIN_BASE) -fPIC -Isrc/plugins
-# Extra flags for the .so link line. Empty for normal builds; the coverage-etsi
-# target sets it to --coverage so each instrumented plugin carries its own
-# libgcov (the broker's static libgcov symbols aren't exported to dlopen'd .so).
-PLUGIN_LDFLAGS ?=
-
-#
-# Targets
-#
-all: $(BINARY) $(PLUGIN_DIR)/swRamDB.so $(PLUGIN_DIR)/admin.so $(PLUGIN_DIR)/mongoc.so $(PLUGIN_DIR)/troeNone.so $(PLUGIN_DIR)/troeRamdb.so $(PLUGIN_DIR)/troeTimescale.so $(FTCLIENT_BINARY)
-
-LDFLAGS   ?=
-
-$(BINARY): $(ALL_OBJS)
-	$(CC) -rdynamic $(LDFLAGS) -o $@ $(ALL_OBJS) -Wl,--whole-archive $(SW_LIBS) $(K_LIBS) -Wl,--no-whole-archive $(SYS_LIBS)
-
-$(PLUGIN_DIR)/swRamDB.so: $(RAMDB_OBJS)
-	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(RAMDB_OBJS) -lgeos_c -lm
-
-$(PLUGIN_DIR)/admin.so: $(ADMIN_OBJS)
-	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(ADMIN_OBJS)
-
-$(RAMDB_DIR)/%.o: $(RAMDB_DIR)/%.c
-	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
-
-$(ADMIN_DIR)/%.o: $(ADMIN_DIR)/%.c
-	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
-
-$(PLUGIN_DIR)/troeNone.so: $(TROE_NONE_OBJS)
-	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(TROE_NONE_OBJS)
-
-$(TROE_NONE_DIR)/%.o: $(TROE_NONE_DIR)/%.c
-	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
-
-$(PLUGIN_DIR)/troeRamdb.so: $(TROE_RAMDB_OBJS)
-	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(TROE_RAMDB_OBJS)
-
-$(TROE_RAMDB_DIR)/%.o: $(TROE_RAMDB_DIR)/%.c
-	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
-
-$(PLUGIN_DIR)/troeTimescale.so: $(TROE_TIMESCALE_OBJS)
-	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(TROE_TIMESCALE_OBJS) $(TROE_TIMESCALE_LDFLAGS)
-
-$(TROE_TIMESCALE_DIR)/%.o: $(TROE_TIMESCALE_DIR)/%.c
-	$(CC) $(PLUGIN_CFLAGS) $(TROE_TIMESCALE_CFLAGS) -c $< -o $@
-
-$(PLUGIN_DIR)/mongoc.so: $(MONGOC_OBJS)
-	@mkdir -p $(PLUGIN_DIR)
-	$(CC) -shared $(PLUGIN_LDFLAGS) -o $@ $(MONGOC_OBJS) $(MONGOC_LDFLAGS) -lgeos_c -lm
-
-$(MONGOC_DIR)/%.o: $(MONGOC_DIR)/%.c
-	$(CC) $(PLUGIN_CFLAGS) $(MONGOC_CFLAGS) -DMONGOC_PLUGIN_VERSION=\"0.1.0\" -c $< -o $@
-
-src/plugins/shared/%.o: src/plugins/shared/%.c
-	$(CC) $(PLUGIN_CFLAGS) -c $< -o $@
-
-$(FTCLIENT_BINARY): $(FTCLIENT_OBJS)
-	$(CC) -rdynamic $(LDFLAGS) -o $@ $(FTCLIENT_OBJS) -Wl,--whole-archive $(FTCLIENT_LIBS) -Wl,--no-whole-archive $(SYS_LIBS)
-
-$(FTCLIENT_DIR)/%.o: $(FTCLIENT_DIR)/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-PREFIX          = /usr/local
-INSTALL_PLUGIN  = /opt/seamware/plugins
-INSTALL_ETC     = /opt/seamware/etc
+PLUGIN_DIR = /opt/seamware/plugins
+ETC_DIR    = /opt/seamware/etc
 
 # contextSourceExtras (§ 5.2.40) — default opaque JSON config rendered on
-# /info/sourceIdentity. Regenerated on every build with current version,
-# git SHA and build timestamp; the user can replace at deploy time or
-# override at runtime via --contextSourceExtras <other-file>.
+# /info/sourceIdentity. Regenerated on every build with current version, git
+# SHA and build timestamp; override at runtime via --contextSourceExtras.
 SWBROKER_VERSION   = 0.2.0
 SWBROKER_GIT_SHA   = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 SWBROKER_BUILD_AT  = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+all:        release
+
+release:
+	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release
+	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
+
+debug:
+	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug
+	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
+
+clean:
+	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) $(COV_DIR) $(COV_ETSI_DIR)
 
 etc/contextSourceExtras.json: makefile
 	@mkdir -p etc
 	@printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
 	  "$(SWBROKER_VERSION)" "$(SWBROKER_GIT_SHA)" "$(SWBROKER_BUILD_AT)" > $@
 
-all: etc/contextSourceExtras.json
+# install_from <build-dir> — copy broker + plugins + etc out of a build tree
+define install_from
+	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(ETC_DIR)
+	cp -p $(1)/src/app/swBroker/swBroker                       $(PREFIX)/bin/
+	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
+	cp -p $(1)/src/plugins/currentState/swRamDB/swRamDB.so     $(PLUGIN_DIR)/db/currentState/
+	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
+	cp -p $(1)/src/plugins/temporal/ramdb/ramdb.so             $(PLUGIN_DIR)/troe/temporal/
+	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
+	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
+	cp -p etc/contextSourceExtras.json                         $(ETC_DIR)/
+endef
 
-install: all
-	@mkdir -p $(PREFIX)/bin
-	@mkdir -p $(INSTALL_PLUGIN)/db/currentState
-	@mkdir -p $(INSTALL_PLUGIN)/troe/temporal
-	@mkdir -p $(INSTALL_PLUGIN)/api
-	@mkdir -p $(INSTALL_ETC)
-	cat $(BINARY)                  > $(PREFIX)/bin/$(BINARY)         && chmod +x $(PREFIX)/bin/$(BINARY)
-	cat $(PLUGIN_DIR)/mongoc.so    > $(INSTALL_PLUGIN)/db/currentState/mongoc.so
-	cat $(PLUGIN_DIR)/swRamDB.so   > $(INSTALL_PLUGIN)/db/currentState/swRamDB.so
-	cat $(PLUGIN_DIR)/troeNone.so  > $(INSTALL_PLUGIN)/troe/temporal/none.so
-	cat $(PLUGIN_DIR)/troeRamdb.so > $(INSTALL_PLUGIN)/troe/temporal/ramdb.so
-	cat $(PLUGIN_DIR)/troeTimescale.so > $(INSTALL_PLUGIN)/troe/temporal/timescale.so
-	cat $(PLUGIN_DIR)/admin.so     > $(INSTALL_PLUGIN)/api/admin.so
-	cat etc/contextSourceExtras.json > $(INSTALL_ETC)/contextSourceExtras.json
+install: etc/contextSourceExtras.json
+	$(call install_from,$(BUILD_RELEASE))
 
-i:   install
-d:   clean
-	@$(MAKE) CFLAGS="-g -O0 -Wall -Wno-unused-function -fstack-protector-all $(DFLAGS) $(INCLUDE)"
-di:  d install
-ci:  clean all install
+install_debug: etc/contextSourceExtras.json
+	$(call install_from,$(BUILD_DEBUG))
 
-COV_DIR    = coverage
-COV_CFLAGS = -g -O0 --coverage -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker
-
-# --- ETSI-suite coverage ---
-# Instruments the broker + the NGSI-LD libs (swRest swNgsild swJsonld) + the
-# mongoc & timescale plugins (the two etsiRun loads), runs the ETSI TP suite
-# via etsiRun, then builds an HTML report. k-libs, swPlugin, ramdb, admin and
-# the troe none/ramdb plugins are deliberately NOT instrumented.
-COV_ETSI_DIR    = coverage-etsi
-COV_LIBS        = swRest swNgsild swJsonld
-COV_PLUGIN_BASE = -g -O0 --coverage -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker
-# gcovr lives in the ETSI test-suite venv (gcov-15-aware). Override if needed.
-GCOVR          ?= $(HOME)/git/ngsi-ld-test-suite/.venv/bin/gcovr
+test:
+	$(SWTEST)
 
 coverage:
-	@$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="--coverage" PLUGIN_BASE="-O2 -Wall -Wno-unused-function -I.. -Isrc/lib -Isrc/app/swBroker"
-	@find . -name '*.gcda' -delete
-	@SW_BROKER=$(CURDIR)/$(BINARY) \
-	SW_BROKER_EXTRA_PARAMS="--database $(CURDIR)/$(PLUGIN_DIR)/swRamDB.so --pretty-print 2 --foreground" \
-	$(HOME)/git/swLibs/bin/swTest || true
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
+	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
+	@find $(BUILD_COVERAGE) -name '*.gcda' -delete
+	SW_BROKER=$(CURDIR)/$(BUILD_COVERAGE)/src/app/swBroker/swBroker \
+	SW_BROKER_EXTRA_PARAMS="--database $(CURDIR)/$(BUILD_COVERAGE)/src/plugins/currentState/swRamDB/swRamDB.so --pretty-print 2 --foreground" \
+	$(SWTEST) || true
 	@mkdir -p $(COV_DIR)
-	@gcovr --root $(CURDIR)/src --object-directory $(CURDIR) \
-	      --html-details $(COV_DIR)/index.html --html-title "swBroker Coverage"
+	$(GCOVR) --root $(CURDIR)/src --object-directory $(BUILD_COVERAGE) \
+	      --html-details $(COV_REPORT) --html-title "swBroker Coverage"
 	@echo ""
-	@echo "Coverage report: file://$(CURDIR)/$(COV_DIR)/index.html"
+	@echo "Coverage report: file://$(CURDIR)/$(COV_REPORT)"
 
+# Full ETSI-suite coverage: instrument the broker + NGSI-LD libs (swRest
+# swNgsild swJsonld) + mongoc/timescale plugins, run the ETSI TP suite via
+# etsiRun, then build an HTML report. The libs are static .a whole-archived
+# into the broker, so they flush via the broker's gcov runtime (no per-.so
+# coverage link needed); the plugin .so get --coverage from the Coverage build
+# type (CMAKE_SHARED_LINKER_FLAGS).
 coverage-etsi:
 	@echo ">>> [1/6] Instrumenting NGSI-LD libs ($(COV_LIBS))..."
 	@for d in $(COV_LIBS); do \
-	   $(MAKE) -C $(LIB_DIR)/$$d clean >/dev/null && \
-	   $(MAKE) -C $(LIB_DIR)/$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a || exit 1; \
+	   $(MAKE) -C ../$$d clean >/dev/null && \
+	   $(MAKE) -C ../$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a || exit 1; \
 	 done
-	@echo ">>> [2/6] Instrumenting broker + mongoc/timescale plugins..."
-	@$(MAKE) clean
-	@$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="--coverage" PLUGIN_BASE="$(COV_PLUGIN_BASE)" PLUGIN_LDFLAGS="--coverage"
-	@echo ">>> [3/6] Installing instrumented broker + plugins (etsiRun loads the installed plugins)..."
-	@$(MAKE) install
-	@echo ">>> [4/6] Wiping stale .gcda counters across broker + lib trees..."
-	@find . $(addprefix $(LIB_DIR)/,$(COV_LIBS)) -name '*.gcda' -delete
+	@echo ">>> [2/6] Building broker + plugins (Coverage)..."
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
+	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
+	@echo ">>> [3/6] Installing instrumented broker + plugins (etsiRun loads the installed ones)..."
+	$(MAKE) install_from_coverage
+	@echo ">>> [4/6] Wiping stale .gcda counters across build + lib trees..."
+	@find $(BUILD_COVERAGE) $(addprefix ../,$(COV_LIBS)) -name '*.gcda' -delete
 	@echo ">>> [5/6] Running the ETSI TP suite (etsiRun sw)..."
 	@etsiRun sw || true
 	@echo ">>> Stopping broker so gcov flushes .gcda (onSignal -> exit(0))..."
@@ -398,20 +116,23 @@ coverage-etsi:
 	@echo ">>> [6/6] Generating coverage report..."
 	@mkdir -p $(COV_ETSI_DIR)
 	@$(GCOVR) --root $(HOME)/git --gcov-executable gcov \
+	      --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
 	      -f '$(CURDIR)/src/lib/' -f '$(CURDIR)/src/app/' \
 	      -f '$(CURDIR)/src/plugins/currentState/mongoc/' \
 	      -f '$(CURDIR)/src/plugins/temporal/timescale/' \
 	      -f '$(CURDIR)/src/plugins/shared/' \
 	      -f '$(HOME)/git/swRest/' -f '$(HOME)/git/swNgsild/' -f '$(HOME)/git/swJsonld/' \
 	      --html-details $(COV_ETSI_DIR)/index.html --html-title "swBroker ETSI Coverage" \
-	      $(CURDIR) $(addprefix $(HOME)/git/,$(COV_LIBS))
+	      $(BUILD_COVERAGE) $(addprefix $(HOME)/git/,$(COV_LIBS))
 	@echo ""
 	@echo "ETSI coverage report: file://$(CURDIR)/$(COV_ETSI_DIR)/index.html"
 
-clean:
-	rm -f $(ALL_OBJS) $(RAMDB_OBJS) $(ADMIN_OBJS) $(MONGOC_OBJS) $(TROE_NONE_OBJS) $(TROE_RAMDB_OBJS) $(TROE_TIMESCALE_OBJS) $(BINARY)
-	rm -f $(FTCLIENT_OBJS) $(FTCLIENT_BINARY)
-	rm -rf $(PLUGIN_DIR) $(COV_DIR)
-	find . -name '*.gcda' -name '*.gcno' -delete 2>/dev/null; true
+install_from_coverage: etc/contextSourceExtras.json
+	$(call install_from,$(BUILD_COVERAGE))
 
-.PHONY: all clean install i ci coverage coverage-etsi
+i:          release install
+di:         debug install_debug
+ci:         clean release install
+cdi:        clean debug install_debug
+
+.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi

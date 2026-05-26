@@ -19,7 +19,7 @@ subscription stats persist mongoc error
 --INIT--
 swDbDrop
 ftClientStart --status 503
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 
 --RUN--
 
@@ -60,7 +60,7 @@ echo
 echo "05. Restart broker"
 echo "=================="
 swBrokerStop
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 echo "restarted"
 echo
 echo

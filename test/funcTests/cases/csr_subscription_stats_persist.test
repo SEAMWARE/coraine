@@ -28,7 +28,7 @@ subscription csr-sub stats persist mongoc
 --INIT--
 swDbDrop
 ftClientStart
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 
 --RUN--
 
@@ -69,7 +69,7 @@ echo
 echo "05. Restart broker (cache reload from mongo)"
 echo "============================================"
 swBrokerStop
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 echo "restarted"
 echo
 echo

@@ -15,7 +15,7 @@ admin ramdb
 
 --INIT--
 swDbDrop
-swBrokerStart --apiPlugins /home/kz/git/swBroker/plugins/admin.so
+swBrokerStart --apiPlugins admin
 
 --RUN--
 
@@ -206,7 +206,7 @@ Content-Length: REGEX(\d+)
   "kbase": "0.10.0",
   "kjson": "0.11.1",
   "ktrace": "0.10.0",
-  "swBroker version": "unknown",
+  "swBroker version": "0.2.0",
   "swJsonld": "0.1.0",
   "swNgsild": "post-0.2.0",
   "swRest": "0.1.0"

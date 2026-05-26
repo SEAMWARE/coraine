@@ -1,0 +1,2 @@
+ADD_LIBRARY(troeRamdb SHARED ramdbRegister.c)
+SET_TARGET_PROPERTIES(troeRamdb PROPERTIES OUTPUT_NAME "ramdb" PREFIX "")
