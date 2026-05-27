@@ -229,6 +229,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "Ngsild-Attribute-Format": "simplified",
       "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",
@@ -266,6 +267,7 @@ Content-Length: 0
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "Ngsild-Attribute-Format": "concise",
       "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/notify",

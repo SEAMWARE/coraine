@@ -71,7 +71,7 @@ echo "  speed:    no attr-expiresAt → set to entity-level 2099-01-01"
 echo "  later:    attr expiresAt 2150 (further) → shortened to 2099-01-01"
 echo "  earlier:  attr expiresAt 2050 (earlier) → kept as 2050-01-01"
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=sysAttrs | grep -E '"(expiresAt|value)"'
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=sysAttrs'
 echo
 echo
 
@@ -93,15 +93,41 @@ HTTP/1.1 201 Created
   later:    attr expiresAt 2150 (further) → shortened to 2099-01-01
   earlier:  attr expiresAt 2050 (earlier) → kept as 2050-01-01
 
-    "expiresAt": {
-      "value": "2050-01-01T00:00:00Z"
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "earlier": {
+    "createdAt": "REGEX(.*)",
+    "expiresAt": "2050-01-01T00:00:00Z",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
     "value": 7
+  },
   "expiresAt": "2099-01-01T00:00:00Z",
-    "expiresAt": {
-      "value": "2099-01-01T00:00:00Z"
-    "value": 99
+  "id": "urn:V1",
+  "later": {
+    "createdAt": "REGEX(.*)",
     "expiresAt": "2099-01-01T00:00:00Z",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 99
+  },
+  "modifiedAt": "REGEX(.*)",
+  "speed": {
+    "createdAt": "REGEX(.*)",
+    "expiresAt": "2099-01-01T00:00:00Z",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
     "value": 42
+  },
+  "type": "Vehicle"
+}
+
 
 
 --TEARDOWN--
