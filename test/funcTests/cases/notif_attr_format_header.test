@@ -1,0 +1,136 @@
+#
+# FILE            notif_attr_format_header.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ngsild-Attribute-Format notification header: a subscription with a non-default
+# notification.format makes the broker add an "Ngsild-Attribute-Format" header to
+# the notification, carrying the lowercase NGSI-LD format value. The v2 synonym
+# "keyValues" is normalised to "simplified". The default (normalized) carries NO
+# such header (covered by the other notification tests). (Orion-LD extension;
+# pending addition to TS 104-176.)
+#
+--NAME--
+Notification Ngsild-Attribute-Format header (keyValues -> simplified)
+
+--TAGS--
+subscription notification format
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create subscription S1 with notification.format=keyValues on type T
+# 02. Create urn:E1 type T (speed) - triggers the notification
+# 03. Dump ftClient - header Ngsild-Attribute-Format: simplified; simplified body
+#
+
+echo "01. Create subscription S1 (format=keyValues)"
+echo "============================================="
+payload='{
+  "id": "urn:ngsi-ld:subs:S1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "notification": {
+    "format": "keyValues",
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:E1 type T - triggers the notification"
+echo "===================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "speed": {
+    "type": "Property",
+    "value": 100
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Dump ftClient - Ngsild-Attribute-Format: simplified"
+echo "======================================================="
+sleep .3
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription S1 (format=keyValues)
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subs:S1
+Content-Length: 0
+
+
+
+
+02. Create urn:E1 type T - triggers the notification
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Dump ftClient - Ngsild-Attribute-Format: simplified
+=======================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:E1",
+          "speed": 100,
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subs:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "Ngsild-Attribute-Format": "simplified",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
