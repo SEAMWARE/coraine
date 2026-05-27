@@ -1,0 +1,307 @@
+#
+# FILE            json_property.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.x / § 5.2.6 — JsonProperty: an attribute whose value ("json") is an
+# arbitrary JSON literal carried verbatim (native JSON-LD @json), not expanded.
+# Covers create (normalized + concise), GET (normalized + simplified) and
+# notification rendering.
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_json-property.test.
+#
+# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+#       against a live run.
+# VERIFY: orion-ld reduces an array-of-one "json" value to a scalar (V3 below);
+#         for a JsonProperty a one-element JSON array is itself valid JSON, so sw
+#         may legitimately KEEP ["json"]. Decide broker-vs-expect on first run.
+#
+--NAME--
+JsonProperty - create, GET normalized + simplified, notification
+
+--TAGS--
+json-property entity subscription notification
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create a subscription on entity type T (showChanges)
+# 02. Create urn:E1, type T, JsonProperty V1 = "abc"
+# 03. Create urn:E2, type T, JsonProperty V2 = [ "json", "id" ] + concise V3 = { "json": [ "json" ] }
+# 04. GET urn:E1 - V1 normalized
+# 05. GET urn:E2 - V2 (array kept), V3 (array-of-one reduced)
+# 06. Dump ftClient - notifications for E1 and E2
+# 07. GET urn:E2 simplified
+#
+
+echo "01. Create a subscription on entity type T"
+echo "=========================================="
+payload='{
+  "id": "urn:ngsi-ld:subs:S1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    },
+    "showChanges": true
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:E1, type T, JsonProperty V1 = abc"
+echo "================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "V1": {
+    "json": "abc",
+    "type": "JsonProperty"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create urn:E2, type T, JsonProperty V2 = [ json, id ] + concise V3 = { json: [ json ] }"
+echo "==========================================================================================="
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "V2": {
+    "json": [ "json", "id" ],
+    "type": "JsonProperty"
+  },
+  "V3": {
+    "json": [ "json" ]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:E1 - V1 normalized"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "05. GET urn:E2 - V2 (array kept), V3 (array-of-one reduced)"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E2
+echo
+echo
+
+
+echo "06. Dump ftClient - notifications for E1 and E2"
+echo "==============================================="
+sleep .2
+ftClientDump
+echo
+echo
+
+
+echo "07. GET urn:E2 simplified"
+echo "========================="
+swCurl --url '/ngsi-ld/v1/entities/urn:E2?format=simplified'
+echo
+echo
+
+
+--EXPECT--
+01. Create a subscription on entity type T
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subs:S1
+Content-Length: 0
+
+
+
+
+02. Create urn:E1, type T, JsonProperty V1 = abc
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Create urn:E2, type T, JsonProperty V2 = [ json, id ] + concise V3 = { json: [ json ] }
+===========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: REGEX(\d+)
+
+
+
+
+04. GET urn:E1 - V1 normalized
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V1": {
+    "json": "abc",
+    "type": "JsonProperty"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+05. GET urn:E2 - V2 (array kept), V3 (array-of-one reduced)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V2": {
+    "json": [
+      "json",
+      "id"
+    ],
+    "type": "JsonProperty"
+  },
+  "V3": {
+    "json": [
+      "json"
+    ],
+    "type": "JsonProperty"
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+06. Dump ftClient - notifications for E1 and E2
+===============================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "V1": {
+            "json": "abc",
+            "type": "JsonProperty"
+          },
+          "id": "urn:E1",
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subs:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "V2": {
+            "json": [
+              "json",
+              "id"
+            ],
+            "type": "JsonProperty"
+          },
+          "V3": {
+            "json": [
+              "json"
+            ],
+            "type": "JsonProperty"
+          },
+          "id": "urn:E2",
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subs:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+07. GET urn:E2 simplified
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V2": {
+    "json": [
+      "json",
+      "id"
+    ]
+  },
+  "V3": {
+    "json": [
+      "json"
+    ]
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

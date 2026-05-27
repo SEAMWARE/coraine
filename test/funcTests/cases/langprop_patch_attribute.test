@@ -1,0 +1,180 @@
+#
+# FILE            langprop_patch_attribute.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.6.4 — PATCH /entities/{id}/attrs/{attr} on a LanguageProperty: replace the
+# attribute's languageMap (object form, no ?lang needed). Plus validation:
+# languageMap must be an Object, and each item a String / Array-of-String.
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-patch-attribute.test.
+# orion-ld mongoCmd2 DB-dump steps dropped.
+#
+# NOTE: expects authored offline. Happy path high-confidence (object-form update,
+#       no ?lang). The two error steps assert a structural 400/BadRequestData with
+#       REGEX title/detail — sw's exact wording is unknown offline; TIGHTEN on the
+#       verifying run. If sw does NOT 400 on the bad languageMap, that is an
+#       unmasked write-side validation gap (record it).
+#
+--NAME--
+LanguageProperty - PATCH /attrs/{attr} replace languageMap + validation
+
+--TAGS--
+langprop entity patch validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST entity with LanguageProperty L
+# 02. PATCH /attrs/L - change L:es to Castellano (object form)
+# 03. GET normalized - L:es is Castellano
+# 04. PATCH /attrs/L with languageMap = 13 (not an object) -> 400
+# 05. PATCH /attrs/L with languageMap.es = 14 (not a string) -> 400
+#
+
+echo "01. POST entity with LanguageProperty L"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "L": {
+    "languageMap": {
+      "en": "English",
+      "es": "Spanish",
+      "sv": "Swedish"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH /attrs/L - change L:es to Castellano"
+echo "=============================================="
+payload='{
+  "languageMap": {
+    "en": "English",
+    "es": "Castellano",
+    "sv": "Swedish"
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
+echo
+echo
+
+
+echo "03. GET normalized - L:es is Castellano"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+echo
+echo
+
+
+echo "04. PATCH /attrs/L with languageMap = 13 (not an object)"
+echo "========================================================"
+payload='{
+  "languageMap": 13
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
+echo
+echo
+
+
+echo "05. PATCH /attrs/L with languageMap.es = 14 (not a string)"
+echo "=========================================================="
+payload='{
+  "languageMap": {
+    "es": 14
+  }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity with LanguageProperty L
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. PATCH /attrs/L - change L:es to Castellano
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET normalized - L:es is Castellano
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "languageMap": {
+      "en": "English",
+      "es": "Castellano",
+      "sv": "Swedish"
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+04. PATCH /attrs/L with languageMap = 13 (not an object)
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": REGEX(".*"),
+  "status": 400,
+  "title": REGEX(".*"),
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PATCH /attrs/L with languageMap.es = 14 (not a string)
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": REGEX(".*"),
+  "status": 400,
+  "title": REGEX(".*"),
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

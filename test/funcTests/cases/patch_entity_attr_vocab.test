@@ -1,0 +1,115 @@
+#
+# FILE            patch_entity_attr_vocab.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.6.4 — PATCH /entities/{id}/attrs/{attrName} on a VocabProperty: replace its
+# "vocab" value, here turning a single vocab term into an array of terms. Each
+# term is @vocab-expanded against the @context on storage and compacted back on
+# retrieval.
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_patch_entity_attr_vocab.test.
+# orion-ld's mongoCmd2 DB-dump steps (01b, 02b) dropped — the IRI expansion they
+# assert is implicitly verified by the GET round-trip in step 03.
+#
+# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+#       against a live run.
+#
+--NAME--
+PATCH /entities/{id}/attrs/{attr} - VocabProperty vocab string -> array
+
+--TAGS--
+vocab-property entity patch
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create urn:E1 with VocabProperty v1 = "sensor"
+# 02. PATCH urn:E1/attrs/v1 making vocab an array [ "sensor1", "actuator" ]
+# 03. GET urn:E1 - v1 vocab is the new array
+#
+
+echo "01. Create urn:E1 with VocabProperty v1 = sensor"
+echo "================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "v1": {
+    "type": "VocabProperty",
+    "vocab": "sensor"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH urn:E1/attrs/v1 making vocab an array [ sensor1, actuator ]"
+echo "====================================================================="
+payload='{
+  "vocab": [ "sensor1", "actuator" ]
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/v1 --payload "$payload"
+echo
+echo
+
+
+echo "03. GET urn:E1 - v1 vocab is the new array"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 with VocabProperty v1 = sensor
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. PATCH urn:E1/attrs/v1 making vocab an array [ sensor1, actuator ]
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET urn:E1 - v1 vocab is the new array
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "type": "T",
+  "v1": {
+    "type": "VocabProperty",
+    "vocab": [
+      "sensor1",
+      "actuator"
+    ]
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

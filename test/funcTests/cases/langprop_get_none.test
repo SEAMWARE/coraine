@@ -1,0 +1,290 @@
+#
+# FILE            langprop_get_none.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6.4.6 / § 4.5.x — LanguageProperty @none default: when the lang URL
+# parameter (or a subscription's lang) names a tag that is absent from the
+# languageMap, the value carrying the JSON-LD keyword "@none" is the fallback,
+# and the rendered "lang" annotation is "@none". Exercised on GET (single +
+# list) and inside a notification fired from a lang-bearing subscription.
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-get-with-@none.test
+# (accumulator -> ftClient).
+#
+# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+#       against a live run. @none fallback is IMPLEMENTED (ldLangReduce.c) and the
+#       notify path applies lang reduction (ldSubscriptionNotify.c), so high-
+#       confidence parity. VERIFY the notification body shape on first run.
+#
+--NAME--
+LanguageProperty - @none fallback on GET (single/list) and in notification
+
+--TAGS--
+langprop entity subscription notification
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create urn:ngsi-ld:T:E1 with LanguageProperty L holding an @none entry
+# 02. GET E1 lang=en  - English
+# 03. GET E1 lang=gr  - absent -> @none (Default)
+# 04. GET all  lang=en - English
+# 05. GET all  lang=gr - @none (Default)
+# 06. Create subscription S1 (lang=gr) matching type T
+# 07. PATCH E1 to trigger a notification
+# 08. Dump ftClient - one notification, L reduced to the @none default
+#
+
+echo "01. Create urn:ngsi-ld:T:E1 with @none in languageMap"
+echo "====================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "L": {
+    "languageMap": {
+      "en": "English",
+      "es": "Spanish",
+      "sv": "Swedish",
+      "@none": "Default"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1 lang=en - English"
+echo "============================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=en'
+echo
+echo
+
+
+echo "03. GET E1 lang=gr - absent -> @none (Default)"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=gr'
+echo
+echo
+
+
+echo "04. GET all lang=en - English"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/entities?lang=en&local=true'
+echo
+echo
+
+
+echo "05. GET all lang=gr - @none (Default)"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities?lang=gr&local=true'
+echo
+echo
+
+
+echo "06. Create subscription S1 (lang=gr) matching type T"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:subscription:S1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  },
+  "lang": "gr"
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "07. PATCH E1 to trigger a notification"
+echo "======================================"
+payload='{
+  "trigger": true
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
+echo
+echo
+
+
+echo "08. Dump ftClient - one notification, L reduced to @none default"
+echo "================================================================"
+sleep .2
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:ngsi-ld:T:E1 with @none in languageMap
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET E1 lang=en - English
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "lang": "en",
+    "type": "Property",
+    "value": "English"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+03. GET E1 lang=gr - absent -> @none (Default)
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "lang": "@none",
+    "type": "Property",
+    "value": "Default"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+04. GET all lang=en - English
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "L": {
+      "lang": "en",
+      "type": "Property",
+      "value": "English"
+    },
+    "id": "urn:ngsi-ld:T:E1",
+    "type": "T"
+  }
+]
+
+
+
+05. GET all lang=gr - @none (Default)
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "L": {
+      "lang": "@none",
+      "type": "Property",
+      "value": "Default"
+    },
+    "id": "urn:ngsi-ld:T:E1",
+    "type": "T"
+  }
+]
+
+
+
+06. Create subscription S1 (lang=gr) matching type T
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
+Content-Length: 0
+
+
+
+
+07. PATCH E1 to trigger a notification
+======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. Dump ftClient - one notification, L reduced to @none default
+================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "L": {
+            "lang": "@none",
+            "type": "Property",
+            "value": "Default"
+          },
+          "id": "urn:ngsi-ld:T:E1",
+          "trigger": {
+            "type": "Property",
+            "value": true
+          },
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

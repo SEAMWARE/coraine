@@ -1,0 +1,272 @@
+#
+# FILE            langprop_array_create_get.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6.4.6 — LanguageProperty languageMap values that are multi-element Arrays
+# of Strings are preserved as arrays (no reduction), and lang reduction yields the
+# array for the selected language.
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-as-array-create-and-get-entity.test.
+# orion-ld's mongoCmd2 DB-dump step dropped.
+#
+# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+#       against a live run.
+#
+--NAME--
+LanguageProperty - languageMap arrays preserved + lang reduction yields array
+
+--TAGS--
+langprop entity format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST entity with array-valued languageMap (multi-element)
+# 02. GET normalized      - arrays preserved
+# 03. GET simplified
+# 04. GET normalized, lang=en   - array for en
+# 05. GET simplified, lang=en
+# 06. GET normalized, lang=ex (absent) -> first-key fallback (en)
+# 07. GET simplified, lang=sv
+#
+
+echo "01. POST entity with multi-element array languageMap"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "L": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": ["one", "two", "three"],
+      "es": ["uno", "dos", "tres"],
+      "sv": ["ett", "tvaa", "tre"]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET normalized - arrays preserved"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+echo
+echo
+
+
+echo "03. GET simplified"
+echo "=================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified'
+echo
+echo
+
+
+echo "04. GET normalized, lang=en - array for en"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=en'
+echo
+echo
+
+
+echo "05. GET simplified, lang=en"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified&lang=en'
+echo
+echo
+
+
+echo "06. GET normalized, lang=ex (absent) - first-key fallback"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=ex'
+echo
+echo
+
+
+echo "07. GET simplified, lang=sv"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified&lang=sv'
+echo
+echo
+
+
+--EXPECT--
+01. POST entity with multi-element array languageMap
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET normalized - arrays preserved
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "languageMap": {
+      "en": [
+        "one",
+        "two",
+        "three"
+      ],
+      "es": [
+        "uno",
+        "dos",
+        "tres"
+      ],
+      "sv": [
+        "ett",
+        "tvaa",
+        "tre"
+      ]
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+03. GET simplified
+==================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "languageMap": {
+      "en": [
+        "one",
+        "two",
+        "three"
+      ],
+      "es": [
+        "uno",
+        "dos",
+        "tres"
+      ],
+      "sv": [
+        "ett",
+        "tvaa",
+        "tre"
+      ]
+    }
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+04. GET normalized, lang=en - array for en
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "lang": "en",
+    "type": "Property",
+    "value": [
+      "one",
+      "two",
+      "three"
+    ]
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+05. GET simplified, lang=en
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": [
+    "one",
+    "two",
+    "three"
+  ],
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+06. GET normalized, lang=ex (absent) - first-key fallback
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": {
+    "lang": "en",
+    "type": "Property",
+    "value": [
+      "one",
+      "two",
+      "three"
+    ]
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+07. GET simplified, lang=sv
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "L": [
+    "ett",
+    "tvaa",
+    "tre"
+  ],
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
