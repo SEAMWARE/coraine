@@ -1,0 +1,157 @@
+#
+# FILE            value_type_subattr.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.x — valueType: a special sub-attribute of a Property declaring the
+# native JSON-LD @type of the Property value. It is attribute-level metadata
+# (renders alongside type/value, not as a nested Property), is valid for
+# Properties only, and must be a JSON String.
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_valueType.test.
+# orion-ld's mongoCmd2 DB-dump step (01b) dropped.
+#
+# valueType is a structural attribute member (not a sub-attribute): it renders as
+# a bare string alongside type/value, is valid for the Property family only (400
+# on a Relationship), and must be a JSON String (400 otherwise).
+#
+--NAME--
+valueType sub-attribute - Property-only, String-only, rendered as metadata
+
+--TAGS--
+value-type entity validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create urn:E1 with Property P1 carrying valueType "Integer"
+# 02. GET urn:E1 - valueType rendered alongside type/value
+# 03. Reject valueType on a Relationship (400 - Properties only)
+# 04. Reject non-string valueType (400 - not a string)
+#
+
+echo "01. Create urn:E1 with Property P1 carrying valueType Integer"
+echo "============================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "P1": {
+    "value": 1,
+    "valueType": "Integer"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET urn:E1 - valueType rendered alongside type/value"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:E1?local=true'
+echo
+echo
+
+
+echo "03. Reject valueType on a Relationship (Properties only)"
+echo "========================================================"
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "R1": {
+    "object": "urn:E2",
+    "valueType": "Integer"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Reject non-string valueType (not a JSON string)"
+echo "==================================================="
+payload='{
+  "id": "urn:E3",
+  "type": "T",
+  "P1": {
+    "value": 1,
+    "valueType": 4
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 with Property P1 carrying valueType Integer
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET urn:E1 - valueType rendered alongside type/value
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": {
+    "type": "Property",
+    "value": 1,
+    "valueType": "Integer"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+03. Reject valueType on a Relationship (Properties only)
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship has a forbidden NGSI-LD term: 'valueType'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Reject non-string valueType (not a JSON string)
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': 'valueType' must be a string",
+  "status": 400,
+  "title": "Invalid valueType",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
