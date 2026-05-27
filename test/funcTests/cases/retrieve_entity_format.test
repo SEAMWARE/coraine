@@ -147,13 +147,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "color": {
-    "value": "red"
-  },
+  "color": "red",
   "id": "urn:e1",
-  "speed": {
-    "value": 100
-  },
+  "speed": 100,
   "type": "Vehicle"
 }
 
