@@ -128,7 +128,7 @@ echo
 ==============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:AttrsFilter
 Content-Length: 0
 
@@ -139,7 +139,7 @@ Content-Length: 0
 ======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 Content-Length: 0
 
@@ -188,7 +188,7 @@ done
 ===================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:NoFilter
 Content-Length: 0
 
@@ -199,7 +199,7 @@ Content-Length: 0
 =================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Car:C1
 Content-Length: 0
 

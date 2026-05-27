@@ -90,7 +90,7 @@ echo
 ===============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
 Content-Length: 0
 
@@ -101,7 +101,7 @@ Content-Length: 0
 =============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:S
 Content-Length: 0
 
@@ -112,7 +112,7 @@ Content-Length: 0
 ================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:entity:E1
 Content-Length: 0
 

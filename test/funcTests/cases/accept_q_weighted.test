@@ -103,27 +103,27 @@ HTTP/1.1 201 Created
 
 01. ld+json q=0.9 beats geo+json q=0.5
 ======================================
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/ld+json
 
 
 02. geo+json q=0.9 beats ld+json q=0.5
 ======================================
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 
 
 03. q=0 excludes geo+json — ld+json wins
 ========================================
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/ld+json
 
 
 04. Equal q → first-listed wins (geo+json first)
 ================================================
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 
 
 05. Equal q → first-listed wins (ld+json first)
 ===============================================
-Content-Type: application/ld+json; charset=utf-8
+Content-Type: application/ld+json
 
 
 06. Accept: application/xml only → 406 (§ 6.3.4)

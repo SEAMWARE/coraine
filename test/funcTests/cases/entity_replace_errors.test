@@ -259,7 +259,7 @@ echo
 =====================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 165
 
 {
@@ -275,7 +275,7 @@ Content-Length: 165
 =====================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 174
 
 {
@@ -291,7 +291,7 @@ Content-Length: 174
 ===================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 160
 
 {
@@ -307,7 +307,7 @@ Content-Length: 160
 ======================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 154
 
 {
@@ -323,7 +323,7 @@ Content-Length: 154
 ======================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 159
 
 {
@@ -339,7 +339,7 @@ Content-Length: 159
 =====================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 184
 
 {
@@ -355,7 +355,7 @@ Content-Length: 184
 ========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 165
 
 {
@@ -371,7 +371,7 @@ Content-Length: 165
 ===============================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 179
 
 {
@@ -387,7 +387,7 @@ Content-Length: 179
 ==========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 225
 
 {
@@ -403,7 +403,7 @@ Content-Length: 225
 ========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 235
 
 {
@@ -419,7 +419,7 @@ Content-Length: 235
 ========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 229
 
 {
@@ -435,7 +435,7 @@ Content-Length: 229
 ===================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 256
 
 {
@@ -451,7 +451,7 @@ Content-Length: 256
 =========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 222
 
 {
@@ -467,7 +467,7 @@ Content-Length: 222
 =============================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 154
 
 {
@@ -483,7 +483,7 @@ Content-Length: 154
 ===================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 161
 
 {
@@ -499,7 +499,7 @@ Content-Length: 161
 ===================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 175
 
 {
@@ -515,7 +515,7 @@ Content-Length: 175
 =======================================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 167
 
 {

@@ -101,7 +101,7 @@ echo
 ===========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: 0
 
@@ -112,7 +112,7 @@ Content-Length: 0
 ============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V2
 Content-Length: 0
 
@@ -123,7 +123,7 @@ Content-Length: 0
 =============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V3
 Content-Length: 0
 
@@ -134,7 +134,7 @@ Content-Length: 0
 =======================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V4
 Content-Length: 0
 
@@ -147,7 +147,7 @@ Content-Length: 0
      is the filtered set, NOT the universe of Vehicles.
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 NGSILD-EntityMap: REGEX(.*)
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 245
@@ -182,7 +182,7 @@ Map captured (id present): yes
 =============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 230
 
@@ -209,7 +209,7 @@ Content-Length: 230
     But the map's entry set is already only V2 + V4 (red+green never made it in).
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 245
 
@@ -240,7 +240,7 @@ Content-Length: 245
     Filter narrows; it cannot re-introduce V1 (red) — the map froze it out.
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 3
 

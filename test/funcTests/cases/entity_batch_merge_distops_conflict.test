@@ -78,7 +78,7 @@ echo
 ==================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: 0
 
@@ -89,7 +89,7 @@ Content-Length: 0
 ========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
 Content-Length: 0
 
@@ -100,7 +100,7 @@ Content-Length: 0
 ==============================================================================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 108
 
@@ -116,7 +116,7 @@ Content-Length: 108
 ================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 60
 
@@ -132,7 +132,7 @@ Content-Length: 60
 ==================================================================
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 345
 
@@ -160,7 +160,7 @@ Content-Length: 345
 ===========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 61
 

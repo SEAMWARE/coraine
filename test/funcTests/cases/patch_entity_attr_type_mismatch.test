@@ -72,7 +72,7 @@ echo
 =====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: REGEX(\d+)
 
@@ -83,7 +83,7 @@ Content-Length: REGEX(\d+)
 ====================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 
 
 
@@ -92,7 +92,7 @@ Content-Type: application/json; charset=utf-8
 ==========================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -108,7 +108,7 @@ Content-Length: REGEX(\d+)
 ================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 
 
 

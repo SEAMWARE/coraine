@@ -284,7 +284,7 @@ echo
 ==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: 0
 
@@ -295,7 +295,7 @@ Content-Length: 0
 ==============================================================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -311,7 +311,7 @@ Content-Length: REGEX(\d+)
 =====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R3
 Content-Length: 0
 
@@ -322,7 +322,7 @@ Content-Length: 0
 ======================================================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -338,7 +338,7 @@ Content-Length: REGEX(\d+)
 ========================================================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -354,7 +354,7 @@ Content-Length: REGEX(\d+)
 ====================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R6
 Content-Length: 0
 
@@ -365,7 +365,7 @@ Content-Length: 0
 ====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R7
 Content-Length: 0
 
@@ -376,7 +376,7 @@ Content-Length: 0
 ==============================================================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -392,7 +392,7 @@ Content-Length: REGEX(\d+)
 ===========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R9
 Content-Length: 0
 
@@ -403,7 +403,7 @@ Content-Length: 0
 ===================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R10
 Content-Length: 0
 

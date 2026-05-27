@@ -111,7 +111,7 @@ echo
 ===================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e1
 Content-Length: 0
 
@@ -122,7 +122,7 @@ Content-Length: 0
 =====================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e2
 Content-Length: 0
 
@@ -133,7 +133,7 @@ Content-Length: 0
 =============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e3
 Content-Length: 0
 
@@ -144,7 +144,7 @@ Content-Length: 0
 =====================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 507
 
@@ -184,7 +184,7 @@ Content-Length: 507
 ==============================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 1951
 
@@ -295,7 +295,7 @@ Content-Length: 1951
 ======================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 1149
 
@@ -381,7 +381,7 @@ Content-Length: 1149
 ==========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 256
 
@@ -405,7 +405,7 @@ Content-Length: 256
 ===================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/geo+json; charset=utf-8
+Content-Type: application/geo+json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 431
 

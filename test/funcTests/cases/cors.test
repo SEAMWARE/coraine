@@ -62,7 +62,7 @@ echo
 ======================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Access-Control-Allow-Origin: *
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant
@@ -76,7 +76,7 @@ Content-Length: REGEX(\d+)
 ===========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Allow: GET, POST, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, DELETE, HEAD, OPTIONS
@@ -91,7 +91,7 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 ===========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
@@ -106,7 +106,7 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 ========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Allow: GET, POST, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS
@@ -121,7 +121,7 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 ===============================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Allow: GET, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, DELETE, HEAD, OPTIONS

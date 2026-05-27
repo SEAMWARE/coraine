@@ -163,7 +163,7 @@ echo
 =================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 161
 
 {
@@ -179,7 +179,7 @@ Content-Length: 161
 ================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 169
 
 {
@@ -195,7 +195,7 @@ Content-Length: 169
 =========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 214
 
 {
@@ -211,7 +211,7 @@ Content-Length: 214
 =================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 190
 
 {
@@ -227,7 +227,7 @@ Content-Length: 190
 ====================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 173
 
 {
@@ -243,7 +243,7 @@ Content-Length: 173
 ==============================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 190
 
 {
@@ -259,7 +259,7 @@ Content-Length: 190
 ===============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:loc-pt
 Content-Length: 0
 
@@ -270,7 +270,7 @@ Content-Length: 0
 ===============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:loc-poly
 Content-Length: 0
 
@@ -281,7 +281,7 @@ Content-Length: 0
 ===================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:obs-op-space
 Content-Length: 0
 
@@ -292,7 +292,7 @@ Content-Length: 0
 ========================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 167
 
 {

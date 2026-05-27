@@ -135,7 +135,7 @@ echo
 ============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e1
 Content-Length: 0
 
@@ -146,7 +146,7 @@ Content-Length: 0
 ==========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -162,7 +162,7 @@ Content-Length: REGEX(\d+)
 ===============================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -178,7 +178,7 @@ Content-Length: REGEX(\d+)
 ================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e4
 Content-Length: 0
 
@@ -189,7 +189,7 @@ Content-Length: 0
 =================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e4b
 Content-Length: 0
 
@@ -200,7 +200,7 @@ Content-Length: 0
 =================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -216,7 +216,7 @@ Content-Length: REGEX(\d+)
 ============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e6
 Content-Length: 0
 
@@ -227,7 +227,7 @@ Content-Length: 0
 ===============================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -243,7 +243,7 @@ Content-Length: REGEX(\d+)
 ==========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -259,7 +259,7 @@ Content-Length: REGEX(\d+)
 ===============================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -275,7 +275,7 @@ Content-Length: REGEX(\d+)
 =================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e10
 Content-Length: 0
 
@@ -286,7 +286,7 @@ Content-Length: 0
 ========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -302,7 +302,7 @@ Content-Length: REGEX(\d+)
 ===============================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {

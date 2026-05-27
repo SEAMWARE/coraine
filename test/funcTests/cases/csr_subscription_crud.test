@@ -152,7 +152,7 @@ echo
 =====================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 Content-Length: 0
 
@@ -163,7 +163,7 @@ Content-Length: 0
 =======================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 324
 
@@ -193,7 +193,7 @@ Content-Length: 324
 ============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR2
 Content-Length: 0
 
@@ -204,7 +204,7 @@ Content-Length: 0
 ===========================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 788
 
@@ -258,7 +258,7 @@ Content-Length: 788
 ==========================
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 191
 
 {
@@ -274,7 +274,7 @@ Content-Length: 191
 ===============================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 
 
 
@@ -283,7 +283,7 @@ Content-Type: application/json; charset=utf-8
 ========================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 369
 
@@ -314,7 +314,7 @@ Content-Length: 369
 ==============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR3
 Content-Length: 0
 
@@ -325,7 +325,7 @@ Content-Length: 0
 =============================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 
 
 
@@ -334,7 +334,7 @@ Content-Type: application/json; charset=utf-8
 ===========================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 803
 
@@ -389,7 +389,7 @@ Content-Length: 803
 =============================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 166
 
 {
@@ -405,7 +405,7 @@ Content-Length: 166
 ==========================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 184
 
 {

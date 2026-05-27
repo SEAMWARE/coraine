@@ -133,7 +133,7 @@ echo
 ==================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 175
 
 {
@@ -149,7 +149,7 @@ Content-Length: 175
 =================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 162
 
 {
@@ -165,7 +165,7 @@ Content-Length: 162
 ==================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 225
 
 {
@@ -181,7 +181,7 @@ Content-Length: 225
 ===========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-individual
 Content-Length: 0
 
@@ -192,7 +192,7 @@ Content-Length: 0
 ======================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-group
 Content-Length: 0
 
@@ -203,7 +203,7 @@ Content-Length: 0
 =================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-temporal
 Content-Length: 0
 
@@ -214,7 +214,7 @@ Content-Length: 0
 ==========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: 248
 
 {
@@ -230,7 +230,7 @@ Content-Length: 248
 ============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:ops-aux-good
 Content-Length: 0
 

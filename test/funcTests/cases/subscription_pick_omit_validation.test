@@ -120,7 +120,7 @@ echo
 ===================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -136,7 +136,7 @@ Content-Length: REGEX(\d+)
 ===========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -152,7 +152,7 @@ Content-Length: REGEX(\d+)
 ===========================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
@@ -168,7 +168,7 @@ Content-Length: REGEX(\d+)
 =========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s4
 Content-Length: REGEX(\d+)
 
@@ -179,7 +179,7 @@ Content-Length: REGEX(\d+)
 ====================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s5
 Content-Length: REGEX(\d+)
 
@@ -190,7 +190,7 @@ Content-Length: REGEX(\d+)
 ====================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s6
 Content-Length: REGEX(\d+)
 
@@ -201,7 +201,7 @@ Content-Length: REGEX(\d+)
 ==========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s7
 Content-Length: REGEX(\d+)
 

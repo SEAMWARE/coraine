@@ -98,7 +98,7 @@ echo
 ====================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Rewrite
 Content-Length: 0
@@ -110,7 +110,7 @@ Content-Length: 0
 =====================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: 0
@@ -122,7 +122,7 @@ Content-Length: 0
 ========================================================================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 NGSILD-Tenant: t1
 Content-Length: 151
 
@@ -139,7 +139,7 @@ Content-Length: 151
 =======================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
-Content-Type: application/json; charset=utf-8
+Content-Type: application/json
 NGSILD-Tenant: t2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 100
