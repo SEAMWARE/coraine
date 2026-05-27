@@ -1,0 +1,127 @@
+#
+# FILE            simplified_value_key_wrapper.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6.4 — in the simplified (keyValues) format, a LanguageProperty,
+# JsonProperty and VocabProperty keep their value-key wrapper
+# (languageMap / json / vocab); a plain Property / Relationship reduce to the
+# bare value / object. Regression test for the simplified-format fix in
+# swNgsild (ldRender.c::ldToSimplified + ldSimplifyEntity.c) — previously the
+# wrapper was wrongly dropped, emitting the bare value.
+#
+--NAME--
+Simplified format keeps the value-key wrapper for Language/Json/VocabProperty
+
+--TAGS--
+format langprop vocab-property json-property entity
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create an entity with a Property, Relationship, LanguageProperty,
+#     VocabProperty and JsonProperty
+# 02. GET it in simplified format - Property/Relationship reduce to bare value/object;
+#     LanguageProperty/VocabProperty/JsonProperty keep their value-key wrapper
+#
+
+echo "01. Create entity with all attribute kinds"
+echo "=========================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "P": {
+    "type": "Property",
+    "value": 100
+  },
+  "R": {
+    "type": "Relationship",
+    "object": "urn:target:1"
+  },
+  "L": {
+    "type": "LanguageProperty",
+    "languageMap": {
+      "en": "hello",
+      "es": "hola"
+    }
+  },
+  "V": {
+    "type": "VocabProperty",
+    "vocab": "abc"
+  },
+  "J": {
+    "type": "JsonProperty",
+    "json": {
+      "a": 1,
+      "b": [ 2, 3 ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET simplified - wrapper kept for Language/Json/Vocab, bare for Property/Relationship"
+echo "========================================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:E1?format=simplified'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with all attribute kinds
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET simplified - wrapper kept for Language/Json/Vocab, bare for Property/Relationship
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "J": {
+    "json": {
+      "a": 1,
+      "b": [
+        2,
+        3
+      ]
+    }
+  },
+  "L": {
+    "languageMap": {
+      "en": "hello",
+      "es": "hola"
+    }
+  },
+  "P": 100,
+  "R": "urn:target:1",
+  "V": {
+    "vocab": "abc"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
