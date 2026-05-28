@@ -1,0 +1,500 @@
+#
+# FILE            vocab_property.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.x / § 5.2.6 — VocabProperty: an attribute whose value ("vocab") is a
+# term (or array of terms) that is @vocab-expanded against the @context, like an
+# Entity-Type, rather than kept verbatim. Covers create, GET (normalized +
+# simplified), array value, array-of-one reduction to a scalar, notification
+# rendering, and q-filtering with expandValues (the q RHS must be @vocab-expanded
+# to match the stored IRI).
+#
+# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_vocab-property.test.
+# The orion-ld DB-dump steps (mongoCmd2) are dropped: sw does not inspect the DB
+# directly in functests, and the IRI-expansion they assert is implicitly verified
+# by the GET round-trip + the q==expanded-value match in steps 10-12.
+#
+# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+#       against a live run. Verify on first execution (ETSI coverage run was in
+#       progress; DB was not free to validate).
+#
+--NAME--
+VocabProperty - create, GET, simplified, array reduction, notification, q+expandValues
+
+--TAGS--
+vocab-property entity q subscription notification
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create a subscription on entity type T (showChanges so create fires a notif)
+# 02. Create urn:E1, type T, VocabProperty V1 = "abc"
+# 03. Create urn:E2, type T, VocabProperty V2 = [ "vocab", "id" ]
+# 04. Create urn:E3, type T, concise VocabProperty V2 = { "vocab": [ "test" ] } (array-of-one → string)
+# 05. GET urn:E1 - V1 normalized
+# 06. GET urn:E2 - V2 normalized (array kept)
+# 07. GET urn:E3 - V2 normalized (array-of-one reduced to string)
+# 08. Dump ftClient - notifications for E1, E2, E3 with vocab rendered
+# 09. GET urn:E2 simplified
+# 10. Query q=V1=="abc" (no expandValues) → no match (stored value is the expanded IRI)
+# 11. Query q=V1=="abc"&expandValues=V1,V2 → urn:E1 (RHS expanded to IRI)
+# 12. Query q=V2=="id"&expandValues=V1,V2 → urn:E2
+# 13. Create urn:E4, type T, VocabProperty V4 = { "vocab": [ "test" ] } (array-of-one)
+# 14. GET urn:E4 normalized - V4 vocab array-reduced to a string
+#
+
+echo "01. Create a subscription on entity type T"
+echo "=========================================="
+payload='{
+  "id": "urn:ngsi-ld:subs:S1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    },
+    "showChanges": true
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:E1, type T, VocabProperty V1 = abc"
+echo "================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "V1": {
+    "type": "VocabProperty",
+    "vocab": "abc"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create urn:E2, type T, VocabProperty V2 = [ vocab, id ]"
+echo "================================================================"
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "V2": {
+    "type": "VocabProperty",
+    "vocab": [ "vocab", "id" ]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Create urn:E3, type T, concise VocabProperty V2 = { vocab: [ test ] }"
+echo "========================================================================="
+payload='{
+  "id": "urn:E3",
+  "type": "T",
+  "V2": { "vocab": [ "test" ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. GET urn:E1 - V1 normalized"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "06. GET urn:E2 - V2 normalized (array kept)"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E2
+echo
+echo
+
+
+echo "07. GET urn:E3 - V2 normalized (array-of-one reduced to string)"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E3
+echo
+echo
+
+
+echo "08. Dump ftClient - notifications for E1, E2, E3"
+echo "================================================"
+sleep .2
+ftClientDump
+echo
+echo
+
+
+echo "09. GET urn:E2 simplified"
+echo "========================="
+swCurl --url '/ngsi-ld/v1/entities/urn:E2?format=simplified'
+echo
+echo
+
+
+echo "10. Query q=V1==abc (no expandValues) - no match"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?q=V1==%22abc%22'
+echo
+echo
+
+
+echo "11. Query q=V1==abc&expandValues=V1,V2 - urn:E1"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities?q=V1==%22abc%22&expandValues=V1,V2'
+echo
+echo
+
+
+echo "12. Query q=V2==id&expandValues=V1,V2 - urn:E2"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?q=V2==%22id%22&expandValues=V1,V2'
+echo
+echo
+
+
+echo "13. Create urn:E4, type T, VocabProperty V4 = { vocab: [ test ] }"
+echo "================================================================="
+payload='{
+  "id": "urn:E4",
+  "type": "T",
+  "V4": { "type": "VocabProperty", "vocab": [ "test" ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "14. GET urn:E4 normalized - V4 vocab array-reduced to a string"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E4
+echo
+echo
+
+
+--EXPECT--
+01. Create a subscription on entity type T
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subs:S1
+Content-Length: 0
+
+
+
+
+02. Create urn:E1, type T, VocabProperty V1 = abc
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Create urn:E2, type T, VocabProperty V2 = [ vocab, id ]
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Create urn:E3, type T, concise VocabProperty V2 = { vocab: [ test ] }
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E3
+Content-Length: REGEX(\d+)
+
+
+
+
+05. GET urn:E1 - V1 normalized
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V1": {
+    "type": "VocabProperty",
+    "vocab": "abc"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+06. GET urn:E2 - V2 normalized (array kept)
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V2": {
+    "type": "VocabProperty",
+    "vocab": [
+      "vocab",
+      "id"
+    ]
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+07. GET urn:E3 - V2 normalized (array-of-one reduced to string)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V2": {
+    "type": "VocabProperty",
+    "vocab": "test"
+  },
+  "id": "urn:E3",
+  "type": "T"
+}
+
+
+
+08. Dump ftClient - notifications for E1, E2, E3
+================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "V1": {
+            "type": "VocabProperty",
+            "vocab": "abc"
+          },
+          "id": "urn:E1",
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subs:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "V2": {
+            "type": "VocabProperty",
+            "vocab": [
+              "vocab",
+              "id"
+            ]
+          },
+          "id": "urn:E2",
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subs:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "V2": {
+            "type": "VocabProperty",
+            "vocab": "test"
+          },
+          "id": "urn:E3",
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:ngsi-ld:subs:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+09. GET urn:E2 simplified
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V2": {
+    "vocab": [
+      "vocab",
+      "id"
+    ]
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+10. Query q=V1==abc (no expandValues) - no match
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+11. Query q=V1==abc&expandValues=V1,V2 - urn:E1
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "V1": {
+      "type": "VocabProperty",
+      "vocab": "abc"
+    },
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+12. Query q=V2==id&expandValues=V1,V2 - urn:E2
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "V2": {
+      "type": "VocabProperty",
+      "vocab": [
+        "vocab",
+        "id"
+      ]
+    },
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+13. Create urn:E4, type T, VocabProperty V4 = { vocab: [ test ] }
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E4
+Content-Length: REGEX(\d+)
+
+
+
+
+14. GET urn:E4 normalized - V4 vocab array-reduced to a string
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "V4": {
+    "type": "VocabProperty",
+    "vocab": "test"
+  },
+  "id": "urn:E4",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
