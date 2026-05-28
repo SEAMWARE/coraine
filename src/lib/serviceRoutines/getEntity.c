@@ -455,13 +455,15 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   const char* path = "/ngsi-ld/v1/entities/";
 
   // Auxiliary registrations (§ 4.3.6.2) are pure gap-fill — never override
-  // local, no timestamp-based conflict resolution — so sysAttrs / type / pick
-  // optimisations the other modes need on the wire are unnecessary here.
-  // Emitting the bare path also lets path-only HttpCtrl stubs (the ETSI
-  // conformance pattern) match the forwarded request.
+  // local, no timestamp-based conflict resolution — so the broker-derived
+  // `&type=` and `&pick=` optimisations the other modes need on the wire
+  // are unnecessary here. `?sysAttrs=true` however passes through the user's
+  // request: if the original GET asked for sysAttrs we forward it so the
+  // upstream returns timestamps on the gap-filled attributes; otherwise we
+  // omit it (smaller wire payload + lets path-only HttpCtrl stubs match).
   bool isAux = (csr->mode == LdRegModeAuxiliary);
 
-  const char* qs   = isAux ? "" : "?sysAttrs=true";
+  const char* qs   = isAux ? (swNgsild.sysAttrs ? "?sysAttrs=true" : "") : "?sysAttrs=true";
   const char* pick = isAux ? "" : buildInfoPickParam(riP, &swRest.kalloc);
 
   const char* typePart = "";
