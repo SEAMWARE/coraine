@@ -454,28 +454,34 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   const char* base = csr->endpoint;
   const char* path = "/ngsi-ld/v1/entities/";
 
-  // Auxiliary registrations (§ 4.3.6.2) are pure gap-fill — never override
-  // local, no timestamp-based conflict resolution — so the broker-derived
-  // `&type=` and `&pick=` optimisations the other modes need on the wire
-  // are unnecessary here. `?sysAttrs=true` however passes through the user's
-  // request: if the original GET asked for sysAttrs we forward it so the
-  // upstream returns timestamps on the gap-filled attributes; otherwise we
-  // omit it (smaller wire payload + lets path-only HttpCtrl stubs match).
+  // URL composition, distop forwarding:
+  //   * `?type=` is dropped for ALL modes — type-narrowing the forward is
+  //     unsound for multi-typed entities (same id can be Vehicle on one
+  //     broker and Habitation on another); the type filter is a LOCAL
+  //     concern (applied client-side when building the response / entity
+  //     map). The upstream knows only the entity id.
+  //   * `&pick=` from the RegistrationInfo is included for ALL modes
+  //     (including aux): the registering source advertised a limited
+  //     attribute set, so we must not over-query — the upstream knows
+  //     nothing about our registration of it.
+  //   * `?sysAttrs=true` is required for the timestamp-based merge of
+  //     inclusive/redirect, and conservatively kept for exclusive.
+  //     Auxiliary doesn't need it internally (gap-fill is structural),
+  //     so for aux we pass through the user's own `sysAttrs` flag —
+  //     forwarded only if the original GET asked for it.
   bool isAux = (csr->mode == LdRegModeAuxiliary);
 
-  const char* qs   = isAux ? (swNgsild.sysAttrs ? "?sysAttrs=true" : "") : "?sysAttrs=true";
-  const char* pick = isAux ? "" : buildInfoPickParam(riP, &swRest.kalloc);
-
-  const char* typePart = "";
-  if (!isAux && riP->entityInfoV != NULL && riP->entityInfoV->type != NULL)
+  const char* qs       = (isAux && !swNgsild.sysAttrs) ? "" : "?sysAttrs=true";
+  const char* pickRaw  = buildInfoPickParam(riP, &swRest.kalloc);
+  const char* pick     = pickRaw;
+  if (qs[0] == '\0' && pickRaw[0] == '&')
   {
-    const char* ct = swldCompact(swldCoreContext(), riP->entityInfoV->type);
-    const char* tn = ct ? ct : riP->entityInfoV->type;
-    int tLen = strlen(tn);
-    char* tp = (char*) kaAlloc(&swRest.kalloc, 6 + tLen + 1);
-    strcpy(tp, "&type=");
-    strcpy(tp + 6, tn);
-    typePart = tp;
+    // First param: convert leading "&pick=" to "?pick=" in the mutable
+    // buildInfoPickParam buffer. (The empty `""` case returns a literal
+    // and is excluded by `pickRaw[0] == '&'`.)
+    char* pb = (char*) pickRaw;
+    pb[0] = '?';
+    pick = pb;
   }
 
   int baseLen = strlen(base);
@@ -483,15 +489,13 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
   int pickLen = strlen(pick);
-  int typeLen = strlen(typePart);
-  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + typeLen + pickLen + 1);
+  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, entityId);
   strcpy(url + baseLen + pathLen + idLen, qs);
-  strcpy(url + baseLen + pathLen + idLen + qsLen, typePart);
-  strcpy(url + baseLen + pathLen + idLen + qsLen + typeLen, pick);
+  strcpy(url + baseLen + pathLen + idLen + qsLen, pick);
   return url;
 }
 
