@@ -189,6 +189,9 @@ static void applyResultFilters(KjNode* arrayP)
 //   geo property (if hasGeoQ)      ∪   (so a local re-eval of geoQ stays sound)
 //   geometry property (if Accept   )   (so the geo+json renderer has the geometry)
 //      application/geo+json
+//   orderBy attrs                  ∪   (sort runs locally on the merged result, § 4.23 /
+//                                       line 1651 — without these the merged entity
+//                                       lacks the sort key and order is non-deterministic)
 //
 // Allocated in the request arena. Strings are borrowed where possible
 // (pickV and ldQAttrs results are already in the arena), expanded on
@@ -199,7 +202,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
   if (swNgsild.pickV == NULL)
     return NULL;
 
-  // Worst-case capacity: pickV count + q-attr count + 2 (geo + geometry)
+  // Worst-case capacity: pickV count + q-attr count + 2 (geo + geometry) + orderBy count
   int pickN = 0;
   while (swNgsild.pickV[pickN] != NULL)
     pickN++;
@@ -213,7 +216,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
   bool hasGeoQ        = (swNgsild.georel != NULL);
   bool acceptGeoJson  = (ldAcceptParse(swRest.in.accept) == LdAcceptGeoJson);
 
-  int cap = pickN + qN + 2;
+  int cap = pickN + qN + 2 + swNgsild.orderByCount;
   char** wanted = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
   int    n      = 0;
 
@@ -245,6 +248,13 @@ static char** computeWantedAttrs(KAlloc* kaP)
     char* gmp = swldExpand(swNgsild.contextP, swNgsild.geometryProperty, kaP, NULL, NULL);
     WANT_ADD(gmp);
   }
+
+  // orderBy attrs: ldOrderSort runs locally on the merged result, so every
+  // CSR must return the attr values that will be sorted on, otherwise the
+  // merged entity has nothing to compare and the sort order silently
+  // collapses (or worse, depends on which slice arrived first).
+  for (int i = 0; i < swNgsild.orderByCount; i++)
+    WANT_ADD(swNgsild.orderByV[i].attrName);
 
   #undef WANT_ADD
 
