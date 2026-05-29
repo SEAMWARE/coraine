@@ -867,36 +867,86 @@ static void mergeAttrsNonOverriding(KjNode* destP, KjNode* srcP)
 //
 // Reconstructs from raw URL params but strips options (keyValues/concise/
 // simplified) and format — broker-to-broker always uses normalized format.
-// Also strips local, entityMap, orderBy, collation (those are local concerns).
+// Also strips local, entityMap, orderBy, collation, pick, omit (local concerns
+// or per-CSR computed via intersectAndPick).
 //
-static const char* buildQueryString(void)
+// JSON-LD alias-bearing params (type, geoproperty, geometryProperty) bypass
+// the raw uriParamV passthrough: their raw values are CLIENT-context shorts,
+// but the receiver parses with its own context — so we emit the expanded IRI
+// compacted via the CSR's @context (compactForUrl), the same algorithm
+// buildSplitForwardQueryString uses. q stays raw for now (its embedded
+// attribute aliases would each need expand+compact too; deferred).
+//
+static const char* buildQueryString(SwldContext* csrCtx)
 {
-  char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
-  int pos = 0;
+  if (csrCtx == NULL) csrCtx = swldCoreContext();
 
+  char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
+  int   pos = 0;
+
+  // type — alias-bearing → emit from swNgsild.typeV via CSR ctx
+  if (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL)
+  {
+    strcpy(qs + pos, "type="); pos += 5;
+    for (int i = 0; swNgsild.typeV[i] != NULL; i++)
+    {
+      if (i > 0) qs[pos++] = ',';
+      const char* v = compactForUrl(csrCtx, swNgsild.typeV[i], &swRest.kalloc);
+      int vLen = strlen(v);
+      strcpy(qs + pos, v); pos += vLen;
+    }
+  }
+
+  // geoproperty — alias-bearing (swNgsild.geoproperty is already expanded)
+  if (swNgsild.geoproperty != NULL && swNgsild.geoproperty[0] != 0)
+  {
+    if (pos > 0) qs[pos++] = '&';
+    strcpy(qs + pos, "geoproperty="); pos += 12;
+    const char* v = compactForUrl(csrCtx, swNgsild.geoproperty, &swRest.kalloc);
+    int vLen = strlen(v);
+    strcpy(qs + pos, v); pos += vLen;
+  }
+
+  // All other URL params: forward raw (id, idPattern, scope, scopeQ, q,
+  // georel, geometry, coordinates, timerel, timeAt, lang, csf, …).
   for (int i = 0; i < swRest.in.uriParamCount; i++)
   {
     const char* key = swRest.in.uriParamV[i].key;
 
-    // Skip params that are local-only or affect output format
-    if (strcmp(key, "options")   == 0) continue;
-    if (strcmp(key, "format")    == 0) continue;
-    if (strcmp(key, "local")     == 0) continue;
-    if (strcmp(key, "orderBy")   == 0) continue;
-    if (strcmp(key, "collation") == 0) continue;
-    if (strcmp(key, "entityMap") == 0) continue;
-    if (strcmp(key, "pick")      == 0) continue;
-    if (strcmp(key, "omit")      == 0) continue;
+    // Skip params that are local-only, output-format, per-CSR computed, or
+    // handled above with alias-aware emission.
+    if (strcmp(key, "options")          == 0) continue;
+    if (strcmp(key, "format")           == 0) continue;
+    if (strcmp(key, "local")            == 0) continue;
+    if (strcmp(key, "orderBy")          == 0) continue;
+    if (strcmp(key, "collation")        == 0) continue;
+    if (strcmp(key, "entityMap")        == 0) continue;
+    if (strcmp(key, "pick")             == 0) continue;
+    if (strcmp(key, "omit")             == 0) continue;
+    if (strcmp(key, "type")             == 0) continue;  // handled above
+    if (strcmp(key, "geoproperty")      == 0) continue;  // handled above
+    if (strcmp(key, "geometryProperty") == 0) continue;  // handled below
 
     if (pos > 0) qs[pos++] = '&';
     int kLen = strlen(key);
     int vLen = strlen(swRest.in.uriParamV[i].value);
-    strcpy(qs + pos, key);
-    pos += kLen;
+    strcpy(qs + pos, key); pos += kLen;
     qs[pos++] = '=';
-    strcpy(qs + pos, swRest.in.uriParamV[i].value);
-    pos += vLen;
+    strcpy(qs + pos, swRest.in.uriParamV[i].value); pos += vLen;
   }
+
+  // geometryProperty — alias-bearing but stored raw (client short). Expand
+  // via the request's context, then compact via the CSR's.
+  if (swNgsild.geometryProperty != NULL && swNgsild.geometryProperty[0] != 0)
+  {
+    if (pos > 0) qs[pos++] = '&';
+    strcpy(qs + pos, "geometryProperty="); pos += 17;
+    char* expanded = swldExpand(swNgsild.contextP, swNgsild.geometryProperty, &swRest.kalloc, NULL, NULL);
+    const char* v  = compactForUrl(csrCtx, expanded, &swRest.kalloc);
+    int vLen = strlen(v);
+    strcpy(qs + pos, v); pos += vLen;
+  }
+
   qs[pos] = 0;
   return qs;
 }
@@ -1390,7 +1440,8 @@ bool getEntities(void)
         srcMapStampLocalFrom(srcMap, arrayP);
       }
 
-      const char* baseQs = (totalMatch > 0) ? (splitMode ? "" : buildQueryString()) : NULL;
+      // baseQs is per-CSR (alias-bearing params are compacted via csr->forwardCtxP)
+      // so it gets computed inside the loop now.
 
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
       LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
@@ -1440,6 +1491,7 @@ bool getEntities(void)
           }
           else
           {
+            const char* baseQs = buildQueryString(csr->forwardCtxP);
             fullQs = baseQs;
             bool csrSkipped = false;
 
