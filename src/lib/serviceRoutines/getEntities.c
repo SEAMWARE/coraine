@@ -267,16 +267,81 @@ static char** computeWantedAttrs(KAlloc* kaP)
 // non-listed members, including id+type, which would leave us unable to
 // aggregate the response by entity id.
 //
-static const char* buildPickParam(char** vec, KAlloc* kaP)
+// urlEncodeReserved - percent-encode the URL-reserved chars that would
+// break a query string if emitted raw: '#' (fragment delimiter), '&'
+// (param delimiter), '=' (key/value separator), '%' (escape lead),
+// '?' (query lead). Other RFC 3986 reserved chars (':', '/', etc.) are
+// permitted in query values per § 3.4 and we keep them readable (the URN
+// shape `urn:ngsi-ld:Vehicle:X` stays compact).
+//
+// Used on the fallback "compaction returned the IRI unchanged" path,
+// where the expanded IRI carries '#' from the fragment-style core
+// context. Returns a freshly-allocated string from kaP.
+//
+static const char* urlEncodeReserved(const char* s, KAlloc* kaP)
+{
+  if (s == NULL) return "";
+  int extra = 0;
+  for (const char* p = s; *p; p++)
+    if (*p == '#' || *p == '&' || *p == '=' || *p == '%' || *p == '?')
+      extra += 2;  // 1 char → 3 chars
+
+  if (extra == 0)
+    return s;  // nothing to encode, return as-is
+
+  char* out = (char*) kaAlloc(kaP, strlen(s) + extra + 1);
+  char* w   = out;
+  static const char hex[] = "0123456789ABCDEF";
+  for (const char* p = s; *p; p++)
+  {
+    if (*p == '#' || *p == '&' || *p == '=' || *p == '%' || *p == '?')
+    {
+      *w++ = '%';
+      *w++ = hex[(unsigned char)*p >> 4];
+      *w++ = hex[(unsigned char)*p & 0xf];
+    }
+    else
+      *w++ = *p;
+  }
+  *w = 0;
+  return out;
+}
+
+
+// compactForUrl - compact an expanded IRI via the given context and make
+// the result safe to embed in a URL query-string value. If the alias is
+// found in `ctx`, returns the short name as-is (short names are URL-
+// safe). If not, falls back to the expanded IRI and percent-encodes any
+// URL-reserved chars.
+//
+// `ctx` MUST NOT be NULL — callers ensure that (e.g. CSR's forwardCtxP
+// is initialised to core at registration time).
+//
+static const char* compactForUrl(SwldContext* ctx, const char* iri, KAlloc* kaP)
+{
+  if (iri == NULL || iri[0] == 0)
+    return "";
+  const char* shorter = swldCompact(ctx, iri);
+  if (shorter == NULL || shorter == iri)
+    return urlEncodeReserved(iri, kaP);
+  // Compaction returned a new pointer — assume it's a short alias from
+  // the context and URL-safe.
+  return shorter;
+}
+
+
+static const char* buildPickParam(char** vec, KAlloc* kaP, SwldContext* csrCtx)
 {
   if (vec == NULL || vec[0] == NULL)
     return "";
 
+  if (csrCtx == NULL) csrCtx = swldCoreContext();
+
   int totalLen = 0;
   for (int i = 0; vec[i] != NULL; i++)
   {
-    const char* c = swldCompact(swldCoreContext(), vec[i]);
-    totalLen += strlen(c ? c : vec[i]) + 1;
+    const char* c = compactForUrl(csrCtx, vec[i], kaP);
+    totalLen += strlen(c) + 1;
   }
   totalLen += sizeof("id,type,scope,");  // upper bound on the appended suffix
 
@@ -286,8 +351,7 @@ static const char* buildPickParam(char** vec, KAlloc* kaP)
   for (int i = 0; vec[i] != NULL; i++)
   {
     if (pos > 6) buf[pos++] = ',';
-    const char* c = swldCompact(swldCoreContext(), vec[i]);
-    const char* n = c ? c : vec[i];
+    const char* n = compactForUrl(csrCtx, vec[i], kaP);
     strcpy(buf + pos, n);
     pos += strlen(n);
   }
@@ -315,7 +379,7 @@ static const char* buildPickParam(char** vec, KAlloc* kaP)
 // Returns the rendered "&pick=A,B,C" fragment, "" when no pick should
 // be sent (source exports everything AND user wants everything).
 //
-static const char* intersectAndPick(char** propV, char** relV, char** wanted, KAlloc* kaP, bool* outSkipP)
+static const char* intersectAndPick(char** propV, char** relV, char** wanted, KAlloc* kaP, bool* outSkipP, SwldContext* csrCtx)
 {
   *outSkipP = false;
 
@@ -340,12 +404,12 @@ static const char* intersectAndPick(char** propV, char** relV, char** wanted, KA
       for (int a = 0; lists[li][a] != NULL; a++)
         vec[n++] = lists[li][a];
     vec[n] = NULL;
-    return buildPickParam(vec, kaP);
+    return buildPickParam(vec, kaP, csrCtx);
   }
 
   // User has pick: intersect(wanted, exports).
   if (!regRestricts)
-    return buildPickParam(wanted, kaP);  // exports all → forward wanted as-is
+    return buildPickParam(wanted, kaP, csrCtx);  // exports all → forward wanted as-is
 
   int wantedN = 0;
   while (wanted[wantedN] != NULL)
@@ -377,7 +441,7 @@ static const char* intersectAndPick(char** propV, char** relV, char** wanted, KA
     return "";
   }
 
-  return buildPickParam(narrowed, kaP);
+  return buildPickParam(narrowed, kaP, csrCtx);
 }
 
 
@@ -843,25 +907,59 @@ static const char* buildQueryString(void)
 // type, we have to send local=true to satisfy the receiver's too-wide-
 // query check (this disables transitive fanout for that hop only).
 //
-static const char* buildSplitForwardQueryString(void)
+static const char* buildSplitForwardQueryString(SwldContext* csrCtx)
 {
   char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
   int   pos = 0;
 
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
-  {
-    const char* key = swRest.in.uriParamV[i].key;
-    if (strcmp(key, "id")        != 0 &&
-        strcmp(key, "idPattern") != 0 &&
-        strcmp(key, "type")      != 0)
-      continue;
+  if (csrCtx == NULL) csrCtx = swldCoreContext();
 
+  // First pass: prefer broker state (swNgsild.{typeV,id,idPattern}) which
+  // is the parsed, JSON-LD-expanded form. compactForUrl renders each
+  // value via the CSR's @context, falling back to a URL-encoded
+  // expanded IRI when the CSR has no alias for the term.
+  //
+  // Why not the raw `swRest.in.uriParamV[]` like buildQueryString does?
+  // Because raw URL params are short names from the CLIENT's @context.
+  // A short name has no inherent meaning — it's an alias key into a
+  // context. The client's `type=Vehicle` is the short for IRI X in the
+  // client's context; the CSR's context might alias X as `Auto`, and
+  // the *broker's job* on the forward is to emit whatever short the
+  // CSR will recognise. Going via the canonical IRI (which broker state
+  // already holds expanded) is the only way to produce CSR-correct
+  // shorts. POST queryBatch routes its selectors through swNgsild
+  // (ldQueryBodyToParams) but never into uriParamV; this path covers
+  // both GET and POST uniformly.
+  if (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL)
+  {
+    strcpy(qs + pos, "type="); pos += 5;
+    for (int i = 0; swNgsild.typeV[i] != NULL; i++)
+    {
+      if (i > 0) qs[pos++] = ',';
+      const char* v = compactForUrl(csrCtx, swNgsild.typeV[i], &swRest.kalloc);
+      int vLen = strlen(v);
+      strcpy(qs + pos, v); pos += vLen;
+    }
+  }
+
+  if (swNgsild.id != NULL && swNgsild.id[0] != 0)
+  {
     if (pos > 0) qs[pos++] = '&';
-    int kLen = strlen(key);
-    int vLen = strlen(swRest.in.uriParamV[i].value);
-    strcpy(qs + pos, key); pos += kLen;
-    qs[pos++] = '=';
-    strcpy(qs + pos, swRest.in.uriParamV[i].value); pos += vLen;
+    strcpy(qs + pos, "id="); pos += 3;
+    // id is a URI (not a JSON-LD alias) — compaction doesn't apply.
+    // URL-encode only the chars that would break the query string.
+    const char* v = urlEncodeReserved(swNgsild.id, &swRest.kalloc);
+    int vLen = strlen(v);
+    strcpy(qs + pos, v); pos += vLen;
+  }
+
+  if (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0)
+  {
+    if (pos > 0) qs[pos++] = '&';
+    strcpy(qs + pos, "idPattern="); pos += 10;
+    const char* v = urlEncodeReserved(swNgsild.idPattern, &swRest.kalloc);
+    int vLen = strlen(v);
+    strcpy(qs + pos, v); pos += vLen;
   }
 
   if (pos == 0)
@@ -1320,10 +1418,10 @@ bool getEntities(void)
           {
             char** csrExports = csrUnionExports(csr, &swRest.kalloc);
             bool   skip       = false;
-            const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip);
+            const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip, csr->forwardCtxP);
             if (skip) continue;
 
-            const char* splitBase = buildSplitForwardQueryString();
+            const char* splitBase = buildSplitForwardQueryString(csr->forwardCtxP);
             int   bLen = strlen(splitBase), pLen = strlen(pickParam);
             char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
             strcpy(combined, splitBase);
@@ -1352,7 +1450,7 @@ bool getEntities(void)
 
               bool        skip      = false;
               const char* pickParam = intersectAndPick(riP->propertyNamesV, riP->relationshipNamesV,
-                                                        pickWanted, &swRest.kalloc, &skip);
+                                                        pickWanted, &swRest.kalloc, &skip, csr->forwardCtxP);
               if (skip) { csrSkipped = true; break; }
 
               int   bLen = strlen(baseQs), pLen = strlen(pickParam);
