@@ -83,8 +83,10 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 
 static char* renderFragmentWithContext(KjNode* fragP)
 {
-  if (kjLookup(fragP, "@context") == NULL)
-    kjChildAdd(fragP, kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL));
+  // Strip body @context: forward goes out as application/json + Link.
+  KjNode* atCtx = kjLookup(fragP, "@context");
+  if (atCtx != NULL)
+    kjChildRemove(fragP, atCtx);
 
   int   sz  = kjFastRenderSize(fragP) + 1;
   char* buf = (char*) kaAlloc(&swRest.kalloc, sz);

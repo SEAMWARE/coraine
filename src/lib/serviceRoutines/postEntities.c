@@ -219,11 +219,13 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
 //
 static char* renderFragmentWithContext(KjNode* fragP)
 {
-  if (kjLookup(fragP, "@context") == NULL)
-  {
-    KjNode* ctxNode = kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL);
-    kjChildAdd(fragP, ctxNode);
-  }
+  // Body @context is forbidden on the wire: ldDistOp/buildHeaders sends
+  // application/json + Link header (the receiver derives @context from
+  // Link). Mixing in-body @context with application/json is a 400 per
+  // feedback_context_header_rules — so strip it here if present.
+  KjNode* atCtx = kjLookup(fragP, "@context");
+  if (atCtx != NULL)
+    kjChildRemove(fragP, atCtx);
 
   int   bufSize = kjFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);

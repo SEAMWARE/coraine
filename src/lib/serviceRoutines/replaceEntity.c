@@ -138,11 +138,10 @@ static char* replaceUrl(const char* endpoint, const char* entityId)
 //
 static char* renderFragmentWithContext(KjNode* fragP)
 {
-  if (kjLookup(fragP, "@context") == NULL)
-  {
-    KjNode* ctxNode = kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL);
-    kjChildAdd(fragP, ctxNode);
-  }
+  // Strip body @context: forward goes out as application/json + Link.
+  KjNode* atCtx = kjLookup(fragP, "@context");
+  if (atCtx != NULL)
+    kjChildRemove(fragP, atCtx);
 
   int   bufSize = kjFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);

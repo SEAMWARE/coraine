@@ -236,12 +236,15 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
   else
   {
     //
-    // Default path: per-element @context for ld+json array body.
+    // Default path: forward goes out as application/json + Link header
+    // (ldDistOp/buildHeaders), so body must NOT carry @context — mix is
+    // a 400 per feedback_context_header_rules. Strip if inherited.
     //
     for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
     {
-      if (kjLookup(fragP, "@context") == NULL)
-        kjChildAdd(fragP, kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL));
+      KjNode* atCtx = kjLookup(fragP, "@context");
+      if (atCtx != NULL)
+        kjChildRemove(fragP, atCtx);
     }
   }
 

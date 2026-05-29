@@ -66,8 +66,10 @@ static char* renderBodyWithContext(KjNode* bodyP)
   // Clone first — local TRoE plugin gets bodyP after this and can't
   // tolerate an @context child where it expects only value-bearing fields.
   KjNode* cloneP = kjClone(swRest.kjsonP, bodyP);
-  if (kjLookup(cloneP, "@context") == NULL)
-    kjChildAdd(cloneP, kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL));
+  // Strip body @context: forward goes out as application/json + Link.
+  KjNode* atCtx = kjLookup(cloneP, "@context");
+  if (atCtx != NULL)
+    kjChildRemove(cloneP, atCtx);
 
   int   sz  = kjFastRenderSize(cloneP) + 1;
   char* buf = (char*) kaAlloc(&swRest.kalloc, sz);

@@ -142,10 +142,12 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
   }
   else
   {
+    // Strip body @context: forward goes out as application/json + Link.
     for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
     {
-      if (kjLookup(fragP, "@context") == NULL)
-        kjChildAdd(fragP, kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL));
+      KjNode* atCtx = kjLookup(fragP, "@context");
+      if (atCtx != NULL)
+        kjChildRemove(fragP, atCtx);
     }
   }
 

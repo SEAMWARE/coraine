@@ -91,8 +91,10 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
 //
 static char* renderBodyWithContext(KjNode* bodyP)
 {
-  if (kjLookup(bodyP, "@context") == NULL)
-    kjChildAdd(bodyP, kjString(swRest.kjsonP, "@context", SWLD_CORE_CONTEXT_URL));
+  // Strip body @context: forward goes out as application/json + Link.
+  KjNode* atCtx = kjLookup(bodyP, "@context");
+  if (atCtx != NULL)
+    kjChildRemove(bodyP, atCtx);
 
   int   bufSize = kjFastRenderSize(bodyP) + 1;
   char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
