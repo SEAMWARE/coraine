@@ -35,11 +35,24 @@ SWBROKER_BUILD_AT  = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 all:        release
 
-release:
+# Sibling-repo libs we link against. `make di` here recurses into each and
+# runs their own `make di`, which is a no-op when nothing changed and a
+# rebuild+install when something did. Without this, editing a lib's source
+# leaves the broker linking against a stale .a (silent — link succeeds
+# against last-installed copy).
+SIBLING_LIBS = swRest swNgsild swJsonld
+SIBLING_DIR  = $(HOME)/git
+
+libs:
+	@for lib in $(SIBLING_LIBS); do \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib di || exit 1; \
+	done
+
+release: libs
 	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
-debug:
+debug: libs
 	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
@@ -135,4 +148,4 @@ di:         debug install_debug
 ci:         clean release install
 cdi:        clean debug install_debug
 
-.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi
+.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs
