@@ -56,14 +56,10 @@ bool getCsourceSubscription(void)
   if (kindP != NULL)
     kjChildRemove(subP, kindP);
 
-  // § 5.2.12: default-emit notificationTrigger when absent.
-  if (kjLookup(subP, "notificationTrigger") == NULL)
-  {
-    KjNode* trigArr = kjArray(swRest.kjsonP, "notificationTrigger");
-    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeCreated"));
-    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeUpdated"));
-    kjChildAdd(subP, trigArr);
-  }
+  // § 5.2 Subscription table: `notificationTrigger` is "not applicable
+  // and shall be ignored" for CSR-sub. The lib's ldCheckSubscription
+  // strips it on create/update, so it's never stored — no work to do
+  // here. The entity-sub GET in getSubscription.c still default-emits.
 
   // Strip the broker-internal `_jcResolved`.
   KjNode* jcP = kjLookup(subP, "_jcResolved");

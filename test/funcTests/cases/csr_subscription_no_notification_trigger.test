@@ -1,0 +1,253 @@
+#
+# FILE            csr_subscription_no_notification_trigger.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2 Subscription table — the `notificationTrigger` field "is not
+# applicable and shall be ignored if the Subscription data type is used
+# for a Context Source Registration Subscription".
+#
+# Two halves:
+#   1. POST CSR-sub WITHOUT notificationTrigger → GET returns no such
+#      field (default-emit suppressed on the CSR-sub path).
+#   2. POST CSR-sub WITH notificationTrigger → broker silently strips
+#      it; GET returns no such field.
+#
+# Entity-subs keep the default-emit behaviour — checked elsewhere
+# (e.g. csr_subscription_crud).
+#
+--NAME--
+CSR Subscription — notificationTrigger is not applicable (silently stripped)
+
+--TAGS--
+csr-sub subscription
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. POST CSR-sub urn:CSRsub:1 without notificationTrigger"
+echo "========================================================="
+payload='{
+  "id": "urn:CSRsub:1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost/notify" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. GET urn:CSRsub:1 — body must NOT carry notificationTrigger"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:1
+echo
+echo
+
+
+echo "03. POST CSR-sub urn:CSRsub:2 WITH notificationTrigger (silently dropped)"
+echo "========================================================================="
+payload='{
+  "id": "urn:CSRsub:2",
+  "type": "Subscription",
+  "entities": [ { "type": "Truck" } ],
+  "notificationTrigger": [ "entityCreated", "entityDeleted" ],
+  "notification": { "endpoint": { "uri": "http://localhost/notify2" } }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:CSRsub:2 — notificationTrigger stripped at create, absent on read"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:2
+echo
+echo
+
+
+echo "05. List both — neither carries notificationTrigger"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions
+echo
+echo
+
+
+echo "06. Sanity: entity-sub still gets the default notificationTrigger"
+echo "================================================================="
+payload='{
+  "id": "urn:Sub:E1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost/notifyE" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+swCurl --url /ngsi-ld/v1/subscriptions/urn:Sub:E1
+echo
+
+--TEARDOWN--
+swBrokerStop
+
+--EXPECT--
+01. POST CSR-sub urn:CSRsub:1 without notificationTrigger
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:1
+Content-Length: 0
+
+
+
+
+02. GET urn:CSRsub:1 — body must NOT carry notificationTrigger
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 220
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:CSRsub:1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost/notify"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+03. POST CSR-sub urn:CSRsub:2 WITH notificationTrigger (silently dropped)
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:2
+Content-Length: 0
+
+
+
+
+04. GET urn:CSRsub:2 — notificationTrigger stripped at create, absent on read
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 219
+
+{
+  "entities": [
+    {
+      "type": "Truck"
+    }
+  ],
+  "id": "urn:CSRsub:2",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost/notify2"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+05. List both — neither carries notificationTrigger
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 504
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:CSRsub:1",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost/notify"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  },
+  {
+    "entities": [
+      {
+        "type": "Truck"
+      }
+    ],
+    "id": "urn:CSRsub:2",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost/notify2"
+      }
+    },
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+06. Sanity: entity-sub still gets the default notificationTrigger
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:Sub:E1
+Content-Length: 0
+
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 298
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:Sub:E1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost/notifyE"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+

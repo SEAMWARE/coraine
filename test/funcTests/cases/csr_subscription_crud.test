@@ -165,7 +165,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 324
+Content-Length: 245
 
 {
   "entities": [
@@ -179,10 +179,6 @@ Content-Length: 324
       "uri": "http://localhost:1234/csrNotify"
     }
   },
-  "notificationTrigger": [
-    "attributeCreated",
-    "attributeUpdated"
-  ],
   "status": "active",
   "type": "Subscription"
 }
@@ -206,7 +202,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 788
+Content-Length: 614
 
 [
   {
@@ -221,10 +217,6 @@ Content-Length: 788
         "uri": "http://localhost:1234/csrNotify"
       }
     },
-    "notificationTrigger": [
-      "attributeCreated",
-      "attributeUpdated"
-    ],
     "status": "active",
     "type": "Subscription"
   },
@@ -240,10 +232,6 @@ Content-Length: 788
         "uri": "http://localhost:1234/csrNotify2"
       }
     },
-    "notificationTrigger": [
-      "attributeCreated",
-      "attributeUpdated"
-    ],
     "status": "active",
     "type": "Subscription",
     "watchedAttributes": [
@@ -285,7 +273,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 369
+Content-Length: 290
 
 {
   "description": "watches all Vehicle CSRs",
@@ -300,10 +288,6 @@ Content-Length: 369
       "uri": "http://localhost:1234/csrNotify"
     }
   },
-  "notificationTrigger": [
-    "attributeCreated",
-    "attributeUpdated"
-  ],
   "status": "active",
   "type": "Subscription"
 }
@@ -336,7 +320,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 803
+Content-Length: 629
 
 [
   {
@@ -351,10 +335,6 @@ Content-Length: 803
         "uri": "http://localhost:1234/csrNotify2"
       }
     },
-    "notificationTrigger": [
-      "attributeCreated",
-      "attributeUpdated"
-    ],
     "status": "active",
     "type": "Subscription",
     "watchedAttributes": [
@@ -373,10 +353,6 @@ Content-Length: 803
         "uri": "http://localhost:1234/pernot"
       }
     },
-    "notificationTrigger": [
-      "attributeCreated",
-      "attributeUpdated"
-    ],
     "status": "active",
     "timeInterval": 30,
     "type": "Subscription"

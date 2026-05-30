@@ -1,0 +1,115 @@
+#
+# FILE            compact_iri_when_vocab_strip_shadowed.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Bug fix: when a stored expanded IRI would compact via the core
+# context's @vocab to a bare short name, AND that short name is
+# defined as a term to a DIFFERENT IRI in the active user context,
+# the bare form would be ambiguous (the receiver expands it via the
+# user context and resolves to the wrong IRI). Per the JSON-LD
+# compaction algorithm, the broker must fall back to a compact-IRI
+# form via a defined prefix (e.g. `ngsi-ld:...`) instead.
+#
+# Fixture uses the ETSI test-suite-compound context (defines both
+# `Building` and `almostFull` to IRIs that differ from the broker's
+# core @vocab expansion), so the bare strip would be ambiguous for
+# BOTH the entity type and the attribute name. The broker must emit
+# the compact-IRI form `ngsi-ld:default-context/...` for each.
+#
+--NAME--
+Compact-IRI fallback when @vocab strip is shadowed by a user term
+
+--TAGS--
+context jsonld-context
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity with default core context — almostFull/Building expand via @vocab"
+echo "===================================================================================="
+payload='{
+  "id": "urn:E:1",
+  "type": "Building",
+  "almostFull": { "type": "Property", "value": 42 },
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld"
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
+echo
+echo
+
+
+echo "02. Retrieve with NO user context — bare names (no conflict, @vocab strip OK)"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E:1
+echo
+echo
+
+
+echo "03. Retrieve with user context that defines Building/almostFull to DIFFERENT IRIs"
+echo "================================================================================="
+echo "    → bare strip would be ambiguous"
+echo "    → broker must emit ngsi-ld:default-context/<name> compact-IRI form"
+swCurl --url /ngsi-ld/v1/entities/urn:E:1 \
+  --header 'Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+
+--TEARDOWN--
+swBrokerStop
+
+--EXPECT--
+01. Create entity with default core context — almostFull/Building expand via @vocab
+====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:E:1
+Content-Length: 0
+
+
+
+
+02. Retrieve with NO user context — bare names (no conflict, @vocab strip OK)
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 107
+
+{
+  "almostFull": {
+    "type": "Property",
+    "value": 42
+  },
+  "id": "urn:E:1",
+  "type": "Building"
+}
+
+
+
+03. Retrieve with user context that defines Building/almostFull to DIFFERENT IRIs
+=================================================================================
+    → bare strip would be ambiguous
+    → broker must emit ngsi-ld:default-context/<name> compact-IRI form
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 155
+
+{
+  "id": "urn:E:1",
+  "ngsi-ld:default-context/almostFull": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "ngsi-ld:default-context/Building"
+}
+
+
