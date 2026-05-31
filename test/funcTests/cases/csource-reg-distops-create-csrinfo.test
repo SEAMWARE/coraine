@@ -37,7 +37,7 @@ payload='{
     { "key": "X-Downstream", "value": "prod" }
   ],
   "information": [
-    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ], "propertyNames": ["speed"] }
   ]
 }'
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"

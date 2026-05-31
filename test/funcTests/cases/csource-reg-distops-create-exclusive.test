@@ -42,7 +42,8 @@ payload='{
           "id": "urn:V1",
           "type": "Vehicle"
         }
-      ]
+      ],
+      "propertyNames": ["speed"]
     }
   ]
 }'

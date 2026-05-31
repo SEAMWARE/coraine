@@ -67,7 +67,7 @@ payload='{
   "endpoint": "http://localhost:'$CB_PORT'",
   "mode": "exclusive",
   "operations": ["retrieveEntity"],
-  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
+  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
@@ -95,7 +95,7 @@ payload='{
   "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "exclusive",
   "operations": ["retrieveEntity"],
-  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
+  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo

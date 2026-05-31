@@ -28,7 +28,7 @@ ftClientStart --port 7712 --status 201
 # ----- ?local=true bypass -----
 echo "01. Register exclusive CSR for urn:V1"
 echo "====================================="
-payload='{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"exclusive","operations":["createEntity","retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]}'
+payload='{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"exclusive","operations":["createEntity","retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo

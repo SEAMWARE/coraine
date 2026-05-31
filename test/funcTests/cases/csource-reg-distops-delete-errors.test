@@ -36,7 +36,7 @@ payload='{
   "endpoint": "http://localhost:7711",
   "mode": "exclusive",
   "operations": ["retrieveEntity"],
-  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
+  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo

@@ -124,7 +124,7 @@ payload='{
   "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "exclusive",
   "operations": ["deleteEntity"],
-  "information": [{"entities":[{"id":"urn:V3","type":"Vehicle"}]}]
+  "information": [{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["speed","color"]}]
 }'
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo

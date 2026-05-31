@@ -64,7 +64,8 @@ payload='{
           "id": "urn:V1",
           "type": "Vehicle"
         }
-      ]
+      ],
+      "propertyNames": ["speed"]
     }
   ]
 }'
@@ -108,7 +109,8 @@ payload='{
           "id": "urn:Loop:1",
           "type": "Vehicle"
         }
-      ]
+      ],
+      "propertyNames": ["speed"]
     }
   ]
 }'
@@ -133,7 +135,8 @@ payload='{
           "id": "urn:Loop:1",
           "type": "Vehicle"
         }
-      ]
+      ],
+      "propertyNames": ["speed"]
     }
   ]
 }'

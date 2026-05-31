@@ -65,7 +65,7 @@ payload='{
   "description": "Vehicle data source",
   "information": [
     {
-      "entities": [{"type": "Building"}],
+      "entities": [{"id": "urn:ngsi-ld:Building:B1", "type": "Building"}],
       "propertyNames": ["temperature", "humidity"]
     }
   ]
@@ -225,6 +225,7 @@ Content-Length: REGEX(\d+)
       {
         "entities": [
           {
+            "id": "urn:ngsi-ld:Building:B1",
             "type": "Building"
           }
         ],

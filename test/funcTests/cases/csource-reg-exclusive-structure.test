@@ -1,0 +1,250 @@
+#
+# FILE            csource-reg-exclusive-structure.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# NGSI-LD § 9.3.3 — an exclusive registration "shall always relate to
+# specific Attributes found on a single Entity. Thus, the registration
+# shall define BOTH an entity id (i.e. an id pattern or Entity type
+# defining a group of entities is not supported for exclusive
+# registrations) AND Attributes."
+#
+# The broker had no per-mode structural validator and accepted
+# exclusive CSRs that defined a type-only entity selector, or omitted
+# attribute names, or used idPattern. All three should be 400 per
+# § 9.3.3. The same shapes remain valid for other modes (inclusive /
+# redirect / auxiliary), so the new check only fires when mode ==
+# exclusive.
+#
+--NAME--
+CSR creation — exclusive mode structural rules (§ 9.3.3)
+
+--TAGS--
+csr
+registration
+validation
+exclusive
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. exclusive + entity type-only (no id) → 400
+# 02. exclusive + idPattern + attrs → 400
+# 03. exclusive + id but no attribute names → 400
+# 04. exclusive + id + propertyNames → 201 (valid)
+# 05. exclusive + id + relationshipNames → 201 (valid)
+# 06. inclusive + entity type-only → 201 (rule does not apply)
+# 07. redirect + entity type-only → 201 (rule does not apply)
+#
+
+echo "01. exclusive, type-only entity selector → 400"
+echo "==============================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "information": [{ "entities": [{ "type": "Vehicle" }] }],
+  "mode": "exclusive",
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "02. exclusive, idPattern (group selector) + attrs → 400"
+echo "========================================================"
+payload='{
+  "type": "ContextSourceRegistration",
+  "information": [{
+    "entities": [{ "type": "Vehicle", "idPattern": "urn:.*" }],
+    "propertyNames": ["speed"]
+  }],
+  "mode": "exclusive",
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "03. exclusive, specific id but no attribute names → 400"
+echo "========================================================"
+payload='{
+  "type": "ContextSourceRegistration",
+  "information": [{
+    "entities": [{ "id": "urn:ngsi-ld:Vehicle:V1", "type": "Vehicle" }]
+  }],
+  "mode": "exclusive",
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "04. exclusive, id + propertyNames → 201 (valid)"
+echo "================================================"
+payload='{
+  "id": "urn:ngsi-ld:CSR:exclusive-prop",
+  "type": "ContextSourceRegistration",
+  "information": [{
+    "entities": [{ "id": "urn:ngsi-ld:Vehicle:V1", "type": "Vehicle" }],
+    "propertyNames": ["speed"]
+  }],
+  "mode": "exclusive",
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "05. exclusive, id + relationshipNames → 201 (valid)"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:exclusive-rel",
+  "type": "ContextSourceRegistration",
+  "information": [{
+    "entities": [{ "id": "urn:ngsi-ld:Vehicle:V2", "type": "Vehicle" }],
+    "relationshipNames": ["isParked"]
+  }],
+  "mode": "exclusive",
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "06. inclusive (default), entity type-only → 201 (rule does not apply)"
+echo "======================================================================"
+payload='{
+  "id": "urn:ngsi-ld:CSR:inclusive-typeonly",
+  "type": "ContextSourceRegistration",
+  "information": [{ "entities": [{ "type": "Building" }] }],
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "07. redirect, entity type-only → 201 (rule does not apply)"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:redirect-typeonly",
+  "type": "ContextSourceRegistration",
+  "information": [{ "entities": [{ "type": "House" }] }],
+  "mode": "redirect",
+  "endpoint": "http://my.csource.org:1026",
+  "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --in jsonld --payload "$payload"
+echo
+
+
+--EXPECT--
+01. exclusive, type-only entity selector → 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "exclusive Registration 'entities[]' entry must specify a specific 'id' (idPattern or type-only group selectors are not supported, § 9.3.3)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. exclusive, idPattern (group selector) + attrs → 400
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "exclusive Registration 'entities[]' entry must specify a specific 'id' (idPattern or type-only group selectors are not supported, § 9.3.3)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. exclusive, specific id but no attribute names → 400
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "exclusive Registration 'information[]' element must declare at least one of 'propertyNames' or 'relationshipNames' — entity-wide exclusive claims are not supported (§ 9.3.3)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. exclusive, id + propertyNames → 201 (valid)
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:exclusive-prop
+Content-Length: REGEX(\d+)
+
+
+
+
+05. exclusive, id + relationshipNames → 201 (valid)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:exclusive-rel
+Content-Length: REGEX(\d+)
+
+
+
+
+06. inclusive (default), entity type-only → 201 (rule does not apply)
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:inclusive-typeonly
+Content-Length: REGEX(\d+)
+
+
+
+
+07. redirect, entity type-only → 201 (rule does not apply)
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:redirect-typeonly
+Content-Length: REGEX(\d+)
+
+
+
+--TEARDOWN--
+swBrokerStop
