@@ -402,14 +402,69 @@ static bool infoEntryMatchesEntity(LdRegInfo* riP, const char* entityId)
 // is set to NULL. Transport-level errors (no HTTP exchange) populate
 // *errorDetailPP for the caller's diagnostic.
 //
-// buildInfoPickParam - build "&pick=a,b,c" from a single RegistrationInfo's attrs
+// userWantsField - does the user's pick/omit allow `name` to survive?
 //
-// Returns "" if the RegistrationInfo has no attr restriction (wildcard).
+// Pick wins if present (only listed members survive). Omit wins if pick
+// is absent (everything except listed members survives). Both absent
+// means no user restriction → everything survives.
 //
-static const char* buildInfoPickParam(LdRegInfo* riP, KAlloc* kaP)
+static bool userWantsField(const char* name)
+{
+  if (swNgsild.pickV != NULL)
+  {
+    for (int i = 0; swNgsild.pickV[i] != NULL; i++)
+      if (strcmp(swNgsild.pickV[i], name) == 0)
+        return true;
+    return false;
+  }
+  if (swNgsild.omitV != NULL)
+  {
+    for (int i = 0; swNgsild.omitV[i] != NULL; i++)
+      if (strcmp(swNgsild.omitV[i], name) == 0)
+        return false;
+    return true;
+  }
+  return true;
+}
+
+
+
+// buildInfoPickParam - build "&pick=type,scope,a,b,c" from a single RegistrationInfo's attrs
+//
+// Returns "" if the RegistrationInfo has no attr restriction (wildcard)
+// — the CS will return the full entity, no projection needed.
+//
+// `type` and `scope` are entity-level members that the spec (§ 6.3.4)
+// requires on every entity representation (type) or that can be
+// distributed across multiple Context Sources (scope). The broker
+// cannot reconstruct either from its own knowledge:
+//   - type: an entity can carry multiple types; the CSR only pins the
+//     one used for matching.
+//   - scope: a part of the entity held in another CS may carry a
+//     different slice of the total scope, and the merge has to add them
+//     together (no-split retrieve aggregates from every claiming CS).
+// Both are included in the forward `pick` unless the user's request
+// would have stripped them anyway (explicit `omit` or a `pick` that
+// doesn't list them) — no point fetching what we'll throw away.
+//
+// `id` is NOT included — the broker knows the id (it's the URL it
+// forwarded to) and reinjects it via ensureEntityId on the way back.
+//
+static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAlloc* kaP)
 {
   if (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL)
     return "";
+
+  bool wantType  = userWantsField("type");
+  bool wantScope = userWantsField("scope");
+
+  // The CS will interpret the URL params via the same @context that
+  // accompanies the forward (Link header for application/json, body
+  // @context for application/ld+json). Both resolve to csr->forwardCtxP
+  // — csi.jsonldContext if the CSR declared one, else core. Compacting
+  // against any other context would emit short names the CS expands
+  // differently than we intended.
+  SwldContext* forwardCtx = (csr != NULL && csr->forwardCtxP != NULL) ? csr->forwardCtxP : swldCoreContext();
 
   int totalLen = 0;
   int count    = 0;
@@ -418,7 +473,7 @@ static const char* buildInfoPickParam(LdRegInfo* riP, KAlloc* kaP)
   for (int li = 0; lists[li] != NULL; li++)
     for (int i = 0; lists[li][i] != NULL; i++)
     {
-      const char* c = swldCompact(swldCoreContext(), lists[li][i]);
+      const char* c = swldCompact(forwardCtx, lists[li][i]);
       totalLen += strlen(c ? c : lists[li][i]) + 1;
       count++;
     }
@@ -426,15 +481,24 @@ static const char* buildInfoPickParam(LdRegInfo* riP, KAlloc* kaP)
   if (count == 0)
     return "";
 
-  char* buf = (char*) kaAlloc(kaP, 6 + totalLen + 1);
+  // Header room: "&pick=" + "type," (5) + "scope," (6) = up to 17 chars.
+  char* buf = (char*) kaAlloc(kaP, 6 + 11 + totalLen + 1);
   strcpy(buf, "&pick=");
   int pos = 6;
+
+  if (wantType)  { memcpy(buf + pos, "type", 4);  pos += 4; buf[pos++] = ','; }
+  if (wantScope) { memcpy(buf + pos, "scope", 5); pos += 5; buf[pos++] = ','; }
+
+  // After the type/scope prefix `pos` is just past the trailing comma
+  // (or still at 6 if neither was included). Either way, the first attr
+  // writes directly; subsequent attrs prepend a comma.
+  int firstAttrPos = pos;
 
   for (int li = 0; lists[li] != NULL; li++)
     for (int i = 0; lists[li][i] != NULL; i++)
     {
-      if (pos > 6) buf[pos++] = ',';
-      const char* c = swldCompact(swldCoreContext(), lists[li][i]);
+      if (pos > firstAttrPos) buf[pos++] = ',';
+      const char* c = swldCompact(forwardCtx, lists[li][i]);
       const char* n = c ? c : lists[li][i];
       int nlen = strlen(n);
       strcpy(buf + pos, n);
@@ -472,7 +536,7 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   bool isAux = (csr->mode == LdRegModeAuxiliary);
 
   const char* qs       = (isAux && !swNgsild.sysAttrs) ? "" : "?sysAttrs=true";
-  const char* pickRaw  = buildInfoPickParam(riP, &swRest.kalloc);
+  const char* pickRaw  = buildInfoPickParam(csr, riP, &swRest.kalloc);
   const char* pick     = pickRaw;
   if (qs[0] == '\0' && pickRaw[0] == '&')
   {
@@ -526,6 +590,25 @@ static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char** e
   apiAttrToStorageWrap(treeP, swRest.kjsonP);
   ldExpiresAtPropagate(treeP);
   return treeP;
+}
+
+
+
+// ensureEntityId - inject id into the upstream tree if pick stripped it.
+//
+// For retrieveEntity the broker knows the id (it's literally the URL it
+// forwarded to) so there is no value in adding `id` to the forward `pick=`
+// — re-add it here after the response comes back. `type` is NOT
+// reconstructible (entities may carry multiple types and the CSR only
+// pins the one used for matching), so it must come back from upstream:
+// see buildInfoPickParam, which prepends `type` to the forward pick list
+// for the same reason.
+//
+static void ensureEntityId(KjNode* treeP, const char* entityId)
+{
+  if (treeP == NULL || treeP->type != KjObject) return;
+  if (kjLookup(treeP, "id") != NULL)            return;
+  kjChildAdd(treeP, kjString(swRest.kjsonP, "id", (char*) entityId));
 }
 
 
@@ -727,6 +810,12 @@ bool getEntity(void)
           const char* upErr2 = NULL;
           KjNode* upP = parseUpstreamBody(results[i].responseBody, results[i].responseBodyLen, &upErr2);
           if (upP == NULL) continue;
+
+          // CS replied via pick=type,<attrs> per buildInfoPickParam — so
+          // type rode back in the body but id did not. Reinject id (we
+          // know it from the URL we forwarded to) so the merged response
+          // is a well-formed entity per § 6.3.4.
+          ensureEntityId(upP, entityId);
 
           if (destP == NULL)
             destP = upP;
