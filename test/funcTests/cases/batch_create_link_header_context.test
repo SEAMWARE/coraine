@@ -1,0 +1,146 @@
+#
+# FILE            batch_create_link_header_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.5 — POST /entityOperations/create with Content-Type:
+# application/json must apply the @context from the Link header to
+# every element of the array body. The bug: the request-parse hook
+# resolved the Link-header @context only for single-object bodies;
+# array bodies (batch ops) fell through and the broker stored the
+# attributes under the core default-context.
+#
+# Mirrors ETSI 003_04_01 / 003_04_02, which previously failed because
+# the batch path never picked up the Link header.
+#
+--NAME--
+POST /entityOperations/create + Content-Type json + Link header applies @context per element (§ 6.3.5)
+
+--TAGS--
+batch
+create
+context
+link-header
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/test '{
+  "@context": {
+    "Building":   "https://example.org/Building",
+    "almostFull": "https://example.org/Building.almostFull",
+    "name":       "https://example.org/Building.name"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST /entityOperations/create as application/json + Link header
+# 02. GET /entities/{id} with NO Link → response carries the test
+#     context's expanded IRIs (not ngsi-ld:default-context/*)
+# 03. GET /entities/{id} with the same Link → bare short names
+#
+
+payload='[
+  {
+    "id":   "urn:ngsi-ld:Building:B1",
+    "type": "Building",
+    "name":       { "type": "Property", "value": "Eiffel Tower" },
+    "almostFull": { "type": "Property", "value": false }
+  }
+]'
+
+echo "01. Batch create with application/json + Link header"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create \
+  -X POST \
+  --in application/json \
+  --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/test>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "02. GET /entities/B1 with NO Link header — expanded IRIs from Link-time @context"
+echo "================================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B1
+echo
+echo
+
+
+echo "03. GET /entities/B1 with the same Link header — bare short names"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/test>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+
+
+--EXPECT--
+01. Batch create with application/json + Link header
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/test>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  "urn:ngsi-ld:Building:B1"
+]
+
+
+
+02. GET /entities/B1 with NO Link header — expanded IRIs from Link-time @context
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/Building.almostFull": {
+    "type": "Property",
+    "value": false
+  },
+  "https://example.org/Building.name": {
+    "type": "Property",
+    "value": "Eiffel Tower"
+  },
+  "id": "urn:ngsi-ld:Building:B1",
+  "type": "https://example.org/Building"
+}
+
+
+
+03. GET /entities/B1 with the same Link header — bare short names
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/test>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "almostFull": {
+    "type": "Property",
+    "value": false
+  },
+  "id": "urn:ngsi-ld:Building:B1",
+  "name": {
+    "type": "Property",
+    "value": "Eiffel Tower"
+  },
+  "type": "Building"
+}
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
