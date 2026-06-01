@@ -445,6 +445,11 @@ bool postEntityAttrs(void)
       for (int i = 0; i < itemCount; i++)
       {
         int upCode = results[i].statusCode;
+        KT_T(KtDistOpRequest,
+             "forward result %d/%d: url=%s status=%d errorDetail=%s bodyLen=%d",
+             i + 1, itemCount, items[i].url, upCode,
+             (results[i].errorDetail != NULL ? results[i].errorDetail : "(none)"),
+             results[i].responseBodyLen);
         if (upCode >= 200 && upCode < 300)
         {
           anyCsrSucceeded = true;
