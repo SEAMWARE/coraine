@@ -1,0 +1,288 @@
+#
+# FILE            entity_update_local_reg_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 9.3.3 — EVERY ?local=true write (not just create) must 409 when it
+# would produce local data that an exclusive or redirect registration
+# claims. Covers: append attrs, update attrs, partial attribute update,
+# replace attribute, merge entity, replace entity, batch update, batch
+# create. Unclaimed attributes stay writable locally.
+#
+--NAME--
+Entity updates — ?local=true still 409s against exclusive/redirect claims
+
+--TAGS--
+entity update distops registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Register exclusive CSR for V1/speed"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V1","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Create V1 with color, ?local=true → 201 (unclaimed attr)"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "03. Append speed (POST attrs), ?local=true → 409"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' --payload '{"speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "04. Append brand (POST attrs), ?local=true → 204 (unclaimed)"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' --payload '{"brand":{"type":"Property","value":"Opel"}}'
+echo
+echo
+
+
+echo "05. Update attrs (PATCH attrs) with speed, ?local=true → 409"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' -X PATCH --payload '{"speed":{"type":"Property","value":11}}'
+echo
+echo
+
+
+echo "06. Partial attribute update (PATCH attrs/speed), ?local=true → 409"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?local=true' -X PATCH --payload '{"type":"Property","value":12}'
+echo
+echo
+
+
+echo "07. Replace attribute (PUT attrs/speed), ?local=true → 409"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?local=true' -X PUT --payload '{"type":"Property","value":13}'
+echo
+echo
+
+
+echo "08. Merge entity (PATCH entities/urn:V1) with speed, ?local=true → 409"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' -X PATCH --payload '{"speed":{"type":"Property","value":14}}'
+echo
+echo
+
+
+echo "09. Replace entity (PUT entities/urn:V1) with speed, ?local=true → 409"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":15}}'
+echo
+echo
+
+
+echo "10. Batch update [V1 speed], ?local=true → 409 (uniform overlap collapses to ProblemDetails)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entityOperations/update?local=true' --payload '[{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":16}}]'
+echo
+echo
+
+
+echo "11. Batch create [V1 speed], ?local=true → 409 (uniform overlap collapses to ProblemDetails)"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entityOperations/create?local=true' --payload '[{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":17}}]'
+echo
+echo
+
+
+echo "12. GET V1 ?local=true → color + brand only, nothing leaked"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Register exclusive CSR for V1/speed
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V1
+Content-Length: 0
+
+
+
+
+02. Create V1 with color, ?local=true → 201 (unclaimed attr)
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. Append speed (POST attrs), ?local=true → 409
+================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+04. Append brand (POST attrs), ?local=true → 204 (unclaimed)
+============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. Update attrs (PATCH attrs) with speed, ?local=true → 409
+============================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+06. Partial attribute update (PATCH attrs/speed), ?local=true → 409
+===================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+07. Replace attribute (PUT attrs/speed), ?local=true → 409
+==========================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+08. Merge entity (PATCH entities/urn:V1) with speed, ?local=true → 409
+======================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+09. Replace entity (PUT entities/urn:V1) with speed, ?local=true → 409
+======================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+10. Batch update [V1 speed], ?local=true → 409 (uniform overlap collapses to ProblemDetails)
+========================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 113
+
+{
+  "entityId": "urn:V1",
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+11. Batch create [V1 speed], ?local=true → 409 (uniform overlap collapses to ProblemDetails)
+====================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 113
+
+{
+  "entityId": "urn:V1",
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+12. GET V1 ?local=true → color + brand only, nothing leaked
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 79
+
+{
+  "brand": "Opel",
+  "color": "red",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

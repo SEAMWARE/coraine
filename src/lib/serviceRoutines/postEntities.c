@@ -405,63 +405,8 @@ bool postEntities(void)
   //
   if (swNgsild.local == true && tenantP->regCacheP != NULL)
   {
-    KjNode* typeP      = kjLookup(entityP, "type");
-    char*   typeBuf[2] = { NULL, NULL };
-    char**  typeArr    = NULL;
-
-    if (typeP != NULL && typeP->type == KjString)
-    {
-      typeBuf[0] = typeP->value.s;
-      typeArr    = typeBuf;
-    }
-
-    // The entity's scope — a registration's scope constraint must match
-    // for its claim to apply (same rule as the retrieve matcher).
-    KjNode* scopeP       = kjLookup(entityP, "scope");
-    char**  entityScopeV = NULL;
-    char*   scopeBuf[2]  = { NULL, NULL };
-    if (scopeP != NULL && scopeP->type == KjString)
-    {
-      scopeBuf[0]  = scopeP->value.s;
-      entityScopeV = scopeBuf;
-    }
-    else if (scopeP != NULL && scopeP->type == KjArray)
-    {
-      int n = 0;
-      for (KjNode* sP = scopeP->value.firstChildP; sP != NULL; sP = sP->next)
-        if (sP->type == KjString) n++;
-      if (n > 0)
-      {
-        entityScopeV = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
-        int sIx = 0;
-        for (KjNode* sP = scopeP->value.firstChildP; sP != NULL; sP = sP->next)
-          if (sP->type == KjString) entityScopeV[sIx++] = sP->value.s;
-        entityScopeV[sIx] = NULL;
-      }
-    }
-
-    int attrN = 0;
-    for (KjNode* aP = entityP->value.firstChildP; aP != NULL; aP = aP->next)
-    {
-      if (aP->name != NULL && aP->name[0] != '@' &&
-          strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
-          strcmp(aP->name, "scope") != 0)
-        attrN++;
-    }
-
-    char** attrIriV = (char**) kaAlloc(&swRest.kalloc, (attrN + 1) * sizeof(char*));
-    int    aIx      = 0;
-    for (KjNode* aP = entityP->value.firstChildP; aP != NULL; aP = aP->next)
-    {
-      if (aP->name != NULL && aP->name[0] != '@' &&
-          strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
-          strcmp(aP->name, "scope") != 0)
-        attrIriV[aIx++] = aP->name;
-    }
-    attrIriV[aIx] = NULL;
-
-    const char* conflictRegId = ldRegCacheLocalWriteConflict((LdRegCache*) tenantP->regCacheP,
-                                                             entityId, typeArr, entityScopeV, attrIriV);
+    const char* conflictRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) tenantP->regCacheP,
+                                                                 entityId, entityP, &swRest.kalloc);
     if (conflictRegId != NULL)
     {
       ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",

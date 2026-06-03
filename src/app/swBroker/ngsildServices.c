@@ -148,11 +148,11 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  patchEntityMap,  0,                      LdOpNone },
 
   // Batch Operations (§ 5.6.7 – § 5.6.10, § 5.6.20, § 6.14 – § 6.17, § 6.31)
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, 0,                      LdOpBatchCreate },
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/update", postEntityBatchUpdate, LD_PARAM_OPTIONS,       LdOpBatchUpdate },
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/upsert", postEntityBatchUpsert, LD_PARAM_OPTIONS,       LdOpBatchUpsert },
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/merge",  postEntityBatchMerge,  0,                      LdOpBatchMerge  },
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/delete", postEntityBatchDelete, 0,                      LdOpBatchDelete },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, LD_PARAM_LOCAL,         LdOpBatchCreate },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/update", postEntityBatchUpdate, LD_PARAM_OPTIONS | LD_PARAM_LOCAL, LdOpBatchUpdate },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/upsert", postEntityBatchUpsert, LD_PARAM_OPTIONS | LD_PARAM_LOCAL, LdOpBatchUpsert },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/merge",  postEntityBatchMerge,  LD_PARAM_LOCAL,         LdOpBatchMerge  },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/delete", postEntityBatchDelete, LD_PARAM_LOCAL,         LdOpBatchDelete },
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery  },
 
   // Context Source Identity (§ 5.15 / § 6.33)

@@ -151,6 +151,23 @@ bool patchEntity(void)
     return true;
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  //
+  // § 9.3.3 guard — a ?local=true write must not produce local data that an
+  // exclusive or redirect registration claims.
+  //
+  if (swNgsild.local == true && tenantP->regCacheP != NULL)
+  {
+    const char* cRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) tenantP->regCacheP,
+                                                          entityId, fragment, &swRest.kalloc);
+    if (cRegId != NULL)
+    {
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+              "local update overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+              cRegId);
+      return true;
+    }
+  }
+
 
   //
   // Dispatch — § 5.6.19.4 Merge Entity. Processed ONLY when not

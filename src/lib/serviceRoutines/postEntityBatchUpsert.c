@@ -572,6 +572,24 @@ bool postEntityBatchUpsert(void)
       continue;
     }
 
+    //
+    // § 9.3.3 guard — a ?local=true write must not produce local data that
+    // an exclusive or redirect registration claims.
+    //
+    if (swNgsild.local == true && ((Tenant*) swNgsild.tenantP)->regCacheP != NULL)
+    {
+      const char* cRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) ((Tenant*) swNgsild.tenantP)->regCacheP,
+                                                            idP->value.s, inP, &swRest.kalloc);
+      if (cRegId != NULL)
+      {
+        addBatchError(errorsP, idP->value.s, 409,
+                      LD_ERROR_ALREADY_EXISTS, "Conflict",
+                      "local write overlaps with registration (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+                      cRegId);
+        continue;
+      }
+    }
+
     Group* g = groupFindOrCreate(&groups, &gN, &gCap, idP->value.s);
     groupFragAppend(g, inP);
   }
