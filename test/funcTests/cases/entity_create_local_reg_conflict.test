@@ -1,0 +1,170 @@
+#
+# FILE            entity_create_local_reg_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 9.3.3 — a ?local=true create must not produce local data that an
+# exclusive or redirect registration claims. The distops path enforces
+# the invariant by chopping the claimed slice; the local path must
+# check explicitly and answer 409.
+#
+#   - exclusive V1/speed     → local create of V1 WITH speed     → 409
+#                              local create of V1 with color only → 201
+#   - redirect  V2 (whole)   → local create of V2 (any attr)      → 409
+#   - exclusive V3/speed,
+#     scope /madrid          → local create of scope-less V3+speed → 201
+#                              (a scope-restricted reg doesn't apply)
+#
+--NAME--
+Entity Create — ?local=true still 409s against exclusive/redirect claims
+
+--TAGS--
+entity create distops registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Register exclusive CSR for V1/speed"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V1","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "02. Create V1 with speed, ?local=true → 409 (exclusive claims speed)"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "03. Create V1 with color only, ?local=true → 201 (unregistered attr is fine locally)"
+echo "====================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "04. Register redirect CSR for the whole of V2"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V2","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "05. Create V2, ?local=true → 409 (redirect claims the whole entity)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+echo
+echo
+
+
+echo "06. Register exclusive CSR for V3/speed, scoped to /madrid"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V3","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"scope":"/madrid","information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "07. Create scope-less V3 with speed, ?local=true → 201 (scoped reg does not apply)"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+echo
+echo
+
+
+--EXPECT--
+01. Register exclusive CSR for V1/speed
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V1
+Content-Length: 0
+
+
+
+
+02. Create V1 with speed, ?local=true → 409 (exclusive claims speed)
+====================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local create overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+03. Create V1 with color only, ?local=true → 201 (unregistered attr is fine locally)
+=====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. Register redirect CSR for the whole of V2
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V2
+Content-Length: 0
+
+
+
+
+05. Create V2, ?local=true → 409 (redirect claims the whole entity)
+===================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "local create overlaps with registration 'urn:CSR:V2' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+06. Register exclusive CSR for V3/speed, scoped to /madrid
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V3
+Content-Length: 0
+
+
+
+
+07. Create scope-less V3 with speed, ?local=true → 201 (scoped reg does not apply)
+===================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V3
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop

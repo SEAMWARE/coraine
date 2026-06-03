@@ -34,7 +34,7 @@ echo
 echo
 
 
-echo "02. POST urn:V1 ?local=true → bypasses dispatch, stores locally only"
+echo "02. POST urn:V1 ?local=true → 409 (exclusive claim — § 9.3.3 guard, no local bypass)"
 echo "===================================================================="
 payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload "$payload"
@@ -42,7 +42,7 @@ echo
 echo
 
 
-echo "03. GET urn:V1 ?local=true → 200 (stored here, forwarding was skipped)"
+echo "03. GET urn:V1 ?local=true → 404 (nothing was stored)"
 echo "======================================================================"
 swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
@@ -108,37 +108,39 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
 
-02. POST urn:V1 ?local=true → bypasses dispatch, stores locally only
+02. POST urn:V1 ?local=true → 409 (exclusive claim — § 9.3.3 guard, no local bypass)
 ====================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Location: /ngsi-ld/v1/entities/urn:V1
-Content-Length: REGEX(\d+)
-
-
-
-
-03. GET urn:V1 ?local=true → 200 (stored here, forwarding was skipped)
-======================================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 237
 
 {
-  "id": "urn:V1",
-  "speed": {
-    "type": "Property",
-    "value": 42
-  },
-  "type": "Vehicle"
+  "detail": "local create overlaps with registration 'urn:CSR:Excl' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+03. GET urn:V1 ?local=true → 404 (nothing was stored)
+======================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
@@ -149,7 +151,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Dead
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -160,7 +162,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveRedir
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -171,14 +173,14 @@ HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 366
 
 {
   "errors": [
     {
       "entityId": "urn:V2",
       "error": {
-        "detail": REGEX("forward (failed|returned status).*"),
+        "detail": "forward failed: Connection failed; affected attributes: speed",
         "status": 502,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
@@ -199,7 +201,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MixExcl
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -207,7 +209,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MixIncl
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -218,7 +220,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V3
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -229,7 +231,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 166
 
 {
   "color": {

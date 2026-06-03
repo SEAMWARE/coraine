@@ -396,6 +396,81 @@ bool postEntities(void)
 
   bool anySucceeded = false;
 
+  //
+  // § 9.3.3 guard — a ?local=true create must not produce local data that
+  // an exclusive or redirect registration claims ("the broker holds no
+  // data locally in conflict to the registration"). The distops path
+  // enforces this implicitly by chopping the claimed slice; the local
+  // path has to check explicitly.
+  //
+  if (swNgsild.local == true && tenantP->regCacheP != NULL)
+  {
+    KjNode* typeP      = kjLookup(entityP, "type");
+    char*   typeBuf[2] = { NULL, NULL };
+    char**  typeArr    = NULL;
+
+    if (typeP != NULL && typeP->type == KjString)
+    {
+      typeBuf[0] = typeP->value.s;
+      typeArr    = typeBuf;
+    }
+
+    // The entity's scope — a registration's scope constraint must match
+    // for its claim to apply (same rule as the retrieve matcher).
+    KjNode* scopeP       = kjLookup(entityP, "scope");
+    char**  entityScopeV = NULL;
+    char*   scopeBuf[2]  = { NULL, NULL };
+    if (scopeP != NULL && scopeP->type == KjString)
+    {
+      scopeBuf[0]  = scopeP->value.s;
+      entityScopeV = scopeBuf;
+    }
+    else if (scopeP != NULL && scopeP->type == KjArray)
+    {
+      int n = 0;
+      for (KjNode* sP = scopeP->value.firstChildP; sP != NULL; sP = sP->next)
+        if (sP->type == KjString) n++;
+      if (n > 0)
+      {
+        entityScopeV = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
+        int sIx = 0;
+        for (KjNode* sP = scopeP->value.firstChildP; sP != NULL; sP = sP->next)
+          if (sP->type == KjString) entityScopeV[sIx++] = sP->value.s;
+        entityScopeV[sIx] = NULL;
+      }
+    }
+
+    int attrN = 0;
+    for (KjNode* aP = entityP->value.firstChildP; aP != NULL; aP = aP->next)
+    {
+      if (aP->name != NULL && aP->name[0] != '@' &&
+          strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
+          strcmp(aP->name, "scope") != 0)
+        attrN++;
+    }
+
+    char** attrIriV = (char**) kaAlloc(&swRest.kalloc, (attrN + 1) * sizeof(char*));
+    int    aIx      = 0;
+    for (KjNode* aP = entityP->value.firstChildP; aP != NULL; aP = aP->next)
+    {
+      if (aP->name != NULL && aP->name[0] != '@' &&
+          strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
+          strcmp(aP->name, "scope") != 0)
+        attrIriV[aIx++] = aP->name;
+    }
+    attrIriV[aIx] = NULL;
+
+    const char* conflictRegId = ldRegCacheLocalWriteConflict((LdRegCache*) tenantP->regCacheP,
+                                                             entityId, typeArr, entityScopeV, attrIriV);
+    if (conflictRegId != NULL)
+    {
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+              "local create overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+              conflictRegId);
+      return true;
+    }
+  }
+
   if (swNgsild.local == false && tenantP->regCacheP != NULL)
   {
     // Type vector built from the entity's "type" — string or array per § 4.5.1.
