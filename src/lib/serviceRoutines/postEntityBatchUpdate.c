@@ -89,7 +89,6 @@
 #include "serviceRoutines/postEntityBatchUpdate.h"   // Own interface
 
 
-
 // -----------------------------------------------------------------------------
 //
 // isEntityKeyword - reserved entity-level field name.
@@ -103,7 +102,6 @@ static bool isEntityKeyword(const char* name)
   if (strcmp(name, LD_VOCAB_SCOPE)   == 0) return true;
   return false;
 }
-
 
 
 // -----------------------------------------------------------------------------
@@ -175,7 +173,6 @@ static int noOverwriteChopLocal(KjNode* fragment, KjNode* existing)
 }
 
 
-
 // -----------------------------------------------------------------------------
 //
 // addBatchError - append a BatchEntityError (§ 5.2.17) to errors[].
@@ -201,7 +198,6 @@ static void addBatchError(KjNode* errorsP, const char* entityId, int statusCode,
 }
 
 
-
 // -----------------------------------------------------------------------------
 //
 // csrJsonldContext - return the jsonldContext URL for a CSR, or NULL.
@@ -218,7 +214,6 @@ static const char* csrJsonldContext(LdRegCacheItem* csr)
   }
   return NULL;
 }
-
 
 
 // -----------------------------------------------------------------------------
@@ -279,49 +274,6 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
   kjFastRender(batchArr, buf);
   return buf;
 }
-
-
-
-// -----------------------------------------------------------------------------
-//
-// forwardBatchToCSR - POST one grouped batch to a CSR's /entityOperations/update
-//
-static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
-                              const char* ownAlias, KjNode** respTreePP)
-{
-  *respTreePP = NULL;
-
-  const char* path    = "/ngsi-ld/v1/entityOperations/update";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-
-  char* body    = renderBatchBody(csr, batchArr);
-  int   bodyLen = strlen(body);
-
-  char*       respBody    = NULL;
-  int         respBodyLen = 0;
-  const char* upErr       = NULL;
-
-  int status = ldDistOpSendReceive(csr, SwVerbPost, url, body, bodyLen,
-                                    ownAlias, &upErr,
-                                    &respBody, &respBodyLen);
-
-  if (respBody != NULL && respBodyLen > 0)
-  {
-    KjNode* treeP = kjParse(swRest.kjsonP, respBody);
-    if (treeP != NULL)
-    {
-      ldStripAtContext(treeP);
-      *respTreePP = treeP;
-    }
-  }
-
-  return status;
-}
-
 
 
 // -----------------------------------------------------------------------------
@@ -398,7 +350,6 @@ static void applyRemoteBatchResult(int status, KjNode* respTreeP,
 }
 
 
-
 // -----------------------------------------------------------------------------
 //
 // Group - fragments targeting one entity id, in arrival order.
@@ -410,7 +361,6 @@ typedef struct Group
   int          count;
   int          capacity;
 } Group;
-
 
 
 // -----------------------------------------------------------------------------
@@ -426,7 +376,6 @@ typedef struct CsrAccum
   int             count;
   int             capacity;
 } CsrAccum;
-
 
 
 static Group* groupFindOrCreate(Group** groupsP, int* gNp, int* gCapP, const char* id)
@@ -452,7 +401,6 @@ static Group* groupFindOrCreate(Group** groupsP, int* gNp, int* gCapP, const cha
 }
 
 
-
 static void groupFragAppend(Group* g, KjNode* fragP)
 {
   if (g->count >= g->capacity)
@@ -465,7 +413,6 @@ static void groupFragAppend(Group* g, KjNode* fragP)
   }
   g->fragV[g->count++] = fragP;
 }
-
 
 
 static CsrAccum* csrAccumFindOrCreate(CsrAccum** aV, int* aN, int* aCap,
@@ -494,7 +441,6 @@ static CsrAccum* csrAccumFindOrCreate(CsrAccum** aV, int* aN, int* aCap,
 }
 
 
-
 static void csrAccumAppend(CsrAccum* a, KjNode* fragP, const char* id)
 {
   if (a->count >= a->capacity)
@@ -515,7 +461,6 @@ static void csrAccumAppend(CsrAccum* a, KjNode* fragP, const char* id)
   a->idV[a->count]    = id;
   a->count++;
 }
-
 
 
 // -----------------------------------------------------------------------------
@@ -567,7 +512,6 @@ static void chopForMode(Tenant*      tenantP,
 }
 
 
-
 // -----------------------------------------------------------------------------
 //
 // hasLocalPayload - true if fragP still carries something to merge
@@ -590,7 +534,6 @@ static bool hasLocalPayload(KjNode* fragP)
   }
   return false;
 }
-
 
 
 // -----------------------------------------------------------------------------
@@ -950,7 +893,11 @@ bool postEntityBatchUpdate(void)
     int                  bCount   = 0;
     memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
 
-    const char* batchPath = "/ngsi-ld/v1/entityOperations/update";
+    // The forwarded leg must apply the same overwrite mode as the incoming
+    // request — propagate ?options=noOverwrite (cf. batch upsert's
+    // ?options=update propagation).
+    const char* batchPath = (swNgsild.noOverwrite) ? "/ngsi-ld/v1/entityOperations/update?options=noOverwrite"
+                                                   : "/ngsi-ld/v1/entityOperations/update";
     int         batchPathLen = strlen(batchPath);
 
     for (int ai = 0; ai < csrAccumsN; ai++)

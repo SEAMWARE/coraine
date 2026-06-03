@@ -1,0 +1,246 @@
+#
+# FILE            entity_batch_update_distops_nooverwrite.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch Entity Update (§ 5.6.8) — ?options=noOverwrite must propagate on
+# the distops forward.
+#
+# An exclusive CSR owns 'speed'. The CP already has a value for it. A
+# batch update with ?options=noOverwrite must:
+#   - skip the locally-present attrs (local noOverwrite), AND
+#   - forward the chopped attrs WITH ?options=noOverwrite so the CP
+#     applies the same mode (the CP's pre-existing value survives).
+# A control update without the option overwrites on both sides.
+#
+--NAME--
+Batch Entity Update — ?options=noOverwrite propagates on the CSR forward
+
+--TAGS--
+batch entity update distops
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart --noSplitEntities
+swBrokerStart -role CP1 --noSplitEntities
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed V1 locally on CB — color=red"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Seed V1 on CP1 — speed=10"
+echo "============================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 exclusive, claims only 'speed' (updateBatch op)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["updateBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "04. Batch Update V1 with ?options=noOverwrite — speed + color both pre-exist, nothing changes"
+echo "============================================================================================="
+swCurl --url '/ngsi-ld/v1/entityOperations/update?options=noOverwrite' --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "05. GET CB V1 — color still red (local noOverwrite)"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
+echo
+echo
+
+
+echo "06. GET CP1 V1 — speed still 10 (noOverwrite propagated on the forward)"
+echo "======================================================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
+echo
+echo
+
+
+echo "07. Control: Batch Update V1 without noOverwrite — both sides overwrite → 204"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
+]'
+echo
+echo
+
+
+echo "08. GET CB V1 — color=blue now"
+echo "=============================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
+echo
+echo
+
+
+echo "09. GET CP1 V1 — speed=99 now"
+echo "============================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 locally on CB — color=red
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. Seed V1 on CP1 — speed=10
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 exclusive, claims only 'speed' (updateBatch op)
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:EX
+Content-Length: 0
+
+
+
+
+04. Batch Update V1 with ?options=noOverwrite — speed + color both pre-exist, nothing changes
+=============================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 630
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "all attrs already exist; nothing to update under noOverwrite",
+        "status": 400,
+        "title": "Bad Request Data",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    },
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "all attrs already exist; nothing to update under noOverwrite",
+        "status": 400,
+        "title": "Bad Request Data",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      },
+      "registrationId": "urn:CSR:EX"
+    }
+  ],
+  "success": []
+}
+
+
+
+05. GET CB V1 — color still red (local noOverwrite)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "color": "red",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+06. GET CP1 V1 — speed still 10 (noOverwrite propagated on the forward)
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V1",
+  "speed": 10,
+  "type": "Vehicle"
+}
+
+
+
+07. Control: Batch Update V1 without noOverwrite — both sides overwrite → 204
+==============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. GET CB V1 — color=blue now
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "color": "blue",
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+09. GET CP1 V1 — speed=99 now
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V1",
+  "speed": 99,
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
