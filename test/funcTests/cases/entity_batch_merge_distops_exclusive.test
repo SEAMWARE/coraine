@@ -48,7 +48,7 @@ echo
 
 echo "03. Register CB→CP1 exclusive claiming 'speed' (mergeBatch op)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["mergeBatch"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["mergeBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 

@@ -48,7 +48,7 @@ echo "======================================================================"
 # retrieveEntity is in the default federationOps group — the CSR can still
 # answer GETs. It cannot accept updates though, so the batch-update chop
 # must produce a 409 Conflict per affected entity.
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 

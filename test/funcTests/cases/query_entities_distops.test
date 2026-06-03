@@ -145,7 +145,7 @@ sleep 1
 swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}' > /dev/null 2>&1
 swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":25}}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","information":[{"entities":[{"id":"urn:S1","type":"Sensor"}],"propertyNames":["temp"]}]}'
 echo
 swCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
 echo

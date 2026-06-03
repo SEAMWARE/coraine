@@ -7,9 +7,10 @@
 #
 # Batch Entity Delete (§ 5.6.11) — exclusive CSR mode.
 #
-# Exclusive registration routes the delete to CSR. Local delete still
-# attempts (may 404 locally but the distop succeeds → overall success
-# per id).
+# An exclusive registration owns the registered scope: the covered id's
+# delete is chopped and forwarded to the CSR — nothing happens locally
+# (the broker holds no local data for an exclusive scope). Uncovered ids
+# delete locally as usual.
 #
 --NAME--
 Batch Entity Delete — exclusive CSR, delete forwarded
@@ -35,24 +36,21 @@ echo
 echo
 
 
-echo "02. Seed V2 on both CB and CP1"
-echo "=============================="
+echo "02. Seed V2 on CB only"
+echo "======================"
 swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
 echo
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
-echo
-echo
 
 
-echo "03. Register CB→CP1 exclusive (Vehicle, deleteBatch)"
+echo "03. Register CB→CP1 exclusive (V1/speed, deleteBatch)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["deleteBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["deleteBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
-echo "04. Batch Delete [V1, V2] → 204 (V1 forwarded; V2 deleted locally + forwarded)"
+echo "04. Batch Delete [V1, V2] → 204 (V1 forwarded; V2 deleted locally)"
 echo "=============================================================================="
 swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V2"]'
 echo
@@ -80,7 +78,7 @@ echo
 echo
 
 
-echo "08. GET CP1 V2 → 404 (deleted via forward)"
+echo "08. GET CP1 V2 → 404 (never existed on CP1)"
 echo "=========================================="
 swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
 echo
@@ -99,8 +97,8 @@ Content-Length: 0
 
 
 
-02. Seed V2 on both CB and CP1
-==============================
+02. Seed V2 on CB only
+======================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
@@ -110,16 +108,7 @@ Content-Length: 0
 
 
 
-HTTP/1.1 201 Created
-Date: REGEX(.*)
-Content-Type: application/json
-Location: /ngsi-ld/v1/entities/urn:V2
-Content-Length: 0
-
-
-
-
-03. Register CB→CP1 exclusive (Vehicle, deleteBatch)
+03. Register CB→CP1 exclusive (V1/speed, deleteBatch)
 ====================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -130,7 +119,7 @@ Content-Length: 0
 
 
 
-04. Batch Delete [V1, V2] → 204 (V1 forwarded; V2 deleted locally + forwarded)
+04. Batch Delete [V1, V2] → 204 (V1 forwarded; V2 deleted locally)
 ==============================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
@@ -187,7 +176,7 @@ Content-Length: 151
 
 
 
-08. GET CP1 V2 → 404 (deleted via forward)
+08. GET CP1 V2 → 404 (never existed on CP1)
 ==========================================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
