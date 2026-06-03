@@ -192,6 +192,7 @@ char*          userContext  = NULL;
 char*          csourceAlias = NULL;
 char*          httpEndpoint = NULL;
 char*          contextSourceExtras = NULL;  // path to a JSON file (§ 5.2.40)
+char*          traceLevels  = NULL;
 bool           noSplitEntities = false;
 bool           asyncSnapshot   = false;
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
@@ -219,6 +220,7 @@ static KArg kargV[] =
   { "--distOpTimeout",      "-dtmo",        KaInt,    _vp &swRestClientDefaultRequestTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--testConformance",    "-tc",          KaBool,   _vp &ldTestConformance, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "prefer ETSI test-suite expected shapes where spec wording is permissive (\"should\")" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
+  { "--traceLevels",        "-t",           KaString, _vp &traceLevels,  KaOpt, _vp NULL,      NULL,  NULL,      "trace levels" },
   KARGS_END
 };
 
@@ -652,7 +654,7 @@ int main(int argC, char* argV[])
   }
 
 
-  int r = ktInit("swBroker", NULL, true, NULL, kaBuiltinTraceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
+  int r = ktInit("swBroker", NULL, true, NULL, traceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
     KT_X(1, "ktInit failed");
 
