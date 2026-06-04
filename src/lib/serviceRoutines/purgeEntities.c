@@ -290,6 +290,7 @@ bool purgeEntities(void)
 
     int total = exclN + redirN + inclN;
     LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    memset(items, 0, total * sizeof(LdDistOpBatchItem));
     LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));

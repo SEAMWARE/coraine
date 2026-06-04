@@ -503,6 +503,7 @@ bool getEntitiesTemporal(void)
       }
 
       LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      memset(items, 0, total * sizeof(LdDistOpBatchItem));
       LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
       int*                 itemMode  = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
       int                  itemCount = 0;

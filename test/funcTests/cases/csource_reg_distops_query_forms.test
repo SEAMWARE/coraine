@@ -1,0 +1,291 @@
+#
+# FILE            csource_reg_distops_query_forms.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Query-forward forms (§ 9.2 operations):
+#   - queryEntity-supporting CSR  → GET /entities forward, narrowed with the
+#     CSR's pinned entity id (id=) and the claimed attrs (pick=)
+#   - queryBatch-only CSR         → POST /entityOperations/query forward
+#     carrying the same selectors + projection as a § 5.2.23 Query body
+#   - a CSR supporting neither query op is skipped entirely
+# Also: ?attrs= is attribute SELECTION + projection — local entities with
+# none of the listed attributes do not match the query.
+#
+--NAME--
+DistOps query forwards — GET vs POST per CSR ops; attrs is selection
+
+--TAGS--
+csource registration distops query forward attrs
+
+--INIT--
+swDbDrop
+ftClientStart --port 7711 --status 200
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Local entity urn:L1 (Vehicle, brandName only — no speed).
+# 02. queryEntity CSR pinned to urn:R1/speed → GET ?type=Vehicle&attrs=speed:
+#     local urn:L1 has no speed → dropped; CSR forwarded as GET with
+#     id=urn:R1 + pick=speed (ftClient returns []).
+# 03. ftClient dump: ONE GET /ngsi-ld/v1/entities with id + pick.
+# 04. Replace the CSR with a queryBatch-only one → same client GET:
+#     forward becomes POST /entityOperations/query with a Query body.
+# 05. ftClient dump: the POST with type/id selector + attrs.
+# 06. Replace the CSR with createEntity-only → same client GET: no forward
+#     at all; dump stays unchanged (only the earlier entries).
+#
+
+echo "01. Local entity urn:L1 (no speed)"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Vehicle","brandName":{"type":"Property","value":"Tesla"}}'
+echo
+echo
+
+
+echo "02. queryEntity CSR (pinned id urn:R1, propertyNames speed) + GET ?type=Vehicle&attrs=speed"
+echo "============================================================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
+echo
+echo
+
+
+echo "03. ftClient dump — GET forward with id= and pick="
+echo "==================================================="
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "04. queryBatch-only CSR → same client GET becomes a POST forward"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE -X DELETE
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QB","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryBatch"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
+echo
+echo
+
+
+echo "05. ftClient dump — adds the POST /entityOperations/query forward"
+echo "=================================================================="
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "06. createEntity-only CSR → no query forward at all"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QB -X DELETE
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CE","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["createEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
+echo
+ftClientDump --port 7711
+echo
+echo
+
+--EXPECT--
+01. Local entity urn:L1 (no speed)
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:L1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. queryEntity CSR (pinned id urn:R1, propertyNames speed) + GET ?type=Vehicle&attrs=speed
+============================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+03. ftClient dump — GET forward with id= and pick=
+===================================================
+[
+  {
+    "headers": {
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "params": {
+      "id": "urn:R1",
+      "pick": "speed,id,type,scope",
+      "type": "Vehicle"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  }
+]
+
+
+04. queryBatch-only CSR → same client GET becomes a POST forward
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:QB
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[]
+
+
+
+05. ftClient dump — adds the POST /entityOperations/query forward
+==================================================================
+[
+  {
+    "headers": {
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "params": {
+      "id": "urn:R1",
+      "pick": "speed,id,type,scope",
+      "type": "Vehicle"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  },
+  {
+    "body": {
+      "attrs": [
+        "speed"
+      ],
+      "entities": [
+        {
+          "id": "urn:R1",
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    },
+    "headers": {
+      "Content-Length": "80",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entityOperations/query",
+    "verb": "POST"
+  }
+]
+
+
+06. createEntity-only CSR → no query forward at all
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CE
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[]
+
+
+[
+  {
+    "headers": {
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "params": {
+      "id": "urn:R1",
+      "pick": "speed,id,type,scope",
+      "type": "Vehicle"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  },
+  {
+    "body": {
+      "attrs": [
+        "speed"
+      ],
+      "entities": [
+        {
+          "id": "urn:R1",
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    },
+    "headers": {
+      "Content-Length": "80",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entityOperations/query",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop --port 7711
+swDbDrop

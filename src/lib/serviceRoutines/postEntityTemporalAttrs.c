@@ -182,6 +182,7 @@ bool postEntityTemporalAttrs(void)
           for (LdRegInfo* riP = matchV[m][i]->infoV; riP != NULL; riP = riP->next) riCap++;
 
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, riCap * sizeof(LdDistOpBatchItem));
+      memset(items, 0, riCap * sizeof(LdDistOpBatchItem));
       LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, riCap * sizeof(LdDistOpBatchResult));
       int                  itemCount = 0;
       memset(results, 0, riCap * sizeof(LdDistOpBatchResult));

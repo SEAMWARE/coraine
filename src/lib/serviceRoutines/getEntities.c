@@ -27,6 +27,10 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
+#include "swNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
+#include "kalloc/kaStrdup.h"                        // kaStrdup
+#include "kjson/kjRender.h"                         // kjFastRender
+#include "kjson/kjRenderSize.h"                     // kjFastRenderSize
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
 #include "swNgsild/ldAcceptParse.h"                 // ldAcceptParse, LdAcceptType
@@ -199,12 +203,18 @@ static void applyResultFilters(KjNode* arrayP)
 //
 static char** computeWantedAttrs(KAlloc* kaP)
 {
-  if (swNgsild.pickV == NULL)
+  // `attrs` (the deprecated selection+projection alias) narrows the
+  // forward exactly like pick does — the per-source projection is safe
+  // (selection re-runs post-assembly), and without it the forward asks
+  // the source for everything.
+  char** projV = (swNgsild.pickV != NULL) ? swNgsild.pickV : swNgsild.attrsV;
+
+  if (projV == NULL)
     return NULL;
 
-  // Worst-case capacity: pickV count + q-attr count + 2 (geo + geometry) + orderBy count
+  // Worst-case capacity: projV count + q-attr count + 2 (geo + geometry) + orderBy count
   int pickN = 0;
-  while (swNgsild.pickV[pickN] != NULL)
+  while (projV[pickN] != NULL)
     pickN++;
 
   char** qV   = ldQAttrs(swNgsild.qExpr, kaP);
@@ -230,7 +240,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
   } while (0)
 
   for (int i = 0; i < pickN; i++)
-    WANT_ADD(swNgsild.pickV[i]);
+    WANT_ADD(projV[i]);
 
   for (int i = 0; i < qN; i++)
     WANT_ADD(qV[i]);
@@ -863,6 +873,164 @@ static void mergeAttrsNonOverriding(KjNode* destP, KjNode* srcP)
 
 // -----------------------------------------------------------------------------
 //
+// csrPinnedIdsParam - "&id=<id1>,<id2>" when the CSR pins specific entities
+//
+// A registration whose matching EntityInfo entries all carry a specific
+// `id` only ever serves those entities — forwarding the bare type query
+// would ask the source for EVERYTHING of that type. Narrow the forward
+// with the pinned ids. Only when the client itself sent no id/idPattern
+// (their filter passes through raw and must not be widened), and only
+// when EVERY type-matching EntityInfo is id-specific (one id-less or
+// idPattern entry means the source legitimately holds more).
+//
+static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
+{
+  if (swNgsild.id != NULL && swNgsild.id[0] != 0)
+    return "";
+  if (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0)
+    return "";
+
+  int   cap  = 512;
+  char* buf  = (char*) kaAlloc(kaP, cap);
+  int   pos  = 0;
+  int   ids  = 0;
+
+  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+  {
+    for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+    {
+      // type filter: only entityInfos the query can match
+      if (swNgsild.typeV != NULL && eiP->type != NULL)
+      {
+        bool typeMatch = false;
+        for (int t = 0; swNgsild.typeV[t] != NULL; t++)
+          if (strcmp(eiP->type, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
+        if (!typeMatch)
+          continue;
+      }
+
+      if (eiP->id == NULL || eiP->idPatternList != NULL)
+        return "";   // id-less or pattern-matched entry — can't narrow
+
+      const char* v    = urlEncodeReserved(eiP->id, kaP);
+      int         vLen = strlen(v);
+      if (pos + vLen + 8 >= cap)
+      {
+        int   newCap = cap * 2 + vLen;
+        char* nb     = (char*) kaAlloc(kaP, newCap);
+        memcpy(nb, buf, pos);
+        buf = nb;
+        cap = newCap;
+      }
+      if (ids == 0) { memcpy(buf + pos, "&id=", 4); pos += 4; }
+      else            buf[pos++] = ',';
+      memcpy(buf + pos, v, vLen); pos += vLen;
+      ids++;
+    }
+  }
+
+  if (ids == 0)
+    return "";
+
+  buf[pos] = 0;
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// buildQueryBodyFromQs - translate a forward query string into a § 5.2.23
+//                        Query body (the queryBatch form of the same ask)
+//
+// The query string is already CSR-compacted (type/pick values rendered via
+// the CSR's @context), so the body inherits correct short names. Handles
+// the components the GET form emits: type, id, idPattern, q, pick (minus
+// the id/type/scope keywords pick carries for projection-survival — the
+// Query.attrs member never strips entity members).
+//
+static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
+{
+  Kjson*  kjsonP = swRest.kjsonP;
+  KjNode* bodyP  = kjObject(kjsonP, NULL);
+  kjChildAdd(bodyP, kjString(kjsonP, "type", "Query"));
+
+  char* types     = NULL;
+  char* ids       = NULL;
+  char* idPattern = NULL;
+  char* q         = NULL;
+  char* pick      = NULL;
+
+  char* dup = kaStrdup(kaP, qs);
+  char* sp  = NULL;
+  for (char* tok = strtok_r(dup, "&", &sp); tok != NULL; tok = strtok_r(NULL, "&", &sp))
+  {
+    char* eq = strchr(tok, '=');
+    if (eq == NULL) continue;
+    *eq = 0;
+    char* val = eq + 1;
+    if      (strcmp(tok, "type")      == 0) types     = val;
+    else if (strcmp(tok, "id")        == 0) ids       = val;
+    else if (strcmp(tok, "idPattern") == 0) idPattern = val;
+    else if (strcmp(tok, "q")         == 0) q         = val;
+    else if (strcmp(tok, "pick")      == 0) pick      = val;
+  }
+
+  // entities[] — one selector per type (carrying id/idPattern when given).
+  // With ids but no type, one selector per id.
+  KjNode* entitiesP = kjArray(kjsonP, "entities");
+  if (types != NULL)
+  {
+    char* tsp = NULL;
+    for (char* t = strtok_r(types, ",", &tsp); t != NULL; t = strtok_r(NULL, ",", &tsp))
+    {
+      KjNode* selP = kjObject(kjsonP, NULL);
+      kjChildAdd(selP, kjString(kjsonP, "type", t));
+      if (ids != NULL)       kjChildAdd(selP, kjString(kjsonP, "id", ids));            // CSV is legal in the selector? No — id is a single URI; multiple ids → idPattern... keep first
+      if (idPattern != NULL) kjChildAdd(selP, kjString(kjsonP, "idPattern", idPattern));
+      kjChildAdd(entitiesP, selP);
+    }
+  }
+  else if (ids != NULL)
+  {
+    char* isp = NULL;
+    for (char* iv = strtok_r(ids, ",", &isp); iv != NULL; iv = strtok_r(NULL, ",", &isp))
+    {
+      KjNode* selP = kjObject(kjsonP, NULL);
+      kjChildAdd(selP, kjString(kjsonP, "id", iv));
+      kjChildAdd(entitiesP, selP);
+    }
+  }
+  if (entitiesP->value.firstChildP != NULL)
+    kjChildAdd(bodyP, entitiesP);
+
+  if (q != NULL)
+    kjChildAdd(bodyP, kjString(kjsonP, "q", q));
+
+  if (pick != NULL)
+  {
+    KjNode* attrsP = kjArray(kjsonP, "attrs");
+    char*   psp    = NULL;
+    for (char* a = strtok_r(pick, ",", &psp); a != NULL; a = strtok_r(NULL, ",", &psp))
+    {
+      if (strcmp(a, "id") == 0 || strcmp(a, "type") == 0 || strcmp(a, "scope") == 0)
+        continue;
+      kjChildAdd(attrsP, kjString(kjsonP, NULL, a));
+    }
+    if (attrsP->value.firstChildP != NULL)
+      kjChildAdd(bodyP, attrsP);
+  }
+
+  int   sz  = kjFastRenderSize(bodyP) + 1;
+  char* buf = (char*) kaAlloc(kaP, sz);
+  kjFastRender(bodyP, buf);
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // buildQueryString - build the forwarded query string for broker-to-broker comm
 //
 // Reconstructs from raw URL params but strips options (keyValues/concise/
@@ -1197,10 +1365,29 @@ static bool entityMapPaginate(void)
   }
   else if (swNgsild.attrsV != NULL)
   {
-    // § 6.4.3.2 deprecated `attrs` — attribute-only filter, preserves
-    // id / type / scope / @context (unlike pick which can strip them).
-    for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+    // § 6.4.3.2 deprecated `attrs` — attribute SELECTION + projection:
+    // an entity carrying NONE of the listed attributes does not match
+    // the query at all. Project each entity, then drop the ones left
+    // with no attributes (only keywords like id/type/scope remain).
+    KjNode* ep   = arrayP->value.firstChildP;
+    KjNode* prev = NULL;
+    while (ep != NULL)
+    {
+      KjNode* next = ep->next;
       ldAttrsFilter(ep, swNgsild.attrsV);
+
+      bool hasAttr = false;
+      for (KjNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
+      {
+        if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
+      }
+      if (!hasAttr)
+        kjChildRemove(arrayP, ep);
+      else
+        prev = ep;
+      ep = next;
+    }
+    (void) prev;
   }
 
   applyLinkedQPostFilter(arrayP);
@@ -1444,6 +1631,13 @@ bool getEntities(void)
       // so it gets computed inside the loop now.
 
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
+      memset(items, 0, totalMatch * sizeof(LdDistOpBatchItem));
+
+      // § 9.2 operations: a CSR may support queryEntity (GET /entities),
+      // queryBatch (POST /entityOperations/query), both, or neither.
+      // Prefer mirroring the incoming form; fall back to the other; skip
+      // CSRs that support neither query op.
+      bool incomingBatch = (swRest.in.verb == SwVerbPost);
       LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
       int                  itemCount = 0;
       memset(results, 0, totalMatch * sizeof(LdDistOpBatchResult));
@@ -1455,6 +1649,11 @@ bool getEntities(void)
           LdRegCacheItem* csr = modeMatchV[m][i];
           if (csr->endpoint == NULL) continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+
+          bool csrQE = ldRegOpSupported(csr, LdOpQueryEntities);
+          bool csrQB = ldRegOpSupported(csr, LdOpBatchQuery);
+          if (!csrQE && !csrQB) continue;
+          bool postForward = incomingBatch ? csrQB : !csrQE;
 
           if (swNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
           {
@@ -1483,10 +1682,12 @@ bool getEntities(void)
             if (skip) continue;
 
             const char* splitBase = buildSplitForwardQueryString(csr->forwardCtxP);
-            int   bLen = strlen(splitBase), pLen = strlen(pickParam);
-            char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
+            const char* idParam   = csrPinnedIdsParam(csr, &swRest.kalloc);
+            int   bLen = strlen(splitBase), pLen = strlen(pickParam), iLen = strlen(idParam);
+            char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + iLen + 1);
             strcpy(combined, splitBase);
-            if (pLen > 0) strcpy(combined + bLen, pickParam);
+            if (iLen > 0) strcpy(combined + bLen, idParam);
+            if (pLen > 0) strcpy(combined + bLen + iLen, pickParam);
             fullQs = combined;
           }
           else
@@ -1515,15 +1716,41 @@ bool getEntities(void)
                                                         pickWanted, &swRest.kalloc, &skip, csr->forwardCtxP);
               if (skip) { csrSkipped = true; break; }
 
-              int   bLen = strlen(baseQs), pLen = strlen(pickParam);
-              char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + 1);
+              const char* idParam = csrPinnedIdsParam(csr, &swRest.kalloc);
+              int   bLen = strlen(baseQs), pLen = strlen(pickParam), iLen = strlen(idParam);
+              char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + iLen + 1);
               strcpy(combined, baseQs);
-              strcpy(combined + bLen, pickParam);
+              if (iLen > 0) strcpy(combined + bLen, idParam);
+              strcpy(combined + bLen + iLen, pickParam);
               fullQs = combined;
               break;
             }
 
             if (csrSkipped) continue;
+          }
+
+          if (postForward && !swNgsild.entityMapCreate)
+          {
+            // queryBatch form: POST /entityOperations/query with a § 5.2.23
+            // Query body carrying the same selectors + projection as the
+            // GET form's query string.
+            const char* path    = "/ngsi-ld/v1/entityOperations/query";
+            int   baseLen = strlen(csr->endpoint);
+            char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + strlen(path) + 1);
+            strcpy(url, csr->endpoint);
+            strcpy(url + baseLen, path);
+
+            const char* body = buildQueryBodyFromQs(fullQs, &swRest.kalloc);
+
+            KT_T(KtDistOpRequest, "forward: POST %s body=%s", url, body);
+            items[itemCount].csr     = csr;
+            items[itemCount].url     = url;
+            items[itemCount].body    = body;
+            items[itemCount].bodyLen = strlen(body);
+            items[itemCount].hasVerb = true;
+            items[itemCount].verb    = SwVerbPost;
+            itemCount++;
+            continue;
           }
 
           const char* path    = swNgsild.entityMapCreate ? "/ngsi-ld/v1/entityMaps?"
@@ -1839,8 +2066,23 @@ bool getEntities(void)
   }
   else if (swNgsild.attrsV != NULL)
   {
-    for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
-      ldAttrsFilter(entityP, swNgsild.attrsV);
+    // attrs = selection + projection: drop entities with none of the
+    // listed attributes (see the identical block in the local path).
+    KjNode* ep = arrayP->value.firstChildP;
+    while (ep != NULL)
+    {
+      KjNode* next = ep->next;
+      ldAttrsFilter(ep, swNgsild.attrsV);
+
+      bool hasAttr = false;
+      for (KjNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
+      {
+        if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
+      }
+      if (!hasAttr)
+        kjChildRemove(arrayP, ep);
+      ep = next;
+    }
   }
 
   // § 4.9 LinkedEntityRelation — post-filter when q contains a sub-q.

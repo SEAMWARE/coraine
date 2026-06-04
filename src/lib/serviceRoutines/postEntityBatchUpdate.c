@@ -906,6 +906,7 @@ bool postEntityBatchUpdate(void)
   //
   {
     LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
+    memset(bItems, 0, csrAccumsN * sizeof(LdDistOpBatchItem));
     LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
     int                  bIdx[csrAccumsN];   // map batch index → csrAccums index
     int                  bCount   = 0;

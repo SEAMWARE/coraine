@@ -526,6 +526,7 @@ bool postEntities(void)
           for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      memset(items, 0, total * sizeof(LdDistOpBatchItem));
       LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
       KjNode**             itemFrag = (KjNode**) kaAlloc(&swRest.kalloc, total * sizeof(KjNode*));
       int                  itemCount = 0;

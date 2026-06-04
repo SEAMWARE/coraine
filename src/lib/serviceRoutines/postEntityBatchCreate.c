@@ -494,6 +494,7 @@ static void dispatchOneMode(Tenant*       tenantP,
   // supported groups in parallel. Phase 3: apply each per-CSR result.
   //
   LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, gN * sizeof(LdDistOpBatchItem));
+  memset(bItems, 0, gN * sizeof(LdDistOpBatchItem));
   LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, gN * sizeof(LdDistOpBatchResult));
   const char***        bFwdIdV  = (const char***)        kaAlloc(&swRest.kalloc, gN * sizeof(const char**));
   int**                bFwdOrig = (int**)                kaAlloc(&swRest.kalloc, gN * sizeof(int*));
