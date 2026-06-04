@@ -836,6 +836,18 @@ echo
 echo
 
 
+echo "53. POST entities[].id with invalid char in URI scheme - 400"
+echo "============================================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [{"entities": [{"type": "X", "idPattern": "urn:ngsi-ld:Vehicle:*", "id": "entity_pattern=urn:ngsi-ld:Vehicle:*"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
 --EXPECT--
 01. POST without payload - 400
 ==============================
@@ -1645,6 +1657,22 @@ Content-Length: 231
   "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
   "status": 400,
   "title": "Too Wide Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+53. POST entities[].id with invalid char in URI scheme - 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "Not a valid URI: 'entity_pattern=urn:ngsi-ld:Vehicle:*'",
+  "status": 400,
+  "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

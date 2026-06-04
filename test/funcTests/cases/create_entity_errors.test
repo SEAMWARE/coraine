@@ -108,6 +108,9 @@ swBrokerStart
 # 67. type array element not a string (integer)
 # 68. type array element is empty string
 #
+# 69. id with invalid char in URI scheme ('=' before the colon)
+# 70. id with URI scheme starting in a digit
+#
 
 echo "01. Payload not a JSON object (JSON array)"
 echo "=========================================="
@@ -1095,6 +1098,28 @@ echo "======================================"
 payload='{
   "id": "urn:e68",
   "type": [""]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "69. id with invalid char in URI scheme ('=' before the colon)"
+echo "=============================================================="
+payload='{
+  "id": "entity_pattern=urn:x",
+  "type": "T"
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "70. id with URI scheme starting in a digit"
+echo "=========================================="
+payload='{
+  "id": "1urn:x",
+  "type": "T"
 }'
 swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
@@ -2145,6 +2170,38 @@ Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:e68
 Content-Length: 0
 
+
+
+
+69. id with invalid char in URI scheme ('=' before the colon)
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "Not a valid URI: 'entity_pattern=urn:x'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+70. id with URI scheme starting in a digit
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "Not a valid URI: '1urn:x'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
