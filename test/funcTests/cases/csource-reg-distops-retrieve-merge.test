@@ -117,8 +117,8 @@ echo
 echo
 
 
-echo "07. PATCH local V1 to add a stale speed (?local bypasses dispatch)"
-echo "=================================================================="
+echo "07. PATCH local V1 to add a stale speed ?local=true → 409 (exclusive claims speed, § 9.3.3)"
+echo "============================================================================================"
 payload='{
   "speed": {
     "type": "Property",
@@ -130,8 +130,8 @@ echo
 echo
 
 
-echo "08. GET V1 on CB -> merged, stale local speed stripped (exclusive wins)"
-echo "========================================================================"
+echo "08. GET V1 on CB -> merged, no stale local speed can exist (exclusive wins)"
+echo "============================================================================"
 swCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
@@ -254,17 +254,24 @@ Content-Length: REGEX(\d+)
 
 
 
-07. PATCH local V1 to add a stale speed (?local bypasses dispatch)
-==================================================================
-HTTP/1.1 204 No Content
+07. PATCH local V1 to add a stale speed ?local=true → 409 (exclusive claims speed, § 9.3.3)
+============================================================================================
+HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:R1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
 
 
 
-
-08. GET V1 on CB -> merged, stale local speed stripped (exclusive wins)
-========================================================================
+08. GET V1 on CB -> merged, no stale local speed can exist (exclusive wins)
+============================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json

@@ -130,20 +130,20 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
-echo "12. Seed CB's local urn:V3 too"
-echo "=============================="
+echo "12. Local create of urn:V3 ?local=true → 409 (exclusive claim, § 9.3.3)"
+echo "========================================================================"
 swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
-echo "13. DELETE urn:V3 ?local=true → CSR skipped, only local deleted (204)"
-echo "====================================================================="
+echo "13. DELETE urn:V3 ?local=true → CSR skipped, no local entity (404)"
+echo "=================================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X DELETE
 echo
 echo
 
-echo "14. GET urn:V3 on CP1 → still 200 (bypass did not forward)"
-echo "=========================================================="
+echo "14. GET urn:V3 on CP1 → still 200 (?local=true did not forward)"
+echo "==============================================================="
 swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
 echo
 echo
@@ -311,28 +311,40 @@ Content-Length: REGEX(\d+)
 
 
 
-12. Seed CB's local urn:V3 too
-==============================
-HTTP/1.1 201 Created
+12. Local create of urn:V3 ?local=true → 409 (exclusive claim, § 9.3.3)
+========================================================================
+HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Location: /ngsi-ld/v1/entities/urn:V3
 Content-Length: REGEX(\d+)
 
+{
+  "detail": "local create overlaps with registration 'urn:CSR:Bypass' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
 
 
 
-13. DELETE urn:V3 ?local=true → CSR skipped, only local deleted (204)
-=====================================================================
-HTTP/1.1 204 No Content
+13. DELETE urn:V3 ?local=true → CSR skipped, no local entity (404)
+==================================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "entity 'urn:V3' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
 
 
 
-
-14. GET urn:V3 on CP1 → still 200 (bypass did not forward)
-==========================================================
+14. GET urn:V3 on CP1 → still 200 (?local=true did not forward)
+===============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json

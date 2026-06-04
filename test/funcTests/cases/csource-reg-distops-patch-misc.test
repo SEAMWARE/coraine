@@ -144,15 +144,17 @@ echo
 echo
 
 
-echo "12. PATCH urn:V3 ?local=true: speed=9000 → CSR skipped, local-only merge (204)"
-echo "=============================================================================="
+echo "12. PATCH urn:V3 ?local=true: speed=9000 → 409 (exclusive claims speed); color=red → 204 (unclaimed, local-only merge)"
+echo "======================================================================================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"speed":{"type":"Property","value":9000}}'
 echo
+swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"color":{"type":"Property","value":"red"}}'
+echo
 echo
 
 
-echo "13. GET urn:V3 on CP1 → still speed=1 (bypass did not forward)"
-echo "=============================================================="
+echo "13. GET urn:V3 on CP1 → still speed=1 (?local=true did not forward)"
+echo "==================================================================="
 swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
 echo
 echo
@@ -161,7 +163,7 @@ echo
 # --- 14: loop skip ---
 echo "14. PATCH with own Via alias → forward skipped, local merge still runs"
 echo "======================================================================"
-# CB's local V3 now has color=green, speed=9000. The Via loop suppresses the
+# CB's local V3 now has color=red. The Via loop suppresses the
 # forward to CP1 but the local merge of brand=Ghost still lands.
 swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PATCH -H "Via: 1.1 swBroker:$CB_PORT" --payload '{"brand":{"type":"Property","value":"Ghost"}}'
 echo
@@ -341,8 +343,21 @@ Content-Length: 0
 
 
 
-12. PATCH urn:V3 ?local=true: speed=9000 → CSR skipped, local-only merge (204)
-==============================================================================
+12. PATCH urn:V3 ?local=true: speed=9000 → 409 (exclusive claims speed); color=red → 204 (unclaimed, local-only merge)
+=======================================================================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "local update overlaps with registration 'urn:CSR:PatchBypass' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
@@ -350,8 +365,8 @@ Content-Type: application/json
 
 
 
-13. GET urn:V3 on CP1 → still speed=1 (bypass did not forward)
-==============================================================
+13. GET urn:V3 on CP1 → still speed=1 (?local=true did not forward)
+===================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -393,13 +408,9 @@ Content-Length: REGEX(\d+)
   },
   "color": {
     "type": "Property",
-    "value": "green"
+    "value": "red"
   },
   "id": "urn:V3",
-  "speed": {
-    "type": "Property",
-    "value": 9000
-  },
   "type": "Vehicle"
 }
 
