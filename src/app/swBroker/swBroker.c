@@ -200,6 +200,7 @@ int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 
 static KArg kargV[] =
 {
+  { "--traceLevels",        "-t",           KaString, _vp &traceLevels,  KaOpt, _vp NULL,      NULL,  NULL,      "trace levels" },
   { "--port",               "-p",           KaUShort, _vp &port,         KaOpt, _vp 1026,     _vp 1, _vp 65535, "TCP port to listen on" },
   { "--database",           "-db",          KaString, _vp &dbName,       KaOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
   { "--troe",               "-troe",        KaString, _vp &troeName,     KaOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
@@ -220,7 +221,6 @@ static KArg kargV[] =
   { "--distOpTimeout",      "-dtmo",        KaInt,    _vp &swRestClientDefaultRequestTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--testConformance",    "-tc",          KaBool,   _vp &ldTestConformance, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "prefer ETSI test-suite expected shapes where spec wording is permissive (\"should\")" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
-  { "--traceLevels",        "-t",           KaString, _vp &traceLevels,  KaOpt, _vp NULL,      NULL,  NULL,      "trace levels" },
   KARGS_END
 };
 
