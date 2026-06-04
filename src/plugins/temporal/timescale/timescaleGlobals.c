@@ -53,6 +53,6 @@ KArg timescaleArgV[] =
   { "--troeUser", "-troeUser", KaString, _vp &timescaleDbUser, KaOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
   { "--troePwd",  "-troePwd",  KaString, _vp &timescaleDbPwd,  KaOpt, _vp NULL,        NULL, NULL, "TRoE postgres password" },
   { "--troePort", "-troePort", KaInt,    _vp &timescaleDbPort, KaOpt, _vp 5432,        _vp 1, _vp 65535, "TRoE postgres port" },
-  { "--troeInstanceCap", "-troeCap", KaInt, _vp &timescaleInstanceCap, KaOpt, _vp 1000000, _vp 1, _vp 1000000, "Per-entity attribute-instance cap before 206 + Content-Range (§ 6.3.10)" },
+  { "--troeInstanceCap", "-troeCap", KaInt, _vp &timescaleInstanceCap, KaOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
   KARGS_END
 };

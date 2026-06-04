@@ -31,6 +31,7 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "swNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -427,6 +428,8 @@ bool getEntitiesTemporal(void)
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
   filter.lastN        = swNgsild.lastN;
+  filter.firstN       = swNgsild.firstN;
+  filter.offsetN      = swNgsild.offsetN;
   filter.datasetIdV   = swNgsild.datasetIdV;
   filter.idV          = swNgsild.idV;
   filter.idPattern    = swNgsild.idPattern;
@@ -626,63 +629,10 @@ bool getEntitiesTemporal(void)
 
   swRest.out.responseTree = result;
 
-  // § 6.3.10: 206 Partial Content + Content-Range when any entity was truncated.
-  // The bounds span the union of all entities' attribute time ranges; the
-  // wire-form range-start/range-end are remapped per timerel + lastN per
-  // § 6.3.10 (see getEntityTemporal.c for the full table).
-  if (rangeInfo.truncated && rangeInfo.rangeStartIso != NULL && rangeInfo.rangeEndIso != NULL)
-  {
-    const char* earliest = rangeInfo.rangeStartIso;   // plugin: min-ts
-    const char* latest   = rangeInfo.rangeEndIso;     // plugin: max-ts
-    const char* timerel  = swNgsild.timerel;
-    bool        hasLastN = (swNgsild.lastN > 0);
-
-    const char* rangeStartIso = earliest;
-    const char* rangeEndIso   = latest;
-
-    if (hasLastN)
-    {
-      if (timerel != NULL && strcmp(timerel, "before") == 0)
-      {
-        rangeStartIso = swNgsild.timeAt ? swNgsild.timeAt : latest;
-        rangeEndIso   = earliest;
-      }
-      else if (timerel != NULL && strcmp(timerel, "between") == 0)
-      {
-        rangeStartIso = swNgsild.endTimeAt ? swNgsild.endTimeAt : latest;
-        rangeEndIso   = earliest;
-      }
-      else
-      {
-        rangeStartIso = latest;
-        rangeEndIso   = earliest;
-      }
-    }
-    else
-    {
-      if (timerel != NULL && strcmp(timerel, "before") == 0)
-      {
-        rangeStartIso = earliest;
-        rangeEndIso   = latest;
-      }
-      else
-      {
-        rangeStartIso = swNgsild.timeAt ? swNgsild.timeAt : earliest;
-        rangeEndIso   = latest;
-      }
-    }
-
-    int   sz  = 96;
-    char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
-    if (rangeInfo.size > 0)
-      snprintf(buf, sz, "date-time %s-%s/%d", rangeStartIso, rangeEndIso, rangeInfo.size);
-    else
-      snprintf(buf, sz, "date-time %s-%s/*", rangeStartIso, rangeEndIso);
-    swRestOutHeaderAdd("Content-Range", buf);
-    swRest.out.httpStatusCode = 206;
-  }
-  else
-    swRest.out.httpStatusCode = 200;
+  // § 6.4.7.3: when any entity's instances remain beyond the returned
+  // page, emit Link rel="intervalafter"/"intervalbefore" page pointers.
+  ldTemporalPaginationLinkHeader(rangeInfo.hasMore, rangeInfo.size);
+  swRest.out.httpStatusCode = 200;
 
   return true;
 }

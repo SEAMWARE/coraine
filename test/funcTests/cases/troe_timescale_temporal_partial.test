@@ -5,17 +5,20 @@
 #
 # Copyright 2026 Seamware
 #
-# § 6.3.10 partial-content: any time the response was capped — by the
-# implementation default cap when ?lastN is absent, OR by the user's
-# explicit ?lastN — broker emits 206 + Content-Range with unit=date-time.
-# Size is "*" (unknown total) for the default-cap case, the lastN value
-# when ?lastN was specified.
+# § 6.4.7.3 (TS 104-176) temporal pagination: the per-attribute page
+# limit is ?firstN (ascending) / ?lastN (descending) / the configured
+# default (ascending); ?offsetN skips into the sequence. When instances
+# remain beyond the page, the broker emits Link page pointers:
+# rel="intervalafter" → the page with LATER timestamps,
+# rel="intervalbefore" → EARLIER timestamps (time-oriented, so the
+# relations swap sides between ascending and descending pagination).
+# Status is always 200 — the old § 6.3.10 206 + Content-Range is gone.
 #
-# Broker is started with --troeInstanceCap 5 so we can exceed the cap
-# with only a handful of PATCHes.
+# Broker is started with --troeInstanceCap 5 so we can exceed the
+# default page limit with only a handful of PATCHes.
 #
 --NAME--
-TRoE timescale - 206 + Content-Range when instance cap exceeded (§ 6.3.10)
+TRoE timescale - temporal pagination Link page pointers (§ 6.4.7.3)
 
 --TAGS--
 troe timescale postgres temporal partial-content pagination
@@ -30,10 +33,20 @@ swBrokerStart --troe timescale --troeName sw_troe_partial --troeUser postgres --
 
 #
 # 01. Seed urn:V1 with 8 speed instances (observedAt 09:00..16:00).
-# 02. GET /temporal/entities/urn:V1 (no lastN) → 206, capped at 5 (the
-#     default cap), Content-Range size=* (unknown total).
-# 03. GET ...?lastN=3 → 206, Content-Range size=3.
-# 04. Multi-entity GET (no lastN) → 206 across the union, size=*.
+# 02. GET /temporal/entities/urn:V1 (no params) → 200, first 5 ascending
+#     (the default page limit), Link rel="intervalafter" offsetN=5.
+# 03. GET ...?lastN=3 → 200, last 3 descending, deeper page = earlier
+#     timestamps → Link rel="intervalbefore" offsetN=3.
+# 04. GET ...?lastN=3&offsetN=3 → 200, instances 13:00..11:00 descending,
+#     both pointers: intervalafter offsetN=0 (newer), intervalbefore
+#     offsetN=6 (older).
+# 05. GET ...?firstN=2&offsetN=2 → 200, 11:00+12:00 ascending, both
+#     pointers: intervalbefore offsetN=0, intervalafter offsetN=4.
+# 06. Multi-entity GET (no firstN/lastN) → 200, capped at 5, Link
+#     rel="intervalafter" carrying the original query params.
+# 07. firstN=0 → 400 (must be > 0).
+# 08. offsetN=-1 → 400 (must be >= 0).
+# 09. firstN + lastN together → 400 (ascending vs descending).
 #
 
 echo "01. Seed urn:V1 with 8 speed instances at observedAt 09:00..16:00"
@@ -51,23 +64,58 @@ echo
 echo
 
 
-echo "02. Single-entity GET (no lastN) → 206 + Content-Range size=*, 5 of 8 instances"
-echo "==============================================================================="
+echo "02. Single-entity GET (no params) → 200, first 5 ascending, intervalafter offsetN=5"
+echo "===================================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
 echo
 echo
 
 
-echo "03. Single-entity GET (lastN=3) → 206 + Content-Range size=3, 3 instances"
-echo "========================================================================="
+echo "03. Single-entity GET (lastN=3) → 200, last 3 descending, intervalbefore offsetN=3"
+echo "==================================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3'
 echo
 echo
 
 
-echo "04. Multi-entity GET (no lastN) → 206 + Content-Range size=*"
-echo "============================================================"
+echo "04. GET lastN=3&offsetN=3 → 13:00..11:00 descending, both pointers"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3&offsetN=3'
+echo
+echo
+
+
+echo "05. GET firstN=2&offsetN=2 → 11:00+12:00 ascending, both pointers"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&offsetN=2'
+echo
+echo
+
+
+echo "06. Multi-entity GET (no firstN/lastN) → 200, capped at 5, intervalafter"
+echo "========================================================================"
 swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
+echo
+echo
+
+
+echo "07. firstN=0 → 400"
+echo "=================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=0'
+echo
+echo
+
+
+echo "08. offsetN=-1 → 400"
+echo "===================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?offsetN=-1'
+echo
+echo
+
+
+echo "09. firstN=2&lastN=3 → 400 (contradictory directions)"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&lastN=3'
 echo
 echo
 
@@ -78,12 +126,12 @@ echo
 done
 
 
-02. Single-entity GET (no lastN) → 206 + Content-Range size=*, 5 of 8 instances
-===============================================================================
-HTTP/1.1 206 Partial Content
+02. Single-entity GET (no params) → 200, first 5 ascending, intervalafter offsetN=5
+====================================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Range: date-time 2026-04-28T09:00:00Z-2026-04-28T13:00:00Z/*
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?offsetN=5>;rel="intervalafter";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
@@ -126,12 +174,12 @@ Content-Length: REGEX(\d+)
 
 
 
-03. Single-entity GET (lastN=3) → 206 + Content-Range size=3, 3 instances
-=========================================================================
-HTTP/1.1 206 Partial Content
+03. Single-entity GET (lastN=3) → 200, last 3 descending, intervalbefore offsetN=3
+===================================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Range: date-time 2026-04-28T16:00:00Z-2026-04-28T14:00:00Z/3
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?lastN=3&offsetN=3>;rel="intervalbefore";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
@@ -162,12 +210,78 @@ Content-Length: REGEX(\d+)
 
 
 
-04. Multi-entity GET (no lastN) → 206 + Content-Range size=*
-============================================================
-HTTP/1.1 206 Partial Content
+04. GET lastN=3&offsetN=3 → 13:00..11:00 descending, both pointers
+==================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Range: date-time 2026-01-01T00:00:00Z-2026-04-28T13:00:00Z/*
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?lastN=3&offsetN=0>;rel="intervalafter";type="application/json", </ngsi-ld/v1/temporal/entities/urn:V1?lastN=3&offsetN=6>;rel="intervalbefore";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T13:00:00Z",
+      "type": "Property",
+      "value": 50
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. GET firstN=2&offsetN=2 → 11:00+12:00 ascending, both pointers
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&offsetN=0>;rel="intervalbefore";type="application/json", </ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&offsetN=4>;rel="intervalafter";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "instanceId": REGEX("urn:ngsi-ld:Instance:.*"),
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+06. Multi-entity GET (no firstN/lastN) → 200, capped at 5, intervalafter
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true&offsetN=5>;rel="intervalafter";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
@@ -209,6 +323,54 @@ Content-Length: REGEX(\d+)
     "type": "Vehicle"
   }
 ]
+
+
+
+07. firstN=0 → 400
+==================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "firstN must be a positive integer (got '0')",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. offsetN=-1 → 400
+====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "offsetN must be a non-negative integer (got '-1')",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. firstN=2&lastN=3 → 400 (contradictory directions)
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "?firstN= and ?lastN= cannot be combined (ascending vs descending temporal pagination)",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 

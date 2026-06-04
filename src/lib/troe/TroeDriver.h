@@ -112,8 +112,13 @@ typedef struct TroeQueryFilter
   // ?attrs= — NULL-terminated array of expanded IRIs, NULL when no filter
   char**       attrV;
 
-  // ?lastN= per-attribute instance cap (0 = no cap)
+  // § 6.4.7.3 temporal pagination: lastN = per-attribute limit in
+  // descending order, firstN = same in ascending order (both 0 = unset;
+  // mutually exclusive — validated at the API surface). offsetN skips
+  // that many instances per attribute in the chosen order.
   int          lastN;
+  int          firstN;
+  int          offsetN;
 
   // ?q= compiled to a SQL WHERE fragment (EXISTS-subqueries against
   // troe_attrs keyed on the outer entity_id $1). NULL = no q filter.
@@ -149,17 +154,19 @@ typedef struct TroeQueryFilter
 
 // -----------------------------------------------------------------------------
 //
-// TroeRangeInfo - response-level pagination info (§ 6.3.10).
+// TroeRangeInfo - response-level temporal pagination info (§ 6.4.7.3).
 //
-// Out-param populated by the plugin. When `truncated` is set, the
-// service routine emits a 206 + Content-Range. Bounds are formatted ISO.
+// Out-param populated by the plugin. When `hasMore` is set, instances
+// remain beyond the returned page in the pagination direction and the
+// service routine emits a Link rel="intervalafter"/"intervalbefore"
+// pair. Bounds are formatted ISO (kept for diagnostics).
 //
 typedef struct TroeRangeInfo
 {
-  bool         truncated;        // any (attr, ds) hit instanceCap?
-  const char*  rangeStartIso;    // earliest observed_at returned (forward) / latest (backward)
-  const char*  rangeEndIso;      // latest observed_at returned (forward) / earliest (backward)
-  int          size;             // 0 = unset → "*", otherwise lastN value
+  bool         hasMore;          // instances remain beyond this page (per § 6.4.7.3 direction)
+  const char*  rangeStartIso;    // earliest timestamp returned (forward) / latest (backward)
+  const char*  rangeEndIso;      // latest timestamp returned (forward) / earliest (backward)
+  int          size;             // effective per-attribute page limit (firstN/lastN/default cap)
 } TroeRangeInfo;
 
 

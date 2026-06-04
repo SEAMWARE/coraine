@@ -7,11 +7,12 @@
 //
 // Read path: single-entity retrieve and multi-entity query.
 //
-// § 6.3.10 temporal pagination: any time the response was capped — by
-// the user's ?lastN OR by the implementation-default instance cap when
-// ?lastN is absent — TroeRangeInfo->truncated is set so the service
-// routine emits 206 + Content-Range. The Content-Range size field is
-// the lastN value when lastN was used, otherwise "*" (unknown total).
+// § 6.4.7.3 temporal pagination: the per-attribute page limit is
+// ?lastN (descending) or ?firstN (ascending) or the configured default
+// (ascending); ?offsetN skips into the sequence. When instances remain
+// beyond the returned page, TroeRangeInfo->hasMore is set so the
+// service routine emits Link rel="intervalafter"/"intervalbefore"
+// page pointers.
 //
 // Result tree shape (NGSI-LD § 5.7.4 TemporalEntity):
 //   {
@@ -50,8 +51,9 @@
 #include "temporal/timescale/timescaleQuery.h"            // Own interface
 
 
-// Default per-entity instance cap when ?lastN is absent (§ 6.3.10).
-// Configurable later via CLI; hardcoded for now so tests get a stable knob.
+// Default per-attribute page limit when neither ?firstN nor ?lastN is
+// given (§ 6.4.7.3 "default maximum limit"). Configurable later via CLI;
+// hardcoded for now so tests get a stable knob.
 #define TROE_DEFAULT_INSTANCE_CAP 100
 
 
@@ -306,6 +308,8 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   char**      attrV         = (fP != NULL) ? fP->attrV         : NULL;
   char**      datasetIdV    = (fP != NULL) ? fP->datasetIdV    : NULL;
   int         lastN         = (fP != NULL) ? fP->lastN         : 0;
+  int         firstN        = (fP != NULL) ? fP->firstN        : 0;
+  int         offsetN       = (fP != NULL) ? fP->offsetN       : 0;
   const char* qPred         = (fP != NULL) ? fP->qSqlPredicate : NULL;
   int         instanceCap   = (fP != NULL && fP->instanceCap > 0) ? fP->instanceCap
                               : (timescaleInstanceCap > 0 ? timescaleInstanceCap : TROE_DEFAULT_INSTANCE_CAP);
@@ -399,30 +403,26 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     "modified_at, observed_at, instance_id, "
     "to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS created_at_iso";
 
-  const char* orderDir = (lastN > 0) ? "DESC" : "ASC";
+  // § 6.4.7.3 temporal pagination: the per-attribute page limit N is
+  // lastN (descending order) or firstN (ascending) or the configured
+  // default limit (ascending); offsetN skips that many instances per
+  // attribute in the chosen direction. The limit applies per
+  // (attr_name, dataset_id) partition — the old v1.9.1 § 6.3.10
+  // total-cap-with-attribute-boundary semantics are gone.
+  int         pageLimit = (lastN > 0) ? lastN : ((firstN > 0) ? firstN : instanceCap);
+  bool        backwards = (lastN > 0);
+  const char* orderDir  = backwards ? "DESC" : "ASC";
 
-  // § 6.3.10 attribute-aware cap (ETSI 020_14): the implementation cap
-  // (instanceCap) limits the TOTAL number of instances across all attrs,
-  // and when it would clip mid-attribute the cut must move to a clean
-  // attribute boundary so no attribute is half-included. Pre-pass groups
-  // the matching instances by (attr_name, dataset_id), gets each group's
-  // count and time bounds, sorts them by entry-time (ASC for forwards,
-  // DESC for backwards), and cumulates the per-group counts up to the
-  // cap. Groups that don't fit are excluded entirely.
-  //
-  // For ?lastN the per-group count is min(actual, lastN) since the
-  // per-partition rn<=lastN clip applies first.
-  // Fetch the raw COUNT(*) per (attr,ds); the C side decides which groups
-  // to keep, applies the user's ?lastN and the implementation cap, and
-  // detects truncation (lastN-driven, cap-driven, or both).
+  // Pre-pass: per-(attr_name, dataset_id) instance counts within the
+  // window — used to detect whether instances remain beyond the current
+  // page (hasMore → Link rel="intervalafter"/"intervalbefore" at the
+  // API surface).
   char groupSql[4096];
   snprintf(groupSql, sizeof(groupSql),
-    "SELECT attr_name, dataset_id, COUNT(*)::int, "
-    "to_char(MIN(%s) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), "
-    "to_char(MAX(%s) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') "
+    "SELECT attr_name, dataset_id, COUNT(*)::int "
     "FROM troe_attrs WHERE entity_id = $1 AND tenant = $2%s%s%s%s "
     "GROUP BY attr_name, dataset_id",
-    tCol, tCol, timePred, opPred, attrPred, dsPred);
+    timePred, opPred, attrPred, dsPred);
 
   PGresult* gRes = PQexecParams(timescaleConn, groupSql, nParams, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(gRes) != PGRES_TUPLES_OK)
@@ -432,199 +432,37 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     return TROE_ERR;
   }
 
-  int groupN = PQntuples(gRes);
-
-  typedef struct GroupInfo
-  {
-    const char* attr;
-    const char* ds;     // empty string for default instance
-    int         cnt;
-    const char* minIsoG;
-    const char* maxIsoG;
-    bool        keep;
-  } GroupInfo;
-
-  GroupInfo* groups   = (GroupInfo*) kaAlloc(&swRest.kalloc, sizeof(GroupInfo) * (groupN + 1));
-  // ETSI's temporal fixtures expect 206 + Content-Range whenever ?lastN
-  // is supplied, even when the per-attribute counts already fit (see
-  // doc/spec-doubts.md § 23 and doc/testsuite-doubts.md § 6 — the suite
-  // is internally inconsistent on this and we picked the larger cluster).
-  // Apply the lastN clip per-group and report it as a truncation either
-  // way.
-  bool lastNHit = (lastN > 0 && groupN > 0);
+  int  groupN  = PQntuples(gRes);
+  bool hasMore = false;
   for (int i = 0; i < groupN; i++)
   {
-    groups[i].attr    = kaStrdup(&swRest.kalloc, PQgetvalue(gRes, i, 0));
-    groups[i].ds      = PQgetisnull(gRes, i, 1) ? ""  : kaStrdup(&swRest.kalloc, PQgetvalue(gRes, i, 1));
-    int actual        = (int) strtol(PQgetvalue(gRes, i, 2), NULL, 10);
-    groups[i].cnt     = (lastN > 0 && actual > lastN) ? lastN : actual;
-    groups[i].minIsoG = PQgetisnull(gRes, i, 3) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(gRes, i, 3));
-    groups[i].maxIsoG = PQgetisnull(gRes, i, 4) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(gRes, i, 4));
-    groups[i].keep    = false;
+    int actual = (int) strtol(PQgetvalue(gRes, i, 2), NULL, 10);
+    if (actual > offsetN + pageLimit)
+      hasMore = true;
   }
   PQclear(gRes);
 
-  // Sort groups by entry-into-window time:
-  //   forwards (no lastN, ASC tCol):  earliest min_t first
-  //   backwards (lastN, DESC tCol):   latest max_t first
-  bool forwards = (lastN <= 0);
-  for (int i = 0; i < groupN - 1; i++)
-  {
-    int best = i;
-    for (int j = i + 1; j < groupN; j++)
-    {
-      const char* aTs = forwards ? groups[best].minIsoG : groups[best].maxIsoG;
-      const char* bTs = forwards ? groups[j].minIsoG    : groups[j].maxIsoG;
-      if (aTs == NULL && bTs == NULL) continue;
-      if (aTs == NULL) { best = j; continue; }
-      if (bTs == NULL) continue;
-      int c = strcmp(bTs, aTs);
-      if (forwards ? c < 0 : c > 0) best = j;
-    }
-    if (best != i) { GroupInfo tmp = groups[i]; groups[i] = groups[best]; groups[best] = tmp; }
-  }
+  if (groupN == 0 && entityType == NULL)
+    return TROE_NOT_FOUND;
 
-  // Cumulate counts; mark groups that fit within instanceCap as keep.
-  // Special-case the *first* group: if it alone exceeds the cap we clip
-  // it (single attribute, no boundary issue — same as the historical
-  // ?lastN=cap behaviour). Every subsequent group either fits in full or
-  // is dropped entirely so the response never shows a partially-included
-  // attribute mid-time-window.
-  int  cumulative   = 0;
-  bool capHit       = false;
-  int  firstClipLim = 0;       // per-partition rn cap for the first group, when set
-  int  firstClipIx  = -1;
-  for (int i = 0; i < groupN; i++)
-  {
-    if (cumulative + groups[i].cnt <= instanceCap)
-    {
-      groups[i].keep = true;
-      cumulative   += groups[i].cnt;
-    }
-    else if (cumulative == 0)
-    {
-      // First-and-only group, larger than the cap. Keep but clip.
-      groups[i].keep = true;
-      firstClipLim   = instanceCap;
-      firstClipIx    = i;
-      cumulative     = instanceCap;
-      capHit         = true;
-    }
-    else
-    {
-      capHit = true;
-    }
-  }
-
-  // Build the (attr_name, dataset_id) IN-clause that filters the main
-  // instance SELECT to the kept groups. Empty result if nothing kept.
-  int   keptN     = 0;
-  char* keptClause = (char*) kaAlloc(&swRest.kalloc, 64);
-  keptClause[0]   = 0;
-  int   needed    = 64;
-  for (int i = 0; i < groupN; i++) if (groups[i].keep) needed += strlen(groups[i].attr) * 2 + strlen(groups[i].ds) * 2 + 12;
-  if (needed > 64) keptClause = (char*) kaAlloc(&swRest.kalloc, needed);
-  int   pos = 0;
-  pos += snprintf(keptClause + pos, needed - pos, " AND (attr_name, dataset_id) IN (");
-  for (int i = 0; i < groupN; i++)
-  {
-    if (!groups[i].keep) continue;
-    if (keptN > 0) keptClause[pos++] = ',';
-    keptClause[pos++] = '(';
-    keptClause[pos++] = '\'';
-    for (const char* s = groups[i].attr; *s != 0; s++) { if (*s == '\'') keptClause[pos++] = '\''; keptClause[pos++] = *s; }
-    keptClause[pos++] = '\'';
-    keptClause[pos++] = ',';
-    keptClause[pos++] = '\'';
-    for (const char* s = groups[i].ds; *s != 0; s++) { if (*s == '\'') keptClause[pos++] = '\''; keptClause[pos++] = *s; }
-    keptClause[pos++] = '\'';
-    keptClause[pos++] = ')';
-    keptN++;
-  }
-  keptClause[pos++] = ')';
-  keptClause[pos]   = 0;
-
-  // Nothing to return — either no instances at all (entity unknown), or
-  // every group was excluded by the cap. The first case is a 404 (caller
-  // converts TROE_NOT_FOUND into ResourceNotFound at the API surface);
-  // the second still returns the skeleton + 206 / Content-Range so the
-  // client knows their query cap was hit.
-  if (keptN == 0)
-  {
-    if (groupN == 0 && entityType == NULL)
-      return TROE_NOT_FOUND;
-
-    if (rangeOut != NULL && capHit)
-      rangeOut->truncated = true;
-
-    Kjson*  kjsonP = swRest.kjsonP;
-    KjNode* root   = kjObject(kjsonP, NULL);
-    kjChildAdd(root, kjString(kjsonP, "id", entityId));
-    if (entityType != NULL)
-      kjChildAdd(root, kjString(kjsonP, "type", entityType));
-    *treePP = root;
-    return TROE_OK;
-  }
-
-  int   sqlSize = 8192 + needed;
+  int   sqlSize = 8192;
   char* sql     = (char*) kaAlloc(&swRest.kalloc, sqlSize);
 
-  // Compose a per-partition `rn <= LIMIT` clause that handles both the
-  // user's ?lastN and (if any) the first-group clip on top.
-  // For the lastN case the cap applies on a single specific (attr,ds).
-  // For the no-lastN case we still emit the window function so we can
-  // drop the first group's overflow rows without rebuilding the query.
-  char rnLimit[1280];
-  if (firstClipIx >= 0)
-  {
-    int globalLim = (lastN > 0) ? lastN : firstClipLim;
-    if (globalLim < firstClipLim) globalLim = firstClipLim;
-    char attrEsc[512]; int ap = 0;
-    for (const char* s = groups[firstClipIx].attr; *s != 0 && ap < (int)sizeof(attrEsc) - 4; s++)
-    { if (*s == '\'') attrEsc[ap++] = '\''; attrEsc[ap++] = *s; }
-    attrEsc[ap] = 0;
-    char dsEsc[512]; int dp = 0;
-    for (const char* s = groups[firstClipIx].ds; *s != 0 && dp < (int)sizeof(dsEsc) - 4; s++)
-    { if (*s == '\'') dsEsc[dp++] = '\''; dsEsc[dp++] = *s; }
-    dsEsc[dp] = 0;
-    snprintf(rnLimit, sizeof(rnLimit),
-      "rn <= (CASE WHEN attr_name = '%s' AND dataset_id = '%s' THEN %d ELSE %d END)",
-      attrEsc, dsEsc, firstClipLim, globalLim);
-  }
-  else if (lastN > 0)
-  {
-    snprintf(rnLimit, sizeof(rnLimit), "rn <= %d", lastN);
-  }
-  else
-  {
-    rnLimit[0] = 0;  // no rn clip needed; emit a plain SELECT below
-  }
+  // Per-partition page clip. The window function ORDER BY follows the
+  // pagination direction so rn=1 is the first instance of the page
+  // sequence (earliest for ascending, latest for descending).
+  char rnClip[96];
+  snprintf(rnClip, sizeof(rnClip), "rn > %d AND rn <= %d", offsetN, offsetN + pageLimit);
 
-  if (rnLimit[0] != 0)
-  {
-    // Window function ORDER BY follows the same direction as the outer
-    // ORDER BY: ASC for forwards (?lastN absent), DESC for backwards
-    // (?lastN present). That keeps `rn=1` aligned with "earliest-in-
-    // window" so a clip via rn<=N takes the right N instances.
-    snprintf(sql, sqlSize,
-      "SELECT * FROM ("
-      "SELECT %s, "
-      "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s) AS rn "
-      "FROM troe_attrs "
-      "WHERE entity_id = $1 AND tenant = $2%s%s%s%s%s) sub "
-      "WHERE %s "
-      "ORDER BY attr_name, dataset_id, %s %s",
-      selectCols, tCol, orderDir, timePred, opPred, attrPred, dsPred, keptClause, rnLimit, tCol, orderDir);
-  }
-  else
-  {
-    snprintf(sql, sqlSize,
-      "SELECT %s "
-      "FROM troe_attrs "
-      "WHERE entity_id = $1 AND tenant = $2%s%s%s%s%s "
-      "ORDER BY attr_name, dataset_id, %s %s",
-      selectCols, timePred, opPred, attrPred, dsPred, keptClause, tCol, orderDir);
-  }
+  snprintf(sql, sqlSize,
+    "SELECT * FROM ("
+    "SELECT %s, "
+    "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s) AS rn "
+    "FROM troe_attrs "
+    "WHERE entity_id = $1 AND tenant = $2%s%s%s%s) sub "
+    "WHERE %s "
+    "ORDER BY attr_name, dataset_id, %s %s",
+    selectCols, tCol, orderDir, timePred, opPred, attrPred, dsPred, rnClip, tCol, orderDir);
 
   PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);
 
@@ -636,7 +474,6 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   }
 
   int  rowN      = PQntuples(aRes);
-  bool truncated = capHit || lastNHit;
 
   if (rowN == 0 && entityType == NULL)
   {
@@ -771,20 +608,6 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     kjChildAdd(arr, inst);
   }
 
-  // ETSI 020_14 expectation: attributes excluded by the cap-at-attribute
-  // -boundary walk above must still appear in the response, as empty
-  // arrays. Without this the test code's `${response.json()}[fuelLevel]`
-  // KeyErrors. Iterate the dropped groups; for each unique attr_name not
-  // yet present (a kept group could have written it under the same name
-  // with a different datasetId — don't overwrite that), add an empty
-  // KjArray with the bare attr name.
-  for (int i = 0; i < groupN; i++)
-  {
-    if (groups[i].keep) continue;
-    if (kjLookup(root, groups[i].attr) != NULL) continue;
-    kjChildAdd(root, kjArray(kjsonP, kaStrdup(&swRest.kalloc, groups[i].attr)));
-  }
-
   // Accumulate range info for the caller (multi-entity unions, single-entity
   // takes its values straight). Only the first writer fills size — it stays
   // constant across entities for one request.
@@ -792,8 +615,8 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   // kaStrdup BEFORE the PQclear that frees them.
   if (rangeOut != NULL)
   {
-    if (truncated)
-      rangeOut->truncated = true;
+    if (hasMore)
+      rangeOut->hasMore = true;
 
     if (minIso != NULL)
     {
@@ -806,8 +629,8 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
         rangeOut->rangeEndIso = stripZeroMs(kaStrdup(&swRest.kalloc, maxIso));
     }
 
-    if (lastN > 0 && rangeOut->size == 0)
-      rangeOut->size = lastN;
+    if (rangeOut->size == 0)
+      rangeOut->size = pageLimit;
   }
 
   PQclear(aRes);

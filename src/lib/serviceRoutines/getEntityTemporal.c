@@ -29,6 +29,7 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "swNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjChildAdd
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -339,6 +340,8 @@ bool getEntityTemporal(void)
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
   filter.lastN        = swNgsild.lastN;
+  filter.firstN       = swNgsild.firstN;
+  filter.offsetN      = swNgsild.offsetN;
   filter.datasetIdV   = swNgsild.datasetIdV;
 
   Tenant* tenantP = (snapItem != NULL)
@@ -588,77 +591,12 @@ bool getEntityTemporal(void)
 
   swRest.out.responseTree = result;
 
-  // § 6.3.10: 206 Partial Content + Content-Range when truncated. Distop
-  // results don't currently carry a range; this only fires when the local
-  // TRoE result was truncated.
-  //
-  // The plugin gives us the min/max sample timestamps that landed in the
-  // response (rangeStartIso = earliest, rangeEndIso = latest). § 6.3.10
-  // remaps those onto the wire-form range-start / range-end based on
-  // timerel and whether lastN is set:
-  //
-  //   With lastN (pagination is backwards: range-start > range-end):
-  //     timerel=before  → range-start = timeAt,         range-end = earliest
-  //     timerel=between → range-start = endTimeAt,      range-end = earliest
-  //     timerel=after   → range-start = latest,         range-end = earliest
-  //
-  //   Without lastN (pagination is forwards: range-start < range-end):
-  //     timerel=after / between → range-start = timeAt,    range-end = latest
-  //     timerel=before          → range-start = earliest,  range-end = latest
-  //
-  if (rangeInfo.truncated && rangeInfo.rangeStartIso != NULL && rangeInfo.rangeEndIso != NULL)
-  {
-    const char* earliest = rangeInfo.rangeStartIso;   // plugin: min-ts
-    const char* latest   = rangeInfo.rangeEndIso;     // plugin: max-ts
-    const char* timerel  = swNgsild.timerel;
-    bool        hasLastN = (swNgsild.lastN > 0);
-
-    const char* rangeStartIso = earliest;
-    const char* rangeEndIso   = latest;
-
-    if (hasLastN)
-    {
-      if (timerel != NULL && strcmp(timerel, "before") == 0)
-      {
-        rangeStartIso = swNgsild.timeAt ? swNgsild.timeAt : latest;
-        rangeEndIso   = earliest;
-      }
-      else if (timerel != NULL && strcmp(timerel, "between") == 0)
-      {
-        rangeStartIso = swNgsild.endTimeAt ? swNgsild.endTimeAt : latest;
-        rangeEndIso   = earliest;
-      }
-      else  // after, or no timerel (treat as after)
-      {
-        rangeStartIso = latest;
-        rangeEndIso   = earliest;
-      }
-    }
-    else
-    {
-      if (timerel != NULL && strcmp(timerel, "before") == 0)
-      {
-        rangeStartIso = earliest;
-        rangeEndIso   = latest;
-      }
-      else  // after / between / unset
-      {
-        rangeStartIso = swNgsild.timeAt ? swNgsild.timeAt : earliest;
-        rangeEndIso   = latest;
-      }
-    }
-
-    int   sz  = 96;
-    char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
-    if (rangeInfo.size > 0)
-      snprintf(buf, sz, "date-time %s-%s/%d", rangeStartIso, rangeEndIso, rangeInfo.size);
-    else
-      snprintf(buf, sz, "date-time %s-%s/*", rangeStartIso, rangeEndIso);
-    swRestOutHeaderAdd("Content-Range", buf);
-    swRest.out.httpStatusCode = 206;
-  }
-  else
-    swRest.out.httpStatusCode = 200;
+  // § 6.4.7.3: when instances remain beyond the returned page, emit
+  // Link rel="intervalafter"/"intervalbefore" page pointers. Distop
+  // results don't currently carry range info; this only fires when the
+  // local TRoE result was paginated.
+  ldTemporalPaginationLinkHeader(rangeInfo.hasMore, rangeInfo.size);
+  swRest.out.httpStatusCode = 200;
 
   return true;
 }
