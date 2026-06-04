@@ -19,6 +19,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
+#include "swNgsild/LdSubStatus.h"                    // ldSubStatusToString
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_STATUS, LD_VOCAB_EXPIRES_AT
 #include "swNgsild/ldCheckDateTime.h"                 // ldIsoToNanoseconds
@@ -71,15 +72,15 @@ bool getCsourceSubscription(void)
   // "failed" (cleared again by the next success). The stored doc still
   // says "active" — the cache item is authoritative.
   //
-  if (itemP->status != NULL)
   {
-    KjNode* statusP = kjLookup(subP, LD_VOCAB_STATUS);
+    char*   liveStatus = (char*) ldSubStatusToString(itemP->status);
+    KjNode* statusP    = kjLookup(subP, LD_VOCAB_STATUS);
     if (statusP == NULL)
       statusP = kjLookup(subP, "status");
     if (statusP != NULL && statusP->type == KjString)
-      statusP->value.s = itemP->status;
+      statusP->value.s = liveStatus;
     else if (statusP == NULL)
-      kjChildAdd(subP, kjString(swRest.kjsonP, "status", itemP->status));
+      kjChildAdd(subP, kjString(swRest.kjsonP, "status", liveStatus));
   }
 
   //

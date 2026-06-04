@@ -101,7 +101,7 @@ bool postExNotification(void)
   // Drop the subscriber forward when the parent is paused / expired.
   // Returning 204 keeps the remote happy (no retry storm).
   //
-  bool isActive = (itemP->status == NULL || strcmp(itemP->status, "active") == 0);
+  bool isActive = (itemP->status == LdSubStatusActive);
   if (!isActive || itemP->endpointUri == NULL)
   {
     swRest.out.httpStatusCode = 204;
