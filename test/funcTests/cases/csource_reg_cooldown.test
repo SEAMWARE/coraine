@@ -1,0 +1,162 @@
+#
+# FILE            csource_reg_cooldown.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.34 management.cooldown: after a forward failure, the broker
+# declines to contact the registration endpoint until the cooldown (ms)
+# has elapsed — the request behaves as an immediate timeout. A declined
+# request is not an attempt: the cooldown ends exactly cooldownMs after
+# the real failure.
+#
+--NAME--
+CSR management.cooldown — failed endpoint not re-contacted until cooldown elapses
+
+--TAGS--
+csource registration distops cooldown
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Redirect CSR for urn:V1 → endpoint nobody listens on, cooldown 2000 ms
+# 02. POST urn:V1 → 207, forward fails (connection refused)
+# 03. POST urn:V1 again immediately → 207, declined: endpoint in cooldown
+# 04. sleep 2.2s (cooldown expired)
+# 05. POST urn:V1 → 207, forward attempted again (connection refused)
+#
+
+echo "01. Redirect CSR for urn:V1 with management.cooldown=2000, dead endpoint"
+echo "========================================================================"
+payload='{
+  "id": "urn:CSR:Cool",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9788",
+  "mode": "redirect",
+  "operations": ["createEntity"],
+  "management": { "cooldown": 2000 },
+  "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. POST urn:V1 → 207, forward fails (connection refused)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "03. POST urn:V1 again immediately → 207, endpoint in cooldown"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2}}'
+echo
+echo
+
+
+sleep 2.2
+echo "04. POST urn:V1 after the cooldown → 207, forward attempted again"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3}}'
+echo
+echo
+
+--EXPECT--
+01. Redirect CSR for urn:V1 with management.cooldown=2000, dead endpoint
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Cool
+Content-Length: REGEX(\d+)
+
+
+
+
+02. POST urn:V1 → 207, forward fails (connection refused)
+==========================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "forward failed: Connection failed; affected attributes: speed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:Cool"
+    }
+  ],
+  "success": []
+}
+
+
+
+03. POST urn:V1 again immediately → 207, endpoint in cooldown
+==============================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "forward failed: registration endpoint in cooldown after failure; affected attributes: speed",
+        "status": 504,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:Cool"
+    }
+  ],
+  "success": []
+}
+
+
+
+04. POST urn:V1 after the cooldown → 207, forward attempted again
+==================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "forward failed: Connection failed; affected attributes: speed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:Cool"
+    }
+  ],
+  "success": []
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

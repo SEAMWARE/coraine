@@ -1,0 +1,205 @@
+#
+# FILE            csr_subscription_cooldown.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.15 endpoint.cooldown on a CSR subscription: after a delivery
+# failure, the broker skips notifying the endpoint until the cooldown
+# (ms) has elapsed. A skipped notification is not an attempt — timesSent
+# stays put — and the cooldown ends exactly cooldownMs after the real
+# failure.
+#
+--NAME--
+CSR subscription endpoint.cooldown — failed endpoint skipped until cooldown elapses
+
+--TAGS--
+csource subscription notification cooldown
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. CSR-sub for Vehicle CSRs → unreachable endpoint, cooldown 2000 ms.
+#     The unconditional initial notification (§ 12.4.7) fails → timesSent=1,
+#     timesFailed=1, status failed.
+# 02. GET the sub → the failure bookkeeping.
+# 03. Create a matching CSR immediately → the on-create notification is
+#     SKIPPED (cooldown): timesSent still 1.
+# 04. sleep 2.2s; create another matching CSR → attempted again (fails):
+#     timesSent=2.
+#
+
+echo "01. CSR-sub with endpoint.cooldown=2000 on a dead endpoint"
+echo "=========================================================="
+payload='{
+  "id": "urn:CSRsub:Cool",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "endpoint": { "uri": "http://localhost:9788/notify", "cooldown": 2000 }
+  }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+sleep 0.3
+echo "02. GET the sub → timesSent=1, timesFailed=1, status failed"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+echo
+echo
+
+
+echo "03. Matching CSR while in cooldown → notification SKIPPED"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C1","type":"ContextSourceRegistration","endpoint":"http://cs1.example","information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+sleep 0.3
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+echo
+echo
+
+
+sleep 2.2
+echo "04. Matching CSR after the cooldown → attempted again, timesSent=2"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C2","type":"ContextSourceRegistration","endpoint":"http://cs2.example","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+sleep 0.3
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+echo
+echo
+
+--EXPECT--
+01. CSR-sub with endpoint.cooldown=2000 on a dead endpoint
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+Content-Length: REGEX(\d+)
+
+
+
+
+02. GET the sub → timesSent=1, timesFailed=1, status failed
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:CSRsub:Cool",
+  "notification": {
+    "endpoint": {
+      "cooldown": 2000,
+      "uri": "http://localhost:9788/notify"
+    },
+    "lastFailure": REGEX(".*"),
+    "lastNotification": REGEX(".*"),
+    "status": "failed",
+    "timesFailed": 1,
+    "timesSent": 1
+  },
+  "status": "failed",
+  "type": "Subscription"
+}
+
+
+
+03. Matching CSR while in cooldown → notification SKIPPED
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:C1
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:CSRsub:Cool",
+  "notification": {
+    "endpoint": {
+      "cooldown": 2000,
+      "uri": "http://localhost:9788/notify"
+    },
+    "lastFailure": REGEX(".*"),
+    "lastNotification": REGEX(".*"),
+    "status": "failed",
+    "timesFailed": 1,
+    "timesSent": 1
+  },
+  "status": "failed",
+  "type": "Subscription"
+}
+
+
+
+04. Matching CSR after the cooldown → attempted again, timesSent=2
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:C2
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:CSRsub:Cool",
+  "notification": {
+    "endpoint": {
+      "cooldown": 2000,
+      "uri": "http://localhost:9788/notify"
+    },
+    "lastFailure": REGEX(".*"),
+    "lastNotification": REGEX(".*"),
+    "status": "failed",
+    "timesFailed": 2,
+    "timesSent": 2
+  },
+  "status": "failed",
+  "type": "Subscription"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
