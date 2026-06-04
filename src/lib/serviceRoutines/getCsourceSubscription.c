@@ -67,6 +67,22 @@ bool getCsourceSubscription(void)
     kjChildRemove(subP, jcP);
 
   //
+  // § 12.4.7: a failed notification delivery sets the LIVE status to
+  // "failed" (cleared again by the next success). The stored doc still
+  // says "active" — the cache item is authoritative.
+  //
+  if (itemP->status != NULL)
+  {
+    KjNode* statusP = kjLookup(subP, LD_VOCAB_STATUS);
+    if (statusP == NULL)
+      statusP = kjLookup(subP, "status");
+    if (statusP != NULL && statusP->type == KjString)
+      statusP->value.s = itemP->status;
+    else if (statusP == NULL)
+      kjChildAdd(subP, kjString(swRest.kjsonP, "status", itemP->status));
+  }
+
+  //
   // § 5.2.12: `status` is read-only and computed. It was stored as
   // "active" / "paused" at create time and never updated. Override
   // it here when `expiresAt` is in the past so retrieve reflects

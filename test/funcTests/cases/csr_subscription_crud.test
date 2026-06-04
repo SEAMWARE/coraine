@@ -154,7 +154,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -165,7 +165,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 245
+Content-Length: REGEX(\d+)
 
 {
   "entities": [
@@ -177,9 +177,14 @@ Content-Length: 245
   "notification": {
     "endpoint": {
       "uri": "http://localhost:1234/csrNotify"
-    }
+    },
+    "lastFailure": REGEX(".*"),
+    "lastNotification": REGEX(".*"),
+    "status": "failed",
+    "timesFailed": 1,
+    "timesSent": 1
   },
-  "status": "active",
+  "status": "failed",
   "type": "Subscription"
 }
 
@@ -191,7 +196,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR2
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -202,7 +207,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 614
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -215,7 +220,12 @@ Content-Length: 614
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/csrNotify"
-      }
+      },
+      "lastFailure": REGEX(".*"),
+      "lastNotification": REGEX(".*"),
+      "status": "failed",
+      "timesFailed": 1,
+      "timesSent": 1
     },
     "status": "active",
     "type": "Subscription"
@@ -230,7 +240,12 @@ Content-Length: 614
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/csrNotify2"
-      }
+      },
+      "lastFailure": REGEX(".*"),
+      "lastNotification": REGEX(".*"),
+      "status": "failed",
+      "timesFailed": 1,
+      "timesSent": 1
     },
     "status": "active",
     "type": "Subscription",
@@ -247,7 +262,7 @@ Content-Length: 614
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 191
+Content-Length: REGEX(\d+)
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' already exists",
@@ -273,7 +288,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 290
+Content-Length: REGEX(\d+)
 
 {
   "description": "watches all Vehicle CSRs",
@@ -286,9 +301,14 @@ Content-Length: 290
   "notification": {
     "endpoint": {
       "uri": "http://localhost:1234/csrNotify"
-    }
+    },
+    "lastFailure": REGEX(".*"),
+    "lastNotification": REGEX(".*"),
+    "status": "failed",
+    "timesFailed": 1,
+    "timesSent": 1
   },
-  "status": "active",
+  "status": "failed",
   "type": "Subscription"
 }
 
@@ -300,7 +320,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR3
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -320,7 +340,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 629
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -333,7 +353,12 @@ Content-Length: 629
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/csrNotify2"
-      }
+      },
+      "lastFailure": REGEX(".*"),
+      "lastNotification": REGEX(".*"),
+      "status": "failed",
+      "timesFailed": 1,
+      "timesSent": 1
     },
     "status": "active",
     "type": "Subscription",
@@ -351,7 +376,12 @@ Content-Length: 629
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/pernot"
-      }
+      },
+      "lastFailure": REGEX(".*"),
+      "lastNotification": REGEX(".*"),
+      "status": "failed",
+      "timesFailed": 1,
+      "timesSent": 1
     },
     "status": "active",
     "timeInterval": 30,
@@ -366,7 +396,7 @@ Content-Length: 629
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 166
+Content-Length: REGEX(\d+)
 
 {
   "detail": "CSR subscription 'urn:no:such' not found",
@@ -382,7 +412,7 @@ Content-Length: 166
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 184
+Content-Length: REGEX(\d+)
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' not found",

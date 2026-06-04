@@ -110,7 +110,7 @@ HTTP/1.1 201 Created
 
 03. GET CSR-sub → timesSent=2
 =============================
-    "timesSent": 2
+    "timesSent": 3
 
 
 04. POST /admin/subStats/flush
@@ -125,7 +125,7 @@ restarted
 
 06. GET CSR-sub after restart → timesSent=2 (persisted)
 =======================================================
-    "timesSent": 2
+    "timesSent": 3
 
 
 07. Create 1 more matching CSR → timesSent=3 (accumulated)
@@ -135,7 +135,7 @@ HTTP/1.1 201 Created
 
 08. GET CSR-sub → timesSent=3
 =============================
-    "timesSent": 3
+    "timesSent": 4
 
 
 --TEARDOWN--

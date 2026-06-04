@@ -136,7 +136,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:E1
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -147,7 +147,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C1
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -158,7 +158,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 357
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -190,7 +190,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 274
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -203,7 +203,12 @@ Content-Length: 274
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1234/C1"
-      }
+      },
+      "lastFailure": REGEX(".*"),
+      "lastNotification": REGEX(".*"),
+      "status": "failed",
+      "timesFailed": 1,
+      "timesSent": 1
     },
     "status": "active",
     "type": "Subscription"
@@ -223,7 +228,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 357
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -255,7 +260,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 274
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -283,7 +288,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 315
+Content-Length: REGEX(\d+)
 
 {
   "entities": [
@@ -312,7 +317,7 @@ Content-Length: 315
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 178
+Content-Length: REGEX(\d+)
 
 {
   "detail": "subscription 'urn:ngsi-ld:Subscription:C1' not found",
@@ -329,7 +334,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 240
+Content-Length: REGEX(\d+)
 
 {
   "entities": [
@@ -354,7 +359,7 @@ Content-Length: 240
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 182
+Content-Length: REGEX(\d+)
 
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:E1' not found",

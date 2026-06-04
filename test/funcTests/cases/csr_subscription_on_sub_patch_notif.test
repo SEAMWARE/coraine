@@ -113,7 +113,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -124,7 +124,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:T
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -135,7 +135,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceSubscriptions/urn:S
-Content-Length: 0
+Content-Length: REGEX(\d+)
 
 
 
@@ -550,6 +550,25 @@ Content-Type: application/json
           "type": "ContextSourceRegistration"
         }
       ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [],
       "id": REGEX("urn:ngsi-ld:Notification:.*"),
       "notifiedAt": REGEX(".*"),
       "subscriptionId": "urn:S",

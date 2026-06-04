@@ -42,7 +42,7 @@
 #include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
 #include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "swNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
-#include "swNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister
+#include "swNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister, ldCsrSubDispatchPending
 #include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
@@ -498,6 +498,7 @@ static void brokerPostResponseHook(void)
 {
   metricsPostResponse();
   ldNotifyDispatchPending();
+  ldCsrSubDispatchPending();
   troeDispatchPending();
 }
 
