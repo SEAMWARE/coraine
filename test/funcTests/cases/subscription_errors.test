@@ -41,6 +41,9 @@ swBrokerStart
 # 21. PATCH with id — 400
 # 22. PATCH with type — 400
 # 23. Valid creation — 201 (sanity check)
+# 24. q syntactically invalid (unbalanced paren) — 400
+# 25. csourceSubscription with syntactically invalid q — 400
+# 26. bare attribute path is a VALID q (existence predicate, § 4.9) — 201
 #
 
 echo "01. Missing type — 400"
@@ -323,6 +326,46 @@ payload='{
   "id": "urn:ngsi-ld:Subscription:OK",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "24. q syntactically invalid (unbalanced paren) — 400"
+echo "======================================================"
+payload='{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": "(invalidQuery",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "25. csourceSubscription with syntactically invalid q — 400"
+echo "============================================================"
+payload='{
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": "(invalidQuery",
+  "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "26. bare attribute path is a VALID q (existence predicate, § 4.9) — 201"
+echo "=========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:bareQ",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": "someAttr",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
 swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
@@ -696,6 +739,49 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:OK
+Content-Length: REGEX(\d+)
+
+
+
+
+24. q syntactically invalid (unbalanced paren) — 400
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "missing ')' in q expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+25. csourceSubscription with syntactically invalid q — 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "missing ')' in q expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+26. bare attribute path is a VALID q (existence predicate, § 4.9) — 201
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:bareQ
 Content-Length: REGEX(\d+)
 
 
