@@ -36,6 +36,7 @@
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjParse.h"                           // kjParse
+#include "kjson/kjClone.h"                           // kjClone
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
@@ -427,6 +428,35 @@ bool getEntitiesTemporal(void)
   filter.endTimeAtIso = swNgsild.endTimeAt;
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
+
+  // § 11.3.3: the geoquery is checked against the GeoProperty instances
+  // within the temporal interval — independent of the ?attrs= selection.
+  // When attrs= would exclude the geoproperty, fetch it anyway (the geo
+  // filter below needs its instances) and strip it from the response after.
+  const char* geoprop          = (swNgsild.geoproperty != NULL) ? swNgsild.geoproperty : "location";
+  bool        geopropInjected  = false;
+
+  if (swNgsild.geoRel != NULL && swNgsild.attrsV != NULL)
+  {
+    int n = 0;
+    while (swNgsild.attrsV[n] != NULL)
+    {
+      if (strcmp(swNgsild.attrsV[n], geoprop) == 0)
+        break;
+      n++;
+    }
+
+    if (swNgsild.attrsV[n] == NULL)  // geoprop not in attrs= — inject it
+    {
+      char** augmented = (char**) kaAlloc(&swRest.kalloc, (n + 2) * sizeof(char*));
+      memcpy(augmented, swNgsild.attrsV, n * sizeof(char*));
+      augmented[n]     = (char*) geoprop;
+      augmented[n + 1] = NULL;
+      filter.attrV     = augmented;
+      geopropInjected  = true;
+    }
+  }
+
   filter.lastN        = swNgsild.lastN;
   filter.firstN       = swNgsild.firstN;
   filter.offsetN      = swNgsild.offsetN;
@@ -569,43 +599,92 @@ bool getEntitiesTemporal(void)
     }
   }
 
-  // § 4.18 / § 6.18.3.2: scopeQ and geoQ — both applied against the
-  // entity's CURRENT state (looked up from the current-state DB). Temporal
-  // entities that no longer exist in current state can't satisfy a
-  // current-state filter and are dropped. Same single DB-fetch covers both.
-  bool needCurrentState = (swNgsild.scopeExpr != NULL || swNgsild.geoRel != NULL);
+  // § 11.3.3 (TS 104-175): the geoquery's restrictions "shall be checked
+  // against the GeoProperty instances that are within the interval defined
+  // by the temporal query" — i.e. against the instances in the temporal
+  // result itself, never against the current state (an entity may exist
+  // only in TRoE). ANY matching instance keeps the entity. Each instance's
+  // geometry is wrapped as a minimal DB-model entity for the plugin's geo
+  // matcher.
+  if (swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
+  {
+    KjNode* ep = result->value.firstChildP;
+    while (ep != NULL)
+    {
+      KjNode* nextEp = ep->next;
+      KjNode* attrP  = kjLookup(ep, geoprop);
+      bool    keep   = false;
 
-  if (needCurrentState && db.entityRetrieve != NULL)
+      if (attrP != NULL && attrP->type == KjArray)
+      {
+        for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+        {
+          if (instP->type != KjObject)
+            continue;
+
+          KjNode* valueP = kjLookup(instP, "value");
+          if (valueP == NULL)
+            continue;
+
+          // Minimal DB-model wrapper: { <geoprop>: { "@none": { "value": <geom> } } }
+          KjNode* geomP   = kjClone(swRest.kjsonP, valueP);
+          KjNode* dsInstP = kjObject(swRest.kjsonP, "@none");
+          KjNode* wrapP   = kjObject(swRest.kjsonP, geoprop);
+          KjNode* synthP  = kjObject(swRest.kjsonP, NULL);
+
+          geomP->name = (char*) "value";
+          kjChildAdd(dsInstP, geomP);
+          kjChildAdd(wrapP, dsInstP);
+          kjChildAdd(synthP, wrapP);
+
+          if (db.geoMatchFunc(synthP, swNgsild.geoRel, swNgsild.geometry, swNgsild.coordinates, geoprop))
+          {
+            keep = true;
+            break;
+          }
+        }
+      }
+
+      if (!keep)
+        kjChildRemove(result, ep);
+
+      ep = nextEp;
+    }
+
+    // The geoproperty was fetched only for the geo filter — ?attrs= does
+    // not select it, so strip it from the surviving entities.
+    if (geopropInjected)
+    {
+      for (KjNode* ep2 = result->value.firstChildP; ep2 != NULL; ep2 = ep2->next)
+      {
+        KjNode* gP = kjLookup(ep2, geoprop);
+        if (gP != NULL)
+          kjChildRemove(ep2, gP);
+      }
+    }
+  }
+
+  // § 4.18 / § 6.18.3.2: scopeQ — applied against the entity's CURRENT
+  // state (looked up from the current-state DB). Temporal entities that no
+  // longer exist in current state can't satisfy a current-state filter and
+  // are dropped.
+  if (swNgsild.scopeExpr != NULL && db.entityRetrieve != NULL)
   {
     KjNode* ep = result->value.firstChildP;
     while (ep != NULL)
     {
       KjNode* nextEp = ep->next;
       KjNode* idP    = kjLookup(ep, "id");
-      bool    keep   = true;
+      bool    keep   = false;
 
       KjNode* curEntity = NULL;
       if (idP != NULL && idP->type == KjString)
         db.entityRetrieve(tenantP, idP->value.s, &curEntity);
 
-      if (curEntity == NULL)
+      if (curEntity != NULL)
       {
-        keep = false;
-      }
-      else
-      {
-        if (keep && swNgsild.scopeExpr != NULL)
-        {
-          KjNode* scopeP = kjLookup(curEntity, "scope");
-          keep = ldEntityMatchScope(scopeP, swNgsild.scopeExpr);
-        }
-
-        if (keep && swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
-        {
-          keep = db.geoMatchFunc(curEntity, swNgsild.geoRel, swNgsild.geometry,
-                                 swNgsild.coordinates,
-                                 swNgsild.geoproperty ? swNgsild.geoproperty : "location");
-        }
+        KjNode* scopeP = kjLookup(curEntity, "scope");
+        keep = ldEntityMatchScope(scopeP, swNgsild.scopeExpr);
       }
 
       if (!keep)

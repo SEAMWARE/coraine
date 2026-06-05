@@ -6,10 +6,13 @@
 # Copyright 2026 Seamware
 #
 # ?georel + ?geometry + ?coordinates on the multi-entity temporal GET
-# (§ 4.10 / § 6.18.3.2). Same approach as scopeQ: filter by the entity's
-# CURRENT geo location from the current-state DB. Temporal entities whose
-# current state is gone can't satisfy a current-state filter and are
-# dropped.
+# (§ 4.10 / § 6.18.3.2). Per § 11.3.3 the geospatial restrictions "shall be
+# checked against the GeoProperty instances that are within the interval
+# defined by the temporal query" — ANY in-window instance matching the
+# geoquery keeps the entity. The current state is never consulted, so
+# temporal-only entities (POST /temporal/entities) are first-class targets,
+# and instances outside the window can't match. The geoproperty is fetched
+# for the filter even when ?attrs= excludes it, then stripped again.
 #
 # geoQ is NOT in § 6.19.3.1's URL-param table (single-entity retrieve)
 # so this test only covers the multi-entity GET.
@@ -34,21 +37,21 @@ payload='{
   "id":"urn:M",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":50,"observedAt":"2026-04-28T09:00:00Z"},
-  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[-3.7038, 40.4168]}}
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[-3.7038, 40.4168]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
 swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:P",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":60,"observedAt":"2026-04-28T09:00:00Z"},
-  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[2.3522, 48.8566]}}
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[2.3522, 48.8566]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
 swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:B",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":70,"observedAt":"2026-04-28T09:00:00Z"},
-  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[13.4050, 52.5200]}}
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[13.4050, 52.5200]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
 swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 echo done
@@ -73,6 +76,44 @@ echo
 echo "04. ?georel=near;maxDistance==500 around Madrid (tiny radius) → only urn:M (at Madrid)"
 echo "======================================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed&georel=near;maxDistance==500&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
+echo
+echo
+
+
+echo "05. Temporal-only urn:T (no current state): Berlin@09:00, Madrid@11:00"
+echo "======================================================================"
+payload='{
+  "id":"urn:T",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":[
+    {"type":"GeoProperty","value":{"type":"Point","coordinates":[13.4050, 52.5200]},"observedAt":"2026-04-28T09:00:00Z"},
+    {"type":"GeoProperty","value":{"type":"Point","coordinates":[-3.7038, 40.4168]},"observedAt":"2026-04-28T11:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" >/dev/null
+echo done
+echo
+echo
+
+
+echo "06. near;500 around Madrid → urn:M + urn:T (T matches via ANY in-window instance)"
+echo "=================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed&georel=near;maxDistance==500&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
+echo
+echo
+
+
+echo "07. Same, but window 08:00-10:00 → only urn:M (T's Madrid fix at 11:00 is outside)"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T08:00:00Z&endTimeAt=2026-04-28T10:00:00Z&pick=speed&georel=near;maxDistance==500&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
+echo
+echo
+
+
+echo "08. ?attrs=speed + geoquery → location fetched for the filter, stripped from response"
+echo "======================================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&attrs=speed&georel=near;maxDistance==500&geometry=Point&coordinates=%5B-3.7038,40.4168%5D'
 echo
 echo
 
@@ -157,6 +198,104 @@ Content-Length: REGEX(\d+)
         "value": 50
       }
     ]
+  }
+]
+
+
+
+05. Temporal-only urn:T (no current state): Berlin@09:00, Madrid@11:00
+======================================================================
+done
+
+
+06. near;500 around Madrid → urn:M + urn:T (T matches via ANY in-window instance)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 99
+      }
+    ]
+  }
+]
+
+
+
+07. Same, but window 08:00-10:00 → only urn:M (T's Madrid fix at 11:00 is outside)
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 50
+      }
+    ]
+  }
+]
+
+
+
+08. ?attrs=speed + geoquery → location fetched for the filter, stripped from response
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:M",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 50
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:T",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 99
+      }
+    ],
+    "type": "Vehicle"
   }
 ]
 
