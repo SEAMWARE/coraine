@@ -14,8 +14,10 @@ distops merge registration retrieve
 --INIT--
 swDbDrop
 swDbDrop -role CP1
+swDbDrop -role CP2
 swBrokerStart
 swBrokerStart -role CP1
+swBrokerStart -role CP2
 
 --RUN--
 
@@ -147,6 +149,27 @@ echo
 echo "10. GET V1 on CB -> upstream 404, falls back to local non-registered attrs"
 echo "==========================================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "07. Two WILDCARD redirect CSRs (CP1 + CP2) — merged union, no cross-strip"
+echo "============================================================================"
+# urn:V2 lives only on the CPs: CP1 holds color, CP2 holds speed. Both
+# CSRs claim the WHOLE entity (no propertyNames). The retrieve must merge
+# BOTH upstreams — one source's wildcard claim must not strip what the
+# other just contributed.
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}' | head -1
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:RW1","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:RW2","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP2_PORT'","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "08. GET urn:V2 on CB — color (CP1) AND speed (CP2) both present"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -329,8 +352,41 @@ Content-Length: REGEX(\d+)
 
 
 
+07. Two WILDCARD redirect CSRs (CP1 + CP2) — merged union, no cross-strip
+============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+08. GET urn:V2 on CB — color (CP1) AND speed (CP2) both present
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+{
+  "color": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 88
+  },
+  "type": "Vehicle"
+}
+
+
+
 --TEARDOWN--
 swBrokerStop
 swBrokerStop -role CP1
+swBrokerStop -role CP2
 swDbDrop
 swDbDrop -role CP1
+swDbDrop -role CP2

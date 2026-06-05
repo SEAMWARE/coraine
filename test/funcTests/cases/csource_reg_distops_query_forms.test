@@ -134,6 +134,26 @@ ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
 echo
 echo
 
+echo "12. retrieveEntity via queryEntity-only CSR — forwarded as GET ?id="
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE2 -X DELETE >/dev/null
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE3","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R2","type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:R2 | head -1
+ftClientDump --port 7711 | grep -E '"url"|"id"' | tail -2
+echo
+echo
+
+
+echo "13. retrieveEntity via queryBatch-only CSR — forwarded as POST query"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE3 -X DELETE >/dev/null
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QB2","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryBatch"],"information":[{"entities":[{"id":"urn:R3","type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:R3 | head -1
+ftClientDump --port 7711 | grep -E '"url"|"body"' | tail -2
+echo
+echo
+
+
 --EXPECT--
 01. Local entity urn:L1 (no speed)
 ==================================
@@ -365,6 +385,22 @@ HTTP/1.1 200 OK
 ===============================================================================
 HTTP/1.1 200 OK
 3
+
+
+12. retrieveEntity via queryEntity-only CSR — forwarded as GET ?id=
+=====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 404 Not Found
+      "id": "urn:R2",
+    "url": "/ngsi-ld/v1/entities",
+
+
+13. retrieveEntity via queryBatch-only CSR — forwarded as POST query
+======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 404 Not Found
+    "body": {
+    "url": "/ngsi-ld/v1/entityOperations/query",
 
 
 --TEARDOWN--

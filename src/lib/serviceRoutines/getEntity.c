@@ -511,6 +511,73 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
 
 
 
+// buildQueryFormUrl - § 9.2 ops-aware conversion: the CSR supports
+// queryEntity but not retrieveEntity, so the by-id retrieve forwards as
+// GET /entities?id=<entityId> (+ sysAttrs for the merge + the
+// RegistrationInfo's pick narrowing, same as the by-id form). No type=
+// — the registration's types are expanded IRIs that need not compact
+// for the receiver, and the pinned id alone identifies the entity.
+//
+static char* buildQueryFormUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId)
+{
+  const char* base    = csr->endpoint;
+  const char* path    = "/ngsi-ld/v1/entities?id=";
+  const char* qs      = "&sysAttrs=true";
+  const char* pickRaw = buildInfoPickParam(csr, riP, &swRest.kalloc);
+
+  int baseLen = strlen(base);
+  int pathLen = strlen(path);
+  int idLen   = strlen(entityId);
+  int qsLen   = strlen(qs);
+  int pickLen = strlen(pickRaw);
+  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
+
+  char* p = url;
+  memcpy(p, base, baseLen);       p += baseLen;
+  memcpy(p, path, pathLen);       p += pathLen;
+  memcpy(p, entityId, idLen);     p += idLen;
+  memcpy(p, qs, qsLen);           p += qsLen;
+  memcpy(p, pickRaw, pickLen);    p += pickLen;
+  *p = 0;
+  return url;
+}
+
+
+
+// buildQueryBatchForm - § 9.2 ops-aware conversion: queryBatch-only CSR.
+// The retrieve forwards as POST /entityOperations/query with a § 5.2.23
+// Query body selecting the one entity id; attribute narrowing rides in
+// the body's "attrs" (mirroring the GET form's pick).
+//
+static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId,
+                                LdDistOpBatchItem* itemP)
+{
+  const char* path    = "/ngsi-ld/v1/entityOperations/query?sysAttrs=true";
+  int   baseLen = strlen(csr->endpoint);
+  char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + strlen(path) + 1);
+  strcpy(url, csr->endpoint);
+  strcpy(url + baseLen, path);
+
+  // Body: {"type":"Query","entities":[{"id":"<entityId>"}]}
+  static const char bodyPre[]  = "{\"type\":\"Query\",\"entities\":[{\"id\":\"";
+  static const char bodyPost[] = "\"}]}";
+  int   idLen = strlen(entityId);
+  char* body  = (char*) kaAlloc(&swRest.kalloc, sizeof(bodyPre) - 1 + idLen + sizeof(bodyPost));
+  char* p     = body;
+  memcpy(p, bodyPre, sizeof(bodyPre) - 1);  p += sizeof(bodyPre) - 1;
+  memcpy(p, entityId, idLen);               p += idLen;
+  memcpy(p, bodyPost, sizeof(bodyPost));    // includes the NUL
+
+  itemP->csr     = csr;
+  itemP->url     = url;
+  itemP->body    = body;
+  itemP->bodyLen = (int) (p - body) + (int) sizeof(bodyPost) - 1;
+  itemP->hasVerb = true;
+  itemP->verb    = SwVerbPost;
+}
+
+
+
 // buildForwardUrl - compose retrieveEntity URL for one (csr, riP) pair
 //
 static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId)
@@ -583,6 +650,20 @@ static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char** e
   {
     *errorDetailPP = "upstream returned malformed JSON";
     return NULL;
+  }
+
+  // Query-form forwards (queryEntity / queryBatch — § 9.2 ops-aware
+  // conversion of a retrieve) answer with an entity ARRAY; the retrieve
+  // targeted one id, so unwrap the single element ([] → no entity).
+  if (treeP->type == KjArray)
+  {
+    treeP = treeP->value.firstChildP;
+    if (treeP == NULL)
+    {
+      *errorDetailPP = "upstream query-form response carried no entity";
+      return NULL;
+    }
+    treeP->next = NULL;
   }
 
   swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
@@ -759,14 +840,36 @@ bool getEntity(void)
           if (csr->endpoint == NULL) continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
+          // § 9.2 ops-aware forward form: prefer the native by-id
+          // retrieve; a CSR declaring only queryEntity gets the query
+          // form (GET /entities?id=), a queryBatch-only one gets
+          // POST /entityOperations/query. No read op at all → skip.
+          bool canRetrieve = ldRegOpSupported(csr, LdOpRetrieveEntity);
+          bool canQE       = ldRegOpSupported(csr, LdOpQueryEntities);
+          bool canQB       = ldRegOpSupported(csr, LdOpBatchQuery);
+          if (!canRetrieve && !canQE && !canQB) continue;
+
           for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
           {
             if (!infoEntryMatchesEntity(riP, entityId)) continue;
 
-            items[itemCount].csr     = csr;
-            items[itemCount].url     = buildForwardUrl(csr, riP, entityId);
-            items[itemCount].body    = NULL;
-            items[itemCount].bodyLen = 0;
+            if (canRetrieve)
+            {
+              items[itemCount].csr     = csr;
+              items[itemCount].url     = buildForwardUrl(csr, riP, entityId);
+              items[itemCount].body    = NULL;
+              items[itemCount].bodyLen = 0;
+            }
+            else if (canQE)
+            {
+              items[itemCount].csr     = csr;
+              items[itemCount].url     = buildQueryFormUrl(csr, riP, entityId);
+              items[itemCount].body    = NULL;
+              items[itemCount].bodyLen = 0;
+            }
+            else
+              buildQueryBatchForm(csr, riP, entityId, &items[itemCount]);
+
             itemGroup[itemCount]     = g;
             itemRiP[itemCount]       = riP;
             itemCount++;
@@ -778,17 +881,24 @@ bool getEntity(void)
       {
         ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
 
+        // Pass 1 — § 4.3.6.3 local-strip for excl/redir, regardless of the
+        // forward outcome: their CSRs claim these attrs and the LOCAL copy
+        // must not keep them. Run over the pristine local tree BEFORE any
+        // upstream merge — interleaving strip and merge let one redirect
+        // source's wildcard claim eat what another source had just
+        // contributed (ETSI D010_01_red: two whole-entity redirect CSRs,
+        // the second strip erased the first upstream's attrs).
+        for (int i = 0; i < itemCount; i++)
+        {
+          if (stripG[itemGroup[i]] && destP != NULL)
+            stripInfoAttrsFromLocal(destP, itemRiP[i]);
+        }
+
+        // Pass 2 — merge the upstream results.
         for (int i = 0; i < itemCount; i++)
         {
           int        g      = itemGroup[i];
-          LdRegInfo* riP    = itemRiP[i];
           int        upCode = results[i].statusCode;
-
-          // Local-strip for excl/redir happens regardless of forward outcome —
-          // their CSRs claim these attrs, and the local copy must not keep
-          // them (§ 4.3.6.3). Apply the strip BEFORE merging the upstream.
-          if (stripG[g] && destP != NULL)
-            stripInfoAttrsFromLocal(destP, riP);
 
           if (upCode == 404 && g == 0) continue;  // exclusive: 404 tolerated
           if (upCode < 200 || upCode >= 300)
