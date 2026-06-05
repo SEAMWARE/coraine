@@ -41,6 +41,12 @@ contextServerPush /jsonldContexts/ctxT '{
 # 13. POST with @context not an object — 400
 # 14. POST with url not a string — 400
 # 15. POST Cached with unreachable URL — 504 Context Not Available
+# 16. DELETE unknown NON-URI id — 404 (id is a local identifier, § 13.5.3)
+# 17. DELETE the Core @context — 400 (the core is permanent)
+# 18. DELETE an older-version core URL, reload=false — 400 (same core)
+# 19. GET core metadata via an older-version URL — 200 (resolves to THE core)
+#     (core reload=true re-downloads from the real core URL — network-
+#      dependent, so exercised by the ETSI suite, not here)
 #
 
 echo "01. POST Hosted (@context body)"
@@ -152,6 +158,34 @@ echo "15. POST Cached unreachable URL — 504"
 echo "====================================="
 payload='{"url":"http://127.0.0.1:1/nope.jsonld"}'
 swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
+echo
+echo
+
+
+echo "16. DELETE unknown NON-URI id — 404 (id is a local identifier, § 13.5.3)"
+echo "=========================================================================="
+swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/not_even_a_uri"
+echo
+echo
+
+
+echo "17. DELETE the Core @context — 400 (the core is permanent)"
+echo "============================================================"
+swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.9.jsonld"
+echo
+echo
+
+
+echo "18. DELETE an older-version core URL, reload=false — 400 (same core)"
+echo "======================================================================"
+swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.6.jsonld?reload=false"
+echo
+echo
+
+
+echo "19. GET core metadata via an older-version URL — 200 (resolves to THE core)"
+echo "=============================================================================="
+swCurl --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.6.jsonld?details=true"
 echo
 echo
 
@@ -343,6 +377,72 @@ Content-Length: REGEX(\d+)
   "status": 504,
   "title": "Context Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+16. DELETE unknown NON-URI id — 404 (id is a local identifier, § 13.5.3)
+==========================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "JSON-LD context 'not_even_a_uri' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+17. DELETE the Core @context — 400 (the core is permanent)
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the Core @context cannot be deleted",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. DELETE an older-version core URL, reload=false — 400 (same core)
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the Core @context cannot be deleted",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. GET core metadata via an older-version URL — 200 (resolves to THE core)
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "createdAt": REGEX("[0-9T:.Z-]+"),
+  "kind": "ImplicitlyCreated",
+  "lastUsage": REGEX("[0-9T:.Z-]+"),
+  "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }
 
 

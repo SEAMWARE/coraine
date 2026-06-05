@@ -23,7 +23,8 @@
 #include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
 #include "swJsonld/SwldContextCache.h"                 // SwldContextCache
 #include "swJsonld/swldCache.h"                        // swldCacheLookup, swldCacheRemove, swldCacheInsert
-#include "swJsonld/swldDownload.h"                     // swldContextFromUrl
+#include "swJsonld/swldDownload.h"                     // swldContextFromUrl, swldIsCoreContextUrl
+#include "swJsonld/swldInit.h"                         // swldCoreContext, swldDownloadGet, SWLD_CORE_CONTEXT_URL
 #include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
 
 #include "db/DbDriver.h"                               // db, DB_CONTEXT_KIND_*
@@ -34,9 +35,10 @@
 
 // -----------------------------------------------------------------------------
 //
-// swldCacheGet - internal accessor in swJsonld/swldInit.c
+// swldCacheGet / swldDownloadGet - internal accessors in swJsonld/swldInit.c
 //
-extern SwldContextCache* swldCacheGet(void);
+extern SwldContextCache*    swldCacheGet(void);
+extern SwldDownloadFunction swldDownloadGet(void);
 
 
 
@@ -55,32 +57,12 @@ bool deleteJsonldContext(void)
   }
 
   //
-  // § 5.13.5.4: a context-id that is not a valid URI shall result in 400
-  // BadRequestData. RFC 3986 scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-  // followed by ':'. Cheap-and-correct check: a leading ALPHA, then
-  // scheme chars up to a ':'. Anything else (bare word, leading slash, …)
-  // is not a URI.
+  // No URI shape-check on the contextId — § 13.5.3 calls it a "locally
+  // unique identifier", and § 13.5.4 mandates ResourceNotFound for an
+  // identifier that "does not correspond to any existing entry", whatever
+  // its shape. The lookup below produces the 404. (ETSI 051_02_01,
+  // 051_04_02/03.)
   //
-  {
-    const char* p = contextId;
-    if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')))
-    {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
-              "context id '%s' is not a valid URI", contextId);
-      return true;
-    }
-    while (*p &&
-           ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
-            (*p >= '0' && *p <= '9') ||
-             *p == '+' || *p == '-' || *p == '.'))
-      p++;
-    if (*p != ':')
-    {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
-              "context id '%s' is not a valid URI", contextId);
-      return true;
-    }
-  }
 
   //
   // reload is parsed via ldParamHook as a boolean (LD_PARAM_RELOAD).
@@ -106,6 +88,40 @@ bool deleteJsonldContext(void)
       return true;
     }
     break;
+  }
+
+  //
+  // The Core @context is permanent — the broker cannot operate without it.
+  // Any recognised core URL (the configured one, the canonical unversioned
+  // form, or an older version — the ignored-stub family) refers to THE core
+  // here. A plain delete is refused; ?reload=true re-downloads the broker's
+  // configured core to verify availability (the embedded core term tables
+  // are canonical and survive either way). ETSI 051_08 / 051_09.
+  //
+  if (swldIsCoreContextUrl(contextId))
+  {
+    if (!reload)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "the Core @context cannot be deleted");
+      return true;
+    }
+
+    SwldContext* coreP   = swldCoreContext();
+    const char*  coreUrl = (coreP != NULL && coreP->url != NULL) ? coreP->url : SWLD_CORE_CONTEXT_URL;
+
+    int   downloadStatus = 0;
+    char* body           = swldDownloadGet()(coreUrl, &downloadStatus);
+
+    if (body == NULL)
+    {
+      ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
+              "unable to retrieve @context from '%s'", coreUrl);
+      return true;
+    }
+
+    swRest.out.httpStatusCode = 204;
+    return true;
   }
 
   SwldContext* existingP = swldCacheLookup(contextId);

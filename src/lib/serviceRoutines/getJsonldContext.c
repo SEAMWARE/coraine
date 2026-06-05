@@ -34,7 +34,8 @@
 #include "swJsonld/SwldContextCache.h"                 // SwldContextCache
 #include "swJsonld/swldCache.h"                        // swldCacheLookup, swldCacheInsert
 #include "swJsonld/swldContextParse.h"                 // swldContextFromObject, swldContextFromTree
-#include "swJsonld/swldDownload.h"                     // swldContextFromUrl
+#include "swJsonld/swldDownload.h"                     // swldContextFromUrl, swldIsCoreContextUrl
+#include "swJsonld/swldInit.h"                         // swldCoreContext
 #include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/SwNgsild.h"                         // ldBrokerHttpEndpoint
 
@@ -169,6 +170,19 @@ bool getJsonldContext(void)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "context id is missing");
     return true;
+  }
+
+  //
+  // Any recognised core URL (configured / unversioned / older version)
+  // refers to THE core entry — the older versions are ignored stubs for
+  // expansion, but the admin API serves the one core (ETSI 051_09 GETs
+  // the core's metadata via an older-version URL).
+  //
+  if (swldIsCoreContextUrl(contextId))
+  {
+    SwldContext* coreP = swldCoreContext();
+    if (coreP != NULL && coreP->url != NULL)
+      contextId = coreP->url;
   }
 
   SwldContext* contextP = swldCacheLookup(contextId);
