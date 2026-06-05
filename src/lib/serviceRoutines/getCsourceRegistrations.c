@@ -236,7 +236,8 @@ bool getCsourceRegistrations(void)
   bool hasType = (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL);
   bool hasId   = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL);
   bool hasIdPattern = (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0);
-  if (!hasType && !hasAttrs && !hasPick && !hasQ && !hasId && !hasIdPattern)
+  bool hasGeo       = (swNgsild.georel != NULL && swNgsild.georel[0] != 0);
+  if (!hasType && !hasAttrs && !hasPick && !hasQ && !hasId && !hasIdPattern && !hasGeo)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Too Wide Query",
             "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required");

@@ -136,7 +136,7 @@ echo
 echo
 
 
-echo "16. ?geoproperty=location alone -> 400 Too Wide Query"
+echo "16. ?geoproperty=location alone -> 400 Invalid geo-query"
 echo "====================================================="
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?geoproperty=location'
 echo
@@ -559,17 +559,17 @@ Content-Length: 3
 
 
 
-16. ?geoproperty=location alone -> 400 Too Wide Query
+16. ?geoproperty=location alone -> 400 Invalid geo-query
 =====================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 231
+Content-Length: 185
 
 {
-  "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
+  "detail": "geoproperty without georel, geometry, and coordinates",
   "status": 400,
-  "title": "Too Wide Query",
+  "title": "Invalid geo-query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

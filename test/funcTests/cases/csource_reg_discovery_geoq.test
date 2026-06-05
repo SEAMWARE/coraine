@@ -75,6 +75,13 @@ echo
 echo
 
 
+echo "06. georel without geometry/coordinates — 400 incomplete geo-query"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?georel=within'
+echo
+echo
+
+
 --EXPECT--
 01. Seed two CSRs: A around Madrid (Polygon), B around Barcelona (Polygon)
 ===========================================================================
@@ -306,6 +313,22 @@ Content-Length: 1263
     "type": "ContextSourceRegistration"
   }
 ]
+
+
+
+06. georel without geometry/coordinates — 400 incomplete geo-query
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 183
+
+{
+  "detail": "incomplete geo-query: missing geometry, coordinates",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 

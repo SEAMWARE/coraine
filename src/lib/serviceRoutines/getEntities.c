@@ -1485,33 +1485,10 @@ bool getEntities(void)
   }
 
   //
-  // Geo-query inter-parameter validation
+  // Geo-query inter-parameter validation lives in ldParamsValidate now —
+  // hoisted so /csourceRegistrations (and every other query route) shares
+  // the identical checks and messages.
   //
-  bool hasGeorel      = (swNgsild.georel      != NULL);
-  bool hasGeometry    = (swNgsild.geometry     != NULL);
-  bool hasCoordinates = (swNgsild.coordinates  != NULL);
-  bool hasGeoproperty = (swNgsild.geoproperty  != NULL);
-
-  if (hasGeorel || hasGeometry || hasCoordinates)
-  {
-    if (!hasGeorel || !hasGeometry || !hasCoordinates)
-    {
-      char missing[128] = "";
-      int  len          = 0;
-
-      if (!hasGeorel)      len += snprintf(missing + len, sizeof(missing) - len, "georel");
-      if (!hasGeometry)    len += snprintf(missing + len, sizeof(missing) - len, "%sgeometry",    len > 0 ? ", " : "");
-      if (!hasCoordinates) len += snprintf(missing + len, sizeof(missing) - len, "%scoordinates", len > 0 ? ", " : "");
-
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid geo-query", "incomplete geo-query: missing %s", missing);
-      return true;
-    }
-  }
-  else if (hasGeoproperty)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid geo-query", "geoproperty without georel, geometry, and coordinates");
-    return true;
-  }
 
   //
   // Build query filter from URL params

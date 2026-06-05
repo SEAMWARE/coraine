@@ -70,6 +70,45 @@ echo
 echo
 
 
+echo "06. Register CSR:Pinned (id Vehicle:V1) and CSR:Pattern (idPattern ^urn:ngsi-ld:Vehicle:P.*)"
+echo "=============================================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:ngsi-ld:CSR:Pinned",
+  "type":"ContextSourceRegistration",
+  "endpoint":"http://localhost:9999/csource",
+  "information":[{"entities":[{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
+}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:ngsi-ld:CSR:Pattern",
+  "type":"ContextSourceRegistration",
+  "endpoint":"http://localhost:9999/csource",
+  "information":[{"entities":[{"idPattern":"^urn:ngsi-ld:Vehicle:P.*","type":"Vehicle"}],"propertyNames":["speed"]}]
+}' | head -1
+echo
+echo
+
+
+echo "07. Discovery id=urn:ngsi-ld:Vehicle:V1 — Pinned + Multi match, Pattern is excluded"
+echo "====================================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Vehicle:V1'
+echo
+echo
+
+
+echo "08. Discovery id=urn:ngsi-ld:Vehicle:P7 — Pattern + Multi match, Pinned is excluded"
+echo "====================================================================================="
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Vehicle:P7'
+echo
+echo
+
+
+echo "09. Discovery id=urn:ngsi-ld:Boat:B1 — only Multi (no id constraints) can provide it"
+echo "======================================================================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Boat:B1'
+echo
+echo
+
+
 --EXPECT--
 01. Register CSR with three RegistrationInfo entries
 ====================================================
@@ -189,6 +228,198 @@ Content-Length: 326
     "endpoint": "http://localhost:9999/csource",
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
+      {
+        "entities": [
+          {
+            "type": "Building"
+          }
+        ],
+        "propertyNames": [
+          "location"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+06. Register CSR:Pinned (id Vehicle:V1) and CSR:Pattern (idPattern ^urn:ngsi-ld:Vehicle:P.*)
+==============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+07. Discovery id=urn:ngsi-ld:Vehicle:V1 — Pinned + Multi match, Pattern is excluded
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1006
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      },
+      {
+        "entities": [
+          {
+            "type": "Person"
+          }
+        ],
+        "propertyNames": [
+          "name"
+        ]
+      },
+      {
+        "entities": [
+          {
+            "type": "Building"
+          }
+        ],
+        "propertyNames": [
+          "location"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Pinned",
+    "information": [
+      {
+        "entities": [
+          {
+            "id": "urn:ngsi-ld:Vehicle:V1",
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+08. Discovery id=urn:ngsi-ld:Vehicle:P7 — Pattern + Multi match, Pinned is excluded
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1016
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      },
+      {
+        "entities": [
+          {
+            "type": "Person"
+          }
+        ],
+        "propertyNames": [
+          "name"
+        ]
+      },
+      {
+        "entities": [
+          {
+            "type": "Building"
+          }
+        ],
+        "propertyNames": [
+          "location"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Pattern",
+    "information": [
+      {
+        "entities": [
+          {
+            "idPattern": "^urn:ngsi-ld:Vehicle:P.*",
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+09. Discovery id=urn:ngsi-ld:Boat:B1 — only Multi (no id constraints) can provide it
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 642
+
+[
+  {
+    "endpoint": "http://localhost:9999/csource",
+    "id": "urn:ngsi-ld:CSR:Multi",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Vehicle"
+          }
+        ],
+        "propertyNames": [
+          "speed"
+        ]
+      },
+      {
+        "entities": [
+          {
+            "type": "Person"
+          }
+        ],
+        "propertyNames": [
+          "name"
+        ]
+      },
       {
         "entities": [
           {
