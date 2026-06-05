@@ -93,6 +93,47 @@ ftClientDump --port 7711
 echo
 echo
 
+
+echo "07. queryEntity CSR pinned to urn:R1 again — fan-out narrowing setup"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:CE -X DELETE
+echo
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE2","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+echo
+echo
+
+
+echo "08. GET ?id=urn:OTHER — the pinned-id CSR cannot provide it: NO forward"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&id=urn:OTHER' | head -1
+ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
+echo
+echo
+
+
+echo "09. GET ?id=urn:R1 — pinned id provided: forward happens"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&id=urn:R1' | head -1
+ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
+echo
+echo
+
+
+echo "10. GET ?idPattern=^urn:R.* — pattern matches the pinned id: forward"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&idPattern=%5Eurn:R.%2A' | head -1
+ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
+echo
+echo
+
+
+echo "11. GET ?idPattern=^urn:X.* — pattern cannot match the pinned id: NO forward"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&idPattern=%5Eurn:X.%2A' | head -1
+ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
+echo
+echo
+
 --EXPECT--
 01. Local entity urn:L1 (no speed)
 ==================================
@@ -283,6 +324,47 @@ Content-Length: REGEX(\d+)
     "verb": "POST"
   }
 ]
+
+
+07. queryEntity CSR pinned to urn:R1 again — fan-out narrowing setup
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE2
+Content-Length: 0
+
+
+
+
+08. GET ?id=urn:OTHER — the pinned-id CSR cannot provide it: NO forward
+=========================================================================
+HTTP/1.1 200 OK
+1
+
+
+09. GET ?id=urn:R1 — pinned id provided: forward happens
+==========================================================
+HTTP/1.1 200 OK
+2
+
+
+10. GET ?idPattern=^urn:R.* — pattern matches the pinned id: forward
+======================================================================
+HTTP/1.1 200 OK
+3
+
+
+11. GET ?idPattern=^urn:X.* — pattern cannot match the pinned id: NO forward
+===============================================================================
+HTTP/1.1 200 OK
+3
 
 
 --TEARDOWN--

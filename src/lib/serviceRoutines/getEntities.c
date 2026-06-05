@@ -38,7 +38,7 @@
 #include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
 #include "swNgsild/ldQAttrs.h"                       // ldQAttrs
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
@@ -1585,10 +1585,16 @@ bool getEntities(void)
       int              totalMatch     = 0;
       for (int m = 0; m < 4; m++)
       {
-        modeMatchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                                   NULL,
-                                                   splitModeSetting ? NULL : swNgsild.typeV,
-                                                   modes[m], &modeMatchV[m]);
+        // Entity identity (id / idPattern) is never split across sources, so
+        // the query's id selectors narrow the fan-out in BOTH split modes;
+        // the type filter stays no-split-only. Pinned-id registrations that
+        // cannot provide any queried id are excluded; regs constrained only
+        // by idPattern always match a query ?idPattern= (regex-vs-regex is
+        // not computable — ETSI agreement).
+        modeMatchN[m] = ldRegCacheMatchForQuery((LdRegCache*) tP->regCacheP,
+                                                swNgsild.idV, swNgsild.idPattern,
+                                                splitModeSetting ? NULL : swNgsild.typeV,
+                                                modes[m], &modeMatchV[m]);
         totalMatch += modeMatchN[m];
       }
 

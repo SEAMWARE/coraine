@@ -48,7 +48,7 @@
 #include "swNgsild/ldToTemporalValues.h"             // ldToTemporalValues
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchScope
 #include "swNgsild/ldStripAtContext.h"               // ldStripAtContext
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
+#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery, ldRegOpSupported
 #include "swNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
@@ -512,8 +512,9 @@ bool getEntitiesTemporal(void)
       {
         LdRegMode    mode        = modes[m];
         const char** typeFilterV = (mode == LdRegModeAuxiliary) ? NULL : (const char**) swNgsild.typeV;
-        matchN[m] = ldRegCacheMatchForRetrieve((LdRegCache*) tenantP->regCacheP,
-                                               NULL, (char**) typeFilterV, mode, &matchV[m]);
+        matchN[m] = ldRegCacheMatchForQuery((LdRegCache*) tenantP->regCacheP,
+                                            swNgsild.idV, swNgsild.idPattern,
+                                            (char**) typeFilterV, mode, &matchV[m]);
         total += matchN[m];
       }
 

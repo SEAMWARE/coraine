@@ -36,6 +36,7 @@
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
+#include "swNgsild/ldRegCache.h"                  // ldRegCacheProbePending
 #include "swNgsild/ldNotifyStatsHook.h"           // ldNotifyStatsHookSet
 #include "swNgsild/ldLinkedEntitiesHook.h"        // ldLinkedEntitiesHookSet
 #include "linkedEntities/ldLinkedEntities.h"      // ldLinkedEntitiesNotifApiArray
@@ -502,6 +503,7 @@ static void brokerPostResponseHook(void)
   ldNotifyDispatchPending();
   ldCsrSubDispatchPending();
   troeDispatchPending();
+  ldRegCacheProbePending();
 }
 
 
