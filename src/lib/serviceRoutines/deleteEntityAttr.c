@@ -350,6 +350,7 @@ bool deleteEntityAttr(void)
               tevP->attrName       = attrIri;
               tevP->modifiedAtNs   = swRest.requestStartTime;
               tevP->entitySnapshot = targetEntity;
+              tevP->attrSnapshot   = preSnapshot;  // pre-delete wrapper — carries the attr kind for the tombstone row
               troeDeferAttrEvent(tevP);
             }
           }

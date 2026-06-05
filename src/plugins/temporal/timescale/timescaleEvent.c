@@ -302,12 +302,26 @@ int timescaleExecEntityInsertLocked(const TroeEvent* evP)
 int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 {
   AttrCols cols;
-  extractCols((KjNode*) evP->attrSnapshot, &cols);
 
-  // For deletion events, attrSnapshot is the post-delete entity (attr is
-  // gone). Don't try to bind value cols.
   if (evP->op == TroeOpAttrDeleted)
+  {
+    // Tombstone row: no value columns are bound, but attr_kind must survive —
+    // the read side derives the instance's "type" and value-field name from
+    // it (§ 5.3.2.5: a deleted instance keeps the Attribute's type). For
+    // deletes, attrSnapshot is the PRE-delete wrapper ({dsKey: instance}),
+    // shared with the notification renderer (showChanges previousValue), so
+    // detect the kind without extractCols' destructive sub-attr migration.
+    // (For a deleted scope the snapshot is a bare string/array — kind stays
+    // 0 and renders as Property, which is what § 5.3.2.5 mandates for scope.)
     memset(&cols, 0, sizeof(cols));
+    KjNode* wrapP = (KjNode*) evP->attrSnapshot;
+    KjNode* instP = (wrapP != NULL && wrapP->type == KjObject) ? wrapP->value.firstChildP : NULL;
+    if (instP != NULL && instP->type == KjObject)
+      cols.kind = (int) ldAttrTypeDetect(instP);
+  }
+  else
+    extractCols((KjNode*) evP->attrSnapshot, &cols);
+
   cols.dsId = (cols.dsId != NULL) ? cols.dsId : "";
 
   char tsExpr[64];

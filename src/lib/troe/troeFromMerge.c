@@ -64,6 +64,13 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
     if (mergedEntity != NULL)
       attrSnapshot = kjLookup(mergedEntity, attrName);
 
+    // A deleted attr is gone from mergedEntity; the report's preValue clone
+    // (the pre-delete wrapper) still knows the attr kind — needed for the
+    // tombstone row's attr_kind (§ 5.3.2.5: a deleted instance keeps the
+    // Attribute's type).
+    if (attrSnapshot == NULL)
+      attrSnapshot = kjLookup(changeP, "preValue");
+
     TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
     memset(tevP, 0, sizeof(*tevP));
     tevP->op             = reasonToOp(reason);

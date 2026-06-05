@@ -1,0 +1,209 @@
+#
+# FILE            troe_timescale_temporal_deleted_kinds.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.2.5 — a deleted Attribute instance in the Temporal Evolution keeps the
+# Attribute's type; only its value-field is substituted with the NGSI-LD Null:
+#   Property          → "value":  "urn:ngsi-ld:null"
+#   Relationship      → "object": "urn:ngsi-ld:null"
+#   LanguageProperty  → "languageMap": {"@none": "urn:ngsi-ld:null"}   (§ 5.4.1)
+# The Scope's temporal evolution is a Property (§ 5.3.2.5) and its deleted
+# instance carries the NGSI-LD Null string (§ 4.18 ABNF: "shall be only used
+# and only appear in case of deleted scopes") — never an empty container.
+#
+# Covers both tombstone producers:
+#   - DELETE /entities/{id}/attrs/{name}    (deleteEntityAttr → preSnapshot)
+#   - PATCH  /entities/{id} merge-patch null (rfc7396Merge report → preValue)
+# and both renderings (normalized + format=temporalValues, where the Scope is
+# pair-compressed like any attr — TS 104-176 § A.3.4.3).
+#
+# ETSI: 020_17_02/03, 020_18_02/03, 020_19_01, 020_20_01.
+#
+--NAME--
+TRoE timescale - deleted instances keep the attr kind (tombstone rows)
+
+--TAGS--
+troe timescale postgres temporal delete
+
+--INIT--
+swDbDrop
+psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_delk" >/dev/null 2>&1
+psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_delk" >/dev/null
+swBrokerStart --troe timescale --troeName sw_troe_delk --troeUser postgres
+
+--RUN--
+
+echo "01. Seed urn:V1: scope + Property + 2x Relationship + LanguageProperty"
+echo "======================================================================"
+payload='{
+  "id":    "urn:V1",
+  "type":  "Vehicle",
+  "scope": "/Madrid/Gardens/ParqueNorte",
+  "fuelLevel": {"type":"Property","value":67,"observedAt":"2026-06-01T09:00:00Z"},
+  "isParkedIn": {"type":"Relationship","object":"urn:P1","observedAt":"2026-06-01T09:00:00Z"},
+  "locatedAt":  {"type":"Relationship","object":"urn:Place1","observedAt":"2026-06-01T09:00:00Z"},
+  "name": {"type":"LanguageProperty","languageMap":{"en":"My vehicle","fr":"Ma voiture"},"observedAt":"2026-06-01T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty), attrs/scope"
+echo "======================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/isParkedIn -X DELETE >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/name -X DELETE >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/scope -X DELETE >/dev/null
+echo done
+echo
+echo
+
+
+echo "03. PATCH merge-patch deletes locatedAt (Relationship) via the NGSI-LD Null"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"locatedAt":"urn:ngsi-ld:null"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "04. GET ?timeproperty=deletedAt — normalized: tombstones keep the attr kind"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt'
+echo
+echo
+
+
+echo "05. GET ?timeproperty=deletedAt&format=temporalValues — objects/languageMaps/scope pairs"
+echo "========================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt&format=temporalValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1: scope + Property + 2x Relationship + LanguageProperty
+======================================================================
+done
+
+
+02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty), attrs/scope
+=======================================================================================
+done
+
+
+03. PATCH merge-patch deletes locatedAt (Relationship) via the NGSI-LD Null
+===========================================================================
+done
+
+
+04. GET ?timeproperty=deletedAt — normalized: tombstones keep the attr kind
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "isParkedIn": [
+    {
+      "deletedAt": REGEX("[0-9T:.Z-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "object": "urn:ngsi-ld:null",
+      "type": "Relationship"
+    }
+  ],
+  "locatedAt": [
+    {
+      "deletedAt": REGEX("[0-9T:.Z-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "object": "urn:ngsi-ld:null",
+      "type": "Relationship"
+    }
+  ],
+  "name": [
+    {
+      "deletedAt": REGEX("[0-9T:.Z-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "languageMap": {
+        "@none": "urn:ngsi-ld:null"
+      },
+      "type": "LanguageProperty"
+    }
+  ],
+  "scope": [
+    {
+      "deletedAt": REGEX("[0-9T:.Z-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. GET ?timeproperty=deletedAt&format=temporalValues — objects/languageMaps/scope pairs
+=========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "isParkedIn": {
+    "objects": [
+      [
+        "urn:ngsi-ld:null",
+        REGEX("[0-9T:.Z-]+")
+      ]
+    ],
+    "type": "Relationship"
+  },
+  "locatedAt": {
+    "objects": [
+      [
+        "urn:ngsi-ld:null",
+        REGEX("[0-9T:.Z-]+")
+      ]
+    ],
+    "type": "Relationship"
+  },
+  "name": {
+    "languageMaps": [
+      [
+        {
+          "languageMap": {
+            "@none": "urn:ngsi-ld:null"
+          }
+        },
+        REGEX("[0-9T:.Z-]+")
+      ]
+    ],
+    "type": "LanguageProperty"
+  },
+  "scope": {
+    "type": "Property",
+    "values": [
+      [
+        "urn:ngsi-ld:null",
+        REGEX("[0-9T:.Z-]+")
+      ]
+    ]
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

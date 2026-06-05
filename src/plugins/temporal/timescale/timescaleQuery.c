@@ -91,7 +91,9 @@ static const char* kindValueFieldName(int kind)
     case LdAttrRelationship:     return "object";
     case LdAttrLanguageProperty: return "languageMap";
     case LdAttrVocabProperty:    return "vocab";
+    case LdAttrListProperty:     return "valueList";
     case LdAttrListRelationship: return "objectList";
+    case LdAttrJsonProperty:     return "json";
     default:                     return "value";
   }
 }
@@ -556,13 +558,22 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     KjNode* inst = kjObject(kjsonP, NULL);
     kjChildAdd(inst, kjString(kjsonP, "type", kindToTypeString(attrKind)));
 
-    // § 4.5.7: deleted instances render with value="urn:ngsi-ld:null".
+    // § 5.3.2.5: a deleted instance keeps the Attribute's type; its
+    // value-field carries the NGSI-LD Null. LanguageProperty nulls take the
+    // object form {"@none": "urn:ngsi-ld:null"} (§ 5.4.1).
     bool isDeleted = (strcmp(opStr, "deleted") == 0);
 
     if (isDeleted)
     {
       const char* vfn = kindValueFieldName(attrKind);
-      kjChildAdd(inst, kjString(kjsonP, vfn, "urn:ngsi-ld:null"));
+      if (attrKind == LdAttrLanguageProperty)
+      {
+        KjNode* lmP = kjObject(kjsonP, vfn);
+        kjChildAdd(lmP, kjString(kjsonP, "@none", "urn:ngsi-ld:null"));
+        kjChildAdd(inst, lmP);
+      }
+      else
+        kjChildAdd(inst, kjString(kjsonP, vfn, "urn:ngsi-ld:null"));
     }
     else
     {
