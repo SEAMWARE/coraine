@@ -23,6 +23,7 @@
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "swJsonld/swldInit.h"                       // swldCoreContext, SWLD_CORE_CONTEXT_URL
+#include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
 
 #include "swNgsild/swNgsild.h"                       // ldError, ldCheckEntity, LdOp*, LD_ERROR_*, swNgsild
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
@@ -264,6 +265,10 @@ bool patchEntity(void)
       KjNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, swRest.kjsonP,
                                               /*detach=*/isExclusive);
       if (fragP == NULL) continue;
+
+      // fragP is private (detached or cloned) — compact in place with the
+      // per-CSR forward context before rendering the wire body.
+      swldCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr));
 
       char* body = renderFragmentWithContext(fragP);
       items[kept] = items[i];

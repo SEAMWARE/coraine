@@ -35,6 +35,7 @@
 #include "kjson/kjRenderSize.h"                       // kjFastRenderSize
 
 #include "swJsonld/swldCompact.h"                     // swldCompact
+#include "swJsonld/swldCompactTree.h"                 // swldCompactTreeWith
 #include "swJsonld/swldInit.h"                        // swldCoreContext, SWLD_CORE_CONTEXT_URL
 
 #include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
@@ -324,7 +325,13 @@ bool patchEntityAttrs(void)
             continue;
           }
 
-          char* body = renderFragmentWithContext(fragP);
+          // Compact a clone for the wire — fragP stays expanded for the
+          // updated[]/notUpdated[] bookkeeping below, and CSRs may compact
+          // with different contexts (csi.jsonldContext).
+          KjNode* wireP = kjClone(swRest.kjsonP, fragP);
+          swldCompactTreeWith(wireP, ldDistOpForwardContext(csr));
+
+          char* body = renderFragmentWithContext(wireP);
           items[itemCount].csr     = csr;
           items[itemCount].url     = attrsUrl(csr->endpoint, entityId);
           items[itemCount].body    = body;

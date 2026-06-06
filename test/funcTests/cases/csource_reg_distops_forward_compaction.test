@@ -1,0 +1,229 @@
+#
+# FILE            csource_reg_distops_forward_compaction.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Write-forward body compaction: when a CSR declares no
+# contextSourceInfo.jsonldContext, forward bodies must be compacted with
+# the incoming request's @context (when URL-addressable) and the forward's
+# Link header must point at that same context. Before the fix, forwards
+# left the broker with fully-expanded IRIs and a core-context Link
+# (ETSI D005_01_* / D009_01_*).
+#
+# Also: the name-keyed "wrapped" Attribute-Fragment form is forwarded in
+# the incoming shape (the receiver unwraps for its own local processing).
+#
+--NAME--
+DistOps write forwards — body compacted via the request @context, Link follows
+
+--TAGS--
+csource registration distops context forward
+
+--INIT--
+swDbDrop
+contextServerStart
+ftClientStart --port 7711 --status 204
+swBrokerStart
+
+contextServerPush /jsonldContexts/veh '{
+  "@context": {
+    "speed":  "https://example.org/veh/speed",
+    "source": "https://example.org/veh/source"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Exclusive CSR on urn:V1 claiming speed, created WITH the test
+#     context (Link) so propertyNames expands like the writes below.
+#     No csi.jsonldContext — the forward context must fall back to the
+#     incoming request's @context.
+# 02. PATCH /attrs/speed as ld+json, wrapped fragment + in-body @context
+#     ARRAY of one URL → 204 (exclusive: forward only, no local apply).
+# 03. ftClient dump: the forward body carries SHORT names (speed, source)
+#     in the incoming wrapped shape, and the Link header points at the
+#     request's context URL — not core.
+# 04. PUT /attrs/speed as json + Link, bare fragment → 204.
+# 05. ftClient dump: the PUT forward also carries the request context in
+#     its Link header.
+#
+
+echo "01. Exclusive CSR on urn:V1 claiming speed (no csi.jsonldContext)"
+echo "=================================================================="
+payload='{
+  "id": "urn:CSR:FwdCtx",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["updateAttrs", "replaceAttrs"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH urn:V1/attrs/speed — ld+json, wrapped fragment, @context array"
+echo "========================================================================="
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 99,
+    "source": {"type": "Property", "value": "Speedometer"}
+  },
+  "@context": ["http://localhost:7080/jsonldContexts/veh"]
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload"
+echo
+echo
+
+
+echo "03. ftClient dump — compacted wrapped body + request-context Link"
+echo "=================================================================="
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "04. PUT urn:V1/attrs/speed — json + Link, bare fragment"
+echo "========================================================"
+payload='{
+  "type": "Property",
+  "value": 77,
+  "source": {"type": "Property", "value": "Radar"}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --payload "$payload"
+echo
+echo
+
+
+echo "05. ftClient dump — the PUT forward, request-context Link, short source"
+echo "========================================================================"
+ftClientDump --port 7711
+echo
+echo
+
+--EXPECT--
+01. Exclusive CSR on urn:V1 claiming speed (no csi.jsonldContext)
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:FwdCtx
+Content-Length: 0
+
+
+
+
+02. PATCH urn:V1/attrs/speed — ld+json, wrapped fragment, @context array
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. ftClient dump — compacted wrapped body + request-context Link
+==================================================================
+[
+  {
+    "body": {
+      "speed": {
+        "source": {
+          "type": "Property",
+          "value": "Speedometer"
+        },
+        "type": "Property",
+        "value": 99
+      }
+    },
+    "headers": {
+      "Content-Length": "91",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PATCH"
+  }
+]
+
+
+04. PUT urn:V1/attrs/speed — json + Link, bare fragment
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. ftClient dump — the PUT forward, request-context Link, short source
+========================================================================
+[
+  {
+    "body": {
+      "speed": {
+        "source": {
+          "type": "Property",
+          "value": "Speedometer"
+        },
+        "type": "Property",
+        "value": 99
+      }
+    },
+    "headers": {
+      "Content-Length": "91",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PATCH"
+  },
+  {
+    "body": {
+      "source": {
+        "type": "Property",
+        "value": "Radar"
+      },
+      "type": "Property",
+      "value": 77
+    },
+    "headers": {
+      "Content-Length": "75",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PUT"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop --port 7711
+contextServerStop

@@ -28,6 +28,7 @@
 #include "swJsonld/swldInit.h"                       // swldCoreContext, SWLD_CORE_CONTEXT_URL
 #include "swJsonld/SwldContext.h"                    // SwldContext
 #include "swJsonld/swldCompact.h"                    // swldCompact
+#include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
 
 #include "swNgsild/swNgsild.h"                       // ldError, ldCheckEntity, LdOp, LD_ERROR_*, swNgsild
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
@@ -589,7 +590,13 @@ bool postEntities(void)
             strcpy(url, csr->endpoint);
             strcpy(url + baseLen, path);
 
-            char* body = renderFragmentWithContext(fragP);
+            // Compact a clone for the wire — fragP stays expanded for the
+            // error bookkeeping (fragmentShortAttrList) below, and CSRs may
+            // compact with different contexts (csi.jsonldContext).
+            KjNode* wireP = kjClone(swRest.kjsonP, fragP);
+            swldCompactTreeWith(wireP, ldDistOpForwardContext(csr));
+
+            char* body = renderFragmentWithContext(wireP);
 
             KT_T(KtDistOpRequest, "forward: POST %s", url);
             items[itemCount].csr     = csr;

@@ -26,11 +26,13 @@
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
+#include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjRender.h"                          // kjFastRender
 #include "kjson/kjRenderSize.h"                      // kjFastRenderSize
 
 #include "swJsonld/swldInit.h"                       // SWLD_CORE_CONTEXT_URL
 #include "swJsonld/swldExpand.h"                     // swldExpand
+#include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdOp.h"                           // LdOpAppendAttrs
@@ -140,6 +142,18 @@ bool putEntityAttr(void)
   if (ctxNodeP != NULL) kjChildRemove(bodyP, ctxNodeP);
 
   //
+  // Wrapped-fragment form — {"<attrName>": {...}}: the ETSI suite (and
+  // forwards built from such requests) sends the name-keyed form rather
+  // than the bare Attribute Fragment of § 5.3. Accept it: unwrap for
+  // local processing. Forwards mirror the incoming shape (fwdSrcP).
+  //
+  KjNode* fwdSrcP = bodyP;
+  KjNode* soleP   = bodyP->value.firstChildP;
+  if (soleP != NULL && soleP->next == NULL && soleP->type == KjObject &&
+      soleP->name != NULL && strcmp(soleP->name, attrIri) == 0)
+    bodyP = soleP;
+
+  //
   // Wrap the attribute fragment into a fake entity fragment.
   //
   KjNode* entityFrag = kjObject(swRest.kjsonP, NULL);
@@ -212,9 +226,13 @@ bool putEntityAttr(void)
 
     for (int i = 0; i < n; i++)
     {
-      KjNode* fwdBody = kjObject(swRest.kjsonP, NULL);
-      for (KjNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
-        kjChildAdd(fwdBody, c);
+      // Clone per item — compaction renames nodes in place, and CSRs may
+      // compact with different contexts (csi.jsonldContext). Clone from
+      // fwdSrcP so the forward mirrors the incoming shape (wrapped or
+      // bare) and the local-apply tree stays pristine.
+      KjNode* fwdBody = kjClone(swRest.kjsonP, fwdSrcP);
+
+      swldCompactTreeWith(fwdBody, ldDistOpForwardContext(items[i].csr));
 
       char* bodyStr = renderBodyWithContext(fwdBody);
       items[i].url     = attrUrl(items[i].csr->endpoint, entityId, attrWild);

@@ -1,0 +1,227 @@
+#
+# FILE            entity_attr_wrapped_fragment.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The single-attribute routes (PATCH/PUT /entities/{id}/attrs/{attrId})
+# accept the name-keyed "wrapped" Attribute-Fragment form
+# {"<attrName>": {...}} alongside the bare form of § 5.3 — the ETSI suite
+# (and forwards built from such requests) sends the wrapped form. Before
+# the fix the wrapped object was stored VERBATIM as the attribute
+# instance ({"speed": {"speed": {...}}} corruption, ETSI D009_01_inc).
+#
+--NAME--
+PATCH/PUT entity attr — wrapped fragment form unwrapped for local processing
+
+--TAGS--
+entity attribute patch put
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create urn:V1 with speed=42 + brand.
+# 02. PATCH /attrs/speed with the WRAPPED form → 204.
+# 03. GET: speed.value = 99, source merged in, NO nested "speed" key.
+# 04. PUT /attrs/speed with the WRAPPED form → 204.
+# 05. GET: speed wholly replaced (value 77, radar source, no observedAt).
+# 06. PUT /attrs/speed with the BARE form (regression guard) → 204.
+# 07. GET: speed.value = 55.
+#
+
+echo "01. Create urn:V1 (speed=42, brand)"
+echo "===================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 42, "observedAt": "2026-01-01T00:00:00Z"},
+  "brand": {"type": "Property", "value": "Acme"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH attrs/speed — wrapped fragment"
+echo "========================================="
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 99,
+    "source": {"type": "Property", "value": "Speedometer"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. GET urn:V1 — speed.value 99, source present, no nesting"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "04. PUT attrs/speed — wrapped fragment"
+echo "======================================="
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 77,
+    "source": {"type": "Property", "value": "Radar"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload "$payload"
+echo
+echo
+
+
+echo "05. GET urn:V1 — speed wholly replaced (77, Radar, no observedAt)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "06. PUT attrs/speed — bare fragment (regression guard)"
+echo "======================================================="
+payload='{
+  "type": "Property",
+  "value": 55
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload "$payload"
+echo
+echo
+
+
+echo "07. GET urn:V1 — speed.value 55"
+echo "================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+--EXPECT--
+01. Create urn:V1 (speed=42, brand)
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. PATCH attrs/speed — wrapped fragment
+=========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. GET urn:V1 — speed.value 99, source present, no nesting
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 282
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "observedAt": "2026-01-01T00:00:00Z",
+    "source": {
+      "type": "Property",
+      "value": "Speedometer"
+    },
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. PUT attrs/speed — wrapped fragment
+=======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET urn:V1 — speed wholly replaced (77, Radar, no observedAt)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 234
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "source": {
+      "type": "Property",
+      "value": "Radar"
+    },
+    "type": "Property",
+    "value": 77
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. PUT attrs/speed — bare fragment (regression guard)
+=======================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. GET urn:V1 — speed.value 55
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Acme"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 55
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
