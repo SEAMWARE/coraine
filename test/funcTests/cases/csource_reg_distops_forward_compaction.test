@@ -218,6 +218,44 @@ ftClientDump --port 7711 | grep -E '"q"|"attrs"|"pick"|"url"' | tail -4
 echo
 echo
 
+
+echo "12. Back to a csi-less CSR — @context [veh, OLD core], the real-world array shape"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Csi -X DELETE | head -1
+payload='{
+  "id": "urn:CSR:Plain",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["updateAttrs"],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --payload "$payload" | head -1
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 33,
+    "source": {"type": "Property", "value": "GPS"}
+  },
+  "@context": [
+    "http://localhost:7080/jsonldContexts/veh",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+ftClientDump --port 7711 | grep -E '"speed"|"source"|"Link"' | tail -3
+echo
+echo
+
 --EXPECT--
 01. Exclusive CSR on urn:V1 claiming speed (no csi.jsonldContext)
 ==================================================================
@@ -534,6 +572,16 @@ HTTP/1.1 200 OK
       "pick": "velocidad,id,type,scope",
       "q": "(velocidad>5);(velocidad)",
     "url": "/ngsi-ld/v1/entities",
+
+
+12. Back to a csi-less CSR — @context [veh, OLD core], the real-world array shape
+====================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+      "speed": {
+        "source": {
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
 
 
 --TEARDOWN--

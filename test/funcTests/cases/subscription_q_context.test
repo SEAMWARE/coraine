@@ -13,6 +13,7 @@ context q subscription
 
 --INIT--
 swDbDrop
+swDbDrop -db swBroker
 contextServerStart
 swBrokerStart
 
@@ -23,7 +24,8 @@ swBrokerStart
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
     "a": "https://example.org/speed.max",
-    "b": "https://example.org/temp-unit"
+    "b": "https://example.org/temp-unit",
+    "c": "https://example.org/cargo.volume"
   }
 }'
 
@@ -39,18 +41,18 @@ contextServerPush /jsonldContexts/ctxB '{
 
 #
 # 01. Create subscription with q=a>5;b<10, using context A (a->speed.max, b->temp-unit)
-# 02. GET subscription with context A — q should show a>5;b<10
-# 03. GET subscription with context B — q should show a2>5;b2<10
+# 02. GET subscription with context A — q should show a>5;b<10;c
+# 03. GET subscription with context B — B has no alias for cargo.volume: a2>5;b2<10;<encoded IRI>
 # 04. GET subscription without user context — q should show URL-encoded IRIs
 #
 
-echo "01. Create subscription with q=a>5;b<10 using context A"
+echo "01. Create subscription with q=a>5;b<10;c using context A"
 echo "========================================================"
 payload='{
   "id": "urn:ngsi-ld:Subscription:Qctx",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
-  "q": "a>5;b<10",
+  "q": "a>5;b<10;c",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
@@ -63,7 +65,7 @@ echo
 echo
 
 
-echo "02. GET subscription with context A — q should show a>5;b<10"
+echo "02. GET subscription with context A — q should show a>5;b<10;c"
 echo "=============================================================="
 swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
@@ -71,7 +73,7 @@ echo
 echo
 
 
-echo "03. GET subscription with context B — q should show a2>5;b2<10"
+echo "03. GET subscription with context B — B has no alias for cargo.volume: a2>5;b2<10;<encoded IRI>"
 echo "================================================================"
 swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
@@ -87,7 +89,7 @@ echo
 
 
 --EXPECT--
-01. Create subscription with q=a>5;b<10 using context A
+01. Create subscription with q=a>5;b<10;c using context A
 ========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -98,43 +100,12 @@ Content-Length: 0
 
 
 
-02. GET subscription with context A — q should show a>5;b<10
+02. GET subscription with context A — q should show a>5;b<10;c
 ==============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 340
-
-{
-  "entities": [
-    {
-      "type": "Vehicle"
-    }
-  ],
-  "id": "urn:ngsi-ld:Subscription:Qctx",
-  "notification": {
-    "endpoint": {
-      "uri": "http://localhost:7701/notify"
-    }
-  },
-  "notificationTrigger": [
-    "attributeCreated",
-    "attributeUpdated"
-  ],
-  "q": "a>5;b<10",
-  "status": "active",
-  "type": "Subscription"
-}
-
-
-
-03. GET subscription with context B — q should show a2>5;b2<10
-================================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 342
 
 {
@@ -153,20 +124,20 @@ Content-Length: 342
     "attributeCreated",
     "attributeUpdated"
   ],
-  "q": "a2>5;b2<10",
+  "q": "a>5;b<10;c",
   "status": "active",
   "type": "Subscription"
 }
 
 
 
-04. GET subscription without user context — q should show URL-encoded IRIs
-===========================================================================
+03. GET subscription with context B — B has no alias for cargo.volume: a2>5;b2<10;<encoded IRI>
+================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 418
+Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 387
 
 {
   "entities": [
@@ -184,7 +155,38 @@ Content-Length: 418
     "attributeCreated",
     "attributeUpdated"
   ],
-  "q": "https%3A%2F%2Fexample%2Eorg%2Fspeed%2Emax>5;https%3A%2F%2Fexample%2Eorg%2Ftemp-unit<10",
+  "q": "a2>5;b2<10;https%3A%2F%2Fexample%2Eorg%2Fcargo%2Evolume",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+04. GET subscription without user context — q should show URL-encoded IRIs
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 463
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:Qctx",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "q": "https%3A%2F%2Fexample%2Eorg%2Fspeed%2Emax>5;https%3A%2F%2Fexample%2Eorg%2Ftemp-unit<10;https%3A%2F%2Fexample%2Eorg%2Fcargo%2Evolume",
   "status": "active",
   "type": "Subscription"
 }
@@ -193,4 +195,4 @@ Content-Length: 418
 
 --TEARDOWN--
 swBrokerStop
-swDbDrop
+contextServerStop
