@@ -474,6 +474,77 @@ static void chopForMode(Tenant*      tenantP,
 }
 
 
+//
+// purgeRedirAttrsFromFragment - strip from `fragP` every attribute
+// that any redirect-matched CSR claims, AFTER the redirect chopForMode
+// call has run with detach=false. We have to defer the detach until all
+// redirect CSRs covering this entity have been served, otherwise the
+// second-and-onwards ones find an empty fragment (D008_01_red-class
+// bug; surfaced here by ETSI D013_01/02_red).
+//
+static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
+                                         const char* entityId,
+                                         char**      typeArr,
+                                         char**      scopeV,
+                                         KjNode*     fragP,
+                                         const char* ownAlias)
+{
+  if (tenantP->regCacheP == NULL)
+    return;
+
+  LdRegCacheItem** matchV = NULL;
+  int matchN = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                 entityId, typeArr, scopeV,
+                                                 LdRegModeRedirect, &matchV);
+
+  for (int m = 0; m < matchN; m++)
+  {
+    LdRegCacheItem* csr = matchV[m];
+    if (csr->endpoint == NULL)                 continue;
+    if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+
+    for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      (void) ldEntityFragmentForInfo(fragP, riP, swRest.kjsonP, /*detach=*/true);
+  }
+
+  if (matchV != NULL) free(matchV);
+}
+
+
+//
+// anyCsrMatchesEntity - true if any exclusive/redirect/inclusive CSR
+// matches the entity (id + type). § 10.x: a batch-update target unknown
+// locally is ResourceNotFound only when "no matching registrations
+// apply" (§ 9.4) — with a match, the update still forwards and only the
+// local merge leg is skipped.
+//
+static bool anyCsrMatchesEntity(Tenant* tenantP, const char* entityId, KjNode* firstFragP)
+{
+  if (tenantP->regCacheP == NULL)
+    return false;
+
+  KjNode* typeP      = (firstFragP != NULL) ? kjLookup(firstFragP, "type") : NULL;
+  char*   typeArr[2] = { NULL, NULL };
+  char**  typeArgP   = NULL;
+  if (typeP != NULL && typeP->type == KjString)
+  {
+    typeArr[0] = typeP->value.s;
+    typeArgP   = typeArr;
+  }
+
+  static const LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
+  for (int i = 0; i < 3; i++)
+  {
+    LdRegCacheItem** v = NULL;
+    int n = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                              entityId, typeArgP, NULL, modes[i], &v);
+    if (v != NULL) free(v);
+    if (n > 0) return true;
+  }
+  return false;
+}
+
+
 // -----------------------------------------------------------------------------
 //
 // hasLocalPayload - true if fragP still carries something to merge
@@ -680,12 +751,20 @@ bool postEntityBatchUpdate(void)
     int r = db.entityRetrieve(tenantP, g->id, &existingDb);
     if (r == DB_NOT_FOUND || existingDb == NULL)
     {
-      addBatchError(errorsP, g->id, 404,
-                    LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-                    "entity does not exist", NULL);
-      continue;
+      // Not local — still forwardable when a registration matches
+      // (§ 9.4); only "unknown locally AND no matching registrations"
+      // is ResourceNotFound (ETSI D014_*: the entity lives behind a
+      // redirect CSR and the update must reach it).
+      existingDb = NULL;
+      if (!dispatch || !anyCsrMatchesEntity(tenantP, g->id, (g->count > 0) ? g->fragV[0] : NULL))
+      {
+        addBatchError(errorsP, g->id, 404,
+                      LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                      "entity does not exist", NULL);
+        continue;
+      }
     }
-    if (r != DB_OK)
+    else if (r != DB_OK)
     {
       addBatchError(errorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
@@ -745,9 +824,13 @@ bool postEntityBatchUpdate(void)
         chopForMode(tenantP, g->id, typeArr, scopeV, fragP,
                     LdRegModeExclusive, true,
                     &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
+        // Redirect: clone (multiple redirect CSRs may cover the same
+        // entity, all must receive a copy), then purge the redirect-
+        // claimed attrs once, so the local apply only sees what's left.
         chopForMode(tenantP, g->id, typeArr, scopeV, fragP,
-                    LdRegModeRedirect, true,
+                    LdRegModeRedirect, false,
                     &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
+        purgeRedirAttrsFromFragment(tenantP, g->id, typeArr, scopeV, fragP, ownAlias);
         chopForMode(tenantP, g->id, typeArr, scopeV, fragP,
                     LdRegModeInclusive, false,
                     &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
@@ -779,6 +862,16 @@ bool postEntityBatchUpdate(void)
         }
         if (realAttrsAfter == 0)
           continue;
+      }
+
+      // Entity not local (forward-only target): the attrs that survived
+      // the chop have no local entity to land on.
+      if (existingDb == NULL)
+      {
+        addBatchError(errorsP, g->id, 404,
+                      LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                      "entity does not exist locally; attributes not covered by any registration", NULL);
+        continue;
       }
 
       ldApiEntityToDbModel(fragP, &swRest.kalloc);

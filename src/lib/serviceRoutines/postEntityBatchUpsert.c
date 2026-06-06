@@ -413,6 +413,43 @@ static void chopForMode(Tenant*      tenantP,
 }
 
 
+//
+// purgeRedirAttrsFromFragment - strip from `fragP` every attribute
+// that any redirect-matched CSR claims, AFTER the redirect chopForMode
+// call has run with detach=false. We have to defer the detach until all
+// redirect CSRs covering this entity have been served, otherwise the
+// second-and-onwards ones find an empty fragment (D008_01_red-class
+// bug; surfaced here by ETSI D013_01/02_red).
+//
+static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
+                                         const char* entityId,
+                                         char**      typeArr,
+                                         char**      scopeV,
+                                         KjNode*     fragP,
+                                         const char* ownAlias)
+{
+  if (tenantP->regCacheP == NULL)
+    return;
+
+  LdRegCacheItem** matchV = NULL;
+  int matchN = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
+                                                 entityId, typeArr, scopeV,
+                                                 LdRegModeRedirect, &matchV);
+
+  for (int m = 0; m < matchN; m++)
+  {
+    LdRegCacheItem* csr = matchV[m];
+    if (csr->endpoint == NULL)                 continue;
+    if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+
+    for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      (void) ldEntityFragmentForInfo(fragP, riP, swRest.kjsonP, /*detach=*/true);
+  }
+
+  if (matchV != NULL) free(matchV);
+}
+
+
 
 static bool hasAnyNonKeywordAttr(KjNode* fragP)
 {
@@ -690,9 +727,13 @@ bool postEntityBatchUpsert(void)
         chopForMode(tenantP, g->id, typeArr, scopeV, fragP,
                     LdRegModeExclusive, true,
                     &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
+        // Redirect: clone (multiple redirect CSRs may cover the same
+        // entity, all must receive a copy), then purge the redirect-
+        // claimed attrs once, so the local apply only sees what's left.
         chopForMode(tenantP, g->id, typeArr, scopeV, fragP,
-                    LdRegModeRedirect, true,
+                    LdRegModeRedirect, false,
                     &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);
+        purgeRedirAttrsFromFragment(tenantP, g->id, typeArr, scopeV, fragP, ownAlias);
         chopForMode(tenantP, g->id, typeArr, scopeV, fragP,
                     LdRegModeInclusive, false,
                     &csrAccums, &csrAccumsN, &csrAccumsCap, ownAlias);

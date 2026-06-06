@@ -1,0 +1,217 @@
+#
+# FILE            entity_batch_redirect_fanout.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Multiple redirect CSRs covering the same entities must ALL receive a
+# batch upsert/update forward. The redirect chop ran with detach=true —
+# the first redirect CSR stripped the fragment and the second-and-onwards
+# found it empty, getting NO forward at all (D008_01_red-class bug in the
+# batch paths; surfaced by ETSI D013_01/02_red). Redirect now clones per
+# CSR with a single post-loop purge, like batch create/merge already did.
+#
+--NAME--
+Batch upsert/update — every matching redirect CSR receives the forward
+
+--TAGS--
+batch distops registration upsert update
+
+--INIT--
+swDbDrop
+ftClientStart --port 7711 --status 204
+ftClientStart --port 7712 --status 204
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Two redirect CSRs (7711 + 7712), both claiming urn:V.* wholesale.
+# 02. Batch upsert two entities → 204.
+# 03+04. BOTH ftClients hold one POST /entityOperations/upsert with the
+#        full two-entity body.
+# 05. Batch update the entities → 204.
+# 06+07. BOTH ftClients add one POST /entityOperations/update.
+#
+
+echo "01. Two redirect CSRs, idPattern urn:V.*"
+echo "=========================================="
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["redirectionOps", "upsertBatch", "updateBatch"],
+  "information": [{"entities": [{"idPattern": "urn:V.*", "type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+payload='{
+  "id": "urn:CSR:R2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7712",
+  "mode": "redirect",
+  "operations": ["redirectionOps", "upsertBatch", "updateBatch"],
+  "information": [{"entities": [{"idPattern": "urn:V.*", "type": "Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Batch upsert urn:V1 + urn:V2"
+echo "================================="
+payload='[
+  {"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 1}},
+  {"id": "urn:V2", "type": "Vehicle", "speed": {"type": "Property", "value": 2}}
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. ftClient 7711 — the upsert forward, both entities"
+echo "======================================================"
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "04. ftClient 7712 — the upsert forward, both entities"
+echo "======================================================"
+ftClientDump --port 7712
+echo
+echo
+
+
+echo "05. Batch update urn:V1 + urn:V2"
+echo "================================="
+payload='[
+  {"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 11}},
+  {"id": "urn:V2", "type": "Vehicle", "speed": {"type": "Property", "value": 22}}
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+echo
+echo
+
+
+echo "06. ftClient 7711 — adds the update forward"
+echo "============================================"
+ftClientDump --port 7711 | grep -cE '"url": "/ngsi-ld/v1/entityOperations/(upsert|update)"'
+echo
+echo
+
+
+echo "07. ftClient 7712 — adds the update forward"
+echo "============================================"
+ftClientDump --port 7712 | grep -cE '"url": "/ngsi-ld/v1/entityOperations/(upsert|update)"'
+echo
+echo
+
+--EXPECT--
+01. Two redirect CSRs, idPattern urn:V.*
+==========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Batch upsert urn:V1 + urn:V2
+=================================
+HTTP/1.1 204 No Content
+
+
+03. ftClient 7711 — the upsert forward, both entities
+======================================================
+[
+  {
+    "body": [
+      {
+        "id": "urn:V1",
+        "speed": {
+          "type": "Property",
+          "value": 1
+        },
+        "type": "Vehicle"
+      },
+      {
+        "id": "urn:V2",
+        "speed": {
+          "type": "Property",
+          "value": 2
+        },
+        "type": "Vehicle"
+      }
+    ],
+    "headers": {
+      "Content-Length": "143",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entityOperations/upsert",
+    "verb": "POST"
+  }
+]
+
+
+04. ftClient 7712 — the upsert forward, both entities
+======================================================
+[
+  {
+    "body": [
+      {
+        "id": "urn:V1",
+        "speed": {
+          "type": "Property",
+          "value": 1
+        },
+        "type": "Vehicle"
+      },
+      {
+        "id": "urn:V2",
+        "speed": {
+          "type": "Property",
+          "value": 2
+        },
+        "type": "Vehicle"
+      }
+    ],
+    "headers": {
+      "Content-Length": "143",
+      "Content-Type": "application/json",
+      "Host": "localhost:7712",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entityOperations/upsert",
+    "verb": "POST"
+  }
+]
+
+
+05. Batch update urn:V1 + urn:V2
+=================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. ftClient 7711 — adds the update forward
+============================================
+2
+
+
+07. ftClient 7712 — adds the update forward
+============================================
+2
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop --port 7711
+ftClientStop --port 7712
