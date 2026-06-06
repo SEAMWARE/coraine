@@ -48,6 +48,7 @@
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/ldDistOp.h"                       // ldDistOp*
+#include "swNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -202,8 +203,14 @@ bool deleteEntityAttr(void)
                                   entityId, /*perRi=*/true, entityId, attrIri,
                                   errorsArrayP, &items);
 
+    // The {attrId} path component is an alias — emit the short the
+    // receiver's @context (the one this forward carries) understands;
+    // %-encode the IRI when it has no short form there.
     for (int i = 0; i < n; i++)
-      items[i].url = attrUrl(items[i].csr->endpoint, entityId, attrWild);
+    {
+      const char* fwdAttr = ldCompactOrEncode(attrIri, ldDistOpForwardContext(items[i].csr), &swRest.kalloc);
+      items[i].url = attrUrl(items[i].csr->endpoint, entityId, fwdAttr);
+    }
 
     ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
 

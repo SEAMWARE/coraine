@@ -33,6 +33,7 @@
 #include "swJsonld/swldInit.h"                       // SWLD_CORE_CONTEXT_URL
 #include "swJsonld/swldExpand.h"                     // swldExpand
 #include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
+#include "swNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdOp.h"                           // LdOpAppendAttrs
@@ -230,12 +231,18 @@ bool putEntityAttr(void)
       // compact with different contexts (csi.jsonldContext). Clone from
       // fwdSrcP so the forward mirrors the incoming shape (wrapped or
       // bare) and the local-apply tree stays pristine.
-      KjNode* fwdBody = kjClone(swRest.kjsonP, fwdSrcP);
+      KjNode*      fwdBody = kjClone(swRest.kjsonP, fwdSrcP);
+      SwldContext* fwdCtx  = ldDistOpForwardContext(items[i].csr);
 
-      swldCompactTreeWith(fwdBody, ldDistOpForwardContext(items[i].csr));
+      swldCompactTreeWith(fwdBody, fwdCtx);
 
       char* bodyStr = renderBodyWithContext(fwdBody);
-      items[i].url     = attrUrl(items[i].csr->endpoint, entityId, attrWild);
+
+      // The {attrId} path component is an alias too — emit the short the
+      // receiver's @context (the one this forward carries) understands;
+      // %-encode the IRI when it has no short form there.
+      const char* fwdAttr = ldCompactOrEncode(attrIri, fwdCtx, &swRest.kalloc);
+      items[i].url     = attrUrl(items[i].csr->endpoint, entityId, fwdAttr);
       items[i].body    = bodyStr;
       items[i].bodyLen = strlen(bodyStr);
     }

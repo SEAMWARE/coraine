@@ -40,7 +40,8 @@
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop
+#include "swNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop, ldDistOpForwardContext
+#include "swNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
 #include "swNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
 
@@ -1038,12 +1039,12 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
 // Also strips local, entityMap, orderBy, collation, pick, omit (local concerns
 // or per-CSR computed via intersectAndPick).
 //
-// JSON-LD alias-bearing params (type, geoproperty, geometryProperty) bypass
-// the raw uriParamV passthrough: their raw values are CLIENT-context shorts,
-// but the receiver parses with its own context — so we emit the expanded IRI
-// compacted via the CSR's @context (compactForUrl), the same algorithm
-// buildSplitForwardQueryString uses. q stays raw for now (its embedded
-// attribute aliases would each need expand+compact too; deferred).
+// JSON-LD alias-bearing params (type, attrs, q, geoproperty,
+// geometryProperty) bypass the raw uriParamV passthrough: their raw values
+// are CLIENT-context shorts, but the receiver parses with the @context the
+// forward carries — so we emit the expanded IRI compacted via the forward
+// context (compactForUrl; ldQRender for q's embedded attribute terms), the
+// same algorithm buildSplitForwardQueryString uses.
 //
 static const char* buildQueryString(SwldContext* csrCtx)
 {
@@ -1065,6 +1066,48 @@ static const char* buildQueryString(SwldContext* csrCtx)
     }
   }
 
+  // q — its attribute terms are aliases too; re-render the parsed
+  // expression via the forward context (uncompactable IRIs %-encoded).
+  //
+  // attrs (deprecated) is NEVER forwarded — its projection half already
+  // rides the per-CSR pick (computeWantedAttrs); its selection half
+  // ("at least one of the listed attributes exists") becomes attr-EXISTS
+  // terms OR-ed together and AND-ed onto the initial q:
+  //     q=(<initial q>);(a|b|c)     — or just q=a|b|c without a q.
+  //
+  char* qRendered = (swNgsild.qExpr != NULL) ? ldQRender(swNgsild.qExpr, csrCtx, &swRest.kalloc) : NULL;
+  if (qRendered != NULL && qRendered[0] == 0) qRendered = NULL;
+
+  char* attrsExists = NULL;
+  if (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL)
+  {
+    int cap = 2;
+    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
+      cap += strlen(swNgsild.attrsV[i]) * 3 + 1;
+    attrsExists = (char*) kaAlloc(&swRest.kalloc, cap);
+    int apos = 0;
+    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
+    {
+      if (i > 0) attrsExists[apos++] = '|';
+      const char* v = ldCompactOrEncode(swNgsild.attrsV[i], csrCtx, &swRest.kalloc);
+      strcpy(attrsExists + apos, v);
+      apos += strlen(v);
+    }
+    attrsExists[apos] = 0;
+  }
+
+  if (qRendered != NULL || attrsExists != NULL)
+  {
+    if (pos > 0) qs[pos++] = '&';
+    strcpy(qs + pos, "q="); pos += 2;
+    if (qRendered != NULL && attrsExists != NULL)
+      pos += sprintf(qs + pos, "(%s);(%s)", qRendered, attrsExists);
+    else if (qRendered != NULL)
+      pos += sprintf(qs + pos, "%s", qRendered);
+    else
+      pos += sprintf(qs + pos, "%s", attrsExists);
+  }
+
   // geoproperty — alias-bearing (swNgsild.geoproperty is already expanded)
   if (swNgsild.geoproperty != NULL && swNgsild.geoproperty[0] != 0)
   {
@@ -1075,7 +1118,7 @@ static const char* buildQueryString(SwldContext* csrCtx)
     strcpy(qs + pos, v); pos += vLen;
   }
 
-  // All other URL params: forward raw (id, idPattern, scope, scopeQ, q,
+  // All other URL params: forward raw (id, idPattern, scope, scopeQ,
   // georel, geometry, coordinates, timerel, timeAt, lang, csf, …).
   for (int i = 0; i < swRest.in.uriParamCount; i++)
   {
@@ -1092,6 +1135,8 @@ static const char* buildQueryString(SwldContext* csrCtx)
     if (strcmp(key, "pick")             == 0) continue;
     if (strcmp(key, "omit")             == 0) continue;
     if (strcmp(key, "type")             == 0) continue;  // handled above
+    if (strcmp(key, "attrs")            == 0) continue;  // deprecated — replaced by pick + q above
+    if (strcmp(key, "q")                == 0) continue;  // handled above (ldQRender)
     if (strcmp(key, "geoproperty")      == 0) continue;  // handled above
     if (strcmp(key, "geometryProperty") == 0) continue;  // handled below
 
@@ -1610,7 +1655,7 @@ bool getEntities(void)
         srcMapStampLocalFrom(srcMap, arrayP);
       }
 
-      // baseQs is per-CSR (alias-bearing params are compacted via csr->forwardCtxP)
+      // baseQs is per-CSR (alias-bearing params are compacted via ldDistOpForwardContext)
       // so it gets computed inside the loop now.
 
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
@@ -1661,10 +1706,10 @@ bool getEntities(void)
           {
             char** csrExports = csrUnionExports(csr, &swRest.kalloc);
             bool   skip       = false;
-            const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip, csr->forwardCtxP);
+            const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
             if (skip) continue;
 
-            const char* splitBase = buildSplitForwardQueryString(csr->forwardCtxP);
+            const char* splitBase = buildSplitForwardQueryString(ldDistOpForwardContext(csr));
             const char* idParam   = csrPinnedIdsParam(csr, &swRest.kalloc);
             int   bLen = strlen(splitBase), pLen = strlen(pickParam), iLen = strlen(idParam);
             char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + iLen + 1);
@@ -1675,7 +1720,7 @@ bool getEntities(void)
           }
           else
           {
-            const char* baseQs = buildQueryString(csr->forwardCtxP);
+            const char* baseQs = buildQueryString(ldDistOpForwardContext(csr));
             fullQs = baseQs;
             bool csrSkipped = false;
 
@@ -1696,7 +1741,7 @@ bool getEntities(void)
 
               bool        skip      = false;
               const char* pickParam = intersectAndPick(riP->propertyNamesV, riP->relationshipNamesV,
-                                                        pickWanted, &swRest.kalloc, &skip, csr->forwardCtxP);
+                                                        pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
               if (skip) { csrSkipped = true; break; }
 
               const char* idParam = csrPinnedIdsParam(csr, &swRest.kalloc);

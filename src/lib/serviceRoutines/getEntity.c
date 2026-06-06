@@ -37,7 +37,8 @@
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
-#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive
+#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
+#include "swNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -460,11 +461,12 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
 
   // The CS will interpret the URL params via the same @context that
   // accompanies the forward (Link header for application/json, body
-  // @context for application/ld+json). Both resolve to csr->forwardCtxP
-  // — csi.jsonldContext if the CSR declared one, else core. Compacting
-  // against any other context would emit short names the CS expands
-  // differently than we intended.
-  SwldContext* forwardCtx = (csr != NULL && csr->forwardCtxP != NULL) ? csr->forwardCtxP : swldCoreContext();
+  // @context for application/ld+json). Both resolve to
+  // ldDistOpForwardContext(csr) — csi.jsonldContext > incoming request
+  // context > core. Compacting against any other context would emit
+  // short names the CS expands differently than we intended; IRIs with
+  // no short form there are %-encoded (ldCompactOrEncode).
+  SwldContext* forwardCtx = (csr != NULL) ? ldDistOpForwardContext(csr) : swldCoreContext();
 
   int totalLen = 0;
   int count    = 0;
@@ -473,8 +475,7 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
   for (int li = 0; lists[li] != NULL; li++)
     for (int i = 0; lists[li][i] != NULL; i++)
     {
-      const char* c = swldCompact(forwardCtx, lists[li][i]);
-      totalLen += strlen(c ? c : lists[li][i]) + 1;
+      totalLen += strlen(ldCompactOrEncode(lists[li][i], forwardCtx, kaP)) + 1;
       count++;
     }
 
@@ -498,8 +499,7 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
     for (int i = 0; lists[li][i] != NULL; i++)
     {
       if (pos > firstAttrPos) buf[pos++] = ',';
-      const char* c = swldCompact(forwardCtx, lists[li][i]);
-      const char* n = c ? c : lists[li][i];
+      const char* n = ldCompactOrEncode(lists[li][i], forwardCtx, kaP);
       int nlen = strlen(n);
       strcpy(buf + pos, n);
       pos += nlen;

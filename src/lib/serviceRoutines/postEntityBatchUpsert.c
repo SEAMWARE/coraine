@@ -118,49 +118,24 @@ static void addBatchError(KjNode* errorsP, const char* entityId, int statusCode,
 
 
 
-// -----------------------------------------------------------------------------
-//
-// csrJsonldContext - return jsonldContext URL for a CSR or NULL.
-//
-static const char* csrJsonldContext(LdRegCacheItem* csr)
-{
-  if (csr == NULL || csr->contextSourceInfoKV == NULL)
-    return NULL;
-  for (int i = 0; csr->contextSourceInfoKV[i] != NULL; i += 2)
-  {
-    const char* k = csr->contextSourceInfoKV[i];
-    if (k != NULL && strcasecmp(k, "jsonldContext") == 0)
-      return csr->contextSourceInfoKV[i + 1];
-  }
-  return NULL;
-}
-
-
-
 static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
 {
-  const char* jsonldCtxUrl = csrJsonldContext(csr);
+  //
+  // § 4.3.6.6: compact every fragment against the effective forward
+  // context — csi.jsonldContext > incoming request @context > core
+  // (ldDistOpForwardContext: the same context buildHeaders names in the
+  // Link header) — and strip in-body @context (the forward goes out as
+  // application/json + Link).
+  //
+  SwldContext* fwdCtx = ldDistOpForwardContext(csr);
 
-  if (jsonldCtxUrl != NULL)
+  for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
   {
-    SwldContext* targetCtx = swldContextFromUrl(jsonldCtxUrl, &swRest.kalloc);
-    for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
-    {
-      if (targetCtx != NULL) swldCompactTreeWith(fragP, targetCtx);
+    swldCompactTreeWith(fragP, fwdCtx);
 
-      KjNode* atCtx = kjLookup(fragP, "@context");
-      if (atCtx != NULL) kjChildRemove(fragP, atCtx);
-    }
-  }
-  else
-  {
-    // Strip body @context: forward goes out as application/json + Link.
-    for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
-    {
-      KjNode* atCtx = kjLookup(fragP, "@context");
-      if (atCtx != NULL)
-        kjChildRemove(fragP, atCtx);
-    }
+    KjNode* atCtx = kjLookup(fragP, "@context");
+    if (atCtx != NULL)
+      kjChildRemove(fragP, atCtx);
   }
 
   int   bufSize = kjFastRenderSize(batchArr) + 1;

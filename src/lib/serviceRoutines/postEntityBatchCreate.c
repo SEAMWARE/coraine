@@ -160,25 +160,6 @@ static char** typeVecOf(KjNode* entityP, char* slot[2])
 
 // -----------------------------------------------------------------------------
 //
-// csrJsonldContext - return the jsonldContext URL for a CSR, or NULL.
-//
-static const char* csrJsonldContext(LdRegCacheItem* csr)
-{
-  if (csr == NULL || csr->contextSourceInfoKV == NULL)
-    return NULL;
-  for (int i = 0; csr->contextSourceInfoKV[i] != NULL; i += 2)
-  {
-    const char* k = csr->contextSourceInfoKV[i];
-    if (k != NULL && strcasecmp(k, "jsonldContext") == 0)
-      return csr->contextSourceInfoKV[i + 1];
-  }
-  return NULL;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // renderBatchBody - serialise the KjArray of fragments for forwarding.
 //
 // Two modes per § 4.3.6.6 + § 6.3.19:
@@ -197,55 +178,22 @@ static const char* csrJsonldContext(LdRegCacheItem* csr)
 //
 static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
 {
-  const char* jsonldCtxUrl = csrJsonldContext(csr);
+  //
+  // § 4.3.6.6: compact every fragment against the effective forward
+  // context — csi.jsonldContext > incoming request @context > core
+  // (ldDistOpForwardContext: the same context buildHeaders names in the
+  // Link header) — and strip in-body @context (the forward goes out as
+  // application/json + Link).
+  //
+  SwldContext* fwdCtx = ldDistOpForwardContext(csr);
 
-  if (jsonldCtxUrl != NULL)
+  for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
   {
-    //
-    // § 4.3.6.6: compact body against the referenced context, strip
-    // @context members. Context is loaded on demand — cached by
-    // swldContextFromUrl so subsequent forwards to the same CSR don't
-    // re-download.
-    //
-    SwldContext* targetCtx = swldContextFromUrl(jsonldCtxUrl, &swRest.kalloc);
+    swldCompactTreeWith(fragP, fwdCtx);
 
-    if (targetCtx != NULL)
-    {
-      for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
-      {
-        swldCompactTreeWith(fragP, targetCtx);
-
-        KjNode* atCtx = kjLookup(fragP, "@context");
-        if (atCtx != NULL)
-          kjChildRemove(fragP, atCtx);
-      }
-    }
-    // If targetCtx failed to load, we still strip any in-body @context
-    // (application/json + Link is about to go out, so @context in the
-    // body would trigger the receiver's "Unexpected @context" check).
-    else
-    {
-      for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
-      {
-        KjNode* atCtx = kjLookup(fragP, "@context");
-        if (atCtx != NULL)
-          kjChildRemove(fragP, atCtx);
-      }
-    }
-  }
-  else
-  {
-    //
-    // Default path: forward goes out as application/json + Link header
-    // (ldDistOp/buildHeaders), so body must NOT carry @context — mix is
-    // a 400 per feedback_context_header_rules. Strip if inherited.
-    //
-    for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
-    {
-      KjNode* atCtx = kjLookup(fragP, "@context");
-      if (atCtx != NULL)
-        kjChildRemove(fragP, atCtx);
-    }
+    KjNode* atCtx = kjLookup(fragP, "@context");
+    if (atCtx != NULL)
+      kjChildRemove(fragP, atCtx);
   }
 
   int   bufSize = kjFastRenderSize(batchArr) + 1;

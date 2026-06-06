@@ -34,6 +34,13 @@ contextServerPush /jsonldContexts/veh '{
   }
 }'
 
+contextServerPush /jsonldContexts/csi '{
+  "@context": {
+    "velocidad": "https://example.org/veh/speed",
+    "fuente":    "https://example.org/veh/source"
+  }
+}'
+
 --RUN--
 
 #
@@ -114,6 +121,100 @@ echo
 echo "05. ftClient dump — the PUT forward, request-context Link, short source"
 echo "========================================================================"
 ftClientDump --port 7711
+echo
+echo
+
+
+#
+# csi.jsonldContext ≠ the request context: the CSR speaks "csi" (velocidad/
+# fuente) for the same IRIs the client calls speed/source. Body keys, the
+# {attrId} PATH component, pick=, and the Link header must ALL come out in
+# the csi vocabulary.
+#
+
+echo "06. Replace the CSR with one declaring csi.jsonldContext"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:FwdCtx -X DELETE | head -1
+payload='{
+  "id": "urn:CSR:Csi",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["updateAttrs", "retrieveEntity", "upsertBatch", "queryEntity"],
+  "contextSourceInfo": [{"key": "jsonldContext", "value": "http://localhost:7080/jsonldContexts/csi"}],
+  "information": [
+    {
+      "entities": [{"id": "urn:V1", "type": "Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "07. PATCH urn:V1/attrs/speed (veh ctx) — forward speaks csi: /attrs/velocidad"
+echo "==============================================================================="
+payload='{
+  "speed": {
+    "type": "Property",
+    "value": 42,
+    "source": {"type": "Property", "value": "Lidar"}
+  },
+  "@context": ["http://localhost:7080/jsonldContexts/veh"]
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload"
+echo
+echo
+
+
+echo "08. ftClient dump — velocidad path + body, fuente sub-attr, csi Link"
+echo "====================================================================="
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "09. GET urn:V1 (veh ctx) — retrieve forward carries pick=type,velocidad"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+ftClientDump --port 7711 | grep -E '"url"|"pick"' | tail -2
+echo
+echo
+
+
+echo "10. Batch upsert (veh ctx) — forward body compacted via csi"
+echo "============================================================"
+payload='[
+  {
+    "id": "urn:V1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 7,
+      "source": {"type": "Property", "value": "Sonar"}
+    }
+  }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/upsert \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --payload "$payload" | head -1
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "11. Query ?attrs=speed&q=speed>5 (veh ctx) — attrs never forwarded: q=(velocidad>5);(velocidad)"
+echo "================================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed&q=speed%3E5&splitEntities=false' \
+  --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+ftClientDump --port 7711 | grep -E '"q"|"attrs"|"pick"|"url"' | tail -4
 echo
 echo
 
@@ -221,6 +322,218 @@ Content-Type: application/json
     "verb": "PUT"
   }
 ]
+
+
+06. Replace the CSR with one declaring csi.jsonldContext
+=========================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+
+
+07. PATCH urn:V1/attrs/speed (veh ctx) — forward speaks csi: /attrs/velocidad
+===============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+08. ftClient dump — velocidad path + body, fuente sub-attr, csi Link
+=====================================================================
+[
+  {
+    "body": {
+      "speed": {
+        "source": {
+          "type": "Property",
+          "value": "Speedometer"
+        },
+        "type": "Property",
+        "value": 99
+      }
+    },
+    "headers": {
+      "Content-Length": "91",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PATCH"
+  },
+  {
+    "body": {
+      "source": {
+        "type": "Property",
+        "value": "Radar"
+      },
+      "type": "Property",
+      "value": 77
+    },
+    "headers": {
+      "Content-Length": "75",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PUT"
+  },
+  {
+    "body": {
+      "velocidad": {
+        "fuente": {
+          "type": "Property",
+          "value": "Lidar"
+        },
+        "type": "Property",
+        "value": 42
+      }
+    },
+    "headers": {
+      "Content-Length": "89",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
+    "verb": "PATCH"
+  }
+]
+
+
+09. GET urn:V1 (veh ctx) — retrieve forward carries pick=type,velocidad
+========================================================================
+HTTP/1.1 404 Not Found
+      "pick": "type,scope,velocidad",
+    "url": "/ngsi-ld/v1/entities/urn:V1",
+
+
+10. Batch upsert (veh ctx) — forward body compacted via csi
+============================================================
+HTTP/1.1 204 No Content
+[
+  {
+    "body": {
+      "speed": {
+        "source": {
+          "type": "Property",
+          "value": "Speedometer"
+        },
+        "type": "Property",
+        "value": 99
+      }
+    },
+    "headers": {
+      "Content-Length": "91",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PATCH"
+  },
+  {
+    "body": {
+      "source": {
+        "type": "Property",
+        "value": "Radar"
+      },
+      "type": "Property",
+      "value": 77
+    },
+    "headers": {
+      "Content-Length": "75",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
+    "verb": "PUT"
+  },
+  {
+    "body": {
+      "velocidad": {
+        "fuente": {
+          "type": "Property",
+          "value": "Lidar"
+        },
+        "type": "Property",
+        "value": 42
+      }
+    },
+    "headers": {
+      "Content-Length": "89",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
+    "verb": "PATCH"
+  },
+  {
+    "headers": {
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "params": {
+      "pick": "type,scope,velocidad",
+      "sysAttrs": "true"
+    },
+    "url": "/ngsi-ld/v1/entities/urn:V1",
+    "verb": "GET"
+  },
+  {
+    "body": [
+      {
+        "id": "urn:V1",
+        "type": "Vehicle",
+        "velocidad": {
+          "fuente": {
+            "type": "Property",
+            "value": "Sonar"
+          },
+          "type": "Property",
+          "value": 7
+        }
+      }
+    ],
+    "headers": {
+      "Content-Length": "121",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entityOperations/upsert",
+    "verb": "POST"
+  }
+]
+
+
+11. Query ?attrs=speed&q=speed>5 (veh ctx) — attrs never forwarded: q=(velocidad>5);(velocidad)
+=================================================================================================
+HTTP/1.1 200 OK
+    "url": "/ngsi-ld/v1/entityOperations/upsert",
+      "pick": "velocidad,id,type,scope",
+      "q": "(velocidad>5);(velocidad)",
+    "url": "/ngsi-ld/v1/entities",
 
 
 --TEARDOWN--
