@@ -1,0 +1,226 @@
+#
+# FILE            context_types_attributes_compaction.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /types and GET /attributes return NAMES — and a name on the wire
+# is an alias into the request context: a type/attribute the context
+# can compact comes back short, anything else as its full IRI. Same
+# discovery data, different vocabulary per caller — and the details
+# forms (typeName / attributeName, attributeNames) follow the same
+# rule.
+#
+--NAME--
+GET /types + /attributes — names compact via the request context
+
+--TAGS--
+context entity types
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "Car": "https://example.org/types/Car",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create urn:E1 (Car, spd) via ctxA.
+# 02. GET /types via ctxA — "Car".
+# 03. GET /types via core — full IRI.
+# 04. GET /types?details=true via ctxA — typeName Car, attributeNames [spd].
+# 05. GET /attributes via ctxA — "spd".
+# 06. GET /attributes via core — full IRI.
+# 07. GET /attributes?details=true via ctxA — attributeName spd, typeNames [Car].
+#
+
+echo "01. Create urn:E1 (Car, spd) via ctxA"
+echo "======================================"
+payload='{
+  "id": "urn:E1",
+  "type": "Car",
+  "spd": {"type": "Property", "value": 1}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. GET /types via ctxA — Car"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/types \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET /types via core — full IRI"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "04. GET /types?details=true via ctxA"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/types?details=true' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. GET /attributes via ctxA — spd"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/attributes \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. GET /attributes via core — full IRI"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+echo "07. GET /attributes?details=true via ctxA"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/attributes?details=true' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+--EXPECT--
+01. Create urn:E1 (Car, spd) via ctxA
+======================================
+HTTP/1.1 201 Created
+
+
+02. GET /types via ctxA — Car
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Car"
+  ]
+}
+
+
+
+03. GET /types via core — full IRI
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "https://example.org/types/Car"
+  ]
+}
+
+
+
+04. GET /types?details=true via ctxA
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "attributeNames": [
+      "spd"
+    ],
+    "id": "https://example.org/types/Car",
+    "type": "EntityType",
+    "typeName": "Car"
+  }
+]
+
+
+
+05. GET /attributes via ctxA — spd
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "attributeList": [
+    "spd"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+06. GET /attributes via core — full IRI
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "attributeList": [
+    "https://example.org/veh/speed"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+07. GET /attributes?details=true via ctxA
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "attributeName": "spd",
+    "id": "https://example.org/veh/speed",
+    "type": "Attribute",
+    "typeNames": [
+      "Car"
+    ]
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

@@ -1,0 +1,233 @@
+#
+# FILE            context_vocab_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# @vocab is core-context-only — BY DESIGN (matches orion-ld): a term
+# with no explicit mapping expands via the core's @vocab (the default
+# context), NEVER via a @vocab the user context may carry (§ 4.3.4.3
+# describes core @vocab as the fallback; with the core in last position
+# its @vocab is the active one — spec-doubt #66 territory).
+# What matters is coherence: entity bodies, q= and pick= must all land
+# in the SAME place, and the default-context IRI must vocab-compact
+# back to the short name under any context.
+#
+--NAME--
+@vocab is core-only — unmapped terms round-trip via the default context
+
+--TAGS--
+context entity url-param
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxVocab '{
+  "@context": {
+    "@vocab": "https://example.org/vocab/",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxExplicit '{
+  "@context": {
+    "mileage": "https://example.org/vocab/mileage"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create urn:E1 (type Car, spd explicit + mileage unmapped) via
+#     ctxVocab — its @vocab is IGNORED: mileage goes to the default
+#     context, spd to its explicit IRI.
+# 02. GET via core context — spd is the full veh/speed IRI while
+#     mileage and Car compact via the core's own @vocab: short.
+# 03. GET via ctxVocab — spd short too; mileage/Car still short.
+# 04. q=mileage>100 via ctxVocab — default-context on both sides: match.
+# 05. q=mileage>100 via ctxExplicit — expands to vocab/mileage, the IRI
+#     a HONORED user-@vocab would have stored: NO match, proving 01
+#     ignored the user @vocab.
+# 06. pick=mileage via ctxVocab — projection lands in the default
+#     context too: mileage survives the pick.
+# 07. Compaction is core-only too: urn:E2 created with the FULL IRI
+#     vocab/odometer (the IRI a honored user-@vocab would produce) must
+#     keep the FULL IRI when rendered via ctxVocab — stripping the user
+#     @vocab would emit "odometer", which expands back to the default
+#     context: round-trip corruption.
+#
+
+echo "01. Create urn:E1 (Car, spd=120, mileage=50000) via ctxVocab"
+echo "============================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Car",
+  "spd": {"type": "Property", "value": 120},
+  "mileage": {"type": "Property", "value": 50000}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. GET via core context — spd full IRI, mileage/Car default-context short"
+echo "============================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. GET via ctxVocab — everything short"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. q=mileage>100 via ctxVocab — default-context both sides: match"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Car&q=mileage>100' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
+echo
+echo
+
+
+echo "05. q=mileage>100 via ctxExplicit — vocab/mileage: NO match"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Car&q=mileage>100' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxExplicit>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
+echo
+echo
+
+
+echo "06. pick=mileage via ctxVocab — mileage survives the pick"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Car&pick=mileage' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "07. Full IRI under the user-vocab prefix never compacts via it"
+echo "==============================================================="
+payload='{
+  "id": "urn:E2",
+  "type": "Car",
+  "https://example.org/vocab/odometer": {"type": "Property", "value": 7}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E2 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+--EXPECT--
+01. Create urn:E1 (Car, spd=120, mileage=50000) via ctxVocab
+=============================================================
+HTTP/1.1 201 Created
+
+
+02. GET via core context — spd full IRI, mileage/Car default-context short
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/veh/speed": {
+    "type": "Property",
+    "value": 120
+  },
+  "id": "urn:E1",
+  "mileage": {
+    "type": "Property",
+    "value": 50000
+  },
+  "type": "Car"
+}
+
+
+
+03. GET via ctxVocab — everything short
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "mileage": {
+    "type": "Property",
+    "value": 50000
+  },
+  "spd": {
+    "type": "Property",
+    "value": 120
+  },
+  "type": "Car"
+}
+
+
+
+04. q=mileage>100 via ctxVocab — default-context both sides: match
+====================================================================
+1
+
+
+05. q=mileage>100 via ctxExplicit — vocab/mileage: NO match
+============================================================
+0
+
+
+06. pick=mileage via ctxVocab — mileage survives the pick
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "mileage": {
+      "type": "Property",
+      "value": 50000
+    }
+  }
+]
+
+
+
+07. Full IRI under the user-vocab prefix never compacts via it
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/vocab/odometer": {
+    "type": "Property",
+    "value": 7
+  },
+  "id": "urn:E2",
+  "type": "Car"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

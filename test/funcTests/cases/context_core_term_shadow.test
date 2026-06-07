@@ -1,0 +1,134 @@
+#
+# FILE            context_core_term_shadow.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The NGSI-LD core context ALWAYS wins — a user context that tries to
+# remap core terms (type, value, Property) competes with nothing: the
+# shadow mappings are ignored on expansion (an attribute's "type":
+# "Property" keeps its core meaning, never expands to the evil IRI) and
+# on compaction (core members render under their core short names).
+# User terms in the same context (spd, T) work normally.
+#
+--NAME--
+Core-term shadow attempt — core context wins, shadow mappings ignored
+
+--TAGS--
+context entity
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxShadow '{
+  "@context": {
+    "type": "https://example.org/evil/type",
+    "value": "https://example.org/evil/value",
+    "Property": "https://example.org/evil/Property",
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create urn:E1 via ctxShadow — type/value/Property keep their core
+#     meaning, spd/T expand via the user mappings.
+# 02. GET via core context — spd is its full IRI, attr structure intact:
+#     "type": "Property" / "value": 1 (no evil IRIs anywhere).
+# 03. GET via ctxShadow — spd short again, core members still core.
+# 04. q=spd>0 via ctxShadow — matcher uses core semantics: match.
+#
+
+echo "01. Create urn:E1 via ctxShadow"
+echo "================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 1}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxShadow>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. GET via core context — core structure intact, no evil IRIs"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. GET via ctxShadow — spd short, core members still core"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxShadow>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. q=spd>0 via ctxShadow — core match semantics: match"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=spd>0' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxShadow>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
+echo
+echo
+
+--EXPECT--
+01. Create urn:E1 via ctxShadow
+================================
+HTTP/1.1 201 Created
+
+
+02. GET via core context — core structure intact, no evil IRIs
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/veh/speed": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E1",
+  "type": "https://example.org/types/T"
+}
+
+
+
+03. GET via ctxShadow — spd short, core members still core
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxShadow>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+04. q=spd>0 via ctxShadow — core match semantics: match
+=========================================================
+1
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

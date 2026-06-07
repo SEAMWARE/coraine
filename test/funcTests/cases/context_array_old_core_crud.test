@@ -1,0 +1,218 @@
+#
+# FILE            context_array_old_core_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The real-world array shape: [userCtx, OLD core URL]. Deployments
+# routinely pin an old core context version (here the unversioned 1.0
+# URL) in their arrays. The broker must treat ANY core version as an
+# ignored stub — never download it, never let its terms (or its @vocab)
+# compete with the broker's own core — while the user element of the
+# array works normally, through a full CRUD cycle, and the response
+# @context (ld+json Accept) echoes the request context.
+#
+--NAME--
+[userCtx, core-1.0] array — old core is a stub, user ctx works across CRUD
+
+--TAGS--
+context entity jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST ld+json with @context [ctxA, core-1.0] → 201; spd/T expand
+#     via ctxA, the old core is a no-op stub (no download attempted).
+# 02. GET via core context — full IRIs prove ctxA did the expanding.
+# 03. GET via ctxA — short again.
+# 04. PATCH /attrs/spd as ld+json with the same array — value 7 → 204.
+# 05. GET via ctxA — updated value, still short.
+# 06. GET as ld+json via ctxA Link — body carries "@context" echoing
+#     the request context.
+# 07. DELETE the entity with the array context (ld+json ignored for
+#     DELETE — no body) → 204, then GET → 404.
+#
+
+echo "01. POST ld+json, @context [ctxA, core-1.0]"
+echo "============================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 5},
+  "@context": [
+    "http://localhost:7080/jsonldContexts/ctxA",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET via core context — full IRIs: ctxA did the expanding"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. GET via ctxA — short"
+echo "========================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. PATCH spd=7 as ld+json with the same array context"
+echo "========================================================"
+payload='{
+  "value": 7,
+  "@context": [
+    "http://localhost:7080/jsonldContexts/ctxA",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/spd -X PATCH \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "05. GET via ctxA — updated value, still short"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. GET as ld+json via ctxA — @context echoed in the body"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Accept: application/ld+json' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "07. DELETE, then GET → 404"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 -X DELETE | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | head -1
+echo
+echo
+
+--EXPECT--
+01. POST ld+json, @context [ctxA, core-1.0]
+============================================
+HTTP/1.1 201 Created
+
+
+02. GET via core context — full IRIs: ctxA did the expanding
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/veh/speed": {
+    "type": "Property",
+    "value": 5
+  },
+  "id": "urn:E1",
+  "type": "https://example.org/types/T"
+}
+
+
+
+03. GET via ctxA — short
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 5
+  },
+  "type": "T"
+}
+
+
+
+04. PATCH spd=7 as ld+json with the same array context
+========================================================
+HTTP/1.1 204 No Content
+
+
+05. GET via ctxA — updated value, still short
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 7
+  },
+  "type": "T"
+}
+
+
+
+06. GET as ld+json via ctxA — @context echoed in the body
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": "http://localhost:7080/jsonldContexts/ctxA",
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 7
+  },
+  "type": "T"
+}
+
+
+
+07. DELETE, then GET → 404
+===========================
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

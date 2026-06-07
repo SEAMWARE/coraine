@@ -1,0 +1,163 @@
+#
+# FILE            context_partial_coverage.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Compaction is per-term, not per-body: a response context that covers
+# only SOME of an entity's terms yields a MIXED body — short names where
+# the context has an alias, full IRIs where it does not. Nothing is
+# dropped, nothing is guessed: a term the context can't compact travels
+# as its IRI, in the same body as its compacted siblings.
+#
+--NAME--
+Partial context coverage — mixed short names and full IRIs in one body
+
+--TAGS--
+context entity
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxFull '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "a": "https://example.org/p/a",
+    "b": "https://example.org/p/b"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxPartial '{
+  "@context": {
+    "a": "https://example.org/p/a"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create urn:E1 (type T, attrs a + b) via ctxFull.
+# 02. GET via ctxPartial — 'a' compacts, 'b' and the entity type come
+#     back as full IRIs, all in the same body.
+# 03. GET via ctxFull — everything short again.
+# 04. GET via core context (no Link) — nothing compacts: all full IRIs.
+#
+
+echo "01. Create urn:E1 (type T, a=1, b=2) via ctxFull"
+echo "================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "a": {"type": "Property", "value": 1},
+  "b": {"type": "Property", "value": 2}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxFull>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. GET via ctxPartial — short a, full-IRI b and type"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxPartial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET via ctxFull — all short"
+echo "================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxFull>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. GET via core context — all full IRIs"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+--EXPECT--
+01. Create urn:E1 (type T, a=1, b=2) via ctxFull
+=================================================
+HTTP/1.1 201 Created
+
+
+02. GET via ctxPartial — short a, full-IRI b and type
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxPartial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "type": "Property",
+    "value": 1
+  },
+  "https://example.org/p/b": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:E1",
+  "type": "https://example.org/types/T"
+}
+
+
+
+03. GET via ctxFull — all short
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxFull>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "type": "Property",
+    "value": 1
+  },
+  "b": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+04. GET via core context — all full IRIs
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/p/a": {
+    "type": "Property",
+    "value": 1
+  },
+  "https://example.org/p/b": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:E1",
+  "type": "https://example.org/types/T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

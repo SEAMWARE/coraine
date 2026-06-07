@@ -1,0 +1,293 @@
+#
+# FILE            context_pick_omit_orderby_alias.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# pick=, omit= and orderBy= take SHORT names — aliases into the request
+# context, exactly like attrs in a body (§ 7.6.2 / § 7.3.2). The same
+# short name through a different context is a different attribute:
+# pick/omit/orderBy via ctxB (spd → B/speed) must not touch the data
+# created via ctxA (spd → veh/speed). And the response echoes the
+# request context: what ctxB can't compact comes back as full IRIs.
+#
+--NAME--
+pick/omit/orderBy short names expand via the request context
+
+--TAGS--
+context entity url-param
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed",
+    "nm": "https://example.org/veh/name"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/B/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create E1 (spd=30, nm=alpha), E2 (spd=10, nm=charlie),
+#     E3 (spd=20, nm=bravo) via ctxA. spd-order and nm-order DIFFER.
+# 02. orderBy=spd via ctxA — ascending speed: E2, E3, E1.
+# 03. orderBy=spd;desc via ctxA — descending: E1, E3, E2.
+# 04. orderBy=nm via ctxA — string sort: E1, E3, E2.
+# 05. pick=id,spd via ctxA — id + spd survive, nm gone.
+# 06. pick=id,spd via ctxB — spd is B/speed there: only id survives.
+# 07. omit=spd via ctxA — spd gone; nm/id/type remain, short.
+# 08. omit=spd via ctxB — B/speed not present: nothing omitted; and the
+#     echo: ctxB can't compact veh/speed or veh/name — full IRIs.
+#
+
+echo "01. Create E1 spd=30/nm=alpha, E2 spd=10/nm=charlie, E3 spd=20/nm=bravo"
+echo "========================================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 30},
+  "nm": {"type": "Property", "value": "alpha"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "spd": {"type": "Property", "value": 10},
+  "nm": {"type": "Property", "value": "charlie"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+
+payload='{
+  "id": "urn:E3",
+  "type": "T",
+  "spd": {"type": "Property", "value": 20},
+  "nm": {"type": "Property", "value": "bravo"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. orderBy=spd via ctxA — E2, E3, E1"
+echo "======================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=spd' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "03. orderBy=spd;desc via ctxA — E1, E3, E2"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=spd;desc' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "04. orderBy=nm via ctxA — E1, E3, E2"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=nm' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "05. pick=id,spd via ctxA — id + spd, nm gone"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,spd&orderBy=spd' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. pick=id,spd via ctxB — only id survives"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,spd' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "07. omit=spd via ctxA — nm/id/type remain"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&omit=spd&orderBy=nm' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "08. omit=spd via ctxB — nothing omitted, full IRIs echo"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities?id=urn:E1&type=T&omit=spd' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+--EXPECT--
+01. Create E1 spd=30/nm=alpha, E2 spd=10/nm=charlie, E3 spd=20/nm=bravo
+========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=spd via ctxA — E2, E3, E1
+======================================
+    "id": "urn:E2",
+    "id": "urn:E3",
+    "id": "urn:E1",
+
+
+03. orderBy=spd;desc via ctxA — E1, E3, E2
+===========================================
+    "id": "urn:E1",
+    "id": "urn:E3",
+    "id": "urn:E2",
+
+
+04. orderBy=nm via ctxA — E1, E3, E2
+=====================================
+    "id": "urn:E1",
+    "id": "urn:E3",
+    "id": "urn:E2",
+
+
+05. pick=id,spd via ctxA — id + spd, nm gone
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:E2",
+    "spd": {
+      "type": "Property",
+      "value": 10
+    }
+  },
+  {
+    "id": "urn:E3",
+    "spd": {
+      "type": "Property",
+      "value": 20
+    }
+  },
+  {
+    "id": "urn:E1",
+    "spd": {
+      "type": "Property",
+      "value": 30
+    }
+  }
+]
+
+
+
+06. pick=id,spd via ctxB — only id survives
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:E1"
+  },
+  {
+    "id": "urn:E2"
+  },
+  {
+    "id": "urn:E3"
+  }
+]
+
+
+
+07. omit=spd via ctxA — nm/id/type remain
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:E1",
+    "nm": {
+      "type": "Property",
+      "value": "alpha"
+    },
+    "type": "T"
+  },
+  {
+    "id": "urn:E3",
+    "nm": {
+      "type": "Property",
+      "value": "bravo"
+    },
+    "type": "T"
+  },
+  {
+    "id": "urn:E2",
+    "nm": {
+      "type": "Property",
+      "value": "charlie"
+    },
+    "type": "T"
+  }
+]
+
+
+
+08. omit=spd via ctxB — nothing omitted, full IRIs echo
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "https://example.org/veh/name": {
+      "type": "Property",
+      "value": "alpha"
+    },
+    "https://example.org/veh/speed": {
+      "type": "Property",
+      "value": 30
+    },
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

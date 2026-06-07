@@ -1,0 +1,193 @@
+#
+# FILE            context_inline_object_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An inline OBJECT @context — terms supplied verbatim in the request
+# body, no URL anywhere — must expand exactly like its hosted twin:
+# the entity lands under the full IRIs, retrievable short through a
+# URL context with the same mappings, full through the core context,
+# and selectable (q=) either way. Both real-world shapes are covered:
+# the bare object and the [object, core-URL] array.
+# (Distop forwarding of inline contexts is the @context-hosting task —
+# separate test once that lands.)
+#
+--NAME--
+Inline-object @context — expands like its hosted twin, full round-trip
+
+--TAGS--
+context entity
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST ld+json, @context is a bare inline OBJECT (same mappings as
+#     the hosted ctxA) → 201.
+# 02. POST ld+json, @context is an ARRAY [inline object, core-1.9 URL]
+#     → 201.
+# 03. GET E1 via core context — full IRIs: the inline object expanded.
+# 04. GET E1 via hosted ctxA — same mappings, so: short.
+# 05. GET E2 via hosted ctxA — array shape expanded identically.
+# 06. q=spd>3 via ctxA — selection sees both entities.
+#
+
+echo "01. POST with bare inline-object @context"
+echo "=========================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 5},
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. POST with [inline object, core-1.9 URL] array @context"
+echo "==========================================================="
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "spd": {"type": "Property", "value": 9},
+  "@context": [
+    {
+      "T": "https://example.org/types/T",
+      "spd": "https://example.org/veh/speed"
+    },
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. GET E1 via core context — full IRIs"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "04. GET E1 via hosted ctxA — short"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. GET E2 via hosted ctxA — array shape expanded identically"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E2 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. q=spd>3 via ctxA — both entities match"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=spd>3' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c '"id"'
+echo
+echo
+
+--EXPECT--
+01. POST with bare inline-object @context
+==========================================
+HTTP/1.1 201 Created
+
+
+02. POST with [inline object, core-1.9 URL] array @context
+===========================================================
+HTTP/1.1 201 Created
+
+
+03. GET E1 via core context — full IRIs
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/veh/speed": {
+    "type": "Property",
+    "value": 5
+  },
+  "id": "urn:E1",
+  "type": "https://example.org/types/T"
+}
+
+
+
+04. GET E1 via hosted ctxA — short
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 5
+  },
+  "type": "T"
+}
+
+
+
+05. GET E2 via hosted ctxA — array shape expanded identically
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E2",
+  "spd": {
+    "type": "Property",
+    "value": 9
+  },
+  "type": "T"
+}
+
+
+
+06. q=spd>3 via ctxA — both entities match
+===========================================
+2
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

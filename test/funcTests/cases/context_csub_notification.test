@@ -1,0 +1,175 @@
+#
+# FILE            context_csub_notification.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.11.7 — CSR-subscription notifications follow the same @context
+# discipline as entity notifications: the ContextSourceNotification
+# body speaks the SUBSCRIPTION's @context — not the context of the
+# registration that triggered it — and the Link header names the
+# sub's context. A CSR registered via ctxB (auto/vel) notifying a sub
+# created via ctxA (Vehicle/spd, same IRIs) must deliver Vehicle/spd.
+#
+--NAME--
+CSR-sub notifications compact via the subscription's @context
+
+--TAGS--
+context csr-sub subscription notification
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+ftClientStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "Vehicle": "https://example.org/types/Vehicle",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "auto": "https://example.org/types/Vehicle",
+    "vel": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. CSR-sub S1 (type Vehicle) via ctxA — the initial notification
+#     fires (no CSRs yet: data=[]), already Link-stamped with ctxA.
+# 02. Register CSR-A via ctxB — type auto (= Vehicle), propertyNames
+#     [vel] (= spd) → S1 matches.
+# 03. Dump: initial notification + CSR notification. BOTH speak ctxA:
+#     entities type "Vehicle", propertyNames ["spd"], Link names ctxA.
+#
+
+echo "01. CSR-sub S1 (Vehicle) via ctxA"
+echo "=================================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/s1"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. Register CSR-A via ctxB — auto/vel (same IRIs as Vehicle/spd)"
+echo "=================================================================="
+payload='{
+  "id": "urn:CSR:A",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://cp1.example",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [{"type": "auto"}],
+      "propertyNames": ["vel"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "03. Dump — both notifications speak ctxA: Vehicle/spd"
+echo "======================================================"
+sleep .3
+ftClientDump
+echo
+echo
+
+--EXPECT--
+01. CSR-sub S1 (Vehicle) via ctxA
+==================================
+HTTP/1.1 201 Created
+
+
+02. Register CSR-A via ctxB — auto/vel (same IRIs as Vehicle/spd)
+==================================================================
+HTTP/1.1 201 Created
+
+
+03. Dump — both notifications speak ctxA: Vehicle/spd
+======================================================
+[
+  {
+    "body": {
+      "data": [],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/s1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ],
+              "propertyNames": [
+                "spd"
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": REGEX("[0-9]+"),
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": REGEX("swBroker/.*")
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+contextServerStop
