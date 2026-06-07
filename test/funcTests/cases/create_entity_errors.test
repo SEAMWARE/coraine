@@ -1730,10 +1730,10 @@ Content-Length: 175
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 215
+Content-Length: 170
 
 {
-  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Hexagon'",
+  "detail": "Unknown GeoJSON geometry type: 'Hexagon'",
   "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

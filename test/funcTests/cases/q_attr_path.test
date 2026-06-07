@@ -1,0 +1,214 @@
+#
+# FILE            q_attr_path.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 attrPath in q: dots separate attribute / sub-attribute segments;
+# IRI-internal dots travel %2E-encoded. Each segment is a context alias —
+# expanded segment-wise at parse, compacted (or %-encoded) segment-wise
+# at render — and the matcher descends into sub-attributes.
+#
+--NAME--
+q attrPath — sub-attribute filtering, segment-wise context round-trip
+
+--TAGS--
+context q query subscription
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "m": "https://example.org/x.y",
+    "s": "https://example.org/sub.prop"
+  }
+}'
+
+--RUN--
+
+#
+# 01. E1: m with sub-Property s=5; E2: m with s=2 (both via ctxA).
+# 02. ?q=m.s>3 via ctxA → only E1.
+# 03. ?q=m.s (sub-attr EXISTS) via ctxA → both.
+# 04. Subscription q=m.s>3 via ctxA; GET via ctxA → m.s>3.
+# 05. GET via core → both segments %-encoded (dots %2E), raw '.' separator.
+#
+
+echo "01. Create E1 (m.s=5) and E2 (m.s=2) via ctxA"
+echo "=============================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "m": {"type": "Property", "value": 1, "s": {"type": "Property", "value": 5}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "m": {"type": "Property", "value": 1, "s": {"type": "Property", "value": 2}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. ?q=m.s>3 via ctxA — only E1"
+echo "================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=m.s%3E3' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "03. ?q=m.s (sub-attr exists) via ctxA — both"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=m.s' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "04. Subscription q=m.s>3 — GET via ctxA"
+echo "========================================"
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "q": "m.s>3",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"q"'
+echo
+echo
+
+
+echo "05. GET via core — segment-wise %-encoding, raw dot separator"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep '"q"'
+echo
+echo
+
+
+#
+# § 4.9 "[...]" — entering the VALUE. E3's m has an OBJECT value with
+# member path c.d; [] members are opaque (no context expansion).
+#
+
+echo "06. Create E3 — m with object value {c: {d: 7}} via ctxA"
+echo "=========================================================="
+payload='{
+  "id": "urn:E3",
+  "type": "T",
+  "m": {"type": "Property", "value": {"c": {"d": 7}}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "07. ?q=m[c.d]>5 via ctxA — value-path match: only E3"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=m%5Bc.d%5D%3E5' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "08. ?q=m[c.d] (value-member exists) — only E3"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=m%5Bc.d%5D' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "09. Subscription q=m[c.d]>5 — round-trip via ctxA and core"
+echo "==========================================================="
+payload='{
+  "id": "urn:S2",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "q": "m[c.d]>5",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S2 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"q"'
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S2 | grep '"q"'
+echo
+echo
+
+--EXPECT--
+01. Create E1 (m.s=5) and E2 (m.s=2) via ctxA
+==============================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. ?q=m.s>3 via ctxA — only E1
+================================
+    "id": "urn:E1",
+
+
+03. ?q=m.s (sub-attr exists) via ctxA — both
+=============================================
+    "id": "urn:E1",
+    "id": "urn:E2",
+
+
+04. Subscription q=m.s>3 — GET via ctxA
+========================================
+HTTP/1.1 201 Created
+  "q": "m.s>3",
+
+
+05. GET via core — segment-wise %-encoding, raw dot separator
+==============================================================
+  "q": "https%3A%2F%2Fexample%2Eorg%2Fx%2Ey.https%3A%2F%2Fexample%2Eorg%2Fsub%2Eprop>3",
+
+
+06. Create E3 — m with object value {c: {d: 7}} via ctxA
+==========================================================
+HTTP/1.1 201 Created
+
+
+07. ?q=m[c.d]>5 via ctxA — value-path match: only E3
+=====================================================
+    "id": "urn:E3",
+
+
+08. ?q=m[c.d] (value-member exists) — only E3
+==============================================
+    "id": "urn:E3",
+
+
+09. Subscription q=m[c.d]>5 — round-trip via ctxA and core
+===========================================================
+HTTP/1.1 201 Created
+  "q": "m[c.d]>5",
+  "q": "https%3A%2F%2Fexample%2Eorg%2Fx%2Ey[c.d]>5",
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

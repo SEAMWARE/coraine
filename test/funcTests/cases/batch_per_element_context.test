@@ -1,0 +1,143 @@
+#
+# FILE            batch_per_element_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ld+json batch arrays carry @context PER ELEMENT (first level of each
+# element — [[feedback_context_placement_rules]]): each entity expands
+# via its OWN context, in the same request. Element 1 speaks ctxA
+# (a -> A/attr), element 2 speaks ctxB (b -> B/attr); retrieval with the
+# core context must show the two different IRI families, and a ctxA
+# retrieve of element 2 must NOT shorten B/attr.
+#
+--NAME--
+Batch create — per-element @context, each entity expands via its own
+
+--TAGS--
+context batch create
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "a": "https://example.org/A/attr"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "b": "https://example.org/B/attr"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Batch create, ld+json, per-element @context (A for E1, B for E2).
+# 02. GET E1 (core) — key A/attr.
+# 03. GET E2 (core) — key B/attr.
+# 04. GET E2 via ctxA — B/attr stays a full IRI (no alias in ctxA).
+#
+
+echo "01. Batch create with per-element @context"
+echo "==========================================="
+payload='[
+  {
+    "id": "urn:E1",
+    "type": "T",
+    "a": {"type": "Property", "value": 1},
+    "@context": "http://localhost:7080/jsonldContexts/ctxA"
+  },
+  {
+    "id": "urn:E2",
+    "type": "T",
+    "b": {"type": "Property", "value": 2},
+    "@context": "http://localhost:7080/jsonldContexts/ctxB"
+  }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/create \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET urn:E1 (core) — A/attr"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. GET urn:E2 (core) — B/attr"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities/urn:E2
+echo
+echo
+
+
+echo "04. GET urn:E2 via ctxA — B/attr stays a full IRI"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E2 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -E 'example.org|"b"'
+echo
+echo
+
+--EXPECT--
+01. Batch create with per-element @context
+===========================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:E1 (core) — A/attr
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+{
+  "https://example.org/A/attr": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+03. GET urn:E2 (core) — B/attr
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+{
+  "https://example.org/B/attr": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+04. GET urn:E2 via ctxA — B/attr stays a full IRI
+==================================================
+  "https://example.org/B/attr": {
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

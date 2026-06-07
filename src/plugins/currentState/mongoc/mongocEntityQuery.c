@@ -186,24 +186,55 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
 static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
 {
   //
-  // Existence check
+  // Field path. Mongo doc shape:
+  //   attr.@none.value                      plain term
+  //   attr.@none.sub1[...].value            § 4.9 attrPath — sub-attrs are
+  //                                         flat objects inside the instance
+  // mongocEscapeDotsInKey returns a shared thread-local buffer — copy each
+  // segment into `path` before the next call.
   //
-  if (term->op == LdQExists)
+  char path[1024];
+  int  pos = snprintf(path, sizeof(path), "%s", mongocEscapeDotsInKey(term->attr));
+  if (term->subPathN > 0)
   {
-    const char* escapedAttr = mongocEscapeDotsInKey(term->attr);
+    pos += snprintf(path + pos, sizeof(path) - pos, ".@none");
+    for (int i = 0; i < term->subPathN; i++)
+      pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
+  }
 
+  //
+  // Existence check — the path so far names the attribute (or final
+  // sub-attribute) object itself; with a "[...]" value path, existence
+  // is of the FINAL value member.
+  //
+  if (term->op == LdQExists && term->valuePathN == 0)
+  {
     bson_t existsDoc;
-    bson_append_document_begin(docP, escapedAttr, -1, &existsDoc);
+    bson_append_document_begin(docP, path, -1, &existsDoc);
     bson_append_bool(&existsDoc, "$exists", 7, true);
     bson_append_document_end(docP, &existsDoc);
     return;
   }
 
   //
-  // Build field path: <escapedAttr>.@none.value
+  // Value leaf: plain terms compare inside the default instance.
   //
-  char path[1024];
-  snprintf(path, sizeof(path), "%s.@none.value", mongocEscapeDotsInKey(term->attr));
+  pos += snprintf(path + pos, sizeof(path) - pos, "%s.value", (term->subPathN > 0) ? "" : ".@none");
+
+  //
+  // § 4.9 "[...]" — descend INTO the value: opaque member names.
+  //
+  for (int i = 0; i < term->valuePathN; i++)
+    pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->valuePathV[i]));
+
+  if (term->op == LdQExists)
+  {
+    bson_t existsDoc;
+    bson_append_document_begin(docP, path, -1, &existsDoc);
+    bson_append_bool(&existsDoc, "$exists", 7, true);
+    bson_append_document_end(docP, &existsDoc);
+    return;
+  }
 
   //
   // Simple equality / inequality with single value

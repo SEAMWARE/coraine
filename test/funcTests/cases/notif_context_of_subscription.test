@@ -1,0 +1,132 @@
+#
+# FILE            notif_context_of_subscription.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Notification bodies speak the SUBSCRIPTION's @context — not the context
+# of whichever request triggered the notification. A sub created via ctxA
+# (spd) notified by an entity write via ctxB (vel, same IRI) must deliver
+# "spd", with the Link header naming ctxA.
+#
+--NAME--
+Notifications compact via the subscription's @context, not the trigger's
+
+--TAGS--
+context subscription notification
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+ftClientStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "vel": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Subscription via ctxA on type T.
+# 02. Entity create via ctxB — attr 'vel' (same IRI as ctxA's 'spd').
+# 03. ftClient dump: notification data[0] carries "spd" (the SUB's
+#     vocabulary) and the Link header names ctxA.
+#
+
+echo "01. Subscription via ctxA"
+echo "=========================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. Entity create via ctxB — vel (same IRI as spd)"
+echo "==================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "vel": {"type": "Property", "value": 5}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "03. ftClient dump — notification speaks ctxA: spd"
+echo "=================================================="
+sleep .3
+ftClientDump
+echo
+echo
+
+--EXPECT--
+01. Subscription via ctxA
+==========================
+HTTP/1.1 201 Created
+
+
+02. Entity create via ctxB — vel (same IRI as spd)
+===================================================
+HTTP/1.1 201 Created
+
+
+03. ftClient dump — notification speaks ctxA: spd
+==================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:E1",
+          "spd": {
+            "type": "Property",
+            "value": 5
+          },
+          "type": "T"
+        }
+      ],
+      "id": REGEX("urn:ngsi-ld:Notification:.*"),
+      "notifiedAt": REGEX(".*"),
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "207",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker/0.3"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+contextServerStop

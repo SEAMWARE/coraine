@@ -1,0 +1,143 @@
+#
+# FILE            sub_array_context_implicit.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.5.5 / § 5.8.1.4 — a Subscription created with an ARRAY (or inline
+# object) @context gets an ImplicitlyCreated @context: the broker hosts
+# the array under a served URL and auto-populates the subscription's
+# jsonldContext with it. Notifications carry that URL in their Link
+# header, and GET of the URL returns the original array.
+#
+--NAME--
+Array-@context subscription — ImplicitlyCreated jsonldContext, hosted and used
+
+--TAGS--
+context subscription notification jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+ftClientStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Sub as ld+json with @context ARRAY [ctxA, core] → 201.
+# 02. GET the sub — jsonldContext auto-populated with a served URL.
+# 03. GET that served URL — the original array comes back.
+# 04. Entity create (core ctx, full IRI attr) → notification.
+# 05. ftClient dump: notification body says "spd"; its Link names the
+#     served jsonldContext URL.
+#
+
+echo "01. Subscription with in-body @context array"
+echo "============================================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "@context": [
+    "http://localhost:7080/jsonldContexts/ctxA",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  ]
+}'
+swCurl --url /ngsi-ld/v1/subscriptions \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET the sub — jsonldContext auto-populated"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext
+echo
+echo
+
+
+echo "03. GET the served URL — the original array"
+echo "============================================"
+ctxUrl=$(swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext | sed 's/.*": "//;s/".*//')
+path=$(echo "$ctxUrl" | sed 's|http://[^/]*||')
+swCurl --url "$path"
+echo
+echo
+
+
+echo "04. Entity create with the full IRI (core ctx)"
+echo "==============================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "https://example.org/veh/speed": {"type": "Property", "value": 5}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "05. ftClient dump — spd + Link names the served jsonldContext"
+echo "==============================================================="
+sleep .3
+ftClientDump | grep -E '"spd"|"Link"' 
+echo
+echo
+
+--EXPECT--
+01. Subscription with in-body @context array
+=============================================
+HTTP/1.1 201 Created
+
+
+02. GET the sub — jsonldContext auto-populated
+===============================================
+REGEX(  "jsonldContext": "http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:[0-9-]+",)
+
+
+03. GET the served URL — the original array
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 125
+
+{
+  "@context": [
+    "http://localhost:7080/jsonldContexts/ctxA",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  ]
+}
+
+
+
+04. Entity create with the full IRI (core ctx)
+===============================================
+HTTP/1.1 201 Created
+
+
+05. ftClient dump — spd + Link names the served jsonldContext
+===============================================================
+          "spd": {
+REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:[0-9-]+>.*)
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+contextServerStop

@@ -1,0 +1,151 @@
+#
+# FILE            context_short_name_rebind.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A short name has no meaning of its own — it's an alias INTO a context.
+# Two contexts mapping the SAME short 'x' to DIFFERENT IRIs must never
+# leak data across: an entity created via ctxA (x -> A/x) retrieved via
+# ctxB (x -> B/x) must show the FULL IRI key A/x — silently rendering
+# 'x' would rebind the attribute to B/x in the consumer's eyes.
+# Selection follows the same rule: ?attrs=x via ctxB expands to B/x and
+# must NOT match the entity.
+#
+--NAME--
+Same short name, different IRIs — no silent rebind across contexts
+
+--TAGS--
+context entity
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "x": "https://example.org/A/x"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "x": "https://example.org/B/x"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create urn:E1 with attr x via ctxA → stored under A/x.
+# 02. GET via ctxB — key must be the FULL IRI https://example.org/A/x
+#     (ctxB has no alias for it), NOT the short 'x'.
+# 03. GET via ctxA — 'x' again.
+# 04. ?attrs=x via ctxB → B/x: no match, empty array.
+# 05. ?attrs=x via ctxA → A/x: matches.
+#
+
+echo "01. Create urn:E1 with x=1 via ctxA"
+echo "===================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "x": {"type": "Property", "value": 1}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. GET via ctxB — full IRI key A/x, no silent rebind"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET via ctxA — short x"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. ?attrs=x via ctxB — expands to B/x: no match"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&attrs=x' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
+echo
+echo
+
+
+echo "05. ?attrs=x via ctxA — expands to A/x: match"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&attrs=x' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
+echo
+echo
+
+--EXPECT--
+01. Create urn:E1 with x=1 via ctxA
+====================================
+HTTP/1.1 201 Created
+
+
+02. GET via ctxB — full IRI key A/x, no silent rebind
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+{
+  "https://example.org/A/x": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+03. GET via ctxA — short x
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "id": "urn:E1",
+  "type": "T",
+  "x": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+04. ?attrs=x via ctxB — expands to B/x: no match
+=================================================
+0
+
+
+05. ?attrs=x via ctxA — expands to A/x: match
+==============================================
+1
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
