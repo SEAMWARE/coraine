@@ -24,6 +24,7 @@
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 #include "swJsonld/swldCompact.h"                    // swldCompact
 #include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
@@ -1847,7 +1848,9 @@ bool getEntities(void)
           else
           {
             remoteArray = kjParse(swRest.kjsonP, results[i].responseBody);
-            if (remoteArray != NULL) ldStripAtContext(remoteArray);
+            // @context is stripped per-entity AFTER expansion below (a json
+            // response carries it in the Link header, an ld+json response
+            // embeds it per element — both feed the per-entity expand).
 
             // § 6.3.16 / JSON-LD compaction: a one-element array may be
             // unwrapped to its member alone. Accept a bare entity object
@@ -1862,6 +1865,16 @@ bool getEntities(void)
           }
 
           if (remoteArray == NULL || remoteArray->type != KjArray) continue;
+
+          // Expand each forwarded entity via the context that travels WITH the
+          // response — the URL in its json-ld#context Link header, else core.
+          // swldExpandTree additionally applies any embedded @context (ld+json)
+          // on top. NOT swNgsild.contextP: the CP speaks its own vocabulary.
+          SwldContext* respCtxP = (results[i].responseContextUrl != NULL)
+                                    ? swldContextFromUrl(results[i].responseContextUrl, &swRest.kalloc)
+                                    : NULL;
+          if (respCtxP == NULL)
+            respCtxP = swldCoreContext();
 
           for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
           {
@@ -1886,7 +1899,8 @@ bool getEntities(void)
             }
 
             remoteEntity->next = NULL;
-            swldExpandTree(remoteEntity, swNgsild.contextP, &swRest.kalloc);
+            swldExpandTree(remoteEntity, respCtxP, &swRest.kalloc);
+            ldStripAtContext(remoteEntity);
             apiAttrToStorageWrap(remoteEntity);
 
             if (existingP == NULL)

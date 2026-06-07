@@ -28,6 +28,7 @@
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 #include "swJsonld/swldCompact.h"                    // swldCompact
 #include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
@@ -637,7 +638,7 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
 // Returns NULL on parse failure (errorDetail set), otherwise the parsed
 // tree ready for merging. Caller has already ruled out non-2xx codes.
 //
-static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char** errorDetailPP)
+static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char* respCtxUrl, const char** errorDetailPP)
 {
   if (respBody == NULL || respBodyLen == 0)
   {
@@ -666,7 +667,16 @@ static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char** e
     treeP->next = NULL;
   }
 
-  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
+  // Expand via the context that travels WITH the response — the URL in its
+  // json-ld#context Link header (application/json), else core. swldExpandTree
+  // additionally applies any embedded @context (application/ld+json) on top.
+  // NOT swNgsild.contextP: the response speaks the CP's vocabulary, which may
+  // differ from the client's request context.
+  SwldContext* respCtxP = (respCtxUrl != NULL) ? swldContextFromUrl(respCtxUrl, &swRest.kalloc) : NULL;
+  if (respCtxP == NULL)
+    respCtxP = swldCoreContext();
+
+  swldExpandTree(treeP, respCtxP, &swRest.kalloc);
   ldStripAtContext(treeP);
   apiAttrToStorageWrap(treeP, swRest.kjsonP);
   ldExpiresAtPropagate(treeP);
@@ -919,7 +929,7 @@ bool getEntity(void)
           }
 
           const char* upErr2 = NULL;
-          KjNode* upP = parseUpstreamBody(results[i].responseBody, results[i].responseBodyLen, &upErr2);
+          KjNode* upP = parseUpstreamBody(results[i].responseBody, results[i].responseBodyLen, results[i].responseContextUrl, &upErr2);
           if (upP == NULL) continue;
 
           // CS replied via pick=type,<attrs> per buildInfoPickParam — so

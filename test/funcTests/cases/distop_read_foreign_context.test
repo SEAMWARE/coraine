@@ -1,0 +1,194 @@
+#
+# FILE            distop_read_foreign_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A forwarded READ response must be expanded via the context that travels
+# WITH the response — the CP's own vocabulary — NOT the client's request
+# context. Here the CP speaks "velocity" for the IRI that the client calls
+# "spd" (same IRI https://example.org/veh/speed, different short name). The
+# CSR declares the CP's @context (contextSourceInfo.jsonldContext = ctxCP),
+# so the forward goes out in ctxCP and the CP answers in ctxCP ("velocity").
+# The broker must:
+#   - expand the CP's "velocity" via ctxCP (the response's Link) -> veh/speed,
+#   - then compact via the client's ctxClient -> "spd".
+# Before the fix the response was (wrongly) expanded via the client context,
+# which has no "velocity", so the attribute never came back as "spd".
+# Covers BOTH forwarded-read sites: query (getEntities split) + retrieve.
+#
+--NAME--
+Distributed read — CP answers in its own @context, broker re-expands correctly
+
+--TAGS--
+context distops csr-reg forwarding
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+swBrokerStart -role CP1
+
+contextServerPush /jsonldContexts/ctxClient '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxCP '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "velocity": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Seed CP1 with urn:E1 (velocity=42) via ctxCP — stored at IRI
+#     https://example.org/veh/speed.
+# 02. Register CB->CP1 inclusive CSR (full IRIs) declaring the CP's
+#     @context as contextSourceInfo.jsonldContext = ctxCP.
+# 03. Query CB via ctxClient — the attribute comes back as "spd" (the
+#     client's word for veh/speed), value 42.
+# 04. Retrieve urn:E1 on CB via ctxClient — same: spd=42 (retrieve path).
+# 05. Retrieve on CB via core context — the full IRI, proving the value
+#     landed under the right IRI (not a @vocab'd default-context term).
+#
+
+echo "01. Seed CP1 with urn:E1 (velocity=42) via ctxCP"
+echo "================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "velocity": {"type": "Property", "value": 42}
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxCP>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. Register CB->CP1 inclusive CSR declaring ctxCP"
+echo "=================================================="
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["retrieveOps"],
+  "contextSourceInfo": [
+    { "key": "jsonldContext", "value": "http://localhost:7080/jsonldContexts/ctxCP" }
+  ],
+  "information": [
+    {
+      "entities": [ { "type": "https://example.org/types/T" } ],
+      "propertyNames": [ "https://example.org/veh/speed" ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. Query CB via ctxClient — attribute re-expanded to spd=42"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. Retrieve urn:E1 on CB via ctxClient — spd=42 (retrieve path)"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. Retrieve urn:E1 on CB via core context — full IRI veh/speed"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+--EXPECT--
+01. Seed CP1 with urn:E1 (velocity=42) via ctxCP
+=================================================
+HTTP/1.1 201 Created
+
+
+02. Register CB->CP1 inclusive CSR declaring ctxCP
+==================================================
+HTTP/1.1 201 Created
+
+
+03. Query CB via ctxClient — attribute re-expanded to spd=42
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:E1",
+    "spd": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "T"
+  }
+]
+
+
+
+04. Retrieve urn:E1 on CB via ctxClient — spd=42 (retrieve path)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "T"
+}
+
+
+
+05. Retrieve urn:E1 on CB via core context — full IRI veh/speed
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: REGEX(<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>.*)
+Content-Length: REGEX(\d+)
+
+{
+  "https://example.org/veh/speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "id": "urn:E1",
+  "type": "https://example.org/types/T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+contextServerStop
