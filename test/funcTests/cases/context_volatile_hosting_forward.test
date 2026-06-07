@@ -108,7 +108,7 @@ HTTP/1.1 201 Created
       "Content-Length": "62",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
-REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:[0-9-]+>.*)
+REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:v[0-9a-f]+>.*)
       "NGSILD-Volatile-Context": "true",
       "User-Agent": "swRest/1.0",
       "Via": "1.1 swBroker:1026"
