@@ -23,6 +23,7 @@
 #include <time.h>                                      // gmtime_r, struct tm
 
 #include "swRest/SwRestState.h"                        // swRest
+#include "swRest/swRestOutHeader.h"                    // swRestOutHeaderAdd
 #include "kjson/kjson.h"                               // Kjson
 #include "kjson/kjBuilder.h"                           // kjObject, kjString, kjInteger, kjChildAdd
 #include "kjson/kjBufferCreate.h"                      // kjBufferCreate
@@ -271,6 +272,16 @@ bool getJsonldContext(void)
   // syntactically but the spec's response type column is "JSON Object",
   // and the ETSI test fixtures pin application/json.
   swRest.out.contentType = (char*) "application/json";
+
+  // A volatile context is a one-shot Link target: tell the fetcher not to
+  // store it (Cache-Control: no-store) and drop it from our cache now that
+  // it has been served once. swldCacheRemove does not free, so the body
+  // buffer behind swRest.out.payload stays valid until the response is sent.
+  if (contextP->volatileCtx)
+  {
+    swRestOutHeaderAdd("Cache-Control", "no-store");
+    swldCacheRemove(contextP->id);
+  }
 
   swRest.out.httpStatusCode = 200;
   return true;

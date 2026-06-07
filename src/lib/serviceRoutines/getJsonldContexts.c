@@ -91,6 +91,8 @@ bool getJsonldContexts(void)
   int totalCount = 0;
   for (int i = 0; i < n; i++)
   {
+    if (arr[i]->volatileCtx)   // one-shot Link targets are not listable contexts
+      continue;
     if (kindFilter && arr[i]->kind != wantKind)
       continue;
     totalCount++;
@@ -116,6 +118,9 @@ bool getJsonldContexts(void)
   for (int i = 0; i < n; i++)
   {
     SwldContext* c = arr[i];
+
+    if (c->volatileCtx)   // one-shot Link targets are not listable contexts
+      continue;
 
     if (kindFilter && c->kind != wantKind)
       continue;

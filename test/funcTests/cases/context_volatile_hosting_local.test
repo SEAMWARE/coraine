@@ -1,0 +1,134 @@
+#
+# FILE            context_volatile_hosting_local.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An inline-object (or multi-element) @context has no URL of its own, but a
+# json response advertises its @context through the Link header — and a Link
+# header carries a URL. So when a body-bearing request (a POST query) supplies
+# an inline @context and the json response is compacted in that vocabulary,
+# the broker hosts the request's @context as a one-shot "volatile" served
+# context and points the Link at it. That URL:
+#   - resolves (GET returns the original @context),
+#   - is served with Cache-Control: no-store,
+#   - is dropped after the first GET (second GET → 404),
+#   - never appears in GET /jsonldContexts.
+#
+--NAME--
+Inline @context on a query's json response — hosted volatile, Link resolves once
+
+--TAGS--
+context entity jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create urn:E1 via an inline-OBJECT @context (ld+json). 201.
+# 02. POST query (inline-object @context body), Accept application/json —
+#     results compact to "spd" and the Link header names a broker-hosted
+#     jsonldContexts URL (the inline ctx had no URL of its own).
+# 03. GET that hosted URL — returns the original @context, Cache-Control:
+#     no-store.
+# 04. GET it again — gone (dropped after first fetch): 404.
+# 05. GET /jsonldContexts — the volatile context is not listed.
+#
+
+echo "01. Create urn:E1 with inline-object @context"
+echo "=============================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 5},
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. POST query (inline @context), Accept json — compact spd + hosted Link"
+echo "=========================================================================="
+payload='{
+  "type": "Query",
+  "entities": [{"type": "T"}],
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entityOperations/query \
+  --header 'Content-Type: application/ld+json' \
+  --header 'Accept: application/json' \
+  --payload "$payload" 2>&1 | grep -iE "^Link:|\"spd\""
+echo
+echo
+
+
+echo "03. GET the hosted context URL — original @context, no-store"
+echo "============================================================="
+path=$(swCurl --url /ngsi-ld/v1/entityOperations/query \
+  --header 'Content-Type: application/ld+json' \
+  --header 'Accept: application/json' \
+  --payload "$payload" 2>&1 | grep -i "^Link:" | sed 's/.*<http:\/\/[^/]*//;s/>.*//')
+swCurl --url "$path" 2>&1 | grep -iE "HTTP/|Cache-Control|example.org"
+echo
+echo
+
+
+echo "04. GET the same hosted URL again — dropped after first fetch: 404"
+echo "=================================================================="
+swCurl --url "$path" 2>&1 | grep -iE "HTTP/"
+echo
+echo
+
+
+echo "05. GET /jsonldContexts — volatile context not listed"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/jsonldContexts | grep -c "jsonldContexts/urn:ngsi-ld:Context"
+echo
+echo
+
+--EXPECT--
+01. Create urn:E1 with inline-object @context
+==============================================
+HTTP/1.1 201 Created
+
+
+02. POST query (inline @context), Accept json — compact spd + hosted Link
+==========================================================================
+Link: REGEX(<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:[0-9-]+>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld\+json")
+    "spd": {
+
+
+03. GET the hosted context URL — original @context, no-store
+=============================================================
+HTTP/1.1 200 OK
+Cache-Control: no-store
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+
+
+04. GET the same hosted URL again — dropped after first fetch: 404
+==================================================================
+HTTP/1.1 404 Not Found
+
+
+05. GET /jsonldContexts — volatile context not listed
+======================================================
+0
+
+
+--TEARDOWN--
+swBrokerStop

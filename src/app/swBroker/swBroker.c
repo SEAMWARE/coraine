@@ -43,6 +43,7 @@
 #include "swNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
 #include "swNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "swNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
+#include "swNgsild/ldContextHost.h"               // ldContextHostReaperStart
 #include "swNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister, ldCsrSubDispatchPending
 #include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
@@ -755,6 +756,10 @@ int main(int argC, char* argV[])
   if (tenant0.regSubCacheP != NULL && tenant0.regCacheP != NULL)
     ldCsrSubPeriodicLoopRegister((LdSubCache*) tenant0.regSubCacheP,
                                   (LdRegCache*) tenant0.regCacheP);
+
+  // Register the volatile-context reaper — drops never-fetched one-shot
+  // hosted contexts (response / forward Link targets) past their TTL.
+  ldContextHostReaperStart();
 
   // Start the shared periodic dispatch thread (1-Hz tick over all
   // registered consumers).

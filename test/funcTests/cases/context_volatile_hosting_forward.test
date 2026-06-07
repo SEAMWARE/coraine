@@ -1,0 +1,125 @@
+#
+# FILE            context_volatile_hosting_forward.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# When a distop forward must speak the client's vocabulary (the CSR declared
+# no jsonldContext) but that vocabulary is an inline / multi-element @context
+# with no URL of its own, the broker hosts it as a one-shot volatile context
+# and puts the served URL in the forwarded request's Link header. It also adds
+# NGSILD-Volatile-Context: true so the receiving broker knows not to cache it.
+# The forwarded body is compacted in that same vocabulary.
+#
+--NAME--
+DistOp forward with inline @context — hosted volatile Link + Volatile header
+
+--TAGS--
+context distop csr-reg forwarding jsonldcontext
+
+--INIT--
+swDbDrop
+ftClientStart --port 7711 --status 201
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Register an exclusive CSR (type T, createEntity) at ftClient, with NO
+#     contextSourceInfo jsonldContext — so the forward uses the client's ctx.
+# 02. POST urn:E1 (type T, spd) with an inline-OBJECT @context (ld+json).
+#     The create is forwarded to ftClient.
+# 03. ftClient dump — the forwarded request carries:
+#       - a Link header naming a broker-hosted jsonldContexts URL,
+#       - NGSILD-Volatile-Context: true,
+#       - a body compacted to "spd".
+#
+
+echo "01. Register exclusive CSR (type T) at ftClient"
+echo "==============================================="
+payload='{
+  "id": "urn:CSR:T",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "exclusive",
+  "operations": ["createEntity"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:E1", "type": "https://example.org/types/T" } ],
+      "propertyNames": [ "https://example.org/veh/speed" ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. POST urn:E1 with inline-object @context — forwarded"
+echo "========================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 5},
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities \
+  --header 'Content-Type: application/ld+json' \
+  --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. ftClient dump — forwarded Link names hosted ctx + Volatile header + spd"
+echo "============================================================================"
+sleep .3
+ftClientDump --port 7711
+echo
+echo
+
+--EXPECT--
+01. Register exclusive CSR (type T) at ftClient
+===============================================
+HTTP/1.1 201 Created
+
+
+02. POST urn:E1 with inline-object @context — forwarded
+========================================================
+HTTP/1.1 201 Created
+
+
+03. ftClient dump — forwarded Link names hosted ctx + Volatile header + spd
+============================================================================
+[
+  {
+    "body": {
+      "id": "urn:E1",
+      "spd": {
+        "type": "Property",
+        "value": 5
+      },
+      "type": "T"
+    },
+    "headers": {
+      "Content-Length": "62",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:[0-9-]+>.*)
+      "NGSILD-Volatile-Context": "true",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop --port 7711
+swDbDrop
