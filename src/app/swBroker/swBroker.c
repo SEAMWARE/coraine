@@ -190,7 +190,7 @@ bool           fg           = false;
 int            poolSize     = 32;
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
-char*          userContext  = NULL;
+char*          defaultUserContext  = NULL;
 char*          csourceAlias = NULL;
 char*          httpEndpoint = NULL;
 char*          contextSourceExtras = NULL;  // path to a JSON file (§ 5.2.40)
@@ -213,7 +213,7 @@ static KArg kargV[] =
   { "--localOnly",          "-local",       KaBool,   _vp &localOnly,    KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "local-only mode (no distributed operations)" },
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
-  { "--userContext",        "-ctx",         KaString, _vp &userContext,  KaOpt, _vp NULL,      NULL,  NULL,      "default user @context URL" },
+  { "--defaultUserContext", "-duc",         KaString, _vp &defaultUserContext, KaOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
   { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
   { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: http://localhost:<port>)" },
   { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
@@ -622,7 +622,7 @@ int main(int argC, char* argV[])
 
   ldLocalOnly           = localOnly;
   ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
-  ldDefaultContextUrl   = userContext;
+  ldDefaultContextUrl   = defaultUserContext;
   ldBrokerStartTimeSec  = (long long) time(NULL);
 
   //

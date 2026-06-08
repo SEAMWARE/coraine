@@ -1,0 +1,220 @@
+#
+# FILE            default_user_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Default User @context (§ 4 / § 8.2.3): a broker MAY be configured with a
+# fallback @context, used ONLY when a request carries no @context of its own
+# — Content-Type application/json AND no Link header. A request that DOES
+# bring a context (ld+json body or a Link header) is never overridden by it.
+# Core @context still wins term-by-term.
+#
+# Broker started with --defaultUserContext <duc-url> where duc maps:
+#   Room        -> https://example.org/duc/Room
+#   temperature -> https://example.org/duc/temperature
+#
+# Proven here:
+#   - naked-json create expands short names via duc (stored under duc IRIs)
+#   - naked-json read compacts via duc AND advertises duc in the Link header
+#   - a Link header on the request overrides duc (create + read)
+#   - the GET query path (type= resolution) uses duc as well
+#
+
+--NAME--
+Default user @context — fallback only when the request brings no @context
+
+--TAGS--
+context entity
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+
+contextServerPush /jsonldContexts/duc '{
+  "@context": {
+    "Room": "https://example.org/duc/Room",
+    "temperature": "https://example.org/duc/temperature"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "temperature": "https://example.org/B/temperature"
+  }
+}'
+
+swBrokerStart --defaultUserContext http://localhost:7080/jsonldContexts/duc
+
+--RUN--
+
+echo "01. Create urn:R1 (Room, temperature) as naked json — no Link → duc expands"
+echo "==========================================================================="
+payload='{
+  "id": "urn:R1",
+  "type": "Room",
+  "temperature": {"type": "Property", "value": 21}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET urn:R1 naked json — duc compacts to short names + advertises duc Link"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:R1
+echo
+echo
+
+
+echo "03. GET urn:R1 via ctxB — duc IRIs are unmapped → full IRIs (stored under duc)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:R1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. Create urn:R2 with a Link to ctxB — duc must NOT apply"
+echo "=========================================================="
+payload='{
+  "id": "urn:R2",
+  "type": "Room",
+  "temperature": {"type": "Property", "value": 19}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "05. GET urn:R2 naked json — stored via ctxB, so duc can't shorten its terms"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:R2
+echo
+echo
+
+
+echo "06. GET ?type=Room naked json — duc expands Room→duc/Room → matches R1"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Room' | grep -c urn:R1
+echo
+echo
+
+
+echo "07. GET ?type=Room via ctxB — Room→core vocab (not duc/Room) → no R1 match"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Room' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:R1
+echo
+echo
+
+
+echo "08. GET urn:R1 as ld+json, no Link — duc carried INLINE as @context in body"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:R1 --out jsonld
+echo
+echo
+
+--EXPECT--
+01. Create urn:R1 (Room, temperature) as naked json — no Link → duc expands
+===========================================================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:R1 naked json — duc compacts to short names + advertises duc Link
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/duc>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 103
+
+{
+  "id": "urn:R1",
+  "temperature": {
+    "type": "Property",
+    "value": 21
+  },
+  "type": "Room"
+}
+
+
+
+03. GET urn:R1 via ctxB — duc IRIs are unmapped → full IRIs (stored under duc)
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 151
+
+{
+  "https://example.org/duc/temperature": {
+    "type": "Property",
+    "value": 21
+  },
+  "id": "urn:R1",
+  "type": "https://example.org/duc/Room"
+}
+
+
+
+04. Create urn:R2 with a Link to ctxB — duc must NOT apply
+==========================================================
+HTTP/1.1 201 Created
+
+
+05. GET urn:R2 naked json — stored via ctxB, so duc can't shorten its terms
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/duc>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 149
+
+{
+  "https://example.org/B/temperature": {
+    "type": "Property",
+    "value": 19
+  },
+  "id": "urn:R2",
+  "type": "ngsi-ld:default-context/Room"
+}
+
+
+
+06. GET ?type=Room naked json — duc expands Room→duc/Room → matches R1
+======================================================================
+1
+
+
+07. GET ?type=Room via ctxB — Room→core vocab (not duc/Room) → no R1 match
+==========================================================================
+0
+
+
+08. GET urn:R1 as ld+json, no Link — duc carried INLINE as @context in body
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/ld+json
+Content-Length: 161
+
+{
+  "@context": "http://localhost:7080/jsonldContexts/duc",
+  "id": "urn:R1",
+  "temperature": {
+    "type": "Property",
+    "value": 21
+  },
+  "type": "Room"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
