@@ -381,6 +381,20 @@ bool replaceEntity(void)
   {
     ldApiEntityToDbModel(entityP, &swRest.kalloc);
 
+    // § 6.5.3.3 — a Replace MUST preserve the entity's createdAt. timestampSet()
+    // in ldApiEntityToDbModel stamps createdAt to 'now' (right for create, wrong
+    // for replace), so copy the stored value back over it. modifiedAt correctly
+    // stays 'now'. oldStored is non-NULL here (localExists implies it).
+    {
+      KjNode* oldCreatedAt = kjLookup(oldStored, "createdAt");
+      KjNode* newCreatedAt = kjLookup(entityP,   "createdAt");
+      if ((oldCreatedAt != NULL) && (newCreatedAt != NULL))
+      {
+        newCreatedAt->type  = oldCreatedAt->type;
+        newCreatedAt->value = oldCreatedAt->value;
+      }
+    }
+
     KjNode* replacedOld = NULL;
     int     r           = db.entityReplace(tenantP, entityId, entityP, &replacedOld);
 
