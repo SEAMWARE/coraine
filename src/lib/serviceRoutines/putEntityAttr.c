@@ -307,7 +307,7 @@ bool putEntityAttr(void)
       }
       else
       {
-        ldApiEntityToDbModel(entityFrag, &swRest.kalloc);
+        ldApiEntityToDbModel(entityFrag, &swRest.kalloc, 0);
 
         if (db.entityAttrsSet == NULL)
         {

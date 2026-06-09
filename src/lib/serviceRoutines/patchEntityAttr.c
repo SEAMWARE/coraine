@@ -365,7 +365,7 @@ bool patchEntityAttr(void)
           }
         }
 
-        ldApiEntityToDbModel(entityFrag, &swRest.kalloc);
+        ldApiEntityToDbModel(entityFrag, &swRest.kalloc, 0);
 
         LdMergeReport report = { NULL };
         int r = db.entityMerge(tenantP, entityId, entityFrag,

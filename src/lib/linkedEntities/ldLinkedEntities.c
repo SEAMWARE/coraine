@@ -254,7 +254,7 @@ int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
           // up with the local-fetched shape.
           swldExpandTree(tree, swNgsild.contextP, &swRest.kalloc);
           ldStripAtContext(tree);
-          ldApiEntityToDbModel(tree, &swRest.kalloc);
+          ldApiEntityToDbModel(tree, &swRest.kalloc, 0);
           *entityPP = tree;
           if (matchV != NULL) free(matchV);
           return 0;

@@ -440,7 +440,7 @@ bool patchEntityAttrs(void)
       addUpdatedUnique(updatedP, shortNameOf(c->name));
     }
 
-    ldApiEntityToDbModel(fragment, &swRest.kalloc);
+    ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);
 
     if (db.entityAttrsSet == NULL)
     {

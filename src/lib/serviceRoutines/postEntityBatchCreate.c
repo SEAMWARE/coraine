@@ -843,7 +843,7 @@ bool postEntityBatchCreate(void)
       KjNode* nextEnt = ent->next;
       if (cursor < localN && localIdxV[cursor] == pos)
       {
-        ldApiEntityToDbModel(ent, &swRest.kalloc);
+        ldApiEntityToDbModel(ent, &swRest.kalloc, 0);
         kjChildAdd(localArr, ent);
         cursor++;
       }

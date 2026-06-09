@@ -759,7 +759,7 @@ bool postEntityBatchUpsert(void)
       if (!hasAnyNonKeywordAttr(fragP) && !firstFragmentEmpty)
         continue;
 
-      ldApiEntityToDbModel(fragP, &swRest.kalloc);
+      ldApiEntityToDbModel(fragP, &swRest.kalloc, 0);
 
       //
       // Branch: first fragment vs subsequent fragment.

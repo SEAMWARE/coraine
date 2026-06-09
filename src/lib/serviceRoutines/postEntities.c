@@ -671,7 +671,7 @@ bool postEntities(void)
   }
   else
   {
-    ldApiEntityToDbModel(entityP, &swRest.kalloc);
+    ldApiEntityToDbModel(entityP, &swRest.kalloc, 0);
 
     int r = db.entityCreate(tenantP, idP->value.s, entityP);
 

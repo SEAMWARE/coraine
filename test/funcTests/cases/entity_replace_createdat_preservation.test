@@ -5,16 +5,19 @@
 #
 # Copyright 2026 Seamware
 #
+# § 5.2.4 — createdAt / modifiedAt are system-generated temporal Properties; a
+# client cannot set them (incoming values are silently dropped at intake).
+#
 # § 6.5.3.3 — Replace Entity "shall not modify the createdAt": the entity's
 # createdAt is set when it first entered the system and must survive a Replace.
 # modifiedAt is stamped fresh on every write.
 #
-# Regression: ldApiEntityToDbModel::timestampSet stamps createdAt to 'now' on
-# every write (correct for create, wrong for replace); replaceEntity now copies
-# the stored createdAt back over it. ETSI 054_01_01 surfaced this.
+# swCurl sorts JSON keys, so the root entity createdAt/modifiedAt sort ahead of
+# "speed"; entityTs anchors on the root (2-space) indent to capture the ENTITY
+# timestamp, not an attribute's (which gets a fresh createdAt on Replace).
 #
 --NAME--
-Replace Entity (PUT) preserves entity-level createdAt, bumps modifiedAt (§ 6.5.3.3)
+Replace Entity (PUT) preserves entity-level createdAt, drops client timestamps (§ 5.2.4 / § 6.5.3.3)
 
 --TAGS--
 entity replace createdAt sysAttrs
@@ -25,11 +28,16 @@ swBrokerStart
 
 --RUN--
 
-echo "01. Create entity urn:V1 with speed (initial)"
-echo "============================================="
+# entityTs FIELD FILE — echo the root-level (2-space-indented) timestamp value
+entityTs() { grep -oE "^  \"$1\": \"[^\"]+\"" "$2" | head -1 | sed -E "s/.*: \"([^\"]+)\"/\1/"; }
+
+
+echo "01. Create urn:V1 — body carries a bogus client createdAt (must be dropped)"
+echo "==========================================================================="
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
+  "createdAt": "1999-01-01T00:00:00Z",
   "speed": {
     "type": "Property",
     "value": 50
@@ -40,11 +48,15 @@ echo
 echo
 
 
-echo "02. GET sysAttrs=true → capture entity.createdAt"
-echo "================================================"
+echo "02. GET sysAttrs=true → entity.createdAt is system-stamped, not the 1999 value"
+echo "============================================================================="
 swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/repl_cat_initial.txt 2>&1
-ENTITY_CREATED=$(grep -m1 -oE '"createdAt": "[^"]+"' /tmp/repl_cat_initial.txt | head -1)
-echo "initial entity.createdAt captured: $([ -n "$ENTITY_CREATED" ] && echo OK || echo FAIL)"
+ENTITY_CREATED=$(entityTs createdAt /tmp/repl_cat_initial.txt)
+echo "entity.createdAt captured: $([ -n "$ENTITY_CREATED" ] && echo OK || echo FAIL)"
+case "$ENTITY_CREATED" in
+  *1999*) echo "client createdAt dropped: FAIL (1999 leaked through)" ;;
+  *)      echo "client createdAt dropped: OK" ;;
+esac
 echo
 echo
 
@@ -71,31 +83,32 @@ echo
 echo
 
 
-echo "05. GET sysAttrs=true → entity.createdAt preserved"
-echo "=================================================="
+echo "05. GET sysAttrs=true → entity.createdAt preserved across the Replace"
+echo "===================================================================="
 swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/repl_cat_after.txt 2>&1
-ENTITY_CREATED2=$(grep -m1 -oE '"createdAt": "[^"]+"' /tmp/repl_cat_after.txt | head -1)
+ENTITY_CREATED2=$(entityTs createdAt /tmp/repl_cat_after.txt)
 [ "$ENTITY_CREATED" = "$ENTITY_CREATED2" ] && echo "entity.createdAt preserved: OK" || echo "entity.createdAt CHANGED: $ENTITY_CREATED -> $ENTITY_CREATED2"
 echo
 echo
 
 
-echo "06. modifiedAt bumped (modifiedAt != createdAt after replace)"
-echo "============================================================"
-ENTITY_MODIFIED=$(grep -m1 -oE '"modifiedAt": "[^"]+"' /tmp/repl_cat_after.txt | head -1)
-[ "$ENTITY_MODIFIED" != "$ENTITY_CREATED2" ] && echo "entity.modifiedAt bumped: OK" || echo "entity.modifiedAt NOT bumped"
+echo "06. modifiedAt bumped (entity.modifiedAt != entity.createdAt after replace)"
+echo "=========================================================================="
+ENTITY_MODIFIED=$(entityTs modifiedAt /tmp/repl_cat_after.txt)
+[ -n "$ENTITY_MODIFIED" ] && [ "$ENTITY_MODIFIED" != "$ENTITY_CREATED2" ] && echo "entity.modifiedAt bumped: OK" || echo "entity.modifiedAt NOT bumped"
 echo
 echo
 
 --EXPECT--
-01. Create entity urn:V1 with speed (initial)
-=============================================
+01. Create urn:V1 — body carries a bogus client createdAt (must be dropped)
+===========================================================================
 HTTP/1.1 201 Created
 
 
-02. GET sysAttrs=true → capture entity.createdAt
-================================================
-initial entity.createdAt captured: OK
+02. GET sysAttrs=true → entity.createdAt is system-stamped, not the 1999 value
+=============================================================================
+entity.createdAt captured: OK
+client createdAt dropped: OK
 
 
 03. Sleep 1.2s so any fresh stamp would differ
@@ -107,13 +120,13 @@ initial entity.createdAt captured: OK
 HTTP/1.1 204 No Content
 
 
-05. GET sysAttrs=true → entity.createdAt preserved
-==================================================
+05. GET sysAttrs=true → entity.createdAt preserved across the Replace
+====================================================================
 entity.createdAt preserved: OK
 
 
-06. modifiedAt bumped (modifiedAt != createdAt after replace)
-============================================================
+06. modifiedAt bumped (entity.modifiedAt != entity.createdAt after replace)
+==========================================================================
 entity.modifiedAt bumped: OK
 
 

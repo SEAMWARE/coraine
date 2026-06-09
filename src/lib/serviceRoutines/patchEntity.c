@@ -323,7 +323,7 @@ bool patchEntity(void)
 
   if (localOp)
   {
-    ldApiEntityToDbModel(fragment, &swRest.kalloc);
+    ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);
 
     LdMergeReport report = { NULL };
     localR = db.entityMerge(tenantP, entityId, fragment, swRest.requestStartTime, &report);

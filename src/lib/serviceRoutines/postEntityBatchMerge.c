@@ -626,7 +626,7 @@ bool postEntityBatchMerge(void)
     if (!hasAnyNonKeywordAttr(fragP))
       continue;
 
-    ldApiEntityToDbModel(fragP, &swRest.kalloc);
+    ldApiEntityToDbModel(fragP, &swRest.kalloc, 0);
 
     kjChildAdd(localFragsArr, fragP);
     localIdV[localN++] = id;

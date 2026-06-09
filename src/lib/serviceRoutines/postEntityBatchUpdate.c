@@ -874,7 +874,7 @@ bool postEntityBatchUpdate(void)
         continue;
       }
 
-      ldApiEntityToDbModel(fragP, &swRest.kalloc);
+      ldApiEntityToDbModel(fragP, &swRest.kalloc, 0);
 
       //
       // ?options=noOverwrite — strip any attrs already present on the

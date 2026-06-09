@@ -523,7 +523,7 @@ bool postEntityAttrs(void)
 
   if (localHasAttrs && rr == DB_OK && existing != NULL)
   {
-    ldApiEntityToDbModel(fragment, &swRest.kalloc);
+    ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);
     classifyAndChopLocal(fragment, existing, noOverwrite, updatedP, notUpdatedP);
 
     if (db.entityAttrsSet == NULL)
