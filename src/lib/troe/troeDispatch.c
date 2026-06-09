@@ -5,14 +5,17 @@
 //
 // Copyright 2026 Seamware
 //
-// Per-thread defer queue. Stored in a thread-local linked list whose head
-// points at events allocated from the per-request kalloc arena. Each
-// request's queue is drained at brokerPostResponseHook time, then reset.
-// Memory of the events is reclaimed when the request arena is reset.
+// Per-connection defer queue. The linked list head/tail/count live in the
+// per-connection swNgsild (so the worker that runs the request and the I/O
+// thread that drains it post-response share one queue); the events themselves
+// are allocated from the per-request kalloc arena. Each request's queue is
+// drained at brokerPostResponseHook time, then reset. Memory of the events is
+// reclaimed when the request arena is reset.
 //
 
 #include <stddef.h>                                   // NULL
 
+#include "swNgsild/SwNgsild.h"                         // swNgsild (per-conn troeQ*)
 #include "troe/TroeDriver.h"                          // troe, TroeEvent
 #include "troe/troeDispatch.h"                        // Own interface
 
@@ -20,17 +23,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// Per-thread queue head + tail. Tail tracked to keep append O(1).
-//
-static __thread TroeEvent*  qHead = NULL;
-static __thread TroeEvent*  qTail = NULL;
-static __thread int         qCount = 0;
-
-
-
-// -----------------------------------------------------------------------------
-//
-// queueAppend -
+// queueAppend - append to the per-connection queue. Tail tracked for O(1).
 //
 static void queueAppend(const TroeEvent* evP)
 {
@@ -39,13 +32,13 @@ static void queueAppend(const TroeEvent* evP)
   TroeEvent* mut = (TroeEvent*) evP;
   mut->next = NULL;
 
-  if (qHead == NULL)
-    qHead = mut;
+  if (swNgsild.troeQHead == NULL)
+    swNgsild.troeQHead = mut;
   else
-    qTail->next = mut;
+    ((TroeEvent*) swNgsild.troeQTail)->next = mut;
 
-  qTail = mut;
-  qCount++;
+  swNgsild.troeQTail = mut;
+  swNgsild.troeQCount++;
 }
 
 
@@ -82,18 +75,20 @@ void troeDeferAttrEvent(const TroeEvent* evP)
 //
 void troeDispatchPending(void)
 {
-  if (qHead == NULL)
+  TroeEvent* head = (TroeEvent*) swNgsild.troeQHead;
+
+  if (head == NULL)
     return;
 
   // No plugin? Drop the queue silently. The "none" plugin's hooks are
   // no-ops anyway — this branch only matters if no plugin loaded at all.
   if (troe.eventList != NULL)
   {
-    troe.eventList(qHead, qCount);
+    troe.eventList(head, swNgsild.troeQCount);
   }
   else if (troe.attrEvent != NULL || troe.entityEvent != NULL)
   {
-    for (TroeEvent* evP = qHead; evP != NULL; evP = evP->next)
+    for (TroeEvent* evP = head; evP != NULL; evP = evP->next)
     {
       if (evP->op >= TroeOpAttrCreated)
       {
@@ -108,7 +103,7 @@ void troeDispatchPending(void)
     }
   }
 
-  qHead  = NULL;
-  qTail  = NULL;
-  qCount = 0;
+  swNgsild.troeQHead  = NULL;
+  swNgsild.troeQTail  = NULL;
+  swNgsild.troeQCount = 0;
 }
