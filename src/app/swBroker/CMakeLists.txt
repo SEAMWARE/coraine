@@ -18,3 +18,12 @@ TARGET_LINK_LIBRARIES(swBroker
   -Wl,--whole-archive ${SW_BROKER_LIBS} ${SW_STATIC_LIBS} -Wl,--no-whole-archive
   ${SW_DYNAMIC_LIBS}
 )
+
+# The sibling-repo static libs (${SW_STATIC_LIBS}) are passed inside a
+# -Wl,--whole-archive ... linker-flag string, so CMake sees them as opaque flags
+# rather than file inputs and won't relink when one changes (editing only a lib's
+# source then rebuilding the broker would silently keep the stale archive linked).
+# LINK_DEPENDS makes the link rule depend on the .a files explicitly, so a changed
+# sibling lib forces a relink. (The in-tree component libs in ${SW_BROKER_LIBS}
+# are real CMake targets and are already tracked.)
+SET_TARGET_PROPERTIES(swBroker PROPERTIES LINK_DEPENDS "${SW_STATIC_LIBS}")
