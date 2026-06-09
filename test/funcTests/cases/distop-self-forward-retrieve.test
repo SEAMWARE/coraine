@@ -1,0 +1,113 @@
+#
+# FILE            distop-self-forward-retrieve.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Inc5b — self-forward short-circuit: when a distributed-operation forward
+# targets this broker's own endpoint, it runs in-process instead of opening a
+# socket back to ourselves (which stalled the epoll pool thread).
+#
+# A redirect CSR on t1 points its endpoint back at this broker with a tenant
+# rewrite to t2. A createEntity on t1 self-forwards (in-process) to t2; a
+# retrieveEntity on t1 (no ?local) self-forwards the GET and returns t2's
+# entity — exercising the in-process response body + header copy-back.
+#
+--NAME--
+DistOps - self-forward short-circuit: in-process create + retrieve (Inc5b)
+
+--TAGS--
+distops self-forward retrieve tenant registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Register redirect CSR on t1: endpoint back to CB, tenant rewrite → t2"
+echo "========================================================================"
+payload='{
+  "id": "urn:CSR:Self",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "redirect",
+  "tenant": "t2",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [
+    {
+      "entities": [
+        { "type": "Vehicle" }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1" | head -1
+echo
+echo
+
+
+echo "02. POST urn:V1 on t1 → self-forward (in-process) to t2"
+echo "======================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 50 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t1" | head -1
+echo
+echo
+
+
+echo "03. GET urn:V1 on t1 (no ?local) → self-forward retrieve → returns t2's entity"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "04. GET urn:V1 on t1 with ?local=true → 404 (redirect never stored it on t1)"
+echo "============================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' -H "NGSILD-Tenant: t1" | head -1
+echo
+echo
+
+--EXPECT--
+01. Register redirect CSR on t1: endpoint back to CB, tenant rewrite → t2
+========================================================================
+HTTP/1.1 201 Created
+
+
+02. POST urn:V1 on t1 → self-forward (in-process) to t2
+=======================================================
+HTTP/1.1 201 Created
+
+
+03. GET urn:V1 on t1 (no ?local) → self-forward retrieve → returns t2's entity
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. GET urn:V1 on t1 with ?local=true → 404 (redirect never stored it on t1)
+============================================================================
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+swBrokerStop
