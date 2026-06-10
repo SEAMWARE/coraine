@@ -36,3 +36,5 @@ core.[0-9]*
 # Misc local-only files
 Francisco
 tee
+
+.claude/scheduled_tasks.lock
