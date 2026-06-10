@@ -29,14 +29,19 @@ bool deleteCsourceSubscription(void)
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
+  // No reg fanout here — the existence-check Lookup + Remove are a single
+  // read-modify-write on the CSR-sub cache, so hold the wrlock across both.
+  ldSubCacheWrLock(cacheP);
   if (cacheP == NULL || ldSubCacheItemLookup(cacheP, subId) == NULL)
   {
+    ldSubCacheUnlock(cacheP);
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "CSR subscription '%s' not found", subId);
     return true;
   }
 
   ldSubCacheItemRemove(cacheP, subId);
+  ldSubCacheUnlock(cacheP);
 
   if (db.subscriptionDelete != NULL)
     db.subscriptionDelete(tenantP, subId);

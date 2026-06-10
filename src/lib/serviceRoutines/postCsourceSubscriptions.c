@@ -106,20 +106,31 @@ bool postCsourceSubscriptions(void)
 
   // Reject duplicate id in either sub cache — /subscriptions and
   // /csourceSubscriptions share the mongo collection, so the id space
-  // is effectively global.
-  if (tenantP->regSubCacheP != NULL
-      && ldSubCacheItemLookup((LdSubCache*) tenantP->regSubCacheP, idP->value.s) != NULL)
+  // is effectively global. Each existence check is a pure read of the
+  // relevant cache — hold a brief rdlock of the RIGHT cache around it.
   {
-    ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
-            "CSR subscription '%s' already exists", idP->value.s);
-    return true;
+    LdSubCache* regSubCacheP = (LdSubCache*) tenantP->regSubCacheP;
+    ldSubCacheRdLock(regSubCacheP);
+    bool exists = (regSubCacheP != NULL && ldSubCacheItemLookup(regSubCacheP, idP->value.s) != NULL);
+    ldSubCacheUnlock(regSubCacheP);
+    if (exists)
+    {
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+              "CSR subscription '%s' already exists", idP->value.s);
+      return true;
+    }
   }
-  if (tenantP->subCacheP != NULL
-      && ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, idP->value.s) != NULL)
   {
-    ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
-            "subscription '%s' already exists", idP->value.s);
-    return true;
+    LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;
+    ldSubCacheRdLock(subCacheP);
+    bool exists = (subCacheP != NULL && ldSubCacheItemLookup(subCacheP, idP->value.s) != NULL);
+    ldSubCacheUnlock(subCacheP);
+    if (exists)
+    {
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+              "subscription '%s' already exists", idP->value.s);
+      return true;
+    }
   }
 
   //
@@ -198,15 +209,23 @@ bool postCsourceSubscriptions(void)
   }
 
   //
-  // Add to CSR-subscription cache
+  // Add to CSR-subscription cache under the wrlock; pin the new item and
+  // drop the lock before the reg-touching initial notify (lock order is
+  // reg-before-sub, so the sub lock must not be held across it).
   //
-  LdSubCacheItem* cacheItem = NULL;
-  if (tenantP->regSubCacheP != NULL)
+  LdSubCache*     regSubCacheP = (LdSubCache*) tenantP->regSubCacheP;
+  LdSubCacheItem* cacheItem    = NULL;
+  ldSubCacheWrLock(regSubCacheP);
+  if (regSubCacheP != NULL)
   {
-    cacheItem = ldSubCacheItemAdd((LdSubCache*) tenantP->regSubCacheP, subP, NULL);
+    cacheItem = ldSubCacheItemAdd(regSubCacheP, subP, NULL);
     if (cacheItem != NULL)
+    {
       cacheItem->timeInterval = timeIntervalSec;
+      ldSubCacheItemPin(cacheItem);
+    }
   }
+  ldSubCacheUnlock(regSubCacheP);
 
   //
   // 201 Created — Location + Link headers
@@ -232,6 +251,8 @@ bool postCsourceSubscriptions(void)
   //
   if (cacheItem != NULL && tenantP->regCacheP != NULL)
     ldCsrSubInitialNotify((LdRegCache*) tenantP->regCacheP, cacheItem);
+  if (cacheItem != NULL)
+    ldSubCacheItemUnpin(cacheItem);
 
   return true;
 }

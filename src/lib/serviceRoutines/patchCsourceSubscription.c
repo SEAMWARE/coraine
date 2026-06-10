@@ -74,10 +74,18 @@ bool patchCsourceSubscription(void)
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
+  // The whole Lookup → in-place merge-patch → Remove + Add is one
+  // read-modify-write on the CSR-sub cache (the merge mutates the cached
+  // item's subTree in place), so hold the wrlock across all of it. The
+  // reg-touching notify runs AFTER we pin newItemP and drop the lock
+  // (lock order reg-before-sub).
+  ldSubCacheWrLock(cacheP);
+
   LdSubCacheItem* itemP = (cacheP != NULL) ? ldSubCacheItemLookup(cacheP, subId) : NULL;
 
   if (itemP == NULL || itemP->subTree == NULL)
   {
+    ldSubCacheUnlock(cacheP);
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "CSR subscription '%s' not found", subId);
     return true;
@@ -152,6 +160,11 @@ bool patchCsourceSubscription(void)
   ldSubCacheItemRemove(cacheP, subId);
   LdSubCacheItem* newItemP = ldSubCacheItemAdd(cacheP, newTree, NULL);
 
+  // Pin the rebuilt item and drop the wrlock before the reg-touching notify.
+  if (newItemP != NULL)
+    ldSubCacheItemPin(newItemP);
+  ldSubCacheUnlock(cacheP);
+
   //
   // § 5.11.3.4 — "send a notification with all currently matching
   // Context Source Registrations" after the PATCH. Reuses the
@@ -160,6 +173,8 @@ bool patchCsourceSubscription(void)
   //
   if (newItemP != NULL && tenantP->regCacheP != NULL)
     ldCsrSubInitialNotify((LdRegCache*) tenantP->regCacheP, newItemP);
+  if (newItemP != NULL)
+    ldSubCacheItemUnpin(newItemP);
 
   swRest.out.httpStatusCode = 204;
   return true;
