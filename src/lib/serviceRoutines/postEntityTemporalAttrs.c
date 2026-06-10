@@ -255,7 +255,7 @@ bool postEntityTemporalAttrs(void)
       }
 
       for (int m = 0; m < 3; m++)
-        if (matchV[m] != NULL) free(matchV[m]);
+        ldRegCacheMatchRelease(matchV[m], matchN[m]);
     }
   }
 

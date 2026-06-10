@@ -211,9 +211,9 @@ bool postEntitiesTemporal(void)
 
     if (loopSeen)
     {
-      if (exclV  != NULL) { free(exclV);  exclV  = NULL; exclN  = 0; }
-      if (redirV != NULL) { free(redirV); redirV = NULL; redirN = 0; }
-      if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
+      ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
+      ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
+      ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
     }
 
     LdRegCacheItem** groups[]  = { exclV, redirV, inclV };
@@ -311,9 +311,9 @@ bool postEntitiesTemporal(void)
       }
     }
 
-    if (exclV  != NULL) free(exclV);
-    if (redirV != NULL) free(redirV);
-    if (inclV  != NULL) free(inclV);
+    ldRegCacheMatchRelease(exclV,  exclN);
+    ldRegCacheMatchRelease(redirV, redirN);
+    ldRegCacheMatchRelease(inclV,  inclN);
   }
 
   // Local TRoE create — skip when excl/redir consumed every input attr,

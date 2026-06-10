@@ -433,7 +433,7 @@ static void dispatchOneMode(Tenant*       tenantP,
       g->count++;
     }
 
-    if (matchV != NULL) free(matchV);
+    ldRegCacheMatchRelease(matchV, matchN);
   }
 
   //
@@ -802,7 +802,7 @@ bool postEntityBatchCreate(void)
           (void) ldEntityFragmentForInfo(ent, riP, swRest.kjsonP, /*detach=*/true);
         }
       }
-      if (matchV != NULL) free(matchV);
+      ldRegCacheMatchRelease(matchV, matchN);
     }
 
     dispatchOneMode(tenantP, LdRegModeInclusive, /*detach=*/false, /*conflictOnNoOp=*/false,

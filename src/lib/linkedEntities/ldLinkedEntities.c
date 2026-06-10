@@ -256,13 +256,13 @@ int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
           ldStripAtContext(tree);
           ldApiEntityToDbModel(tree, &swRest.kalloc, 0);
           *entityPP = tree;
-          if (matchV != NULL) free(matchV);
+          ldRegCacheMatchRelease(matchV, matchN);
           return 0;
         }
       }
     }
 
-    if (matchV != NULL) free(matchV);
+    ldRegCacheMatchRelease(matchV, matchN);
   }
 
   return -1;

@@ -436,7 +436,7 @@ bool getCsourceRegistrations(void)
     }
 
     if (haveIdRegex) regfree(&idRegex);
-    if (matchV != NULL) free(matchV);
+    ldRegCacheMatchRelease(matchV, matchN);
 
     // § 6.3.10 Link header for pagination — rel=next when more rows
     // remain past skip+limit, rel=prev/first when offset > 0.

@@ -169,7 +169,7 @@ static void matchCsrForMode(Tenant* tenantP, const char* entityId, LdRegMode mod
     csrAccumAppend(a, entityId);
   }
 
-  if (matchV != NULL) free(matchV);
+  ldRegCacheMatchRelease(matchV, matchN);
 }
 
 

@@ -144,7 +144,10 @@ bool deleteEntityTemporalInstance(void)
       {
         int k = 0;
         for (int i = 0; i < matchN[m]; i++)
+        {
           if (csrCoversAttr(matchV[m][i], attrIri)) matchV[m][k++] = matchV[m][i];
+          else                                      ldRegCacheItemUnpin(matchV[m][i]);  // dropped — unpin now
+        }
         matchN[m] = k;
       }
 
@@ -199,7 +202,7 @@ bool deleteEntityTemporalInstance(void)
       }
 
       for (int m = 0; m < 3; m++)
-        if (matchV[m] != NULL) free(matchV[m]);
+        ldRegCacheMatchRelease(matchV[m], matchN[m]);
     }
   }
 

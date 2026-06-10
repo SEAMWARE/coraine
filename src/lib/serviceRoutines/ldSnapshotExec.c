@@ -752,7 +752,7 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
       else           n += streamRemoteEntitiesIntoSnapshot(remoteArr, snapTenantP);
     }
 
-    if (matchV != NULL) free(matchV);
+    ldRegCacheMatchRelease(matchV, matchN);
   }
 
   // 3) Split-mode only: post-merge filter scan over the snap-tenant.

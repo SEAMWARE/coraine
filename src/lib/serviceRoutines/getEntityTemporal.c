@@ -383,10 +383,10 @@ bool getEntityTemporal(void)
                                                   &swRest.kalloc);
   if (ldDistOpLoopDetected(ownAlias))
   {
-    if (exclV  != NULL) { free(exclV);  exclV  = NULL; exclN  = 0; }
-    if (redirV != NULL) { free(redirV); redirV = NULL; redirN = 0; }
-    if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
-    if (auxV   != NULL) { free(auxV);   auxV   = NULL; auxN   = 0; }
+    ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
+    ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
+    ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
+    ldRegCacheMatchRelease(auxV,   auxN);   auxV   = NULL; auxN   = 0;
   }
 
   // Local TRoE retrieve. result==NULL is "no temporal data here yet";
@@ -396,10 +396,10 @@ bool getEntityTemporal(void)
 
   if (r != TROE_OK && r != TROE_NOT_FOUND)
   {
-    if (exclV  != NULL) free(exclV);
-    if (redirV != NULL) free(redirV);
-    if (inclV  != NULL) free(inclV);
-    if (auxV   != NULL) free(auxV);
+    ldRegCacheMatchRelease(exclV,  exclN);
+    ldRegCacheMatchRelease(redirV, redirN);
+    ldRegCacheMatchRelease(inclV,  inclN);
+    ldRegCacheMatchRelease(auxV,   auxN);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
             "temporal retrieve failed for entity '%s'", entityId);
     return true;
@@ -510,10 +510,10 @@ bool getEntityTemporal(void)
     }
   }
 
-  if (exclV  != NULL) free(exclV);
-  if (redirV != NULL) free(redirV);
-  if (inclV  != NULL) free(inclV);
-  if (auxV   != NULL) free(auxV);
+  ldRegCacheMatchRelease(exclV,  exclN);
+  ldRegCacheMatchRelease(redirV, redirN);
+  ldRegCacheMatchRelease(inclV,  inclN);
+  ldRegCacheMatchRelease(auxV,   auxN);
 
   if (result == NULL)
   {

@@ -374,9 +374,19 @@ bool postSubscriptions(void)
   }
   else
   {
-    LdSubCacheItem* cachedP = NULL;
-    if (tenantP->subCacheP != NULL)
-      cachedP = ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, subP, qExprForCache);
+    // Add under the sub wrlock; pin the new item and drop the lock before the
+    // fanout (it reads the reg cache + forwards derived subs over the network —
+    // lock order is reg-before-sub, so we must not hold the sub lock across it).
+    LdSubCache*     subCacheP = (LdSubCache*) tenantP->subCacheP;
+    LdSubCacheItem* cachedP   = NULL;
+    ldSubCacheWrLock(subCacheP);
+    if (subCacheP != NULL)
+    {
+      cachedP = ldSubCacheItemAdd(subCacheP, subP, qExprForCache);
+      if (cachedP != NULL)
+        ldSubCacheItemPin(cachedP);
+    }
+    ldSubCacheUnlock(subCacheP);
 
     //
     // § 5.8.1.4 — fan derived subs out to matching CSRs.
@@ -389,6 +399,8 @@ bool postSubscriptions(void)
       ldDistSubFanout(cachedP, (LdRegCache*) tenantP->regCacheP, ownAlias,
                       distSubPersist, tenantP);
     }
+    if (cachedP != NULL)
+      ldSubCacheItemUnpin(cachedP);
   }
 
   //

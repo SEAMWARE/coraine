@@ -354,9 +354,9 @@ bool replaceEntity(void)
                               items[i].csr->regId);
     }
 
-    if (exclV  != NULL) free(exclV);
-    if (redirV != NULL) free(redirV);
-    if (inclV  != NULL) free(inclV);
+    ldRegCacheMatchRelease(exclV,  exclN);
+    ldRegCacheMatchRelease(redirV, redirN);
+    ldRegCacheMatchRelease(inclV,  inclN);
   }
 
   //

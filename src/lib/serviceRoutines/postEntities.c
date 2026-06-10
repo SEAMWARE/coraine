@@ -498,9 +498,9 @@ bool postEntities(void)
     // the match arrays; dispatch block below is gated on !loopSeen.
     if (loopSeen)
     {
-      if (exclV  != NULL) { free(exclV);  exclV  = NULL; exclN  = 0; }
-      if (redirV != NULL) { free(redirV); redirV = NULL; redirN = 0; }
-      if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
+      ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
+      ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
+      ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
     }
 
     if (exclN > 0 || redirN > 0 || inclN > 0)
@@ -551,9 +551,9 @@ bool postEntities(void)
             {
               ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                       "exclusive registration '%s' has no endpoint", csr->regId);
-              if (exclV  != NULL) free(exclV);
-              if (redirV != NULL) free(redirV);
-              if (inclV  != NULL) free(inclV);
+              ldRegCacheMatchRelease(exclV,  exclN);
+              ldRegCacheMatchRelease(redirV, redirN);
+              ldRegCacheMatchRelease(inclV,  inclN);
               return true;
             }
             continue;
@@ -648,9 +648,9 @@ bool postEntities(void)
         }
       }
 
-      if (exclV  != NULL) free(exclV);
-      if (redirV != NULL) free(redirV);
-      if (inclV  != NULL) free(inclV);
+      ldRegCacheMatchRelease(exclV,  exclN);
+      ldRegCacheMatchRelease(redirV, redirN);
+      ldRegCacheMatchRelease(inclV,  inclN);
     }
   }
 

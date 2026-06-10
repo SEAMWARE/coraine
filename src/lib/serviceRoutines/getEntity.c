@@ -780,10 +780,10 @@ bool getEntity(void)
                                                     &swRest.kalloc);
     if (ldDistOpLoopDetected(ownAlias))
     {
-      if (exclV  != NULL) { free(exclV);  exclV  = NULL; exclN  = 0; }
-      if (redirV != NULL) { free(redirV); redirV = NULL; redirN = 0; }
-      if (inclV  != NULL) { free(inclV);  inclV  = NULL; inclN  = 0; }
-      if (auxV   != NULL) { free(auxV);   auxV   = NULL; auxN   = 0; }
+      ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
+      ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
+      ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
+      ldRegCacheMatchRelease(auxV,   auxN);   auxV   = NULL; auxN   = 0;
     }
 
     if (exclN > 0 || redirN > 0 || inclN > 0 || auxN > 0)
@@ -821,10 +821,10 @@ bool getEntity(void)
         {
           ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
                   "exclusive registration '%s' has no endpoint", exclV[i]->regId);
-          if (exclV  != NULL) free(exclV);
-          if (redirV != NULL) free(redirV);
-          if (inclV  != NULL) free(inclV);
-          if (auxV   != NULL) free(auxV);
+          ldRegCacheMatchRelease(exclV,  exclN);
+          ldRegCacheMatchRelease(redirV, redirN);
+          ldRegCacheMatchRelease(inclV,  inclN);
+          ldRegCacheMatchRelease(auxV,   auxN);
           return true;
         }
       }
@@ -919,10 +919,10 @@ bool getEntity(void)
               const char* upErr = results[i].errorDetail;
               if (upErr) ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", upErr);
               else       ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", upCode);
-              if (exclV  != NULL) free(exclV);
-              if (redirV != NULL) free(redirV);
-              if (inclV  != NULL) free(inclV);
-              if (auxV   != NULL) free(auxV);
+              ldRegCacheMatchRelease(exclV,  exclN);
+              ldRegCacheMatchRelease(redirV, redirN);
+              ldRegCacheMatchRelease(inclV,  inclN);
+              ldRegCacheMatchRelease(auxV,   auxN);
               return true;
             }
             continue;  // redir/incl/aux: tolerate failures
@@ -947,10 +947,10 @@ bool getEntity(void)
         }
       }
 
-      if (exclV  != NULL) free(exclV);
-      if (redirV != NULL) free(redirV);
-      if (inclV  != NULL) free(inclV);
-      if (auxV   != NULL) free(auxV);
+      ldRegCacheMatchRelease(exclV,  exclN);
+      ldRegCacheMatchRelease(redirV, redirN);
+      ldRegCacheMatchRelease(inclV,  inclN);
+      ldRegCacheMatchRelease(auxV,   auxN);
 
       if (destP == NULL)
       {

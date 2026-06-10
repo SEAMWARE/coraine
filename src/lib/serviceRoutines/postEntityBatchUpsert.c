@@ -409,7 +409,7 @@ static void chopForMode(Tenant*      tenantP,
     }
   }
 
-  if (matchV != NULL) free(matchV);
+  ldRegCacheMatchRelease(matchV, matchN);
 }
 
 
@@ -446,7 +446,7 @@ static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
       (void) ldEntityFragmentForInfo(fragP, riP, swRest.kjsonP, /*detach=*/true);
   }
 
-  if (matchV != NULL) free(matchV);
+  ldRegCacheMatchRelease(matchV, matchN);
 }
 
 

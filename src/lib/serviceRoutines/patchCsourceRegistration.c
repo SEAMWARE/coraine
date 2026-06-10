@@ -49,11 +49,21 @@ bool patchCsourceRegistration(void)
   // below, so the "was matching" set has to be captured now. Borrowed
   // subId pointers are stable for the sub cache's lifetime.
   //
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
-  char**  wasMatchingIds = NULL;
-  if (tenantP->regCacheP != NULL && tenantP->regSubCacheP != NULL)
+  // The whole snapshot → DB update → cache refresh is one atomic unit under
+  // the reg-cache WRITE lock: it serializes concurrent CSR CRUD (which would
+  // otherwise corrupt the shared list / free an item a reader holds) and
+  // excludes the match-path readers. Held across the DB round-trips so the
+  // cache always reflects the DB write that this PATCH performed.
+  //
+  Tenant*     tenantP   = (Tenant*) swNgsild.tenantP;
+  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
+  char**      wasMatchingIds = NULL;
+
+  ldRegCacheWrLock(regCacheP);
+
+  if (regCacheP != NULL && tenantP->regSubCacheP != NULL)
   {
-    LdRegCacheItem* oldItemP = ldRegCacheItemLookup((LdRegCache*) tenantP->regCacheP, regId);
+    LdRegCacheItem* oldItemP = ldRegCacheItemLookup(regCacheP, regId);
     if (oldItemP != NULL)
       wasMatchingIds = ldCsrSubMatchingSubIds((LdSubCache*) tenantP->regSubCacheP, oldItemP, &swRest.kalloc);
   }
@@ -62,25 +72,29 @@ bool patchCsourceRegistration(void)
 
   if (r == DB_NOT_FOUND)
   {
+    ldRegCacheUnlock(regCacheP);
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "registration '%s' not found", regId);
     return true;
   }
 
   if (r != DB_OK)
   {
+    ldRegCacheUnlock(regCacheP);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating registration '%s'", regId);
     return true;
   }
 
-  // Refresh the cache: remove old item, re-add merged tree from DB
+  // Refresh the cache: remove old item, re-add merged tree from DB. Safe under
+  // the wrlock — no reader can be walking the list and no other writer can be
+  // mid-mutation, so the transient remove→add window is exclusive.
   LdRegCacheItem* newItemP = NULL;
-  if (tenantP->regCacheP != NULL)
+  if (regCacheP != NULL)
   {
-    ldRegCacheItemRemove((LdRegCache*) tenantP->regCacheP, regId);
+    ldRegCacheItemRemove(regCacheP, regId);
 
     KjNode* updatedRegP = NULL;
     if (db.registrationRetrieve != NULL && db.registrationRetrieve(tenantP, regId, &updatedRegP) == DB_OK && updatedRegP != NULL)
-      newItemP = ldRegCacheItemAdd((LdRegCache*) tenantP->regCacheP, updatedRegP);
+      newItemP = ldRegCacheItemAdd(regCacheP, updatedRegP);
   }
 
   //
@@ -88,6 +102,8 @@ bool patchCsourceRegistration(void)
   //
   if (newItemP != NULL && tenantP->regSubCacheP != NULL)
     ldCsrSubOnRegUpdate((LdSubCache*) tenantP->regSubCacheP, newItemP, wasMatchingIds);
+
+  ldRegCacheUnlock(regCacheP);
 
   swRest.out.httpStatusCode = 204;
   return true;

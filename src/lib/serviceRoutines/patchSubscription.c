@@ -184,9 +184,16 @@ bool patchSubscription(void)
   LdSubSubordinate* savedSubordinateP    = NULL;
   int               savedSubordinateRunNo = 0;
 
-  if (tenantP->subCacheP != NULL)
+  // Sub-cache mutation under the wrlock; the reg-touching reconcile runs AFTER
+  // we drop the lock (lock order reg-before-sub), with newItemP pinned so a
+  // concurrent sub DELETE can't free it during the reconcile's remote calls.
+  LdSubCache*     subCacheP = (LdSubCache*) tenantP->subCacheP;
+  LdSubCacheItem* newItemP  = NULL;
+
+  ldSubCacheWrLock(subCacheP);
+  if (subCacheP != NULL)
   {
-    LdSubCacheItem* oldItemP = ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId);
+    LdSubCacheItem* oldItemP = ldSubCacheItemLookup(subCacheP, subId);
     if (oldItemP != NULL)
     {
       savedSubordinateP     = oldItemP->subordinateP;
@@ -194,7 +201,7 @@ bool patchSubscription(void)
       oldItemP->subordinateP = NULL;   // detach so cache-free won't release
     }
 
-    ldSubCacheItemRemove((LdSubCache*) tenantP->subCacheP, subId);
+    ldSubCacheItemRemove(subCacheP, subId);
 
     KjNode* updatedSubP = NULL;
     if (db.subscriptionRetrieve(tenantP, subId, &updatedSubP) == DB_OK && updatedSubP != NULL)
@@ -227,7 +234,7 @@ bool patchSubscription(void)
       kjChildAdd(statusFragment, kjString(NULL, LD_VOCAB_STATUS, newStatus));
       db.subscriptionUpdate(tenantP, subId, statusFragment);
 
-      LdSubCacheItem* newItemP = ldSubCacheItemAdd((LdSubCache*) tenantP->subCacheP, updatedSubP, NULL);
+      newItemP = ldSubCacheItemAdd(subCacheP, updatedSubP, NULL);
 
       // Reattach the subordinate mapping that survived the cache rebuild.
       if (newItemP != NULL && savedSubordinateP != NULL)
@@ -236,19 +243,25 @@ bool patchSubscription(void)
         newItemP->subordinateRunNo = savedSubordinateRunNo;
         savedSubordinateP          = NULL;   // ownership transferred
       }
-
-      // § 5.8.1.4 — reconcile the subordinate set against the patched
-      // entity filter: PATCH still-matching derivatives, DELETE the
-      // ones whose CSR no longer overlaps, and fan out new matches.
-      // Best-effort — remote failures don't roll back local state.
-      if (newItemP != NULL && tenantP->regCacheP != NULL && !ldLocalOnly)
-      {
-        const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
-        ldDistSubReconcile(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias,
-                           distSubPersist, tenantP);
-      }
     }
+
+    if (newItemP != NULL)
+      ldSubCacheItemPin(newItemP);
   }
+  ldSubCacheUnlock(subCacheP);
+
+  // § 5.8.1.4 — reconcile the subordinate set against the patched entity filter
+  // (PATCH still-matching derivatives, DELETE no-longer-overlapping ones, fan
+  // out new matches). Touches the reg cache + remote I/O — lock-free, pinned.
+  // Best-effort — remote failures don't roll back local state.
+  if (newItemP != NULL && tenantP->regCacheP != NULL && !ldLocalOnly)
+  {
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    ldDistSubReconcile(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias,
+                       distSubPersist, tenantP);
+  }
+  if (newItemP != NULL)
+    ldSubCacheItemUnpin(newItemP);
 
   // If the cache rebuild bailed before re-adding (DB retrieve failure),
   // the saved subordinate list still needs freeing — its ownership was

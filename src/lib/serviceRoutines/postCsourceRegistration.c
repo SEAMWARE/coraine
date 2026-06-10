@@ -463,11 +463,17 @@ bool postCsourceRegistration(void)
   if (idP->name[0] == '_')
     idP->name = "id";
 
-  // Add to per-tenant registration cache
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  // Add to per-tenant registration cache. The wrlock serializes against
+  // concurrent CSR CRUD + match-path readers, and is held across the fanout so
+  // the just-added regItemP can't be freed by a concurrent CSR DELETE.
+  Tenant*     tenantP   = (Tenant*) swNgsild.tenantP;
+  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
   LdRegCacheItem* regItemP = NULL;
-  if (tenantP->regCacheP != NULL)
-    regItemP = ldRegCacheItemAdd((LdRegCache*) tenantP->regCacheP, regP);
+
+  ldRegCacheWrLock(regCacheP);
+
+  if (regCacheP != NULL)
+    regItemP = ldRegCacheItemAdd(regCacheP, regP);
 
   // § 5.11.7 — fan out "newlyMatching" CsourceNotifications to any CSR-
   // sub whose filter matches this new registration.
@@ -484,6 +490,8 @@ bool postCsourceRegistration(void)
     ldDistSubOnRegCreate((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,
                          distSubPersist, tenantP);
   }
+
+  ldRegCacheUnlock(regCacheP);
 
   // 201 Created — set Location and Link headers, no body
   swRest.out.httpStatusCode = 201;

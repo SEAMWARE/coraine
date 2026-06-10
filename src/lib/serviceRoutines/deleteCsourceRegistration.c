@@ -82,9 +82,14 @@ bool deleteCsourceRegistration(void)
   // BEFORE the cache remove because the matcher walks the reg item's
   // pre-parsed fields, which ldRegCacheItemRemove frees.
   //
-  if (tenantP->regCacheP != NULL)
+  // wrlock held across the lookup → fanout → remove so the item being deleted
+  // can't be freed/moved by a concurrent CSR write while the fanout reads its
+  // pre-parsed fields, and the list mutation is exclusive of match-path readers.
+  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
+  ldRegCacheWrLock(regCacheP);
+  if (regCacheP != NULL)
   {
-    LdRegCacheItem* regItemP = ldRegCacheItemLookup((LdRegCache*) tenantP->regCacheP, regId);
+    LdRegCacheItem* regItemP = ldRegCacheItemLookup(regCacheP, regId);
     if (regItemP != NULL && tenantP->regSubCacheP != NULL)
       ldCsrSubOnRegDelete((LdSubCache*) tenantP->regSubCacheP, regItemP);
 
@@ -98,8 +103,9 @@ bool deleteCsourceRegistration(void)
                            distSubPersist, tenantP);
     }
 
-    ldRegCacheItemRemove((LdRegCache*) tenantP->regCacheP, regId);
+    ldRegCacheItemRemove(regCacheP, regId);
   }
+  ldRegCacheUnlock(regCacheP);
 
   swRest.out.httpStatusCode = 204;
   return true;
