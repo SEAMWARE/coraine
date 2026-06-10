@@ -344,8 +344,21 @@ contextServerStart() {
   local running=$(docker ps --filter name=context-server -q 2>/dev/null)
   if [ -z "$running" ]; then
     docker run --rm -d --name context-server -p $CONTEXT_SERVER_PORT:8080 -e MEMORY_ENABLED=true wistefan/context-server > /dev/null 2>&1
-    sleep 3  # context server is slow to start
   fi
+
+  # Poll until the server actually accepts connections — a fixed sleep is racy:
+  # the Java app's cold start can exceed it, and the immediately-following
+  # contextServerPush then fails with curl exit 56 (INIT non-zero) even though
+  # the container is "Up". curl exit 0 = a response came back (any HTTP code).
+  local i
+  for i in $(seq 1 30); do
+    if curl -s -o /dev/null --max-time 2 "http://localhost:$CONTEXT_SERVER_PORT/jsonldContexts/_ready_probe" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "contextServerStart: context server not ready after 30s"
+  return 1
 }
 
 
