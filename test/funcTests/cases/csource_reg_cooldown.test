@@ -82,78 +82,48 @@ Content-Length: REGEX(\d+)
 
 02. POST urn:V1 → 207, forward fails (connection refused)
 ==========================================================
-HTTP/1.1 207 Multi-Status
+HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "errors": [
-    {
-      "entityId": "urn:V1",
-      "error": {
-        "detail": "forward failed: Connection failed; affected attributes: speed",
-        "status": 502,
-        "title": "Bad Gateway",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-      },
-      "registrationId": "urn:CSR:Cool"
-    }
-  ],
-  "success": []
+  "detail": "forward failed: Connection failed; affected attributes: speed",
+  "status": 502,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
 
 
 03. POST urn:V1 again immediately → 207, endpoint in cooldown
 ==============================================================
-HTTP/1.1 207 Multi-Status
+HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "errors": [
-    {
-      "entityId": "urn:V1",
-      "error": {
-        "detail": "forward failed: registration endpoint in cooldown after failure; affected attributes: speed",
-        "status": 504,
-        "title": "Bad Gateway",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-      },
-      "registrationId": "urn:CSR:Cool"
-    }
-  ],
-  "success": []
+  "detail": "forward failed: registration endpoint in cooldown after failure; affected attributes: speed",
+  "status": 504,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
 
 
 04. POST urn:V1 after the cooldown → 207, forward attempted again
 ==================================================================
-HTTP/1.1 207 Multi-Status
+HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "errors": [
-    {
-      "entityId": "urn:V1",
-      "error": {
-        "detail": "forward failed: Connection failed; affected attributes: speed",
-        "status": 502,
-        "title": "Bad Gateway",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-      },
-      "registrationId": "urn:CSR:Cool"
-    }
-  ],
-  "success": []
+  "detail": "forward failed: Connection failed; affected attributes: speed",
+  "status": 502,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
 

@@ -42,7 +42,7 @@ echo
 echo
 
 
-echo "02. POST urn:V1 → forward times out → 207 Multi-Status"
+echo "02. POST urn:V1 → forward times out → 502 (flattened ProblemDetails)"
 echo "======================================================"
 payload='{
   "id": "urn:V1",
@@ -66,28 +66,18 @@ Content-Length: REGEX(\d+)
 
 
 
-02. POST urn:V1 → forward times out → 207 Multi-Status
+02. POST urn:V1 → forward times out → 502 (flattened ProblemDetails)
 ======================================================
-HTTP/1.1 207 Multi-Status
+HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "errors": [
-    {
-      "entityId": "urn:V1",
-      "error": {
-        "detail": REGEX("forward failed: .*"),
-        "status": 502,
-        "title": "Bad Gateway",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-      },
-      "registrationId": "urn:CSR:Slow"
-    }
-  ],
-  "success": []
+  "detail": REGEX("forward failed: .*"),
+  "status": 502,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
 
