@@ -1,0 +1,255 @@
+#
+# FILE            subscription_delete_marker.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Update Subscription - urn:ngsi-ld:null delete-marker (TS 104-175 clause-8 / § 5.8.3)
+
+--TAGS--
+subscription update delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create subscription with q + expiresAt + throttling
+# 02. Retrieve - q + expiresAt present
+# 03. PATCH delete-markers on q + expiresAt - 204
+# 04. Retrieve - q + expiresAt gone, throttling kept
+# 05. PATCH raw JSON null on throttling - 400 (null forbidden, use the marker)
+# 06. PATCH delete-marker on mandatory notification - 400 (cannot be deleted)
+# 07. Create subscription with the sentinel as a first-level value - 400
+#
+
+echo "01. Create subscription with q + expiresAt + throttling"
+echo "======================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:DM1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "q": "speed>10",
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "throttling": 5,
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve - q + expiresAt present"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
+echo
+echo
+
+
+echo "03. PATCH delete-markers on q + expiresAt - 204"
+echo "==============================================="
+payload='{
+  "q": "urn:ngsi-ld:null",
+  "expiresAt": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "04. Retrieve - q + expiresAt gone, throttling kept"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
+echo
+echo
+
+
+echo "05. PATCH raw JSON null on throttling - 400"
+echo "==========================================="
+payload='{
+  "throttling": null
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "06. PATCH delete-marker on mandatory notification - 400"
+echo "======================================================="
+payload='{
+  "notification": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "07. Create subscription with the sentinel as a first-level value - 400"
+echo "======================================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:DM2",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "subscriptionName": "urn:ngsi-ld:null",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription with q + expiresAt + throttling
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
+Content-Length: 0
+
+
+
+
+02. Retrieve - q + expiresAt present
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "id": "urn:ngsi-ld:Subscription:DM1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "q": "speed>10",
+  "status": "active",
+  "throttling": 5,
+  "type": "Subscription"
+}
+
+
+
+03. PATCH delete-markers on q + expiresAt - 204
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Retrieve - q + expiresAt gone, throttling kept
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:DM1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "throttling": 5,
+  "type": "Subscription"
+}
+
+
+
+05. PATCH raw JSON null on throttling - 400
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "JSON null is not allowed in NGSI-LD; use the 'urn:ngsi-ld:null' delete-marker (field: 'throttling')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PATCH delete-marker on mandatory notification - 400
+=======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification' is mandatory and cannot be deleted",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Create subscription with the sentinel as a first-level value - 400
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as a first-level value in Create Subscription (field: 'subscriptionName')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

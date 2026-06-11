@@ -1,0 +1,261 @@
+#
+# FILE            csource_reg_delete_marker.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Update Registration - urn:ngsi-ld:null delete-marker (TS 104-175 clause-8 / § 5.9.3)
+
+--TAGS--
+registration update delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create registration with expiresAt + description
+# 02. Retrieve - expiresAt + description present
+# 03. PATCH delete-marker on expiresAt - 204
+# 04. Retrieve - expiresAt gone, description kept
+# 05. PATCH raw JSON null on description - 400 (null forbidden, use the marker)
+# 06. PATCH delete-marker on mandatory endpoint - 400 (cannot be deleted)
+# 07. PATCH delete-marker on mandatory information - 400 (cannot be deleted)
+# 08. Create registration with the sentinel as a first-level value - 400
+#
+
+echo "01. Create registration with expiresAt + description"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:DM1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://csource.example.com",
+  "description": "keep me",
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve - expiresAt + description present"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
+echo
+echo
+
+
+echo "03. PATCH delete-marker on expiresAt - 204"
+echo "=========================================="
+payload='{
+  "expiresAt": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "04. Retrieve - expiresAt gone, description kept"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
+echo
+echo
+
+
+echo "05. PATCH raw JSON null on description - 400"
+echo "==========================================="
+payload='{
+  "description": null
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "06. PATCH delete-marker on mandatory endpoint - 400"
+echo "==================================================="
+payload='{
+  "endpoint": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "07. PATCH delete-marker on mandatory information - 400"
+echo "====================================================="
+payload='{
+  "information": "urn:ngsi-ld:null"
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+echo
+echo
+
+
+echo "08. Create registration with the sentinel as a first-level value - 400"
+echo "======================================================================"
+payload='{
+  "id": "urn:ngsi-ld:CSR:DM2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://csource.example.com",
+  "description": "urn:ngsi-ld:null",
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create registration with expiresAt + description
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Retrieve - expiresAt + description present
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "description": "keep me",
+  "endpoint": "http://csource.example.com",
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "id": "urn:ngsi-ld:CSR:DM1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+03. PATCH delete-marker on expiresAt - 204
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Retrieve - expiresAt gone, description kept
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "description": "keep me",
+  "endpoint": "http://csource.example.com",
+  "id": "urn:ngsi-ld:CSR:DM1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+05. PATCH raw JSON null on description - 400
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "JSON null is not allowed in NGSI-LD; use the 'urn:ngsi-ld:null' delete-marker (field: 'description')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PATCH delete-marker on mandatory endpoint - 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'endpoint' is mandatory and cannot be deleted",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. PATCH delete-marker on mandatory information - 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'information' is mandatory and cannot be deleted",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Create registration with the sentinel as a first-level value - 400
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as a first-level value in Create Registration (field: 'description')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
