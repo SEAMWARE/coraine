@@ -697,7 +697,7 @@ bool postEntityBatchMerge(void)
         KjNode* respTreeP = NULL;
         if (bResults[bi].responseBody != NULL && bResults[bi].responseBodyLen > 0)
         {
-          KjNode* treeP = kjParse(swRest.kjsonP, bResults[bi].responseBody);
+          KjNode* treeP = bResults[bi].responseTree;
           if (treeP != NULL)
           {
             ldStripAtContext(treeP);

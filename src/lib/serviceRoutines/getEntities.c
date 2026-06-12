@@ -1810,11 +1810,11 @@ bool getEntities(void)
           LdRegCacheItem* csr    = items[i].csr;
           int             code   = results[i].statusCode;
 
-          KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%.*s",
+          // responseBody is tokenized in place by the reception-time parse, so it
+          // is no longer printable as a string — trace status/len/error only.
+          KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s",
                code, results[i].responseBodyLen,
-               results[i].errorDetail != NULL ? results[i].errorDetail : "(none)",
-               (int) (results[i].responseBodyLen > 0 ? results[i].responseBodyLen : 0),
-               results[i].responseBody != NULL ? results[i].responseBody : "");
+               results[i].errorDetail != NULL ? results[i].errorDetail : "(none)");
 
           if (code < 200 || code >= 300) continue;
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
@@ -1826,7 +1826,7 @@ bool getEntities(void)
             // § 5.14.4.4: response is a single EntityMap object. Pull out
             // remote map id + synthesise an array of { "id": <entityId> }
             // entries so the dedup loop below stays format-agnostic.
-            KjNode* mapTreeP = kjParse(swRest.kjsonP, results[i].responseBody);
+            KjNode* mapTreeP = results[i].responseTree;
             if (mapTreeP == NULL || mapTreeP->type != KjObject) continue;
 
             KjNode* idP = kjLookup(mapTreeP, "id");
@@ -1847,7 +1847,7 @@ bool getEntities(void)
           }
           else
           {
-            remoteArray = kjParse(swRest.kjsonP, results[i].responseBody);
+            remoteArray = results[i].responseTree;
             // @context is stripped per-entity AFTER expansion below (a json
             // response carries it in the Link header, an ld+json response
             // embeds it per element — both feed the per-entity expand).

@@ -44,6 +44,7 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpCsrWouldLoop
 #include "swNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
+#include "swNgsild/ldWriteResult.h"                   // LdWriteResult, ldWriteResultMerge, ldWriteResult*Add
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -79,37 +80,6 @@ static const char* shortNameOf(const char* attrIri)
 {
   const char* compact = swldCompact(swldCoreContext(), attrIri);
   return (compact != NULL) ? compact : attrIri;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// addNotUpdated - push a NotUpdatedDetails entry (§ 5.2.19)
-//
-static void addNotUpdated(KjNode* arrP, const char* attrName,
-                          const char* reason, const char* regId)
-{
-  KjNode* entry = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(entry, kjString(swRest.kjsonP, "attributeName", attrName));
-  kjChildAdd(entry, kjString(swRest.kjsonP, "reason",         reason));
-  if (regId != NULL)
-    kjChildAdd(entry, kjString(swRest.kjsonP, "registrationId", regId));
-  kjChildAdd(arrP, entry);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// addUpdatedUnique - push an attr name to updated[] if not already present
-//
-static void addUpdatedUnique(KjNode* arrP, const char* attrName)
-{
-  for (KjNode* p = arrP->value.firstChildP; p != NULL; p = p->next)
-    if (p->type == KjString && strcmp(p->value.s, attrName) == 0)
-      return;
-  kjChildAdd(arrP, kjString(swRest.kjsonP, NULL, attrName));
 }
 
 
@@ -189,37 +159,6 @@ static char* renderFragmentWithContext(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
-// recordFragmentAttrs - push every non-keyword attr in fragP onto targetP
-//
-// For CSR-failure reporting: every claimed attr in the slice goes into
-// notUpdated[] with the supplied reason + registrationId, or into
-// updated[] when the forward succeeded.
-//
-static void recordFragmentAttrsNotUpdated(KjNode* targetP, KjNode* fragP,
-                                          const char* reason, const char* regId)
-{
-  if (fragP == NULL) return;
-  for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
-  {
-    if (isEntityKeyword(c->name)) continue;
-    addNotUpdated(targetP, shortNameOf(c->name), reason, regId);
-  }
-}
-
-static void recordFragmentAttrsUpdated(KjNode* targetP, KjNode* fragP)
-{
-  if (fragP == NULL) return;
-  for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
-  {
-    if (isEntityKeyword(c->name)) continue;
-    addUpdatedUnique(targetP, shortNameOf(c->name));
-  }
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // classifyAndChopLocal - noOverwrite filter against local existing entity
 //
 // For the (possibly chopped) fragment remaining after distops, apply
@@ -277,12 +216,12 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
     }
 
     if (noOverwrite && anyConflict)
-      addNotUpdated(notUpdatedP, shortName, "Attribute already exists", NULL);
+      ldWriteResultNotUpdatedAdd(notUpdatedP, shortName, "Attribute already exists", NULL, 0);
 
     if (!anyKept)
       kjChildRemove(fragment, fAttrP);
     else
-      addUpdatedUnique(updatedP, shortName);
+      ldWriteResultUpdatedAdd(updatedP, shortName);
 
     fAttrP = nextAttr;
   }
@@ -424,7 +363,7 @@ bool postEntityAttrs(void)
             char reason[256];
             snprintf(reason, sizeof(reason),
                      "%s registration does not support appendAttrs", modeTag[g]);
-            recordFragmentAttrsNotUpdated(notUpdatedP, fragP, reason, csr->regId);
+            ldWriteResultFragNotUpdated(notUpdatedP, fragP, reason, csr->regId, 0);
             continue;
           }
 
@@ -460,27 +399,29 @@ bool postEntityAttrs(void)
     {
       ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
 
+      // Merge every CSR response into one UpdateResult. A CSR's 207 carries its
+      // own partial result and must be folded in (not swallowed as a clean 2xx);
+      // a 404 from an inclusive/redirect leg is benign. tolerate404=true keeps the
+      // long-standing idempotent reading.
+      LdWriteResult wr;
+      ldWriteResultInit(&wr, updatedP, notUpdatedP);
+
       for (int i = 0; i < itemCount; i++)
       {
-        int upCode = results[i].statusCode;
         KT_T(KtDistOpRequest,
              "forward result %d/%d: url=%s status=%d errorDetail=%s bodyLen=%d",
-             i + 1, itemCount, items[i].url, upCode,
+             i + 1, itemCount, items[i].url, results[i].statusCode,
              (results[i].errorDetail != NULL ? results[i].errorDetail : "(none)"),
              results[i].responseBodyLen);
-        if (upCode >= 200 && upCode < 300)
-        {
-          anyCsrSucceeded = true;
-          recordFragmentAttrsUpdated(updatedP, itemFrag[i]);
-        }
-        else if (upCode != 404)
-        {
-          char reason[256];
-          snprintf(reason, sizeof(reason), "%s",
-                   ldDistOpForwardFailureReason(upCode, results[i].errorDetail));
-          recordFragmentAttrsNotUpdated(notUpdatedP, itemFrag[i], reason, items[i].csr->regId);
-        }
+
+        ldWriteResultMerge(&wr, items[i].csr->regId,
+                           results[i].statusCode, results[i].errorDetail,
+                           results[i].responseTree,
+                           itemFrag[i], /* tolerate404 = */ true);
       }
+
+      if (wr.anyOk)
+        anyCsrSucceeded = true;
     }
 
     ldRegCacheMatchRelease(exclV,  exclN);

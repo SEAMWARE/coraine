@@ -633,23 +633,17 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
 
 
 
-// parseUpstreamBody - shape a 2xx upstream body into our storage form
+// shapeUpstreamBody - shape a 2xx upstream body (parsed at reception) into our storage form
 //
-// Returns NULL on parse failure (errorDetail set), otherwise the parsed
+// Takes the response tree already parsed by the distop layer (ldDistOpResultTree).
+// Returns NULL on an empty/malformed body (errorDetail set), otherwise the shaped
 // tree ready for merging. Caller has already ruled out non-2xx codes.
 //
-static KjNode* parseUpstreamBody(char* respBody, int respBodyLen, const char* respCtxUrl, const char** errorDetailPP)
+static KjNode* shapeUpstreamBody(KjNode* treeP, const char* respCtxUrl, const char** errorDetailPP)
 {
-  if (respBody == NULL || respBodyLen == 0)
-  {
-    *errorDetailPP = "empty body in upstream 2xx response";
-    return NULL;
-  }
-
-  KjNode* treeP = kjParse(swRest.kjsonP, respBody);
   if (treeP == NULL)
   {
-    *errorDetailPP = "upstream returned malformed JSON";
+    *errorDetailPP = "empty or malformed body in upstream 2xx response";
     return NULL;
   }
 
@@ -915,10 +909,15 @@ bool getEntity(void)
           {
             if (g == 0)
             {
-              // Exclusive non-2xx (except 404) → abort
+              // Exclusive non-2xx (except 404) → abort. The registrationId of
+              // the failed endpoint rides along as a structured ProblemDetails
+              // member (RFC 9457 §3.2) — no need to parse it out of 'detail'.
               const char* upErr = results[i].errorDetail;
               if (upErr) ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", upErr);
               else       ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", upCode);
+              ldErrorExtraString("registrationId", (items[i].csr != NULL) ? items[i].csr->regId : NULL);
+              if (upCode > 0)
+                ldErrorExtraInt("statusCode", upCode);   // the upstream status that caused the 502
               ldRegCacheMatchRelease(exclV,  exclN);
               ldRegCacheMatchRelease(redirV, redirN);
               ldRegCacheMatchRelease(inclV,  inclN);
@@ -928,9 +927,29 @@ bool getEntity(void)
             continue;  // redir/incl/aux: tolerate failures
           }
 
-          const char* upErr2 = NULL;
-          KjNode* upP = parseUpstreamBody(results[i].responseBody, results[i].responseBodyLen, results[i].responseContextUrl, &upErr2);
+          // The forward response was parsed at reception (ldDistOpResultTree).
+          // Query-form forwards answer with an entity ARRAY — unwrap the single
+          // element. Then expand via the context that travels WITH the response
+          // (its json-ld#context Link, else core — NOT the client's request
+          // context: the CP speaks its own vocabulary).
+          KjNode* upP = results[i].responseTree;
           if (upP == NULL) continue;
+
+          if (upP->type == KjArray)
+          {
+            upP = upP->value.firstChildP;
+            if (upP == NULL) continue;
+            upP->next = NULL;
+          }
+
+          SwldContext* respCtxP = (results[i].responseContextUrl != NULL)
+                                  ? swldContextFromUrl(results[i].responseContextUrl, &swRest.kalloc) : NULL;
+          if (respCtxP == NULL)
+            respCtxP = swldCoreContext();
+          swldExpandTree(upP, respCtxP, &swRest.kalloc);
+          ldStripAtContext(upP);
+          apiAttrToStorageWrap(upP, swRest.kjsonP);
+          ldExpiresAtPropagate(upP);
 
           // CS replied via pick=type,<attrs> per buildInfoPickParam — so
           // type rode back in the body but id did not. Reinject id (we

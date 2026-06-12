@@ -530,7 +530,7 @@ static void dispatchOneMode(Tenant*       tenantP,
       KjNode* respTreeP = NULL;
       if (bResults[i].responseBody != NULL && bResults[i].responseBodyLen > 0)
       {
-        KjNode* treeP = kjParse(swRest.kjsonP, bResults[i].responseBody);
+        KjNode* treeP = bResults[i].responseTree;
         if (treeP != NULL)
         {
           ldStripAtContext(treeP);

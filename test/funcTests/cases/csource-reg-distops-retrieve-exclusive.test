@@ -222,6 +222,7 @@ Content-Length: REGEX(\d+)
 
 {
   "detail": REGEX("forwarded request failed: .*"),
+  "registrationId": "urn:CSR:Dead",
   "status": 502,
   "title": "Bad Gateway",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"

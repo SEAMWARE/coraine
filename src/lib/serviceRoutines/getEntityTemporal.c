@@ -498,7 +498,7 @@ bool getEntityTemporal(void)
         if (code < 200 || code >= 300) continue;
         if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
-        KjNode* upP = kjParse(swRest.kjsonP, results[i].responseBody);
+        KjNode* upP = results[i].responseTree;
         if (upP == NULL) continue;
         swldExpandTree(upP, swNgsild.contextP, &swRest.kalloc);
         ldStripAtContext(upP);

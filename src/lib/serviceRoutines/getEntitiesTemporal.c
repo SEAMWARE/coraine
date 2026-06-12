@@ -584,7 +584,7 @@ bool getEntitiesTemporal(void)
           if (upCode < 200 || upCode >= 300) continue;
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
-          KjNode* remoteArray = kjParse(swRest.kjsonP, results[i].responseBody);
+          KjNode* remoteArray = results[i].responseTree;
           if (remoteArray == NULL || remoteArray->type != KjArray) continue;
 
           swldExpandTree(remoteArray, swNgsild.contextP, &swRest.kalloc);
