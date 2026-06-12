@@ -24,6 +24,7 @@
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
 #include "swNgsild/LdRegCache.h"                     // LdRegCache
 #include "swNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
+#include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
@@ -152,45 +153,88 @@ bool patchSubscription(void)
   }
 
   //
-  // Update subscription in database (JSON Merge Patch)
+  // Update Subscription (§ 5.8.3) — the broker owns the merge. Load the current
+  // subscription, apply the fragment here (JSON Merge Patch; urn:ngsi-ld:null
+  // members, already resolved to KjNull by the validator, delete their target),
+  // and hand the DB plugin a complete document to store. Keeping the NGSI-LD
+  // merge/delete semantics in the broker means every DB plugin is a dumb store.
   //
-  if (db.subscriptionUpdate == NULL)
+  // The whole retrieve → merge → store → cache-refresh runs under the sub-cache
+  // write lock so concurrent sub writers serialize (the read-modify-write is not
+  // atomic at the DB on its own). The reg-touching reconcile runs AFTER we drop
+  // the lock (lock order reg-before-sub), with newItemP pinned so a concurrent
+  // sub DELETE can't free it during the reconcile's remote calls.
+  //
+  if (db.subscriptionReplace == NULL || db.subscriptionRetrieve == NULL)
   {
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "subscription CRUD not supported by this DB plugin");
     return true;
   }
 
-  int r = db.subscriptionUpdate((Tenant*) swNgsild.tenantP, subId, fragment);
+  // The subordinate-sub mapping (§ 5.8.1.4) lives only on the cache item; it
+  // would be lost on remove. Detach + reattach across the rebuild.
+  LdSubSubordinate* savedSubordinateP     = NULL;
+  int               savedSubordinateRunNo = 0;
+  LdSubCache*       subCacheP = (LdSubCache*) tenantP->subCacheP;
+  LdSubCacheItem*   newItemP  = NULL;
 
-  if (r == DB_NOT_FOUND)
+  ldSubCacheWrLock(subCacheP);
+
+  KjNode* mergedSubP = NULL;
+  int     rr         = db.subscriptionRetrieve(tenantP, subId, &mergedSubP);
+
+  if (rr == DB_NOT_FOUND || mergedSubP == NULL)
   {
+    ldSubCacheUnlock(subCacheP);
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
     return true;
   }
 
+  if (rr != DB_OK)
+  {
+    ldSubCacheUnlock(subCacheP);
+    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error retrieving subscription '%s'", subId);
+    return true;
+  }
+
+  ldRegSubMerge(mergedSubP, fragment, swRest.kjsonP);
+
+  //
+  // Recompute status (§ 5.8.2.4) from the merged isActive + expiresAt, into the
+  // merged document, so the single store below persists it (no extra $set).
+  //
+  {
+    KjNode* isActiveP = kjLookup(mergedSubP, LD_VOCAB_IS_ACTIVE);
+    KjNode* expiresP  = kjLookup(mergedSubP, LD_VOCAB_EXPIRES_AT);
+    KjNode* statusP   = kjLookup(mergedSubP, LD_VOCAB_STATUS);
+    bool    isActive  = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
+    bool    isExpired = false;
+
+    if (expiresP != NULL && expiresP->type == KjString)
+    {
+      uint64_t expiresNs = ldIsoToNanoseconds(expiresP->value.s);
+      if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+        isExpired = true;
+    }
+
+    const char* newStatus = isExpired ? "expired" : (isActive ? "active" : "paused");
+
+    if (statusP != NULL && statusP->type == KjString)
+      statusP->value.s = (char*) newStatus;
+    else
+      kjChildAdd(mergedSubP, kjString(swRest.kjsonP, LD_VOCAB_STATUS, newStatus));
+  }
+
+  int r = db.subscriptionReplace(tenantP, subId, mergedSubP);
+
   if (r != DB_OK)
   {
+    ldSubCacheUnlock(subCacheP);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating subscription '%s'", subId);
     return true;
   }
 
-  //
-  // Update subscription cache: remove old entry, re-add from DB
-  // (re-add retrieves the merged subscription and re-parses all fields).
-  //
-  // The subordinate-sub mapping (§ 5.8.1.4) lives only on the cache item;
-  // it would be lost on remove. Detach + reattach across the rebuild.
-  //
-  LdSubSubordinate* savedSubordinateP    = NULL;
-  int               savedSubordinateRunNo = 0;
-
-  // Sub-cache mutation under the wrlock; the reg-touching reconcile runs AFTER
-  // we drop the lock (lock order reg-before-sub), with newItemP pinned so a
-  // concurrent sub DELETE can't free it during the reconcile's remote calls.
-  LdSubCache*     subCacheP = (LdSubCache*) tenantP->subCacheP;
-  LdSubCacheItem* newItemP  = NULL;
-
-  ldSubCacheWrLock(subCacheP);
+  // Refresh the cache from the merged document we just stored — no second retrieve.
   if (subCacheP != NULL)
   {
     LdSubCacheItem* oldItemP = ldSubCacheItemLookup(subCacheP, subId);
@@ -203,46 +247,14 @@ bool patchSubscription(void)
 
     ldSubCacheItemRemove(subCacheP, subId);
 
-    KjNode* updatedSubP = NULL;
-    if (db.subscriptionRetrieve(tenantP, subId, &updatedSubP) == DB_OK && updatedSubP != NULL)
+    newItemP = ldSubCacheItemAdd(subCacheP, mergedSubP, NULL);
+
+    // Reattach the subordinate mapping that survived the cache rebuild.
+    if (newItemP != NULL && savedSubordinateP != NULL)
     {
-      //
-      // Recompute status from isActive + expiresAt (per spec 5.8.2.4)
-      //
-      KjNode* isActiveP  = kjLookup(updatedSubP, LD_VOCAB_IS_ACTIVE);
-      KjNode* expiresP   = kjLookup(updatedSubP, LD_VOCAB_EXPIRES_AT);
-      KjNode* statusP    = kjLookup(updatedSubP, LD_VOCAB_STATUS);
-      bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
-      bool    isExpired  = false;
-
-      if (expiresP != NULL && expiresP->type == KjString)
-      {
-        uint64_t expiresNs = ldIsoToNanoseconds(expiresP->value.s);
-        if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
-          isExpired = true;
-      }
-
-      const char* newStatus = isExpired ? "expired" : (isActive ? "active" : "paused");
-
-      if (statusP != NULL && statusP->type == KjString)
-        statusP->value.s = (char*) newStatus;
-      else
-        kjChildAdd(updatedSubP, kjString(NULL, LD_VOCAB_STATUS, newStatus));
-
-      // Persist the updated status
-      KjNode* statusFragment = kjObject(NULL, NULL);
-      kjChildAdd(statusFragment, kjString(NULL, LD_VOCAB_STATUS, newStatus));
-      db.subscriptionUpdate(tenantP, subId, statusFragment);
-
-      newItemP = ldSubCacheItemAdd(subCacheP, updatedSubP, NULL);
-
-      // Reattach the subordinate mapping that survived the cache rebuild.
-      if (newItemP != NULL && savedSubordinateP != NULL)
-      {
-        newItemP->subordinateP     = savedSubordinateP;
-        newItemP->subordinateRunNo = savedSubordinateRunNo;
-        savedSubordinateP          = NULL;   // ownership transferred
-      }
+      newItemP->subordinateP     = savedSubordinateP;
+      newItemP->subordinateRunNo = savedSubordinateRunNo;
+      savedSubordinateP          = NULL;   // ownership transferred
     }
 
     if (newItemP != NULL)

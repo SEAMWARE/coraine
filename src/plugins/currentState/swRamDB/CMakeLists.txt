@@ -27,6 +27,7 @@ IF (SW_FEATURE_SUBSCRIPTIONS)
     ramdbSubscriptionRetrieve.c
     ramdbSubscriptionQuery.c
     ramdbSubscriptionUpdate.c
+    ramdbSubscriptionReplace.c
     ramdbSubscriptionDelete.c
   )
 ENDIF()

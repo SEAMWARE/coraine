@@ -35,6 +35,7 @@
 #include "currentState/swRamDB/ramdbSubscriptionRetrieve.h"  // ramdbSubscriptionRetrieve
 #include "currentState/swRamDB/ramdbSubscriptionQuery.h"     // ramdbSubscriptionQuery
 #include "currentState/swRamDB/ramdbSubscriptionUpdate.h"    // ramdbSubscriptionUpdate
+#include "currentState/swRamDB/ramdbSubscriptionReplace.h"   // ramdbSubscriptionReplace
 #include "currentState/swRamDB/ramdbSubscriptionDelete.h"    // ramdbSubscriptionDelete
 #include "currentState/swRamDB/ramdbRegistrationCreate.h"    // ramdbRegistrationCreate
 #include "currentState/swRamDB/ramdbRegistrationRetrieve.h"  // ramdbRegistrationRetrieve
@@ -116,6 +117,7 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionRetrieve = ramdbSubscriptionRetrieve;
   driverP->subscriptionQuery    = ramdbSubscriptionQuery;
   driverP->subscriptionUpdate   = ramdbSubscriptionUpdate;
+  driverP->subscriptionReplace  = ramdbSubscriptionReplace;
   driverP->subscriptionDelete   = ramdbSubscriptionDelete;
   driverP->subscriptionList     = ramdbSubscriptions;
   driverP->registrationCreate   = ramdbRegistrationCreate;

@@ -220,6 +220,7 @@ typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, KjN
 typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, KjNode** subPP);
 typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
 typedef int  (*DbSubscriptionUpdateFunc)(Tenant* tenantP, const char* subId, KjNode* fragmentP);
+typedef int  (*DbSubscriptionReplaceFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
 typedef int  (*DbSubscriptionDeleteFunc)(Tenant* tenantP, const char* subId);
 typedef KjNode* (*DbSubscriptionListFunc)(Tenant* tenantP);
 
@@ -295,7 +296,8 @@ typedef struct DbDriver
   DbSubscriptionCreateFunc   subscriptionCreate;
   DbSubscriptionRetrieveFunc subscriptionRetrieve;
   DbSubscriptionQueryFunc    subscriptionQuery;
-  DbSubscriptionUpdateFunc   subscriptionUpdate;
+  DbSubscriptionUpdateFunc   subscriptionUpdate;   // partial field-patch (subordinates, status)
+  DbSubscriptionReplaceFunc  subscriptionReplace;  // full-document store (user PATCH; broker owns the merge)
   DbSubscriptionDeleteFunc   subscriptionDelete;
   DbSubscriptionListFunc     subscriptionList;
   DbSubscriptionStatsFlushFunc subscriptionStatsFlush; // NULL-allowed (e.g. ramdb)

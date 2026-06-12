@@ -44,6 +44,7 @@ IF (SW_FEATURE_SUBSCRIPTIONS)
     mongocSubscriptionRetrieve.c
     mongocSubscriptionQuery.c
     mongocSubscriptionUpdate.c
+    mongocSubscriptionReplace.c
     mongocSubscriptionDelete.c
     mongocSubscriptionStatsFlush.c
   )
