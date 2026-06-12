@@ -114,6 +114,27 @@ echo
 echo
 
 
+echo "10. GET entities?offset=-1 - 400 negative offset"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?offset=-1&type=T'
+echo
+echo
+
+
+echo "11. GET entities?offset=abc - 400 non-numeric offset (not silently 0)"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities?offset=abc&type=T'
+echo
+echo
+
+
+echo "12. GET entities?page=2 - 400 'page' is not a supported NGSI-LD param"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?page=2&type=T'
+echo
+echo
+
+
 --EXPECT--
 01. GET entities?limit=0 (without count) - 400 error
 ====================================================
@@ -139,7 +160,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "'limit' must be a positive integer (got '-1')",
+  "detail": "'limit' must be a non-negative integer (got '-1')",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -152,10 +173,10 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 167
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "limit=0 is only valid when count=true",
+  "detail": "'limit' must be a non-negative integer (got 'abc')",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -254,6 +275,54 @@ Content-Length: 78
     }
   }
 ]
+
+
+
+10. GET entities?offset=-1 - 400 negative offset
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'offset' must be a non-negative integer (got '-1')",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. GET entities?offset=abc - 400 non-numeric offset (not silently 0)
+=====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'offset' must be a non-negative integer (got 'abc')",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. GET entities?page=2 - 400 'page' is not a supported NGSI-LD param
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Unknown/unsupported URL parameter: page",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
 
 
 

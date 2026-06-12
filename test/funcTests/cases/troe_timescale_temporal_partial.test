@@ -334,9 +334,9 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "firstN must be a positive integer (got '0')",
+  "detail": "'firstN' must be a positive integer (got '0')",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -350,9 +350,9 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "offsetN must be a non-negative integer (got '-1')",
+  "detail": "'offsetN' must be a non-negative integer (got '-1')",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
