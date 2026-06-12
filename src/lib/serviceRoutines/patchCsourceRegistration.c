@@ -17,6 +17,7 @@
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheItemLookup, ldRegCacheItemRemove, ldRegCacheItemAdd
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubMatchingSubIds, ldCsrSubOnRegUpdate
+#include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -68,14 +69,34 @@ bool patchCsourceRegistration(void)
       wasMatchingIds = ldCsrSubMatchingSubIds((LdSubCache*) tenantP->regSubCacheP, oldItemP, &swRest.kalloc);
   }
 
-  int r = db.registrationUpdate(tenantP, regId, fragment);
+  //
+  // The broker owns the merge (§ 5.9.3 / TS 104-175 clause-8). Load the current
+  // registration, apply the update fragment here — JSON Merge Patch, with
+  // urn:ngsi-ld:null members (already resolved to KjNull by the validator)
+  // deleting their target — and hand the DB plugin a complete document to store.
+  // Keeping the NGSI-LD merge/delete semantics in the broker means every DB
+  // plugin is a dumb store and none of them re-implement (and drift on) it.
+  //
+  KjNode* mergedRegP = NULL;
+  int     rr         = (db.registrationRetrieve != NULL) ? db.registrationRetrieve(tenantP, regId, &mergedRegP) : DB_NOT_FOUND;
 
-  if (r == DB_NOT_FOUND)
+  if (rr == DB_NOT_FOUND || mergedRegP == NULL)
   {
     ldRegCacheUnlock(regCacheP);
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "registration '%s' not found", regId);
     return true;
   }
+
+  if (rr != DB_OK)
+  {
+    ldRegCacheUnlock(regCacheP);
+    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error retrieving registration '%s'", regId);
+    return true;
+  }
+
+  ldRegSubMerge(mergedRegP, fragment, swRest.kjsonP);
+
+  int r = db.registrationUpdate(tenantP, regId, mergedRegP);
 
   if (r != DB_OK)
   {
@@ -84,17 +105,14 @@ bool patchCsourceRegistration(void)
     return true;
   }
 
-  // Refresh the cache: remove old item, re-add merged tree from DB. Safe under
-  // the wrlock — no reader can be walking the list and no other writer can be
-  // mid-mutation, so the transient remove→add window is exclusive.
+  // Refresh the cache from the merged document we just stored — no second
+  // retrieve. Safe under the wrlock: no reader can be walking the list and no
+  // other writer can be mid-mutation, so the transient remove→add is exclusive.
   LdRegCacheItem* newItemP = NULL;
   if (regCacheP != NULL)
   {
     ldRegCacheItemRemove(regCacheP, regId);
-
-    KjNode* updatedRegP = NULL;
-    if (db.registrationRetrieve != NULL && db.registrationRetrieve(tenantP, regId, &updatedRegP) == DB_OK && updatedRegP != NULL)
-      newItemP = ldRegCacheItemAdd(regCacheP, updatedRegP);
+    newItemP = ldRegCacheItemAdd(regCacheP, mergedRegP);
   }
 
   //

@@ -5,14 +5,20 @@
 //
 // Copyright 2026 Seamware
 //
+// Stores a full registration document, replacing whatever is on record for
+// `regId`. The NGSI-LD merge (JSON Merge Patch incl. the urn:ngsi-ld:null
+// delete-marker) is resolved by the broker before this is called, so the DB
+// plugin is a dumb store — it never interprets NGSI-LD null semantics.
+//
 #include <string.h>                                   // strcmp
 
+#include "ktrace/kTrace.h"                            // KT_E
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjClone.h"                            // kjClone
 #include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                           // kjLookup
 
-#include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
+#include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbRegistrations
 #include "currentState/swRamDB/ramdbRegistrationUpdate.h"  // Own interface
 
@@ -20,17 +26,11 @@
 
 // -----------------------------------------------------------------------------
 //
-// ramdbRegistrationUpdate - JSON Merge Patch semantics
+// ramdbRegistrationUpdate - replace the stored registration with `regP`
 //
-// For each field in the fragment:
-//   - if null value:  remove the field from the stored registration
-//   - otherwise:      replace (or add) the field in the stored registration
-//
-int ramdbRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* fragmentP)
+int ramdbRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* regP)
 {
   KjNode* registrations = ramdbRegistrations(tenantP);
-
-  KjNode* regP = NULL;
 
   for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
   {
@@ -38,36 +38,18 @@ int ramdbRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* fragment
 
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, regId) == 0)
     {
-      regP = rP;
-      break;
+      KjNode* cloneP = kjClone(NULL, regP);
+      if (cloneP == NULL)
+      {
+        KT_E("swRamDB: kjClone failed for registration '%s'", regId);
+        return DB_ERR;
+      }
+
+      kjChildRemove(registrations, rP);
+      kjChildAdd(registrations, cloneP);
+      return DB_OK;
     }
   }
 
-  if (regP == NULL)
-    return DB_NOT_FOUND;
-
-  KjNode* next;
-
-  for (KjNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = next)
-  {
-    next = fieldP->next;
-
-    KjNode* existingP = kjLookup(regP, fieldP->name);
-
-    if (fieldP->type == KjNull)
-    {
-      if (existingP != NULL)
-        kjChildRemove(regP, existingP);
-    }
-    else
-    {
-      if (existingP != NULL)
-        kjChildRemove(regP, existingP);
-
-      KjNode* cloneP = kjClone(NULL, fieldP);
-      kjChildAdd(regP, cloneP);
-    }
-  }
-
-  return DB_OK;
+  return DB_NOT_FOUND;
 }
