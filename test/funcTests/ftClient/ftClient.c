@@ -28,6 +28,7 @@
 #include "kjson/KjNode.h"
 #include "kjson/kjson.h"
 #include "kjson/kjBuilder.h"
+#include "kjson/kjLookup.h"
 #include "kjson/kjRender.h"
 #include "kjson/kjRenderSize.h"
 #include "kjson/kjClone.h"
@@ -45,6 +46,29 @@
 //
 static KjNode* dumpArray     = NULL;     // accumulates requests (malloc allocator)
 static int     dumpCount     = 0;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Programmable response stubs (the mock-reply API)
+//
+// A test POSTs to /mock/reply to program how ftClient answers a forwarded
+// request — { "verb": "POST", "path": "/attrs/", "status": 207, "body": {...} }.
+// On each forwarded request the stub list is consulted (verb match + path
+// substring); the first match's status + body is served, else the --status
+// fallback applies. Stubs are persistent until DELETE /mock/reply.
+//
+typedef struct FtStub
+{
+  char*           verb;     // "POST", "GET", ...
+  char*           path;     // substring to find in the request urlPath
+  int             status;   // HTTP status to return
+  char*           body;     // rendered JSON body to return (malloc), or NULL
+  struct FtStub*  next;
+} FtStub;
+
+static FtStub* ftStubs = NULL;
 
 
 
@@ -218,6 +242,121 @@ static bool getDie(void)
 
 // -----------------------------------------------------------------------------
 //
+// ftStubMatch - first stub matching the verb (exact) and path (substring)
+//
+static FtStub* ftStubMatch(const char* verb, const char* path)
+{
+  if (verb == NULL || path == NULL)
+    return NULL;
+
+  for (FtStub* s = ftStubs; s != NULL; s = s->next)
+    if ((strcmp(s->verb, verb) == 0) && (strstr(path, s->path) != NULL))
+      return s;
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// stubServe - if a stub matches the current request, serve it (return true)
+//
+static bool stubServe(void)
+{
+  FtStub* s = ftStubMatch(swRest.in.verbString, swRest.in.urlPath);
+  if (s == NULL)
+    return false;
+
+  swRest.out.httpStatusCode = s->status;
+
+  if (s->body != NULL)
+  {
+    int   n   = strlen(s->body);
+    char* buf = (char*) kaAlloc(&swRest.kalloc, n + 1);
+    memcpy(buf, s->body, n + 1);
+    swRest.out.payload     = buf;
+    swRest.out.payloadSize = n;
+  }
+
+  KT_T(1, "stub served: %s %s -> %d (bodyLen=%d)", s->verb, swRest.in.urlPath, s->status, s->body ? (int) strlen(s->body) : 0);
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// postMockReply - POST /mock/reply — program a stubbed response
+//
+// Body: { "verb": "POST", "path": "/attrs/", "status": 207, "body": {...} }
+// verb/path/status default to "POST" / "/" / 200; body is optional.
+//
+static bool postMockReply(void)
+{
+  KjNode* tree = swRest.in.requestTree;
+  if (tree == NULL)
+  {
+    swRest.out.httpStatusCode = 400;
+    return true;
+  }
+
+  KjNode* verbP   = kjLookup(tree, "verb");
+  KjNode* pathP   = kjLookup(tree, "path");
+  KjNode* statusP = kjLookup(tree, "status");
+  KjNode* bodyP   = kjLookup(tree, "body");
+  KjNode* rawP    = kjLookup(tree, "raw");   // verbatim body (e.g. malformed JSON for a 502 test)
+
+  FtStub* s = (FtStub*) calloc(1, sizeof(FtStub));
+  s->verb   = strdup(((verbP != NULL) && (verbP->type == KjString)) ? verbP->value.s : "POST");
+  s->path   = strdup(((pathP != NULL) && (pathP->type == KjString)) ? pathP->value.s : "/");
+  s->status = ((statusP != NULL) && (statusP->type == KjInt)) ? (int) statusP->value.i : 200;
+  s->body   = NULL;
+
+  if ((rawP != NULL) && (rawP->type == KjString))
+    s->body = strdup(rawP->value.s);
+  else if (bodyP != NULL)
+  {
+    bodyP->name = NULL;   // render the value alone, not  "body": {...}
+    int n = kjFastRenderSize(bodyP) + 1;
+    s->body = (char*) malloc(n);
+    kjFastRender(bodyP, s->body);
+  }
+
+  s->next = ftStubs;
+  ftStubs = s;
+
+  KT_T(1, "stub programmed: %s <path-contains %s> -> %d", s->verb, s->path, s->status);
+  swRest.out.httpStatusCode = 201;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// deleteMockReply - DELETE /mock/reply — clear all programmed stubs
+//
+static bool deleteMockReply(void)
+{
+  while (ftStubs != NULL)
+  {
+    FtStub* next = ftStubs->next;
+    free(ftStubs->verb);
+    free(ftStubs->path);
+    free(ftStubs->body);
+    free(ftStubs);
+    ftStubs = next;
+  }
+
+  swRest.out.httpStatusCode = 204;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // postAccumulate - POST /** — catch-all, accumulate the request, return 200
 //
 static bool postAccumulate(void)
@@ -227,6 +366,10 @@ static bool postAccumulate(void)
 
   if (ftDelayMs > 0)
     usleep(ftDelayMs * 1000);
+
+  // A programmed stub (POST /mock/reply) wins over the --status fallback.
+  if (stubServe())
+    return true;
 
   swRest.out.httpStatusCode = ftPostStatus;
 
@@ -274,6 +417,10 @@ static bool getAccumulate(void)
 
   if (ftDelayMs > 0)
     usleep(ftDelayMs * 1000);
+
+  // A programmed stub (POST /mock/reply) wins over the --status fallback.
+  if (stubServe())
+    return true;
 
   swRest.out.httpStatusCode = (ftPostStatus == 201) ? 200 : ftPostStatus;
 
@@ -372,6 +519,9 @@ static SwRestServiceSimplified ftServices[] =
   { SwVerbGet,    "/dump",  getDump,         0,                       0 },
   { SwVerbDelete, "/dump",  deleteDump,      0,                       0 },
   { SwVerbGet,    "/die",   getDie,          0,                       0 },
+  // Programmable response stubs (mock-reply API).
+  { SwVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },
+  { SwVerbDelete, "/mock/reply", deleteMockReply, 0,                  0 },
   // Catch-all accumulators — every verb lands here and honors --status.
   // supportedParams = ~0ULL: ftClient mocks any NGSI-LD endpoint and
   // must accept whatever URL params the broker forwards, without 400ing.

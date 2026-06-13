@@ -1,0 +1,234 @@
+#
+# FILE            csource-reg-distops-append-merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - appendAttrs merges each CSR's UpdateResult (207 fold-in, statusCode + registrationId, malformed->502)
+
+--TAGS--
+distops error append registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7721
+ftClientStart --port 7722
+
+--RUN--
+
+#
+# urn:V1 is held by two redirect registrations: CSR:Speed claims "speed"
+# (forwarded to ftClient 7721) and CSR:Color claims "color" (forwarded to
+# ftClient 7722). POST /attrs forwards each attribute to its own CSR and
+# MERGES the two responses into one UpdateResult.
+#
+# CSR:Color always answers 200 (default) so "color" lands -> the operation is
+# never a total failure (no 404). We vary CSR:Speed's reply via ftClient's
+# /mock/reply to exercise the three merge paths:
+#   1. a 207 whose notUpdated carries its OWN registrationId  -> preserved
+#   2. a 503                                                  -> notUpdated.statusCode = 503, regId = CSR:Speed
+#   3. a 200 with a malformed body                            -> downgraded to 502 -> notUpdated.statusCode = 502
+#
+
+echo "01. Register two redirect CSRs on urn:V1: CSR:Speed->7721, CSR:Color->7722"
+echo "========================================================================="
+payload='{
+  "id": "urn:CSR:Speed",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7721",
+  "mode": "redirect",
+  "operations": ["appendAttrs"],
+  "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{
+  "id": "urn:CSR:Color",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7722",
+  "mode": "redirect",
+  "operations": ["appendAttrs"],
+  "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Program CSR:Speed (7721): POST -> 207 with notUpdated carrying its OWN registrationId"
+echo "========================================================================================"
+payload='{
+  "verb": "POST",
+  "path": "/attrs",
+  "status": 207,
+  "body": {
+    "updated": [],
+    "notUpdated": [ { "attributeName": "speed", "reason": "read-only at source", "registrationId": "urn:CSR:DeepSub", "statusCode": 409 } ]
+  }
+}'
+swCurl --port 7721 --url /mock/reply --payload "$payload"
+echo
+echo
+
+
+echo "03. POST urn:V1/attrs {speed,color} -> 207; speed's 207 merged (keeps urn:CSR:DeepSub), color updated"
+echo "===================================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":9},"color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "04. Reprogram CSR:Speed -> 503; append -> 207, notUpdated.speed has statusCode 503 + urn:CSR:Speed"
+echo "=================================================================================================="
+swCurl --port 7721 -X DELETE --url /mock/reply
+swCurl --port 7721 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":503}'
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":7},"color":{"type":"Property","value":"blue"}}'
+echo
+echo
+
+
+echo "05. Reprogram CSR:Speed -> 200 with a malformed body; append -> 207, notUpdated.speed statusCode 502"
+echo "==================================================================================================="
+swCurl --port 7721 -X DELETE --url /mock/reply
+swCurl --port 7721 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":200,"raw":"this is not json {"}'
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":5},"color":{"type":"Property","value":"green"}}'
+echo
+echo
+
+
+--EXPECT--
+01. Register two redirect CSRs on urn:V1: CSR:Speed->7721, CSR:Color->7722
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Speed
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Color
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Program CSR:Speed (7721): POST -> 207 with notUpdated carrying its OWN registrationId
+========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+
+
+
+03. POST urn:V1/attrs {speed,color} -> 207; speed's 207 merged (keeps urn:CSR:DeepSub), color updated
+====================================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "speed",
+      "reason": "read-only at source",
+      "registrationId": "urn:CSR:DeepSub",
+      "statusCode": 409
+    }
+  ],
+  "updated": [
+    "color"
+  ]
+}
+
+
+
+04. Reprogram CSR:Speed -> 503; append -> 207, notUpdated.speed has statusCode 503 + urn:CSR:Speed
+==================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "speed",
+      "reason": "forward returned status 503",
+      "registrationId": "urn:CSR:Speed",
+      "statusCode": 503
+    }
+  ],
+  "updated": [
+    "color"
+  ]
+}
+
+
+
+05. Reprogram CSR:Speed -> 200 with a malformed body; append -> 207, notUpdated.speed statusCode 502
+===================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+
+
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "speed",
+      "reason": "forward failed: malformed JSON in forwarded response body",
+      "registrationId": "urn:CSR:Speed",
+      "statusCode": 502
+    }
+  ],
+  "updated": [
+    "color"
+  ]
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7721
+ftClientStop --port 7722
+swBrokerStop
+swDbDrop
