@@ -305,15 +305,22 @@ bool replaceEntity(void)
                                                   LdRegModeInclusive, &inclV);
 
     //
-    // exclusive + redirect: DETACH matching attrs (§ 4.3.6.3).
-    // inclusive: CLONE — local keeps the attrs too.
+    // Attribute chopping per mode (§ 4.3.6.3 / § 10.2.10.4):
+    //   * Exclusive: each CSR owns its claimed attrs uniquely, so detach as we
+    //     go — no two exclusives claim the same attribute.
+    //   * Redirect: multiple redirect CSRs covering the same entity are meant
+    //     to ALL receive the replace (§ 9.3.3 "multiple distinct redirect
+    //     registrations can apply at the same time") — clone for each forward
+    //     and do a single detach sweep after the last redirect. (D007_01_red
+    //     regressed when redirect chopped in-loop: the second CSR saw an empty
+    //     fragment and only one of two PUTs was sent.)
+    //   * Inclusive: clone — the local replace below still applies these attrs.
     //
     LdDistOpGroup groups[] = {
       { exclV,  exclN,  "exclusive", true  },
       { redirV, redirN, "redirect",  true  },
       { inclV,  inclN,  "inclusive", false },
     };
-    static const bool detach[] = { true, true, false };
 
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
@@ -324,14 +331,16 @@ bool replaceEntity(void)
     int kept = 0;
     for (int i = 0; i < n; i++)
     {
+      bool isExclusive = (items[i].modeIdx == 0);
+
       KjNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, swRest.kjsonP,
-                                              detach[items[i].modeIdx]);
+                                              /*detach=*/isExclusive);
       if (fragP == NULL) continue;
 
-      // Loop-blocked forward (§ 6.3.18): the claimed attrs are already chopped
-      // from entityP (exclusive/redirect detach), so they won't be replaced
-      // locally — for excl/redirect that's 508; inclusive keeps its clone and
-      // the local replace serves it, so just drop the forward.
+      // Loop-blocked forward (§ 6.3.18): the claimed attrs are chopped from
+      // entityP (exclusive in-loop, redirect post-loop) so they won't be
+      // replaced locally — for excl/redirect that's 508; inclusive keeps its
+      // clone and the local replace serves it, so just drop the forward.
       if (items[i].wouldLoop)
       {
         // Excl/redirect attrs are chopped (won't be replaced locally); flag so
@@ -351,6 +360,18 @@ bool replaceEntity(void)
       items[kept].body    = body;
       items[kept].bodyLen = strlen(body);
       kept++;
+    }
+
+    // Post-loop redirect-detach: now that every redirect leg has its clone,
+    // strip from the original entity every attribute the redirect legs picked
+    // up so the local replace below won't re-store them (redirect data lives
+    // on the CSR, not locally).
+    for (int i = 0; i < n; i++)
+    {
+      if (items[i].modeIdx != 1) continue;  // redirect only
+      KjNode* drop = ldEntityFragmentForInfo(entityP, items[i].riP, swRest.kjsonP,
+                                              /*detach=*/true);
+      (void) drop;  // freed with the arena
     }
 
     ldDistOpEntriesPerform(items, kept, SwVerbPut, ownAlias);

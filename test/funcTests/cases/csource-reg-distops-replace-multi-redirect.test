@@ -1,0 +1,220 @@
+#
+# FILE            csource-reg-distops-replace-multi-redirect.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - replaceEntity (PUT): two redirect CSRs both get the replace (D007_01_red)
+
+--TAGS--
+distops registration replace
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart
+swBrokerStart -role CP1
+swBrokerStart -role CP2
+
+--RUN--
+
+#
+# Two redirect CSRs on CB, one to CP1 and one to CP2, BOTH matching urn:MV1
+# (§ 9.3.3 "multiple distinct redirect registrations can apply at the same
+# time"). A PUT on CB must forward the replace to BOTH Context Sources.
+#
+# Regression: redirect attrs used to be detached in-loop, so the first CSR
+# consumed the whole entity and the second saw an empty fragment — only one of
+# the two PUTs was sent (ETSI D007_01_red: stub count 0 != 1).
+#
+
+echo "01. Seed CP1 with urn:MV1 (speed=1, color=red)"
+echo "=============================================="
+payload='{
+  "id": "urn:MV1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 1 },
+  "color": { "type": "Property", "value": "red" }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed CP2 with urn:MV1 (speed=2, gear=high)"
+echo "=============================================="
+payload='{
+  "id": "urn:MV1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 2 },
+  "gear": { "type": "Property", "value": "high" }
+}'
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Register CB->CP1 redirect CSR on urn:MV1"
+echo "==========================================="
+payload='{
+  "id": "urn:CSR:MRedir1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "redirect",
+  "operations": ["replaceEntity", "retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:MV1","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. Register CB->CP2 redirect CSR on urn:MV1"
+echo "==========================================="
+payload='{
+  "id": "urn:CSR:MRedir2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'",
+  "mode": "redirect",
+  "operations": ["replaceEntity", "retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:MV1","type":"Vehicle"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. PUT urn:MV1 on CB: new body -> forwarded to BOTH CP1 and CP2 -> 204"
+echo "======================================================================"
+payload='{
+  "id": "urn:MV1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 99 },
+  "brand": { "type": "Property", "value": "Foo" }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:MV1 -X PUT --payload "$payload"
+echo
+echo
+
+
+echo "06. GET urn:MV1 on CP1 -> speed=99, brand=Foo (color gone) = CP1 was replaced"
+echo "============================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:MV1
+echo
+echo
+
+
+echo "07. GET urn:MV1 on CP2 -> speed=99, brand=Foo (gear gone) = CP2 was replaced"
+echo "============================================================================"
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities/urn:MV1
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with urn:MV1 (speed=1, color=red)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:MV1
+Content-Length: 0
+
+
+
+
+02. Seed CP2 with urn:MV1 (speed=2, gear=high)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:MV1
+Content-Length: 0
+
+
+
+
+03. Register CB->CP1 redirect CSR on urn:MV1
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MRedir1
+Content-Length: 0
+
+
+
+
+04. Register CB->CP2 redirect CSR on urn:MV1
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MRedir2
+Content-Length: 0
+
+
+
+
+05. PUT urn:MV1 on CB: new body -> forwarded to BOTH CP1 and CP2 -> 204
+======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. GET urn:MV1 on CP1 -> speed=99, brand=Foo (color gone) = CP1 was replaced
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Foo"
+  },
+  "id": "urn:MV1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+07. GET urn:MV1 on CP2 -> speed=99, brand=Foo (gear gone) = CP2 was replaced
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "brand": {
+    "type": "Property",
+    "value": "Foo"
+  },
+  "id": "urn:MV1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
