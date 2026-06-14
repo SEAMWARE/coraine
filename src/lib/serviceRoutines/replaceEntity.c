@@ -277,8 +277,8 @@ bool replaceEntity(void)
                   
                    && tenantP->regCacheP != NULL);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;
+  // Loops handled in the dispatch block (builder marks loop-blocked CSRs; the
+  // chop loop turns excl/redirect ones into 508 per § 6.3.18).
 
   if (dispatch)
   {
@@ -327,6 +327,19 @@ bool replaceEntity(void)
       KjNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, swRest.kjsonP,
                                               detach[items[i].modeIdx]);
       if (fragP == NULL) continue;
+
+      // Loop-blocked forward (§ 6.3.18): the claimed attrs are already chopped
+      // from entityP (exclusive/redirect detach), so they won't be replaced
+      // locally — for excl/redirect that's 508; inclusive keeps its clone and
+      // the local replace serves it, so just drop the forward.
+      if (items[i].wouldLoop)
+      {
+        // Excl/redirect attrs are chopped (won't be replaced locally); flag so
+        // a fully-loop-blocked replace flattens its terminal 404 to 508 (§ 6.3.18).
+        if (items[i].errorMode)
+          swNgsild.loopBlocked508 = true;
+        continue;
+      }
 
       // fragP is private (detached or cloned) — compact in place with the
       // per-CSR forward context before rendering the wire body.

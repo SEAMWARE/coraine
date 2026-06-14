@@ -90,8 +90,9 @@ bool deleteEntity(void)
 
   const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;   // forwards suppressed; local still runs below.
+  // Loops are no longer pre-empted here: dispatch runs, the entry builder marks
+  // loop-blocked CSRs, and ldDistOpLoopReap turns the exclusive/redirect ones
+  // into 508 (§ 6.3.18) while the local delete still runs for the rest.
 
   if (dispatch)
   {
@@ -124,6 +125,10 @@ bool deleteEntity(void)
 
     for (int i = 0; i < n; i++)
       items[i].url = deleteUrl(items[i].csr->endpoint, entityId);
+
+    // § 6.3.18: drop loop-blocked forwards, turning exclusive/redirect ones
+    // into 508 (entity held externally, unreachable via the loop).
+    n = ldDistOpLoopReap(items, n);
 
     ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
 

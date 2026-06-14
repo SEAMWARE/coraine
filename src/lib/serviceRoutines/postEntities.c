@@ -494,15 +494,12 @@ bool postEntities(void)
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
     bool        loopSeen = ldDistOpLoopDetected(ownAlias);
 
-    // Loop detected → skip forwards but still run local create. Freeing
-    // the match arrays; dispatch block below is gated on !loopSeen.
-    if (loopSeen)
-    {
-      ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
-      ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
-      ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
-    }
-
+    // A loop (our own alias already in the Via — § 9.7) no longer skips the
+    // whole dispatch: phase 1 still chops the exclusive/redirect attrs out of
+    // entityP, but instead of forwarding it records 508 per claimed attr
+    // (§ 6.3.18). If that consumes every input attr, nothing is left to create
+    // locally and the response flattens to 508; inclusive attrs are kept and
+    // the local create still serves them.
     if (exclN > 0 || redirN > 0 || inclN > 0)
     {
       //
@@ -558,7 +555,7 @@ bool postEntities(void)
             }
             continue;
           }
-          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+          bool loop = loopSeen || ldDistOpCsrWouldLoop(csr, ownAlias);
 
           bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
@@ -582,6 +579,19 @@ bool postEntities(void)
                        modeTag[g], fragmentShortAttrList(fragP));
               ldBatchErrorListAdd(&errors, entityId, 409,
                                   LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+              continue;
+            }
+
+            // Loop-blocked forward (§ 6.3.18). The claimed attrs are chopped
+            // from entityP (exclusive in-loop, redirect post-loop) so they
+            // won't be created locally — exclusive/redirect → 508, inclusive
+            // keeps its clone and is created locally, so just skip the forward.
+            if (loop)
+            {
+              if (opConf[g])
+                ldBatchErrorListAdd(&errors, entityId, 508, LD_ERROR_LOOP_DETECTED, "Loop Detected",
+                                    "loop detected: registration resolves back to this broker, so createEntity cannot be forwarded",
+                                    csr->regId);
               continue;
             }
 
@@ -616,7 +626,9 @@ bool postEntities(void)
       {
         LdRegCacheItem* csr = groups[1][i];
         if (csr == NULL || csr->endpoint == NULL)  continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+        // Detach redirect attrs from entityP whether the forward happened or
+        // was loop-blocked (508) — either way a redirect-owned attr must not be
+        // created locally.
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!entityInfoCoversId(riP, entityId)) continue;

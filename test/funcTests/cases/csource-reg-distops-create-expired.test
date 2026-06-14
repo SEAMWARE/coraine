@@ -53,9 +53,11 @@ echo
 echo
 
 
-echo "02. Register Short-Lived CSR (expiresAt in 1s) claiming color"
+echo "02. Register Short-Lived CSR (expiresAt in 3s) claiming color"
 echo "============================================================="
-expiresAt=$(date -u -d '+1 second' +"%Y-%m-%dT%H:%M:%SZ")
+# +3s (not +1s): under a loaded full-suite run the timestamp could otherwise
+# already be in the past by the time the broker validates it (→ spurious 400).
+expiresAt=$(date -u -d '+3 seconds' +"%Y-%m-%dT%H:%M:%SZ")
 payload='{
   "id": "urn:CSR:Dead",
   "type": "ContextSourceRegistration",
@@ -75,8 +77,8 @@ echo
 echo
 
 
-# Wait past expiration
-sleep 2
+# Wait past expiration (must exceed the +3s expiresAt above)
+sleep 4
 
 
 echo "03. POST urn:V1 {speed, color} → Live forwarded, expired Dead ignored"
@@ -118,7 +120,7 @@ Content-Length: REGEX(\d+)
 
 
 
-02. Register Short-Lived CSR (expiresAt in 1s) claiming color
+02. Register Short-Lived CSR (expiresAt in 3s) claiming color
 =============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)

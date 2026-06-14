@@ -18,14 +18,14 @@ swBrokerStart
 --RUN--
 
 #
-# Register a CSR on CB that points back to CB itself. A client POST to CB
-# then triggers a forward to CB with a Via header. A second forward — the
-# one from the forwarded POST — would see its own alias in the Via list
-# and is blocked with 502 Bad Gateway per § 5.7.5 / RFC 7230.
+# Register a redirect CSR on CB that points back to CB itself and owns the
+# whole entity (no propertyNames). A POST carrying CB's own alias in the Via
+# header is a loop (§ 9.7): the create can neither be forwarded (it would loop)
+# nor stored locally (the entity is held by the redirect source), so it is
+# answered with 508 Loop Detected (TS 104-176 § 6.3.18).
 #
-# Here we don't actually need a full round-trip: we can simulate the
-# "second hop" by including a Via header matching the broker's own alias
-# in the initial POST.
+# We simulate the "second hop" by including a Via header matching the broker's
+# own alias in the initial POST, rather than arranging a full round-trip.
 #
 
 echo "01. Register CSR pointing back to CB"
@@ -49,8 +49,8 @@ echo
 echo
 
 
-echo "02. POST entity with Via header carrying CB's own alias → loop skipped, local 201"
-echo "=================================================================================="
+echo "02. POST entity with Via header carrying CB's own alias → loop detected, 508"
+echo "============================================================================"
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
@@ -68,19 +68,24 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Self
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
 
-02. POST entity with Via header carrying CB's own alias → loop skipped, local 201
-==================================================================================
-HTTP/1.1 201 Created
+02. POST entity with Via header carrying CB's own alias → loop detected, 508
+============================================================================
+HTTP/1.1 508 Loop Detected
 Date: REGEX(.*)
 Content-Type: application/json
-Location: /ngsi-ld/v1/entities/urn:V1
-Content-Length: REGEX(\d+)
+Content-Length: 219
 
+{
+  "detail": "loop detected: registration resolves back to this broker, so createEntity cannot be forwarded",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
 
 
 

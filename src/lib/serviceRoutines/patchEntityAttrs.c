@@ -243,8 +243,12 @@ bool patchEntityAttrs(void)
                   
                    && tenantP->regCacheP != NULL);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;
+  // A loop (own alias already in the Via — § 9.7) no longer skips dispatch:
+  // exclusive/redirect attrs are still chopped, but recorded as loop-blocked
+  // rather than forwarded (§ 6.3.18). If that leaves nothing to update locally
+  // or remotely, the terminal 404 below becomes 508.
+  bool loopSeen    = (dispatch && ldDistOpLoopDetected(ownAlias));
+  bool loopBlocked = false;
 
   bool anyCsrSucceeded = false;
 
@@ -304,7 +308,7 @@ bool patchEntityAttrs(void)
       {
         LdRegCacheItem* csr = groups[g][i];
         if (csr->endpoint == NULL)                    continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))      continue;
+        bool loop = loopSeen || ldDistOpCsrWouldLoop(csr, ownAlias);
 
         bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
@@ -322,6 +326,22 @@ bool patchEntityAttrs(void)
             snprintf(reason, sizeof(reason),
                      "%s registration does not support updateAttrs", modeTag[g]);
             recordFragmentAttrsNotUpdated(notUpdatedP, fragP, reason, csr->regId);
+            continue;
+          }
+
+          // Loop-blocked forward (§ 6.3.18). fragP's attrs are chopped from the
+          // source (exclusive in-loop, redirect post-loop) so they won't be
+          // merged locally. For excl/redirect record them as not-updated (loop)
+          // and remember it, so an all-external loop flattens to 508 below;
+          // inclusive keeps its clone and the local merge still serves it.
+          if (loop)
+          {
+            if (opConf[g])
+            {
+              loopBlocked = true;
+              recordFragmentAttrsNotUpdated(notUpdatedP, fragP,
+                                            "loop detected: registration resolves back to this broker", csr->regId);
+            }
             continue;
           }
 
@@ -349,7 +369,8 @@ bool patchEntityAttrs(void)
     {
       LdRegCacheItem* csr = groups[1][i];
       if (csr->endpoint == NULL)                  continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias))    continue;
+      // Detach redirect attrs whether forwarded or loop-blocked — a
+      // redirect-owned attr must not be merged locally either way.
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
         if (!entityInfoCoversId(riP, entityId)) continue;
@@ -408,7 +429,14 @@ bool patchEntityAttrs(void)
 
   if (rr != DB_OK && !anyCsrSucceeded)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    // Nothing local and nothing forwarded. If the request was consumed by a
+    // loop-blocked exclusive/redirect registration, the data is held externally
+    // and unreachable via the loop → 508 (§ 6.3.18); otherwise it's a plain 404.
+    if (loopBlocked)
+      ldError(508, LD_ERROR_LOOP_DETECTED, "Loop Detected",
+              "loop detected: entity '%s' is held by an exclusive/redirect registration that resolves back to this broker", entityId);
+    else
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
     return true;
   }
 

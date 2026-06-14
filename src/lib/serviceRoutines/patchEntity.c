@@ -190,8 +190,9 @@ bool patchEntity(void)
                   
                    && tenantP->regCacheP != NULL);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;   // forwards suppressed; local merge still runs below.
+  // Loops handled in the dispatch block: the builder marks loop-blocked CSRs
+  // and the chop loop turns excl/redirect ones into 508 (§ 6.3.18); the local
+  // merge still runs for any unclaimed attrs.
 
   if (dispatch)
   {
@@ -265,6 +266,21 @@ bool patchEntity(void)
       KjNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, swRest.kjsonP,
                                               /*detach=*/isExclusive);
       if (fragP == NULL) continue;
+
+      // This riP claims at least one request attribute. If forwarding to it
+      // would loop, the claimed attrs are already chopped from the fragment
+      // (exclusive in-loop, redirect post-loop) so they won't be applied
+      // locally — for excl/redirect that makes them undeliverable → 508
+      // (§ 6.3.18); inclusive keeps its clone, so the local merge still serves
+      // it and we just drop the forward.
+      if (items[i].wouldLoop)
+      {
+        // Excl/redirect attrs are chopped (won't merge locally); flag so a
+        // fully-loop-blocked merge flattens its terminal 404 to 508 (§ 6.3.18).
+        if (items[i].errorMode)
+          swNgsild.loopBlocked508 = true;
+        continue;
+      }
 
       // fragP is private (detached or cloned) — compact in place with the
       // per-CSR forward context before rendering the wire body.

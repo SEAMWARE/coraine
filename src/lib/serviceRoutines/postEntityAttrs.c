@@ -282,8 +282,11 @@ bool postEntityAttrs(void)
                   
                    && tenantP->regCacheP != NULL);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;
+  // A loop (§ 9.7) no longer skips dispatch: exclusive/redirect attrs are
+  // chopped and recorded as loop-blocked rather than forwarded (§ 6.3.18); an
+  // all-external loop flattens the terminal 404 below to 508.
+  bool loopSeen    = (dispatch && ldDistOpLoopDetected(ownAlias));
+  bool loopBlocked = false;
 
   bool anyCsrSucceeded = false;
 
@@ -346,7 +349,7 @@ bool postEntityAttrs(void)
       {
         LdRegCacheItem* csr = groups[g][i];
         if (csr->endpoint == NULL)                    continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias))      continue;
+        bool loop = loopSeen || ldDistOpCsrWouldLoop(csr, ownAlias);
 
         bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
 
@@ -364,6 +367,20 @@ bool postEntityAttrs(void)
             snprintf(reason, sizeof(reason),
                      "%s registration does not support appendAttrs", modeTag[g]);
             ldWriteResultFragNotUpdated(notUpdatedP, fragP, reason, csr->regId, 0);
+            continue;
+          }
+
+          // Loop-blocked forward (§ 6.3.18): fragP's attrs are chopped, so for
+          // excl/redirect record them as not-updated (loop) and remember it so
+          // an all-external loop flattens to 508; inclusive keeps its clone.
+          if (loop)
+          {
+            if (opConf[g])
+            {
+              loopBlocked = true;
+              ldWriteResultFragNotUpdated(notUpdatedP, fragP,
+                                          "loop detected: registration resolves back to this broker", csr->regId, 0);
+            }
             continue;
           }
 
@@ -386,7 +403,8 @@ bool postEntityAttrs(void)
     {
       LdRegCacheItem* csr = groups[1][i];
       if (csr->endpoint == NULL)                  continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias))    continue;
+      // Detach redirect attrs whether forwarded or loop-blocked — a
+      // redirect-owned attr must not be stored locally either way.
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
         if (!entityInfoCoversId(riP, entityId)) continue;
@@ -457,8 +475,14 @@ bool postEntityAttrs(void)
 
   if (rr != DB_OK && !anyCsrSucceeded)
   {
-    // Entity unknown locally AND no CSR landed → 404 per § 5.6.3.4.
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    // Entity unknown locally AND no CSR landed. If a loop-blocked exclusive/
+    // redirect registration consumed the request, the data is held externally
+    // and unreachable via the loop → 508 (§ 6.3.18); else 404 per § 5.6.3.4.
+    if (loopBlocked)
+      ldError(508, LD_ERROR_LOOP_DETECTED, "Loop Detected",
+              "loop detected: entity '%s' is held by an exclusive/redirect registration that resolves back to this broker", entityId);
+    else
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
     return true;
   }
 

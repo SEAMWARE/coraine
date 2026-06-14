@@ -209,13 +209,9 @@ bool postEntitiesTemporal(void)
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
     bool        loopSeen = ldDistOpLoopDetected(ownAlias);
 
-    if (loopSeen)
-    {
-      ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
-      ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
-      ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
-    }
-
+    // A loop no longer skips dispatch: phase 1 still chops the exclusive/
+    // redirect attrs but records 508 per claimed attr instead of forwarding
+    // (§ 6.3.18). Inclusive attrs are kept and created locally.
     LdRegCacheItem** groups[]  = { exclV, redirV, inclV };
     int              counts[]  = { exclN, redirN, inclN };
     const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
@@ -240,7 +236,7 @@ bool postEntitiesTemporal(void)
       {
         LdRegCacheItem* csr = groups[g][i];
         if (csr->endpoint == NULL)               continue;
-        if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+        bool loop = loopSeen || ldDistOpCsrWouldLoop(csr, ownAlias);
 
         bool opSupported = ldRegOpSupported(csr, LdOpUpsertTemporal);
 
@@ -261,6 +257,17 @@ bool postEntitiesTemporal(void)
                      "%s registration does not support upsertTemporal", modeTag[g]);
             ldDistOpBatchErrorAdd(errorsArrayP, entityId, 409,
                                   LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+            continue;
+          }
+
+          // Loop-blocked forward (§ 6.3.18): claimed attrs are chopped, so for
+          // excl/redirect → 508; inclusive keeps its clone for the local create.
+          if (loop)
+          {
+            if (opConf[g])
+              ldDistOpBatchErrorAdd(errorsArrayP, entityId, 508, LD_ERROR_LOOP_DETECTED, "Loop Detected",
+                                    "loop detected: registration resolves back to this broker, so upsertTemporal cannot be forwarded",
+                                    csr->regId);
             continue;
           }
 
@@ -285,7 +292,8 @@ bool postEntitiesTemporal(void)
     {
       LdRegCacheItem* csr = groups[1][i];
       if (csr == NULL || csr->endpoint == NULL)  continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
+      // Detach redirect attrs whether forwarded or loop-blocked (508) — a
+      // redirect-owned attr must not be created locally either way.
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
         if (!entityInfoCoversId(riP, entityId)) continue;

@@ -170,8 +170,7 @@ bool deleteEntityAttr(void)
                   
                    && tenantP->regCacheP != NULL);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;
+  // Loops handled in the dispatch block (builder marks, ldDistOpLoopReap emits 508).
 
   bool localApply = true;
 
@@ -211,6 +210,8 @@ bool deleteEntityAttr(void)
       const char* fwdAttr = ldCompactOrEncode(attrIri, ldDistOpForwardContext(items[i].csr), &swRest.kalloc);
       items[i].url = attrUrl(items[i].csr->endpoint, entityId, fwdAttr);
     }
+
+    n = ldDistOpLoopReap(items, n);
 
     ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
 

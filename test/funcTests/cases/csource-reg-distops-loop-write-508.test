@@ -1,0 +1,409 @@
+#
+# FILE            csource-reg-distops-loop-write-508.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - write-op loop detection returns 508 for exclusive/redirect (TS 104-176 § 6.3.18)
+
+--TAGS--
+distops registration
+
+--INIT--
+swDbDrop
+swBrokerStart --csourceAlias cb-alias
+
+--RUN--
+#
+# § 9.7 / § 6.3.18 loop detection on UNSAFE (write) methods.
+#
+# When the inbound request's Via header already carries this broker's own
+# alias (a loop) AND the operated-on entity is held externally by a single
+# EXCLUSIVE or REDIRECT registration, the broker can neither forward the
+# write (it would loop) nor serve it locally → 508 Loop Detected.
+#
+# For an INCLUSIVE registration the broker keeps a local copy, so the loop
+# merely suppresses the forward and the local op proceeds (no 508).
+#
+# The loop is detected at entry from the Via header, so the registered
+# endpoint is never contacted — a single broker (cb-alias) is enough.
+#
+#   01  Register CB exclusive CSR on urn:V1
+#   02  DELETE   urn:V1                 + Via cb-alias  -> 508
+#   03  Replace  urn:V1 (PUT)           + Via cb-alias  -> 508
+#   04  Update   urn:V1/attrs (PATCH)   + Via cb-alias  -> 508
+#   05  Append   urn:V1/attrs (POST)    + Via cb-alias  -> 508
+#   06  Replace  urn:V1/attrs/speed PUT + Via cb-alias  -> 508
+#   07  Delete   urn:V1/attrs/speed     + Via cb-alias  -> 508
+#   08  Create   urn:Vc (exclusive CSR) + Via cb-alias  -> 508
+#   09  Redirect CSR on urn:V3; DELETE  + Via cb-alias  -> 508
+#   10  Inclusive CSR on urn:V2; create local; DELETE + Via cb-alias -> 204
+#   11  Control: DELETE urn:V1?local=true + Via cb-alias -> 404 (no dispatch, no 508)
+#
+
+echo "01. Register CB exclusive CSR on urn:V1"
+echo "======================================="
+payload='{
+  "id": "urn:CSR:Excl1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "exclusive",
+  "operations": ["redirectionOps"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:V1", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. DELETE urn:V1 with Via cb-alias -> 508"
+echo "=========================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "03. Replace urn:V1 (PUT) with Via cb-alias -> 508"
+echo "================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 7 }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload" -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "04. Update urn:V1/attrs (PATCH) with Via cb-alias -> 508"
+echo "========================================================"
+payload='{
+  "speed": { "type": "Property", "value": 9 }
+}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload" -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "05. Append urn:V1/attrs (POST) with Via cb-alias -> 508"
+echo "======================================================="
+payload='{
+  "speed": { "type": "Property", "value": 11 }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload" -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "06. Replace urn:V1/attrs/speed (PUT) with Via cb-alias -> 508"
+echo "============================================================="
+payload='{
+  "type": "Property",
+  "value": 13
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed --payload "$payload" -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "07. Delete urn:V1/attrs/speed with Via cb-alias -> 508"
+echo "======================================================"
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "08. Register exclusive CSR on urn:Vc, then create urn:Vc with Via -> 508"
+echo "========================================================================"
+payload='{
+  "id": "urn:CSR:Excl2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "exclusive",
+  "operations": ["redirectionOps"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:Vc", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{
+  "id": "urn:Vc",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 5 }
+}'
+swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "09. Register redirect CSR on urn:V3, then DELETE urn:V3 with Via -> 508"
+echo "======================================================================="
+payload='{
+  "id": "urn:CSR:Redir3",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "redirect",
+  "operations": ["redirectionOps"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:V3", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V3 -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "10. Inclusive CSR on urn:V2: local copy kept, loop suppresses forward -> 204"
+echo "============================================================================"
+payload='{
+  "id": "urn:CSR:Incl2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "inclusive",
+  "operations": ["redirectionOps"],
+  "information": [
+    {
+      "entities": [ { "id": "urn:V2", "type": "Vehicle" } ],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 21 }
+}'
+# Create the local copy with ?local=true so it does not depend on the
+# proactive-loop probe timing for the inclusive self-pointing CSR.
+swCurl -X POST --url '/ngsi-ld/v1/entities?local=true' --payload "$payload"
+echo
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V2 -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+echo "11. Control: DELETE urn:V1?local=true with Via -> no dispatch, local 404 (no 508)"
+echo "================================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1?local=true' -H "Via: 1.1 cb-alias"
+echo
+echo
+
+
+--EXPECT--
+01. Register CB exclusive CSR on urn:V1
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl1
+Content-Length: 0
+
+
+
+
+02. DELETE urn:V1 with Via cb-alias -> 508
+==========================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "distributed operation loop detected: the data is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+03. Replace urn:V1 (PUT) with Via cb-alias -> 508
+=================================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "distributed operation loop detected: the data is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+04. Update urn:V1/attrs (PATCH) with Via cb-alias -> 508
+========================================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 236
+
+{
+  "detail": "loop detected: entity 'urn:V1' is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+05. Append urn:V1/attrs (POST) with Via cb-alias -> 508
+=======================================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 236
+
+{
+  "detail": "loop detected: entity 'urn:V1' is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+06. Replace urn:V1/attrs/speed (PUT) with Via cb-alias -> 508
+=============================================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "distributed operation loop detected: the data is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+07. Delete urn:V1/attrs/speed with Via cb-alias -> 508
+======================================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "distributed operation loop detected: the data is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+08. Register exclusive CSR on urn:Vc, then create urn:Vc with Via -> 508
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl2
+Content-Length: 0
+
+
+
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "detail": "loop detected: registration resolves back to this broker, so createEntity cannot be forwarded",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+09. Register redirect CSR on urn:V3, then DELETE urn:V3 with Via -> 508
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Redir3
+Content-Length: 0
+
+
+
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "distributed operation loop detected: the data is held by an exclusive/redirect registration that resolves back to this broker",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+10. Inclusive CSR on urn:V2: local copy kept, loop suppresses forward -> 204
+============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Incl2
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+11. Control: DELETE urn:V1?local=true with Via -> no dispatch, local 404 (no 508)
+=================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

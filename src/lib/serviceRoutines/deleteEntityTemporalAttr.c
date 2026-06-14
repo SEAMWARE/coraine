@@ -149,7 +149,7 @@ bool deleteEntityTemporalAttr(void)
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
-    if (!ldDistOpLoopDetected(ownAlias))
+    // Always dispatch; the builder marks loop-blocked CSRs and ldDistOpLoopReap emits 508 (§ 6.3.18).
     {
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive };
       LdRegCacheItem** matchV[3] = { NULL, NULL, NULL };
@@ -204,6 +204,8 @@ bool deleteEntityTemporalAttr(void)
         url[pos] = 0;
         items[i].url = url;
       }
+
+      n = ldDistOpLoopReap(items, n);
 
       ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
 

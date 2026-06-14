@@ -162,7 +162,7 @@ bool patchEntityTemporalInstance(void)
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
-    if (!ldDistOpLoopDetected(ownAlias))
+    // Always dispatch; the builder marks loop-blocked CSRs and ldDistOpLoopReap emits 508 (§ 6.3.18).
     {
       char* fwdBody    = renderBodyWithContext(bodyP);
       int   fwdBodyLen = strlen(fwdBody);
@@ -221,6 +221,8 @@ bool patchEntityTemporalInstance(void)
         items[i].body    = fwdBody;
         items[i].bodyLen = fwdBodyLen;
       }
+
+      n = ldDistOpLoopReap(items, n);
 
       ldDistOpEntriesPerform(items, n, SwVerbPatch, ownAlias);
 

@@ -192,8 +192,7 @@ bool putEntityAttr(void)
                   
                    && tenantP->regCacheP != NULL);
 
-  if (dispatch && ldDistOpLoopDetected(ownAlias))
-    dispatch = false;
+  // Loops handled in the dispatch block (builder marks, ldDistOpLoopReap emits 508).
 
   bool localApply = true;
 
@@ -246,6 +245,8 @@ bool putEntityAttr(void)
       items[i].body    = bodyStr;
       items[i].bodyLen = strlen(bodyStr);
     }
+
+    n = ldDistOpLoopReap(items, n);
 
     ldDistOpEntriesPerform(items, n, SwVerbPut, ownAlias);
 
