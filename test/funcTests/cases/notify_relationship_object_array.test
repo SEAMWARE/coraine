@@ -1,0 +1,139 @@
+#
+# FILE            notify_relationship_object_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_857 (Notifications - relationship that is an
+# array). A subscription notification must render a Relationship whose 'object'
+# is a String[] array back as the array. Relies on the array-valued Relationship
+# object accepted by ldCheckAttribute (spec clause 5: object = String or String[]).
+#
+--NAME--
+Notification renders a Relationship with an array-valued object (String[])
+
+--TAGS--
+notification subscription relationship
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create a subscription S1 matching type T (normalized, endpoint /notify)
+# 02. Create a matching Entity E1 with a Relationship R1 whose object is an array
+# 03. Dump ftClient — the notification renders R1.object as the array
+#
+
+echo "01. Create a subscription"
+echo "========================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "notification": {
+    "format": "normalized",
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify",
+      "accept": "application/json"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create a matching Entity E1, with a Relationship R1 that is an array"
+echo "======================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Entity:E1",
+  "type": "T",
+  "R1": {
+    "type": "Relationship",
+    "object": [ "urn:ngsi-ld:Entity:E1", "urn:ngsi-ld:Entity:E2" ]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Dump ftClient — the notification renders R1.object as the array"
+echo "==================================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create a subscription
+=========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+02. Create a matching Entity E1, with a Relationship R1 that is an array
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Entity:E1
+Content-Length: 0
+
+
+
+
+03. Dump ftClient — the notification renders R1.object as the array
+===================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "R1": {
+            "object": [
+              "urn:ngsi-ld:Entity:E1",
+              "urn:ngsi-ld:Entity:E2"
+            ],
+            "type": "Relationship"
+          },
+          "id": "urn:ngsi-ld:Entity:E1",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

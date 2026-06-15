@@ -1,0 +1,114 @@
+#
+# FILE            relationship_object_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Relationship with an array-valued object (String[]) is accepted and round-trips (spec clause 5)
+
+--TAGS--
+attr create relationship
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 with R1.object as an array of two URIs
+# 02. GET E1 — R1.object renders back as the array
+# 03. Negative: an array with a non-URI item -> 400 Invalid Relationship
+#
+
+echo "01. Create entity with an array-valued Relationship object"
+echo "=========================================================="
+payload='{
+  "id": "urn:ngsi-ld:Entity:E1",
+  "type": "T",
+  "R1": {
+    "type": "Relationship",
+    "object": [ "urn:ngsi-ld:Entity:E1", "urn:ngsi-ld:Entity:E2" ]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1 — R1.object is the array"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Entity:E1
+echo
+echo
+
+
+echo "03. Negative: array with a non-URI item -> 400"
+echo "=============================================="
+payload='{
+  "id": "urn:ngsi-ld:Entity:E2",
+  "type": "T",
+  "R2": {
+    "type": "Relationship",
+    "object": [ "urn:ok", "not a uri" ]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with an array-valued Relationship object
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Entity:E1
+Content-Length: 0
+
+
+
+
+02. GET E1 — R1.object is the array
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 177
+
+{
+  "R1": {
+    "object": [
+      "urn:ngsi-ld:Entity:E1",
+      "urn:ngsi-ld:Entity:E2"
+    ],
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:Entity:E1",
+  "type": "T"
+}
+
+
+
+03. Negative: array with a non-URI item -> 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "Not a valid URI: 'not a uri'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
