@@ -1,22 +1,20 @@
 #
-# FILE            dataset_id_dedup.test
+# FILE            dataset_id_conflict_rejected.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
-# § 4.5.5.3 — Processing of Conflicting Attributes for a single
-# local-write payload that contains more than one instance with the
-# same datasetId for the same Attribute.
-#
-# Spec mandates a tiebreaker, NOT rejection:
-#   1. expiresAt in the past → discard
-#   2. Most recent observedAt wins
-#   3. (modifiedAt — N/A for local writes)
-#   4. Indeterminate → array-order: last wins
+# A single local-write payload whose multi-instance attribute carries
+# conflicting instance identities is rejected (400). Per § 4.5.5, an
+# attribute may have at most ONE default instance (no datasetId) and its
+# datasetIds must be UNIQUE. The § 8.5.3 tiebreaker ("processing of
+# conflicting Attributes") is for instances assembled from MULTIPLE
+# registered Context Sources — not a single user payload, which must be
+# well-formed. Orion-LD rejects the same way.
 #
 --NAME--
-Multi-attr duplicate datasetId resolved per § 4.5.5.3 tiebreaker
+Multi-instance attribute with conflicting identities in one payload is rejected
 
 --TAGS--
 entity multi-attr datasetid validation
@@ -27,8 +25,15 @@ swBrokerStart
 
 --RUN--
 
-echo "01. POST entity with two default-instance speeds, no observedAt → last wins"
-echo "==========================================================================="
+#
+# 01. Two default instances (neither has a datasetId) -> 400
+# 02. Two instances with the same datasetId -> 400
+# 03. One default + one dataset instance (distinct identities) -> 201
+# 04. Two distinct datasetIds in one multi-attr -> 201, both kept
+#
+
+echo "01. Two default-instance speeds (no datasetId) -> 400"
+echo "====================================================="
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
@@ -37,52 +42,45 @@ payload='{
     {"type": "Property", "value": 99}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
-echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"value"'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
-echo "02. POST entity with two same-datasetId speeds, observedAt picks oldest fragment"
-echo "================================================================================"
+echo "02. Two same-datasetId speeds -> 400"
+echo "===================================="
 payload='{
   "id": "urn:V2",
   "type": "Vehicle",
   "speed": [
-    {"type": "Property", "value": 10, "datasetId": "urn:dsA",
-     "observedAt": "2026-12-01T00:00:00Z"},
-    {"type": "Property", "value": 99, "datasetId": "urn:dsA",
-     "observedAt": "2026-01-01T00:00:00Z"}
+    {"type": "Property", "value": 10, "datasetId": "urn:dsA"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
-echo
-swCurl --url /ngsi-ld/v1/entities/urn:V2 | grep -E '"value"'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
-echo "03. POST entity with expired duplicate → expired discarded"
-echo "=========================================================="
+echo "03. One default + one dataset instance -> 201"
+echo "============================================="
 payload='{
   "id": "urn:V3",
   "type": "Vehicle",
   "speed": [
-    {"type": "Property", "value": 10, "datasetId": "urn:dsB",
-     "expiresAt": "2000-01-01T00:00:00Z"},
-    {"type": "Property", "value": 99, "datasetId": "urn:dsB"}
+    {"type": "Property", "value": 10},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
   ]
 }'
 swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"value"'
+swCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"value"|datasetId' | sort
 echo
 echo
 
 
-echo "04. Distinct datasetIds in one multi-attr → both kept"
-echo "====================================================="
+echo "04. Two distinct datasetIds -> 201, both kept"
+echo "============================================="
 payload='{
   "id": "urn:V4",
   "type": "Vehicle",
@@ -99,29 +97,49 @@ echo
 
 
 --EXPECT--
-01. POST entity with two default-instance speeds, no observedAt → last wins
-===========================================================================
-HTTP/1.1 201 Created
-
-    "value": 99
-
-
-02. POST entity with two same-datasetId speeds, observedAt picks oldest fragment
-================================================================================
-HTTP/1.1 201 Created
-
-    "value": 10
-
-
-03. POST entity with expired duplicate → expired discarded
-==========================================================
-HTTP/1.1 201 Created
-
-    "value": 99
-
-
-04. Distinct datasetIds in one multi-attr → both kept
+01. Two default-instance speeds (no datasetId) -> 400
 =====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 244
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': more than one instance without a datasetId",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Two same-datasetId speeds -> 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:dsA'",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. One default + one dataset instance -> 201
+=============================================
+HTTP/1.1 201 Created
+
+      "datasetId": "urn:dsA",
+      "value": 10
+      "value": 99
+
+
+04. Two distinct datasetIds -> 201, both kept
+=============================================
 HTTP/1.1 201 Created
 
       "datasetId": "urn:dsX",

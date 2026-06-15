@@ -420,10 +420,10 @@ Content-Length: 235
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 229
+Content-Length: 256
 
 {
-  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string",
+  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string or an array of URI strings",
   "status": 400,
   "title": "Invalid Relationship",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -513,16 +513,16 @@ Content-Length: 175
 
 17. Multi-attribute duplicate datasetId
 =======================================
-HTTP/1.1 404 Not Found
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 167
+Content-Length: 231
 
 {
-  "detail": "entity 'urn:ngsi-ld:Vehicle:V1' not found",
-  "status": 404,
-  "title": "Not Found",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 

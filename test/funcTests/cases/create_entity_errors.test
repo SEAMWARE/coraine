@@ -1425,10 +1425,10 @@ Content-Length: 235
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 229
+Content-Length: 256
 
 {
-  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string",
+  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/rel': 'object' must be a URI string or an array of URI strings",
   "status": 400,
   "title": "Invalid Relationship",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -1641,23 +1641,33 @@ Content-Length: 0
 
 34. Multi-attr two defaults (no datasetId)
 ==========================================
-HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Location: /ngsi-ld/v1/entities/urn:e34
-Content-Length: 0
+Content-Length: 244
 
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': more than one instance without a datasetId",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
 35. Multi-attr duplicate datasetId
 ==================================
-HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Location: /ngsi-ld/v1/entities/urn:e35
-Content-Length: 0
+Content-Length: 231
 
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:ds1'",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
