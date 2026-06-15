@@ -1,0 +1,57 @@
+#
+# FILE            error_relationship_without_object.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Entity create rejected when a Relationship attribute carries no object
+
+--TAGS--
+error attr create
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST /entities with a Relationship attribute that has 'value' instead of 'object' -> 400
+#
+
+echo "01. Create entity with a Relationship that has no object"
+echo "========================================================"
+payload='{
+  "id": "urn:ngsi-ld:T4:9000",
+  "type": "T",
+  "R1": {
+    "type": "Relationship",
+    "value": "1234"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with a Relationship that has no object
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship must have 'object'",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

@@ -1,0 +1,112 @@
+#
+# FILE            datetime_compound_property.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DateTime Property as compound value with @type/@value round-trips on create + GET
+
+--TAGS--
+attr create retrieve format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST /entities with a DateTime Property given as compound @type/@value
+# 02. GET the entity (normalized) — value preserved as the compound DateTime
+# 03. GET the entity simplified (keyValues) — value is the bare compound
+#
+
+echo "01. Create entity with a compound DateTime Property"
+echo "==================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:12:13:14",
+  "type": "T",
+  "TP1": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2021-02-23T09:26:33.123Z"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. GET the entity (normalized)"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14
+echo
+echo
+
+
+echo "03. GET the entity simplified (keyValues)"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14 --urlParams 'options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with a compound DateTime Property
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14
+Content-Length: 0
+
+
+
+
+02. GET the entity (normalized)
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 183
+
+{
+  "TP1": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2021-02-23T09:26:33.123Z"
+    }
+  },
+  "id": "urn:ngsi-ld:T:12:13:14",
+  "type": "T"
+}
+
+
+
+03. GET the entity simplified (keyValues)
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "TP1": {
+    "@type": "DateTime",
+    "@value": "2021-02-23T09:26:33.123Z"
+  },
+  "id": "urn:ngsi-ld:T:12:13:14",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

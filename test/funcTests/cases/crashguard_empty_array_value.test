@@ -1,0 +1,79 @@
+#
+# FILE            crashguard_empty_array_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Empty array as a Property value is accepted and round-trips (no crash)
+
+--TAGS--
+attr create
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create an entity with a Property whose value is an empty array
+# 02. GET the entity — value preserved as the empty array, broker alive
+#
+
+echo "01. Create entity with an empty-array Property value"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T",
+  "P1": {
+    "type": "Property",
+    "value": []
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. GET the entity"
+echo "=================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with an empty-array Property value
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+Content-Length: 0
+
+
+
+
+02. GET the entity
+==================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 102
+
+{
+  "P1": {
+    "type": "Property",
+    "value": []
+  },
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

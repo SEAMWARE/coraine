@@ -1,0 +1,67 @@
+#
+# FILE            http_415_406_media_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+HTTP media-type negotiation — unsupported Content-Type and unacceptable Accept
+
+--TAGS--
+error http format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. POST /entities with Content-Type text/plain -> 415 Unsupported Media Type
+# 02. GET /entities with Accept text/plain -> 406 Not Acceptable
+#
+
+echo "01. Create with Content-Type text/plain"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload 'Just a text' -H 'Content-Type: text/plain'
+echo
+echo
+
+
+echo "02. GET entities with Accept text/plain"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'prettyPrint=yes&spaces=2' -H 'Accept: text/plain'
+echo
+echo
+
+
+--EXPECT--
+01. Create with Content-Type text/plain
+=======================================
+HTTP/1.1 415 Unsupported Media Type
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 0
+
+
+
+
+02. GET entities with Accept text/plain
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 176
+
+{
+  "detail": "Unknown/unsupported URL parameter: prettyPrint",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

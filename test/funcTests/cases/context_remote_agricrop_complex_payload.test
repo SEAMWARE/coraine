@@ -1,0 +1,228 @@
+#
+# FILE            context_remote_agricrop_complex_payload.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_0044 (historical crash on a complex
+# Agri-Crop payload under a remote @context). Made hermetic: the GSMA
+# Agri-Crop context (originally fetched from raw.githubusercontent.com) is
+# hosted locally on the context server. The payload mixes array-valued
+# Relationship objects (agriSoil/agriFertiliser/agriPest) and array-of-object
+# Property values (plantingFrom/harvestingInterval) — must be accepted (201)
+# and leave the broker alive.
+#
+--NAME--
+Complex Agri-Crop payload under a hosted custom @context is accepted, broker alive
+
+--TAGS--
+context entity relationship
+
+--INIT--
+swDbDrop
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/agricrop '{
+  "@context": {
+    "AgriCrop": "https://uri.fiware.org/ns/data-models#AgriCrop",
+    "agriSoil": "https://uri.fiware.org/ns/data-models#agriSoil",
+    "agriFertiliser": "https://uri.fiware.org/ns/data-models#agriFertiliser",
+    "agriPest": "https://uri.fiware.org/ns/data-models#agriPest",
+    "plantingFrom": "https://uri.fiware.org/ns/data-models#plantingFrom",
+    "harvestingInterval": "https://uri.fiware.org/ns/data-models#harvestingInterval",
+    "wateringFrequency": "https://uri.fiware.org/ns/data-models#wateringFrequency",
+    "dateRange": "https://uri.fiware.org/ns/data-models#dateRange",
+    "alternateName": "https://schema.org/alternateName",
+    "name": "https://schema.org/name",
+    "description": "https://schema.org/description"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST the Agri-Crop entity (ld+json) with @context = [hosted agricrop, core-1.9]
+# 02. GET the entity back — broker alive, entity stored
+#
+
+echo "01. POST complex Agri-Crop entity under the hosted custom @context"
+echo "=================================================================="
+payload='{
+   "@context": [
+        "http://localhost:7080/jsonldContexts/agricrop",
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+    ],
+    "id": "urn:ngsi-ld:AgriCrop:df72dc57-1eb9-42a3-88a9-8647ecc954b4",
+    "type": "AgriCrop",
+    "name": {
+        "type": "Property",
+        "value": "Wheat"
+    },
+    "alternateName": {
+        "type": "Property",
+        "value": "Triticum aestivum"
+    },
+    "description": {
+        "type": "Property",
+        "value": "Spring wheat"
+    },
+    "agriSoil": {
+        "type": "Relationship",
+        "object": [
+            "urn:ngsi-ld:AgriSoil:00411b56-bd1b-4551-96e0-a6e7fde9c840",
+            "urn:ngsi-ld:AgriSoil:e8a8389a-edf5-4345-8d2c-b98ac1ce8e2a"
+        ]
+    },
+    "agriFertiliser": {
+        "type": "Relationship",
+        "object": [
+            "urn:ngsi-ld:AgriFertiliser:1b0d6cf7-320c-4a2b-b2f1-4575ea850c73",
+            "urn:ngsi-ld:AgriFertiliser:380973c8-4d3b-4723-a899-0c0c5cc63e7e"
+        ]
+    },
+    "agriPest": {
+        "type": "Relationship",
+        "object": [
+            "urn:ngsi-ld:AgriPest:1b0d6cf7-320c-4a2b-b2f1-4575ea850c73",
+            "urn:ngsi-ld:AgriPest:380973c8-4d3b-4723-a899-0c0c5cc63e7e"
+        ]
+    },
+    "plantingFrom": {
+        "type": "Property",
+        "value": [
+            {
+                "dateRange": "-09-28/-10-12",
+                "description": "Best Season"
+            },
+            {
+                "dateRange": "-10-11/-10-18",
+                "description": "Season OK"
+            }
+        ]
+    },
+    "harvestingInterval": {
+        "type": "Property",
+        "value": [
+            {
+                "dateRange": "-03-21/-04-01",
+                "description": "Best Season"
+            },
+            {
+                "dateRange": "-04-02/-04-15",
+                "description": "Season OK"
+            }
+        ]
+    },
+    "wateringFrequency": {
+        "type": "Property",
+        "value": "daily"
+    }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/ld+json' --payload "$payload"
+echo
+echo
+
+
+echo "02. GET the entity back — broker alive"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:AgriCrop:df72dc57-1eb9-42a3-88a9-8647ecc954b4 --header 'Link: <http://localhost:7080/jsonldContexts/agricrop>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--EXPECT--
+01. POST complex Agri-Crop entity under the hosted custom @context
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:AgriCrop:df72dc57-1eb9-42a3-88a9-8647ecc954b4
+Content-Length: 0
+
+
+
+
+02. GET the entity back — broker alive
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/agricrop>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1528
+
+{
+  "agriFertiliser": {
+    "object": [
+      "urn:ngsi-ld:AgriFertiliser:1b0d6cf7-320c-4a2b-b2f1-4575ea850c73",
+      "urn:ngsi-ld:AgriFertiliser:380973c8-4d3b-4723-a899-0c0c5cc63e7e"
+    ],
+    "type": "Relationship"
+  },
+  "agriPest": {
+    "object": [
+      "urn:ngsi-ld:AgriPest:1b0d6cf7-320c-4a2b-b2f1-4575ea850c73",
+      "urn:ngsi-ld:AgriPest:380973c8-4d3b-4723-a899-0c0c5cc63e7e"
+    ],
+    "type": "Relationship"
+  },
+  "agriSoil": {
+    "object": [
+      "urn:ngsi-ld:AgriSoil:00411b56-bd1b-4551-96e0-a6e7fde9c840",
+      "urn:ngsi-ld:AgriSoil:e8a8389a-edf5-4345-8d2c-b98ac1ce8e2a"
+    ],
+    "type": "Relationship"
+  },
+  "alternateName": {
+    "type": "Property",
+    "value": "Triticum aestivum"
+  },
+  "description": {
+    "type": "Property",
+    "value": "Spring wheat"
+  },
+  "harvestingInterval": {
+    "type": "Property",
+    "value": [
+      {
+        "dateRange": "-03-21/-04-01",
+        "description": "Best Season"
+      },
+      {
+        "dateRange": "-04-02/-04-15",
+        "description": "Season OK"
+      }
+    ]
+  },
+  "id": "urn:ngsi-ld:AgriCrop:df72dc57-1eb9-42a3-88a9-8647ecc954b4",
+  "name": {
+    "type": "Property",
+    "value": "Wheat"
+  },
+  "plantingFrom": {
+    "type": "Property",
+    "value": [
+      {
+        "dateRange": "-09-28/-10-12",
+        "description": "Best Season"
+      },
+      {
+        "dateRange": "-10-11/-10-18",
+        "description": "Season OK"
+      }
+    ]
+  },
+  "type": "AgriCrop",
+  "wateringFrequency": {
+    "type": "Property",
+    "value": "daily"
+  }
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop

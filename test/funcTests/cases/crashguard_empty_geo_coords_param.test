@@ -1,0 +1,140 @@
+#
+# FILE            crashguard_empty_geo_coords_param.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Empty / missing geo coordinates URI param errors cleanly (no crash)
+
+--TAGS--
+error geo query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity with a compound-value Property P100 (+ a P1 sub-attr)
+# 02. Geo query with an EMPTY coordinates param -> error, no crash
+# 03. Geo query with NO coordinates param at all -> error, no crash
+# 04. Query the entity by type -> broker still alive and serving
+#
+
+echo "01. Create entity with compound P100"
+echo "===================================="
+payload='{
+  "id": "urn:ngsi-ld:T_Query:EntityForQuery2345",
+  "type": "T_Query",
+  "P100": {
+    "type": "Property",
+    "value": { "P1": 1, "P2": 2 },
+    "P1": {
+      "type": "Property",
+      "value": 2
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. Geo query with an empty coordinates param"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'geometry=Point&coordinates=&geometry=Point&georel=near;maxDistance==10&type=Building&options=keyValues'
+echo
+echo
+
+
+echo "03. Geo query with no coordinates param at all"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'geometry=Point&geometry=Point&georel=near;maxDistance==10&type=Building&options=keyValues'
+echo
+echo
+
+
+echo "04. Query the entity by type — broker alive"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T_Query'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with compound P100
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T_Query:EntityForQuery2345
+Content-Length: 0
+
+
+
+
+02. Geo query with an empty coordinates param
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "coordinates value is empty",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Geo query with no coordinates param at all
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "incomplete geo-query: missing coordinates",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Query the entity by type — broker alive
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 261
+
+[
+  {
+    "P100": {
+      "P1": {
+        "type": "Property",
+        "value": 2
+      },
+      "type": "Property",
+      "value": {
+        "P1": 1,
+        "P2": 2
+      }
+    },
+    "id": "urn:ngsi-ld:T_Query:EntityForQuery2345",
+    "type": "T_Query"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop

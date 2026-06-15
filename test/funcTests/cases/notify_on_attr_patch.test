@@ -1,0 +1,239 @@
+#
+# FILE            notify_on_attr_patch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH of an attribute notifies on every update (cumulative ftClient dump)
+
+--TAGS--
+notification subscription patch attr
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity E1 with a Property P1 = 1
+# 02. Create a subscription over E1
+# 03. PATCH E1/P1 -> value 3
+# 04. Dump ftClient — one notification
+# 05. PATCH E1/P1 -> value 3 again
+# 06. Dump ftClient — two notifications (cumulative)
+#
+
+echo "01. Create entity E1 with a Property P1 = 1"
+echo "==========================================="
+payload='{
+  "id": "urn:ngsi-ld:entity:E1",
+  "type": "T",
+  "P1": {
+    "type": "Property",
+    "value": 1
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create a subscription over E1"
+echo "================================="
+payload='{
+  "id": "urn:ngsi-ld:subscriptions:S1",
+  "type": "Subscription",
+  "name": "Sub 01",
+  "description": "receiving notifications for ALL attributes of urn:ngsi-ld:entity:E1",
+  "entities": [
+    {
+      "id": "urn:ngsi-ld:entity:E1",
+      "type": "T"
+    }
+  ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. PATCH E1/P1 -> value 3"
+echo "=========================="
+payload='{
+  "value": 3
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1/attrs/P1 --payload "$payload" -X PATCH
+echo
+echo
+
+
+echo "04. Dump ftClient — one notification"
+echo "===================================="
+ftClientDump
+echo
+echo
+
+
+echo "05. PATCH E1/P1 -> value 3 again"
+echo "==============================="
+payload='{
+  "value": 3
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1/attrs/P1 --payload "$payload" -X PATCH
+echo
+echo
+
+
+echo "06. Dump ftClient — two notifications (cumulative)"
+echo "=================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 with a Property P1 = 1
+===========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1
+Content-Length: 0
+
+
+
+
+02. Create a subscription over E1
+=================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscriptions:S1
+Content-Length: 0
+
+
+
+
+03. PATCH E1/P1 -> value 3
+==========================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. Dump ftClient — one notification
+====================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P1": {
+            "type": "Property",
+            "value": 3
+          },
+          "id": "urn:ngsi-ld:entity:E1",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:subscriptions:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. PATCH E1/P1 -> value 3 again
+===============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+06. Dump ftClient — two notifications (cumulative)
+==================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P1": {
+            "type": "Property",
+            "value": 3
+          },
+          "id": "urn:ngsi-ld:entity:E1",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:subscriptions:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "P1": {
+            "type": "Property",
+            "value": 3
+          },
+          "id": "urn:ngsi-ld:entity:E1",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:subscriptions:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop

@@ -1,0 +1,109 @@
+#
+# FILE            crashguard_patch_relationship_without_object.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+PATCH /attrs with a Relationship missing 'object' errors cleanly (no crash)
+
+--TAGS--
+error attr patch
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity urn:ngsi-ld:T:001 with a valid Relationship R1
+# 02. PATCH /attrs R1 with 'value' instead of 'object' -> error, no crash
+# 03. GET the entity — broker alive, R1 unchanged
+#
+
+echo "01. Create entity with a valid Relationship R1"
+echo "=============================================="
+payload='{
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T",
+  "R1": {
+    "type": "Relationship",
+    "object": "http://a.b.c/hola"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH /attrs R1 with 'value' instead of 'object'"
+echo "===================================================="
+payload='{
+  "R1": {
+    "type": "Relationship",
+    "value": "http://a.b.c/errIsGoodSometimes"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. GET the entity — broker alive, R1 unchanged"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with a valid Relationship R1
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+Content-Length: 0
+
+
+
+
+02. PATCH /attrs R1 with 'value' instead of 'object'
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship must have 'object'",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET the entity — broker alive, R1 unchanged
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "R1": {
+    "object": "http://a.b.c/hola",
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
