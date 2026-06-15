@@ -1,0 +1,251 @@
+#
+# FILE            patch_invalid_geoproperty_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1050-part7 (a PATCH of an invalid
+# GeoProperty). sw diverges from orion-ld on the ERROR: orion rejects "Poinxt"
+# as a bad attribute type; sw treats a simplified-format GeoProperty
+# ({type,coordinates} only) as a GeoProperty attempt and rejects "Poinxt" as a
+# bad GEOMETRY. Steps 04-06 lock in the normalized-vs-simplified disambiguation:
+#   - {type,coordinates} with an INVALID geometry name  -> simplified GeoProperty -> Invalid GeoJSON
+#   - {type:Property,coordinates}                        -> normalized format     -> Missing value
+#   - {type:Point,coordinates}                           -> simplified GeoProperty -> accepted
+#
+--NAME--
+PATCH adding a GeoProperty with an invalid geometry type is rejected (bad geometry)
+
+--TAGS--
+error attr patch geo
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity TemperatureSensor:001
+# 02. PATCH location {type:Poinxt, coordinates} -> 400 Invalid GeoJSON, no crash
+# 03. GET — entity unaffected, broker alive
+# 04. PATCH location {type:Property, coordinates} -> 400 Missing value (normalized format)
+# 05. GET — entity still unaffected
+# 06. PATCH location {type:Point, coordinates} -> accepted as a (simplified) GeoProperty
+# 07. GET — location now present as a normalized GeoProperty
+#
+
+echo "01. Create entity TemperatureSensor:001"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "type": "TemperatureSensor",
+  "category": "sensor",
+  "temperature": {
+    "value": 25,
+    "unitCode": "CEL"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH location with invalid geometry type 'Poinxt'"
+echo "======================================================"
+payload='{
+  "location": {
+    "type": "Poinxt",
+    "coordinates": [13.3505, 52.5144]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. GET — entity unaffected, broker alive"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+echo
+echo
+
+
+echo "04. PATCH location {type:Property, coordinates} -> normalized, missing value"
+echo "==========================================================================="
+payload='{
+  "location": {
+    "type": "Property",
+    "coordinates": [13.3505, 52.5144]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "05. GET — entity still unaffected"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+echo
+echo
+
+
+echo "06. PATCH location {type:Point, coordinates} -> accepted (simplified GeoProperty)"
+echo "================================================================================"
+payload='{
+  "location": {
+    "type": "Point",
+    "coordinates": [13.3505, 52.5144]
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "07. GET — location now a normalized GeoProperty"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+echo
+echo
+
+
+--EXPECT--
+01. Create entity TemperatureSensor:001
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+Content-Length: 0
+
+
+
+
+02. PATCH location with invalid geometry type 'Poinxt'
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 214
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Poinxt'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET — entity unaffected, broker alive
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 233
+
+{
+  "category": {
+    "type": "Property",
+    "value": "sensor"
+  },
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "temperature": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 25
+  },
+  "type": "TemperatureSensor"
+}
+
+
+
+04. PATCH location {type:Property, coordinates} -> normalized, missing value
+===========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "Attribute 'location' is reserved by spec § 4.7 and must be of type GeoProperty (got Property)",
+  "status": 400,
+  "title": "Invalid Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. GET — entity still unaffected
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 233
+
+{
+  "category": {
+    "type": "Property",
+    "value": "sensor"
+  },
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "temperature": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 25
+  },
+  "type": "TemperatureSensor"
+}
+
+
+
+06. PATCH location {type:Point, coordinates} -> accepted (simplified GeoProperty)
+================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+07. GET — location now a normalized GeoProperty
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 389
+
+{
+  "category": {
+    "type": "Property",
+    "value": "sensor"
+  },
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        13.3505,
+        52.5144
+      ],
+      "type": "Point"
+    }
+  },
+  "temperature": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 25
+  },
+  "type": "TemperatureSensor"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
