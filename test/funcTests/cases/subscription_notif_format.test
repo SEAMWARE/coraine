@@ -241,14 +241,11 @@ Content-Length: 0
         {
           "id": "urn:V1",
           "location": {
-            "type": "GeoProperty",
-            "value": {
-              "coordinates": [
-                -3.703,
-                40.417
-              ],
-              "type": "Point"
-            }
+            "coordinates": [
+              -3.703,
+              40.417
+            ],
+            "type": "Point"
           },
           "ownedBy": {
             "object": "urn:ngsi-ld:Person:Bob"

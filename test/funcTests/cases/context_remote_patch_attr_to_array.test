@@ -1,0 +1,150 @@
+#
+# FILE            context_remote_patch_attr_to_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1050-part1 (a PATCH that turns a Property
+# value into a String[] array must not corrupt the user @context — the original
+# orion bug destroyed a @context item during PATCH). Made hermetic: the FIWARE
+# tutorials ngsi-context is hosted locally. The custom context must keep working
+# across the create → concise GET → PATCH → concise GET sequence.
+# (options=concise is deprecated → format=concise.)
+#
+--NAME--
+PATCH a Property value into a String[] array under a hosted @context (concise round-trip)
+
+--TAGS--
+context patch attr format
+
+--INIT--
+swDbDrop
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/tutorial '{
+  "@context": {
+    "TemperatureSensor": "https://uri.fiware.org/ns/data-models#TemperatureSensor",
+    "category": "https://uri.fiware.org/ns/data-models#category",
+    "temperature": "https://w3id.org/saref#temperature"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Create TemperatureSensor:001 (category + temperature) under the hosted context
+# 02. GET format=concise — category is the scalar "sensor"
+# 03. PATCH category into the array [ "actuator", "sensor" ]
+# 04. GET format=concise — category renders as the array, context intact
+#
+
+echo "01. Create entity TemperatureSensor:001"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "type": "TemperatureSensor",
+  "category": "sensor",
+  "temperature": {
+    "value": 25,
+    "unitCode": "CEL"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "02. GET the entity, format=concise"
+echo "=================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001?format=concise' -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. PATCH category into an array of two strings"
+echo "==============================================="
+payload='{
+  "category": [ "actuator", "sensor" ]
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload" -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. GET the entity, format=concise — category is the array"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001?format=concise' -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity TemperatureSensor:001
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+Content-Length: 0
+
+
+
+
+02. GET the entity, format=concise
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 166
+
+{
+  "category": "sensor",
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "temperature": {
+    "unitCode": "CEL",
+    "value": 25
+  },
+  "type": "TemperatureSensor"
+}
+
+
+
+03. PATCH category into an array of two strings
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET the entity, format=concise — category is the array
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 192
+
+{
+  "category": [
+    "actuator",
+    "sensor"
+  ],
+  "id": "urn:ngsi-ld:TemperatureSensor:001",
+  "temperature": {
+    "unitCode": "CEL",
+    "value": 25
+  },
+  "type": "TemperatureSensor"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop
