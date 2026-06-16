@@ -1,0 +1,178 @@
+#
+# FILE            json_literal_null_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_json_literal_null-as-attribute-key-value.
+# A JSON null literal {"@type":"@json","@value":null} is a PERMITTED attribute
+# value (TS 104-175 clause 5: "JSON literals are not to be expanded in JSON-LD
+# and thus the respective element is not removed during JSON-LD expansion").
+# In simplified form the whole literal is the Property value and is kept as-is
+# (it is NOT a bare null to drop). A PATCH/merge that sets the value to the
+# literal must REPLACE the value, not splice @type/@value onto the old value.
+# (sw renders the normalized {type:Property, value:<literal>}; this differs from
+# orion-ld which renders the bare literal as the attribute.)
+#
+--NAME--
+JSON null literal {@type:@json,@value:null} is a valid value; merge replaces it
+
+--TAGS--
+json-property merge patch attr
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create E1 with P1 = JSON null literal, and P2 = 1
+# 02. GET — P1 keeps the literal value; P2 is 1
+# 03. PATCH P2 to the JSON null literal (merge)
+# 04. GET — P2's value is REPLACED by the literal (no splice)
+# 05. Negative: a bare null attribute value -> 400
+#
+
+echo "01. Create E1 (P1 = JSON null literal, P2 = 1)"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "P1": { "@type": "@json", "@value": null },
+  "P2": 1
+}'
+echo
+echo
+
+
+echo "02. GET E1"
+echo "=========="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "03. PATCH P2 to the JSON null literal"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{
+  "P2": { "@type": "@json", "@value": null }
+}'
+echo
+echo
+
+
+echo "04. GET E1 — P2 value replaced by the literal (no splice)"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "05. Negative: bare null attribute value -> 400"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:E2",
+  "type": "T",
+  "P3": null
+}'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (P1 = JSON null literal, P2 = 1)
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. GET E1
+==========
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 203
+
+{
+  "P1": {
+    "type": "Property",
+    "value": {
+      "@type": "@json",
+      "@value": null
+    }
+  },
+  "P2": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+03. PATCH P2 to the JSON null literal
+====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. GET E1 — P2 value replaced by the literal (no splice)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 254
+
+{
+  "P1": {
+    "type": "Property",
+    "value": {
+      "@type": "@json",
+      "@value": null
+    }
+  },
+  "P2": {
+    "type": "Property",
+    "value": {
+      "@type": "@json",
+      "@value": null
+    }
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+05. Negative: bare null attribute value -> 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 240
+
+{
+  "detail": "JSON null is not allowed in NGSI-LD (attribute 'https://uri.etsi.org/ngsi-ld/default-context/P3', field 'value')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

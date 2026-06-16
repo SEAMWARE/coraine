@@ -1,0 +1,131 @@
+#
+# FILE            patch_delete_marker_normalized_equiv.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The NGSI-LD Null delete marker "urn:ngsi-ld:null" deletes an Attribute in a
+# PATCH. Because an Attribute's value field (value/object/...) is mandatory and
+# cannot be individually removed, the normalized form {"A":{"value":"urn:ngsi-ld:null"}}
+# is equivalent to the simplified form {"A":"urn:ngsi-ld:null"} — both delete A.
+# Same for a Relationship via {"R":{"object":"urn:ngsi-ld:null"}}.
+#
+--NAME--
+PATCH delete marker — normalized {value/object: urn:ngsi-ld:null} == simplified, deletes the attribute
+
+--TAGS--
+patch merge delete attr
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create E1 with A, B (Properties) and R (Relationship)
+# 02. PATCH {"A":"urn:ngsi-ld:null"} (simplified marker) -> A deleted
+# 03. PATCH {"B":{"value":"urn:ngsi-ld:null"}} (normalized marker) -> B deleted
+# 04. PATCH {"R":{"object":"urn:ngsi-ld:null"}} (normalized marker) -> R deleted
+# 05. GET — only id/type remain
+#
+
+echo "01. Create E1 (A, B, R)"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "A": { "type": "Property", "value": 5 },
+  "B": { "type": "Property", "value": 6 },
+  "R": { "type": "Relationship", "object": "urn:ngsi-ld:X:1" }
+}'
+echo
+echo
+
+
+echo "02. PATCH simplified marker deletes A"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "A": "urn:ngsi-ld:null" }'
+echo
+echo
+
+
+echo "03. PATCH normalized {value: marker} deletes B"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "B": { "value": "urn:ngsi-ld:null" } }'
+echo
+echo
+
+
+echo "04. PATCH normalized {object: marker} deletes R"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "R": { "object": "urn:ngsi-ld:null" } }'
+echo
+echo
+
+
+echo "05. GET — only id/type remain"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (A, B, R)
+=======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. PATCH simplified marker deletes A
+====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+03. PATCH normalized {value: marker} deletes B
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+04. PATCH normalized {object: marker} deletes R
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+
+
+
+
+05. GET — only id/type remain
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 44
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
