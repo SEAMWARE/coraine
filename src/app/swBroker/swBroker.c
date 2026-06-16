@@ -223,7 +223,6 @@ static KArg kargV[] =
   { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--distOpTimeout",      "-dtmo",        KaInt,    _vp &swRestClientDefaultRequestTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--cooldownMillis",     "-cms",         KaInt,    _vp &cooldownMillis, KaOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
-  { "--testConformance",    "-tc",          KaBool,   _vp &ldTestConformance, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "prefer ETSI test-suite expected shapes where spec wording is permissive (\"should\")" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   KARGS_END
 };

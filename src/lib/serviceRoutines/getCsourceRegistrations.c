@@ -381,9 +381,8 @@ bool getCsourceRegistrations(void)
 
         // § 5.10.2.5 — strip every information[] entry that doesn't match the request's discovery filter. The pre-parsed
         // infoV linked list is in lockstep with the regTree's "information" array, so we iterate both in parallel and unlink
-        // the non-matching JSON nodes. § 5.10.2.5 wording is "should", not "shall"; --testConformance flips the broker into
-        // ETSI mode (keep the full information[] of every matched CSR) — see spec-doubts § 26 / testsuite-doubts § 25.
-        if (!ldTestConformance)
+        // the non-matching JSON nodes. (ETSI forge issue #118: some fixtures assert the full, unfiltered information[];
+        // the broker follows the spec "should" and narrows it.)
         {
           KjNode* infoP = kjLookup(clone, "information");
           if (infoP != NULL && infoP->type == KjArray)
@@ -414,22 +413,9 @@ bool getCsourceRegistrations(void)
         if (swNgsild.lang != NULL)
           ldLangReduce(clone, swNgsild.lang, &swRest.kalloc);
 
-        // --testConformance: wrap CSR geo-coverage fields as GeoProperty on this list endpoint. § 5.2.9 says these are
-        // bare GeoJSON on the wire; ETSI 037_07 / 037_05 / 037_08 fixtures expect the normalized GeoProperty wrapper on
-        // discovery responses (the single-CSR retrieve endpoint must keep bare per ETSI 033_01_03). See spec-doubts § 26.
-        if (ldTestConformance)
-        {
-          static const char* geoFields[] = { "location", "observationSpace", "operationSpace" };
-          for (size_t gf = 0; gf < sizeof(geoFields) / sizeof(geoFields[0]); gf++)
-          {
-            KjNode* geoP = kjLookup(clone, geoFields[gf]);
-            if (geoP == NULL || geoP->type != KjObject) continue;
-            KjNode* tNode = kjLookup(geoP, "type");
-            if (tNode == NULL || tNode->type != KjString) continue;
-            if (strcmp(tNode->value.s, "GeoProperty") == 0) continue;   // already wrapped
-            ldWrapAsGeoProperty(clone, geoP, &swRest.kalloc);
-          }
-        }
+        // § 5.2.9 — the CSR geo-coverage fields (location/observationSpace/operationSpace) are bare GeoJSON on the
+        // wire, on both the discovery list and the single-CSR retrieve endpoints. (ETSI forge issue #119: fixtures
+        // 037_05/07/08 assert the GeoProperty wrapper on the list endpoint, inconsistent with 033_01_03.)
 
         kjChildAdd(arrayP, clone);
       }
