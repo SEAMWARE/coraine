@@ -1,0 +1,111 @@
+#
+# FILE            entity_attr_timestamps_on_update.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_new_entity_timestamps. createdAt/modifiedAt are
+# sub-second precision, and on an attribute update only the touched attribute's
+# modifiedAt (and the entity's) advances — createdAt of all, and the untouched
+# attribute's modifiedAt, stay put. (orion compared via the DB; here the sysAttrs
+# GET is the source, with jq extracting the timestamps; absolute values are
+# volatile so only the changed/unchanged relationships are asserted.)
+#
+--NAME--
+createdAt/modifiedAt: sub-second precision; update advances only the touched attr's modifiedAt
+
+--TAGS--
+entity attr sysAttrs createdAt
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+E="urn:ngsi-ld:entities:E1"
+
+#
+# 01. Create E1 with A1, A2 (both with a millisecond observedAt)
+# 02. GET sysAttrs -> capture createdAt/modifiedAt for entity, A1, A2
+# 03. PATCH A1 (update its value)
+# 04. GET sysAttrs again -> compare; report what advanced
+#
+
+echo "01. Create entity E1 with A1, A2 (millisecond observedAt)"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "A1": { "type": "Property", "value": 1, "observedAt": "2020-07-23T10:31:25.001Z" },
+  "A2": { "type": "Property", "value": 2, "observedAt": "2020-07-23T10:31:24.999Z" }
+}' | head -1
+echo
+echo
+
+body1=$(swCurl --url "/ngsi-ld/v1/entities/${E}?sysAttrs=true" | sed -n '/^{/,$p')
+e_c1=$(echo "$body1" | jq -r '.createdAt');   e_m1=$(echo "$body1" | jq -r '.modifiedAt')
+a1_c1=$(echo "$body1" | jq -r '.A1.createdAt'); a1_m1=$(echo "$body1" | jq -r '.A1.modifiedAt')
+a2_c1=$(echo "$body1" | jq -r '.A2.createdAt'); a2_m1=$(echo "$body1" | jq -r '.A2.modifiedAt')
+
+echo "02. Timestamps have sub-second precision"
+echo "========================================"
+echo "$e_c1" | grep -qE '\.[0-9]+Z$' && echo "sub-second: yes" || echo "sub-second: NO"
+echo
+echo
+
+echo "03. PATCH A1"
+echo "============"
+swCurl --url "/ngsi-ld/v1/entities/${E}/attrs/A1" -X PATCH --payload '{ "type": "Property", "value": 99 }' | head -1
+echo
+echo
+
+body2=$(swCurl --url "/ngsi-ld/v1/entities/${E}?sysAttrs=true" | sed -n '/^{/,$p')
+e_c2=$(echo "$body2" | jq -r '.createdAt');   e_m2=$(echo "$body2" | jq -r '.modifiedAt')
+a1_c2=$(echo "$body2" | jq -r '.A1.createdAt'); a1_m2=$(echo "$body2" | jq -r '.A1.modifiedAt')
+a2_c2=$(echo "$body2" | jq -r '.A2.createdAt'); a2_m2=$(echo "$body2" | jq -r '.A2.modifiedAt')
+
+chg() { [ "$1" != "$2" ] && echo changed || echo unchanged; }
+
+echo "04. After updating A1: what advanced"
+echo "===================================="
+echo "entity createdAt:  $(chg "$e_c1"  "$e_c2")"
+echo "entity modifiedAt: $(chg "$e_m1"  "$e_m2")"
+echo "A1 createdAt:      $(chg "$a1_c1" "$a1_c2")"
+echo "A1 modifiedAt:     $(chg "$a1_m1" "$a1_m2")"
+echo "A2 createdAt:      $(chg "$a2_c1" "$a2_c2")"
+echo "A2 modifiedAt:     $(chg "$a2_m1" "$a2_m2")"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1 with A1, A2 (millisecond observedAt)
+=========================================================
+HTTP/1.1 201 Created
+
+
+02. Timestamps have sub-second precision
+========================================
+sub-second: yes
+
+
+03. PATCH A1
+============
+HTTP/1.1 204 No Content
+
+
+04. After updating A1: what advanced
+====================================
+entity createdAt:  unchanged
+entity modifiedAt: changed
+A1 createdAt:      unchanged
+A1 modifiedAt:     changed
+A2 createdAt:      unchanged
+A2 modifiedAt:     unchanged
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

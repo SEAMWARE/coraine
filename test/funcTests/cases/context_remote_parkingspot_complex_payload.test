@@ -1,0 +1,127 @@
+#
+# FILE            context_remote_parkingspot_complex_payload.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_0109 (a ParkingSpot payload that crashed
+# orion). Made hermetic: the FIWARE data-models terms are hosted on the local
+# context server. The payload mixes a Property with observedAt, an array-valued
+# Property, a Relationship, a GeoProperty, and a 2-element @context array — must
+# be accepted (201) and round-trip, broker alive.
+#
+--NAME--
+Complex ParkingSpot payload under a 2-element @context is accepted, broker alive
+
+--TAGS--
+context entity geo relationship
+
+--INIT--
+swDbDrop
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/parkingspot '{
+  "@context": {
+    "ParkingSpot": "https://uri.fiware.org/ns/data-models#ParkingSpot",
+    "ParkingSite": "https://uri.fiware.org/ns/data-models#ParkingSite",
+    "category": "https://uri.fiware.org/ns/data-models#category",
+    "status": "https://uri.fiware.org/ns/data-models#status",
+    "name": "https://schema.org/name"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST the ParkingSpot entity (ld+json) with @context = [hosted, core-1.9]
+# 02. GET the entity back — broker alive, entity stored
+#
+
+echo "01. POST the complex ParkingSpot entity"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/ld+json' --payload '{
+  "id": "urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3",
+  "type": "ParkingSpot",
+  "status": { "type": "Property", "value": "free", "observedAt": "2018-09-21T12:00:00Z" },
+  "category": { "type": "Property", "value": [ "onstreet" ] },
+  "ParkingSite": { "type": "Relationship", "object": "urn:ngsi-ld:ParkingSite:santander:daoiz_velarde_1_5" },
+  "name": { "type": "Property", "value": "A-13" },
+  "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ -3.80356167695194, 43.46296641666926 ] } },
+  "@context": [
+    "http://localhost:7080/jsonldContexts/parkingspot",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  ]
+}'
+echo
+echo
+
+
+echo "02. GET the entity back — broker alive"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3 --header 'Link: <http://localhost:7080/jsonldContexts/parkingspot>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--EXPECT--
+01. POST the complex ParkingSpot entity
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3
+Content-Length: 0
+
+
+
+
+02. GET the entity back — broker alive
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/parkingspot>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "ParkingSite": {
+    "object": "urn:ngsi-ld:ParkingSite:santander:daoiz_velarde_1_5",
+    "type": "Relationship"
+  },
+  "category": {
+    "type": "Property",
+    "value": [
+      "onstreet"
+    ]
+  },
+  "id": "urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        -3.803561677,
+        43.462966417
+      ],
+      "type": "Point"
+    }
+  },
+  "name": {
+    "type": "Property",
+    "value": "A-13"
+  },
+  "status": {
+    "observedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": "free"
+  },
+  "type": "ParkingSpot"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop
