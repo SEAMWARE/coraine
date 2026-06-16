@@ -1,0 +1,108 @@
+#
+# FILE            attr_name_non_ascii_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_entity_creation_strange_chars_in_attr_names. A
+# non-ASCII attribute name (Straße) round-trips on create / GET-by-id / query.
+#
+--NAME--
+Non-ASCII characters in an attribute name round-trip
+
+--TAGS--
+entity attr query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create an entity (http URI id) with a non-ASCII attribute name (Straße)
+# 02. GET the entity by id — the attribute name renders unchanged
+# 03. GET all entities of the type — the attribute name renders unchanged
+#
+
+echo "01. Create entity with a non-ASCII attribute name"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+  "id": "http://a.b.c/entity/E1",
+  "type": "xxx",
+  "Straße": { "type": "Property", "value": "Strasse" }
+}'
+echo
+echo
+
+
+echo "02. GET the entity by id"
+echo "========================"
+swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/entity/E1'
+echo
+echo
+
+
+echo "03. GET all entities of type xxx"
+echo "================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=xxx'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with a non-ASCII attribute name
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/http://a.b.c/entity/E1
+Content-Length: 0
+
+
+
+
+02. GET the entity by id
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "Straße": {
+    "type": "Property",
+    "value": "Strasse"
+  },
+  "id": "http://a.b.c/entity/E1",
+  "type": "xxx"
+}
+
+
+
+03. GET all entities of type xxx
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 141
+
+[
+  {
+    "Straße": {
+      "type": "Property",
+      "value": "Strasse"
+    },
+    "id": "http://a.b.c/entity/E1",
+    "type": "xxx"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
