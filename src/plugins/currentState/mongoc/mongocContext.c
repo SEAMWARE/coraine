@@ -5,7 +5,7 @@
 //
 // Copyright 2026 Seamware
 //
-// JSON-LD context persistence — fixed DB "swBroker", collection "contexts".
+// JSON-LD context persistence — reserved global DB (mongocGlobalDb), collection "contexts".
 // Document shape:
 //     {
 //       "_id":  "<context id>",
@@ -24,15 +24,17 @@
 
 #include "db/DbDriver.h"                               // DbContextRow, DB_OK, DB_ERR
 
+#include "currentState/mongoc/mongocGlobals.h"         // mongocGlobalDb
 #include "currentState/mongoc/mongocContext.h"         // Own interface
 
 
 
 // -----------------------------------------------------------------------------
 //
-// Reserved DB + collection names.
+// Reserved collection name. The reserved DB is mongocGlobalDb (--globalDb,
+// default "swBroker"), resolved at runtime so parallel brokers can each own
+// a private global DB.
 //
-#define CONTEXT_DB_NAME      "swBroker"
 #define CONTEXT_COLLECTION   "contexts"
 
 
@@ -55,7 +57,7 @@ int mongocContextSave(const char* id, const char* url, int kind, const char* bod
     return DB_ERR;
 
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
-  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, CONTEXT_DB_NAME, CONTEXT_COLLECTION);
+  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, mongocGlobalDb, CONTEXT_COLLECTION);
 
   bson_t filter;
   bson_init(&filter);
@@ -104,7 +106,7 @@ int mongocContextDelete(const char* id)
     return DB_ERR;
 
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
-  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, CONTEXT_DB_NAME, CONTEXT_COLLECTION);
+  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, mongocGlobalDb, CONTEXT_COLLECTION);
 
   bson_t filter;
   bson_init(&filter);
@@ -141,7 +143,7 @@ int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut)
   rowOut->body = NULL;
 
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
-  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, CONTEXT_DB_NAME, CONTEXT_COLLECTION);
+  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, mongocGlobalDb, CONTEXT_COLLECTION);
 
   bson_t filter;
   bson_init(&filter);
@@ -204,7 +206,7 @@ int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
     return DB_ERR;
 
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
-  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, CONTEXT_DB_NAME, CONTEXT_COLLECTION);
+  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, mongocGlobalDb, CONTEXT_COLLECTION);
 
   bson_t emptyFilter;
   bson_init(&emptyFilter);

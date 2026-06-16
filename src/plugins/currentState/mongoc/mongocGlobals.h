@@ -23,6 +23,7 @@ extern char*           mongocDbUser;
 extern char*           mongocDbPwd;
 extern char*           mongocDbURI;
 extern unsigned short  mongocDbTimeout;
+extern char*           mongocGlobalDb;
 
 
 

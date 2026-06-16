@@ -38,13 +38,13 @@ mongoc_client_pool_t*  poolP   = NULL;
 int mongocInit(void)
 {
   //
-  // The "swBroker" database is reserved for JSON-LD context persistence
-  // (NGSI-LD § 5.13 Context Hosting). Rejecting it as a tenant DB name
-  // prevents silent collisions with the context store.
+  // The global DB (mongocGlobalDb, --globalDb, default "swBroker") is reserved
+  // for JSON-LD context persistence (NGSI-LD § 5.13 Context Hosting). Rejecting
+  // it as the tenant DB name prevents silent collisions with the context store.
   //
-  if (mongocDbName != NULL && strcmp(mongocDbName, "swBroker") == 0)
+  if (mongocDbName != NULL && mongocGlobalDb != NULL && strcmp(mongocDbName, mongocGlobalDb) == 0)
   {
-    KT_E("mongoc: '%s' is a reserved database name (used for JSON-LD context persistence); pick another -dbName", mongocDbName);
+    KT_E("mongoc: '%s' is the reserved global database name (used for JSON-LD context persistence); pick another -dbName or change --globalDb", mongocDbName);
     return -1;
   }
 

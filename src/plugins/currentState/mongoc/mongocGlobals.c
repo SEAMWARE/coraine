@@ -23,6 +23,12 @@ char*           mongocDbPwd  = NULL;
 char*           mongocDbURI     = NULL;
 unsigned short  mongocDbTimeout = 30;
 
+// Reserved database for global (non-tenant) state — JSON-LD context
+// persistence (§ 5.13). Independent of --dbName so it survives tenant
+// churn; configurable so parallel brokers sharing one mongo can each own a
+// private global DB instead of colliding on the default.
+char*           mongocGlobalDb  = "swBroker";
+
 
 
 // -----------------------------------------------------------------------------
@@ -33,6 +39,7 @@ KArg mongocArgV[] =
 {
   { "--dbHost", "-dbHost", KaString, _vp &mongocDbHost, KaOpt, _vp "localhost", NULL,  NULL,      "database server host"  },
   { "--dbName", "-dbName", KaString, _vp &mongocDbName, KaOpt, _vp "sw",  NULL,  NULL,      "database name"         },
+  { "--globalDb", "-globalDb", KaString, _vp &mongocGlobalDb, KaOpt, _vp "swBroker", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
   { "--dbPort", "-dbPort", KaUShort, _vp &mongocDbPort, KaOpt, _vp 27017,       _vp 1, _vp 65535, "database server port"  },
   { "--dbUser", "-dbUser", KaString, _vp &mongocDbUser, KaOpt, NULL,            NULL,  NULL,      "database user"         },
   { "--dbPwd",  "-dbPwd",  KaString, _vp &mongocDbPwd,  KaOpt, NULL,            NULL,  NULL,      "database password"     },

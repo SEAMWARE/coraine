@@ -105,6 +105,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  Database (mongoc) plugin options:
                  [--dbHost/-dbHost <database server host>]
                  [--dbName/-dbName <database name>]
+                 [--globalDb/-globalDb <reserved DB for global (non-tenant) state, e.g. JSON-LD contexts>]
                  [--dbPort/-dbPort <database server port>]
                  [--dbUser/-dbUser <database user>]
                  [--dbPwd/-dbPwd <database password>]
