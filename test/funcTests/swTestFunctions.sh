@@ -341,7 +341,7 @@ contextServerStart() {
     return 1
   fi
 
-  local running=$(docker ps --filter name=context-server -q 2>/dev/null)
+  local running=$(docker ps --filter name='^context-server$' -q 2>/dev/null)
   if [ -z "$running" ]; then
     docker run --rm -d --name context-server -p $CONTEXT_SERVER_PORT:8080 -e MEMORY_ENABLED=true wistefan/context-server > /dev/null 2>&1
   fi
