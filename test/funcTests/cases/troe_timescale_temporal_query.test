@@ -21,9 +21,8 @@ troe timescale postgres temporal query q lastN pagination
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_query" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_query" >/dev/null
-swBrokerStart --troe timescale --troeName sw_troe_query --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -228,4 +227,4 @@ HTTP/1.1 400 Bad Request
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_query" >/dev/null 2>&1
+swTroeDrop

@@ -18,9 +18,8 @@ troe timescale postgres temporal query
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_query_lo" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_query_lo" >/dev/null
-swBrokerStart --localOnly --troe timescale --troeName sw_troe_query_lo --troeUser postgres
+swTroeInit
+swBrokerStart --localOnly --troe timescale
 
 --RUN--
 
@@ -107,4 +106,4 @@ done
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_query_lo" >/dev/null 2>&1
+swTroeDrop

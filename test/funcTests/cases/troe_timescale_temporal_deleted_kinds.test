@@ -30,9 +30,8 @@ troe timescale postgres temporal delete
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_delk" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_delk" >/dev/null
-swBrokerStart --troe timescale --troeName sw_troe_delk --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 

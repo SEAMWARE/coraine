@@ -20,9 +20,8 @@ troe timescale postgres temporal aggregation
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_aggr" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_aggr" >/dev/null
-swBrokerStart --troe timescale --troeName sw_troe_aggr --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -199,4 +198,4 @@ Content-Length: REGEX(\d+)
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_aggr" >/dev/null 2>&1
+swTroeDrop

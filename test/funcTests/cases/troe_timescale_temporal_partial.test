@@ -25,9 +25,8 @@ troe timescale postgres temporal partial-content pagination
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_partial" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_partial" >/dev/null
-swBrokerStart --troe timescale --troeName sw_troe_partial --troeUser postgres --troeInstanceCap 5
+swTroeInit
+swBrokerStart --troe timescale --troeInstanceCap 5
 
 --RUN--
 
@@ -377,4 +376,4 @@ Content-Length: REGEX(\d+)
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_partial" >/dev/null 2>&1
+swTroeDrop

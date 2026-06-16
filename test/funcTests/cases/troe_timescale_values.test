@@ -17,9 +17,8 @@ troe timescale postgres
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_vals" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_vals" >/dev/null
-swBrokerStart --troe timescale --troeName sw_troe_vals --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -44,7 +43,7 @@ echo
 
 echo "02. troe_attrs columns"
 echo "======================"
-psql -h localhost -p 5432 -U postgres -d sw_troe_vals -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), attr_kind, v_text, v_number, v_bool, (v_compound IS NOT NULL), sub_attrs FROM troe_attrs WHERE op='modified' OR op='created' ORDER BY modified_at"
 echo
 echo
@@ -69,4 +68,4 @@ location|3||||t|
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_vals" >/dev/null 2>&1
+swTroeDrop

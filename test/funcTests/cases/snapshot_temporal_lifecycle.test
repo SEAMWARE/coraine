@@ -21,9 +21,8 @@ snapshot troe timescale postgres
 --INIT--
 swDbDrop
 swSnapDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_lc" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_snap_troe_lc" >/dev/null
-swBrokerStart --troe timescale --troeName sw_snap_troe_lc --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -56,7 +55,7 @@ echo
 echo "03. Row count per scope after capture"
 echo "====================================="
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
   -c "SELECT count(*), CASE WHEN tenant LIKE '%_snap_%' THEN 'snap' ELSE 'live' END FROM troe_attrs GROUP BY 2 ORDER BY 2"
 echo
 echo
@@ -72,7 +71,7 @@ echo
 echo "05. Distinct snap-tenants in TRoE — expect 2 (Src + Dst)"
 echo "========================================================"
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA \
   -c "SELECT count(DISTINCT tenant) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
 echo
 echo
@@ -95,7 +94,7 @@ echo
 echo "08. Distinct snap-tenants left after Src delete — expect 1 (Dst only)"
 echo "====================================================================="
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA \
   -c "SELECT count(DISTINCT tenant) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
 echo
 echo
@@ -111,7 +110,7 @@ echo
 echo "10. Final snap-tenant TRoE rows — expect 0"
 echo "=========================================="
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d sw_snap_troe_lc -tA \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA \
   -c "SELECT count(*) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
 echo
 echo
@@ -210,4 +209,4 @@ HTTP/1.1 204 No Content
 swBrokerStop
 swSnapDrop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_lc" >/dev/null 2>&1
+swTroeDrop

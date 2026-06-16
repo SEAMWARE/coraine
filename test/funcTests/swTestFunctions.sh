@@ -4,6 +4,8 @@
 export SW_BROKER="${SW_BROKER:-swBroker}"        # broker from PATH (installed via make di)
 export SW_DB_NAME="${SW_DB_NAME:-swTest}"
 SW_MONGO_PORT=${SW_MONGO_PORT:-27017}
+SW_TROE_PORT=${SW_TROE_PORT:-5432}               # timescale/postgres port
+SW_TROE_USER=${SW_TROE_USER:-postgres}           # timescale/postgres user
 
 # Plugins from their install site; ftClient from the repo (cmake builds it there).
 SW_PLUGIN_DIR="${SW_PLUGIN_DIR:-/opt/seamware/plugins}"
@@ -16,6 +18,9 @@ SW_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 #
 #   role      port   pidFile                  dbPrefix
 #
+# Roles: CB = main broker; CB2-5 = secondary main brokers (federation /
+# replication); CP1-5 = brokers acting as context providers. Ports stay below
+# 1036 (reserved for the parallel ETSI run — see ~/bin/gateAll).
 SW_ROLES="
    CB        1026   /tmp/swBroker_CB.pid      swTest
    CP1       1027   /tmp/swBroker_CP1.pid     swTest_cp1
@@ -23,6 +28,10 @@ SW_ROLES="
    CP3       1029   /tmp/swBroker_CP3.pid     swTest_cp3
    CP4       1030   /tmp/swBroker_CP4.pid     swTest_cp4
    CP5       1031   /tmp/swBroker_CP5.pid     swTest_cp5
+   CB2       1032   /tmp/swBroker_CB2.pid     swTest_cb2
+   CB3       1033   /tmp/swBroker_CB3.pid     swTest_cb3
+   CB4       1034   /tmp/swBroker_CB4.pid     swTest_cb4
+   CB5       1035   /tmp/swBroker_CB5.pid     swTest_cb5
 "
 
 CB_PORT=1026
@@ -31,6 +40,10 @@ CP2_PORT=1028
 CP3_PORT=1029
 CP4_PORT=1030
 CP5_PORT=1031
+CB2_PORT=1032
+CB3_PORT=1033
+CB4_PORT=1034
+CB5_PORT=1035
 
 # swRoleLookup - resolve role to port/pidFile/dbPrefix
 # Sets: SW_ROLE_PORT, SW_ROLE_PID_FILE, SW_ROLE_DB_PREFIX
@@ -87,6 +100,15 @@ swBrokerStart() {
     NONE|"") ;;  # compiled-in default or unset
     *)       echo "swBrokerStart: unknown -troeDb type: $SW_TROE_DB_TYPE"; return 1 ;;
   esac
+
+  # Timescale TRoE convenience: when a test asks for "--troe timescale" without
+  # naming the DB, derive the role-keyed name (sw_troe_<role>) — the same name
+  # swTroeInit/swTroeDrop create/drop — and add --troeUser. Tests that pass an
+  # explicit --troeName keep full control.
+  if printf '%s\n' "${extraParams[@]}" | grep -qx 'timescale' && \
+     ! printf '%s\n' "${extraParams[@]}" | grep -qx -- '--troeName'; then
+    extraParams+=(--troeName "$(swTroeDbName "$role")" --troeUser "$SW_TROE_USER")
+  fi
 
   # Append test-specific extra params
   if [ ${#extraParams[@]} -gt 0 ]; then
@@ -176,6 +198,60 @@ swDbDrop() {
 swDbInit() {
   swDbDrop "$@"
 }
+
+
+# -----------------------------------------------------------------------------
+#
+# TRoE (timescale/postgres) database helpers — the postgres counterpart of
+# swDbDrop/swDbInit. Role-keyed like the mongo helpers: the TRoE DB for a role
+# is "sw_troe_<role>" (lowercased), so CB -> sw_troe_cb, CP1 -> sw_troe_cp1.
+# swBrokerStart derives the same name for "--troe timescale".
+#
+#   swTroeDbName [role]            # echo the derived DB name (default CB)
+#   swTroeInit  [-role R] [-db N]  # DROP + CREATE the TRoE DB
+#   swTroeDrop  [-role R] [-db N]  # DROP the TRoE DB (and its snapshot children)
+#
+swTroeDbName() {
+  local role="${1:-CB}"
+  echo "sw_troe_${role,,}"
+}
+
+swTroeInit() {
+  local role="CB" db=""
+  while [ $# -gt 0 ]; do
+    if   [ "$1" == "-role" ]; then role="$2"; shift
+    elif [ "$1" == "-db" ];   then db="$2";   shift
+    fi
+    shift
+  done
+  [ -z "$db" ] && db="$(swTroeDbName "$role")"
+  psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
+  psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "CREATE DATABASE $db"          >/dev/null
+}
+
+swTroeDrop() {
+  local role="CB" db=""
+  while [ $# -gt 0 ]; do
+    if   [ "$1" == "-role" ]; then role="$2"; shift
+    elif [ "$1" == "-db" ];   then db="$2";   shift
+    fi
+    shift
+  done
+  [ -z "$db" ] && db="$(swTroeDbName "$role")"
+
+  # Drop snapshot-child TRoE DBs first ("<db>_snap_<hex>"), then the base. A
+  # snap child with the base as a prefix would otherwise leak across runs.
+  psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -tAc \
+    "SELECT datname FROM pg_database WHERE datname LIKE '${db}_snap_%'" 2>/dev/null | \
+    while read -r child; do
+      [ -n "$child" ] && psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
+    done
+  psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
+}
+
+# Default-role (CB) TRoE DB name, for tests that inspect the TRoE tables
+# directly with `psql -d "$SW_TROE_DB"`.
+export SW_TROE_DB="$(swTroeDbName CB)"
 
 
 # -----------------------------------------------------------------------------

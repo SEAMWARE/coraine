@@ -25,12 +25,10 @@ troe timescale postgres temporal distops registration
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cb"  >/dev/null
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_dist_cp1" >/dev/null
-swBrokerStart        --troe timescale --troeName sw_troe_dist_cb  --troeUser postgres
-swBrokerStart -role CP1 --troe timescale --troeName sw_troe_dist_cp1 --troeUser postgres
+swTroeInit
+swTroeInit -role CP1
+swBrokerStart        --troe timescale
+swBrokerStart -role CP1 --troe timescale
 
 --RUN--
 
@@ -193,5 +191,5 @@ swBrokerStop
 swBrokerStop -role CP1
 swDbDrop
 swDbDrop -role CP1
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cb"  >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_dist_cp1" >/dev/null 2>&1
+swTroeDrop
+swTroeDrop -role CP1

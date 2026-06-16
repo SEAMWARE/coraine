@@ -23,9 +23,8 @@ snapshot troe timescale postgres
 --INIT--
 swDbDrop
 swSnapDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_ft" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_snap_troe_ft" >/dev/null
-swBrokerStart --troe timescale --troeName sw_snap_troe_ft --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -76,7 +75,7 @@ echo
 echo "05. timescale: snap-tenant attr rows match the live-tenant count (3 per entity)"
 echo "================================================================================"
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d sw_snap_troe_ft -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
   -c "SELECT count(*) AS n, CASE WHEN tenant LIKE '%_snap_%' THEN 'snap' ELSE 'live' END AS scope FROM troe_attrs GROUP BY scope ORDER BY scope"
 echo
 echo
@@ -153,4 +152,4 @@ Content-Length: REGEX(\d+)
 swBrokerStop
 swSnapDrop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_ft" >/dev/null 2>&1
+swTroeDrop

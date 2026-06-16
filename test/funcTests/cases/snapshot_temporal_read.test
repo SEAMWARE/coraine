@@ -23,9 +23,8 @@ snapshot troe timescale postgres
 --INIT--
 swDbDrop
 swSnapDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_rd" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_snap_troe_rd" >/dev/null
-swBrokerStart --troe timescale --troeName sw_snap_troe_rd --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -239,4 +238,4 @@ HTTP/1.1 404 Not Found
 swBrokerStop
 swSnapDrop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_snap_troe_rd" >/dev/null 2>&1
+swTroeDrop

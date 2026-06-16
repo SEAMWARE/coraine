@@ -19,9 +19,8 @@ troe timescale postgres
 
 --INIT--
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_functest" >/dev/null 2>&1
-psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE sw_troe_functest" >/dev/null
-swBrokerStart --troe timescale --troeName sw_troe_functest --troeUser postgres
+swTroeInit
+swBrokerStart --troe timescale
 
 --RUN--
 
@@ -50,7 +49,7 @@ echo
 echo "04. troe_entities — 2 rows: created + deleted"
 echo "============================================="
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d sw_troe_functest -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
   -c "SELECT entity_id, op, regexp_replace(entity_type, '.*/', '') FROM troe_entities ORDER BY modified_at"
 echo
 echo
@@ -58,7 +57,7 @@ echo
 
 echo "05. troe_attrs — 2 rows: speed created (entity-create fanout) + modified"
 echo "========================================================================"
-psql -h localhost -p 5432 -U postgres -d sw_troe_functest -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
   -c "SELECT entity_id, regexp_replace(attr_name, '.*/', ''), op FROM troe_attrs ORDER BY modified_at"
 echo
 echo
@@ -95,4 +94,4 @@ urn:V1|speed|modified
 --TEARDOWN--
 swBrokerStop
 swDbDrop
-psql -h localhost -p 5432 -U postgres -c "DROP DATABASE IF EXISTS sw_troe_functest" >/dev/null 2>&1
+swTroeDrop
