@@ -1,0 +1,87 @@
+#
+# FILE            notify_no_fd_leak_unresponsive_endpoint.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1441 (orion leaked file descriptors when many
+# notifications were sent to an endpoint that accepts the connection but never
+# responds). sw must close each notification socket after the notification
+# timeout, so the open-fd count returns to its baseline. The receiver (ftClient
+# --delay) holds every connection well past the broker's distOpTimeout, so each
+# of the 30 notifications is a hung connection the broker must reclaim.
+#
+# "Next File Descriptor" (from /admin/version) is volatile, so the test computes
+# the delta in the shell and asserts only that there is no leak.
+#
+--NAME--
+Notifications to an unresponsive endpoint do not leak file descriptors
+
+--TAGS--
+subscription notification admin
+
+--INIT--
+swDbDrop
+ftClientStart --delay 2000
+swBrokerStart --apiPlugins admin --distOpTimeout 1000
+
+--RUN--
+
+#
+# 01. Baseline open-fd count (/admin/version)
+# 02. Create an entity and a subscription to the unresponsive endpoint
+# 03. PATCH the entity 30 times -> 30 hung notifications
+# 04. After the notifications time out and their sockets close, the open-fd count
+#     is back at the baseline (no leak)
+#
+
+fd1=$(swCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","a":{"type":"Property","value":0}}' > /dev/null
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/noresponse"}}}' > /dev/null
+
+i=1
+while [ $i -le 30 ]; do
+  swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":'$i'}' > /dev/null
+  i=$((i+1))
+done
+
+# Wait for the hung notification sockets to time out (1s) and be reclaimed.
+sleep 8
+fd2=$(swCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+
+echo "01. No file-descriptor leak after 30 unresponsive notifications"
+echo "=============================================================="
+delta=$((fd2 - fd1))
+if [ "$delta" -lt 10 ]; then
+  echo "fd leak: no"
+else
+  echo "fd leak: YES (delta=$delta)"
+fi
+echo
+echo
+
+
+echo "02. Broker healthy"
+echo "=================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 | grep "^HTTP/"
+echo
+echo
+
+
+--EXPECT--
+01. No file-descriptor leak after 30 unresponsive notifications
+==============================================================
+fd leak: no
+
+
+02. Broker healthy
+==================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop

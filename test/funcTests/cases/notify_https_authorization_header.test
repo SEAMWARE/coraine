@@ -1,0 +1,146 @@
+#
+# FILE            notify_https_authorization_header.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1495 (orion crashed sending a notification to
+# an HTTPS endpoint when an Authorization header was carried). sw must accept the
+# subscription, attempt the HTTPS notification, and stay healthy. The delivery
+# fails (nothing listens) but the broker must not be affected.
+#
+--NAME--
+HTTPS notification with an Authorization header is handled, broker stays healthy
+
+--TAGS--
+subscription notification https tenant
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Subscribe with an HTTPS endpoint, under a tenant, with Authorization
+# 02. GET the subscription back
+# 03. Upsert (update) a matching entity (triggers the HTTPS notification)
+# 04. GET the entity — broker healthy after the notification attempt
+#
+
+echo "01. Create HTTPS subscription with Authorization header"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' -H 'Authorization: Bearer XYZ' --payload '{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "notification": { "endpoint": { "uri": "https://127.0.0.1:9999/post" } }
+}'
+echo
+echo
+
+
+echo "02. GET the subscription"
+echo "========================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -H 'NGSILD-Tenant: captn'
+echo
+echo
+
+
+echo "03. Upsert a matching entity (triggers the notification)"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/entityOperations/upsert' --urlParams 'options=update' -X POST -H 'NGSILD-Tenant: captn' -H 'Authorization: Bearer XYZ' --payload '[{ "id": "urn:ngsi-ld:E1", "type": "T", "name": { "type": "Property", "value": 1 } }]'
+echo
+echo
+
+
+echo "04. GET the entity — broker healthy"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -H 'NGSILD-Tenant: captn'
+echo
+echo
+
+
+--EXPECT--
+01. Create HTTPS subscription with Authorization header
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+02. GET the subscription
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 312
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "notification": {
+    "endpoint": {
+      "uri": "https://127.0.0.1:9999/post"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+03. Upsert a matching entity (triggers the notification)
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 23
+
+[
+  "urn:ngsi-ld:E1"
+]
+
+
+
+04. GET the entity — broker healthy
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "name": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

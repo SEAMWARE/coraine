@@ -1,0 +1,149 @@
+#
+# FILE            notify_http_https_two_subs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1322 (orion crashed when an entity update
+# matched two subscriptions at once — one HTTP, one HTTPS — under a tenant). sw
+# must deliver/attempt both notifications and stay healthy (neither endpoint is
+# listening here; the point is that the HTTP+HTTPS pair does not affect the broker).
+#
+--NAME--
+An update matching both an HTTP and an HTTPS subscription leaves the broker healthy
+
+--TAGS--
+subscription notification https tenant
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Subscribe SA with an HTTP endpoint (tenant captn)
+# 02. Subscribe SB with an HTTPS endpoint (tenant captn)
+# 03. Create a matching entity (triggers both notifications)
+# 04. PATCH the entity (triggers both again)
+# 05. GET the entity — broker healthy
+#
+
+echo "01. Create HTTP subscription SA"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
+  "id": "urn:ngsi-ld:Subscription:SA",
+  "type": "Subscription",
+  "entities": [ { "type": "W" } ],
+  "notification": { "endpoint": { "uri": "http://127.0.0.1:9998/yvonne" } }
+}'
+echo
+echo
+
+
+echo "02. Create HTTPS subscription SB"
+echo "================================"
+swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
+  "id": "urn:ngsi-ld:Subscription:SB",
+  "type": "Subscription",
+  "entities": [ { "type": "W" } ],
+  "notification": { "endpoint": { "uri": "https://127.0.0.1:9999/yvonne" } }
+}'
+echo
+echo
+
+
+echo "03. Create a matching entity (triggers both notifications)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
+  "id": "urn:ngsi-ld:W1", "type": "W", "t": { "type": "Property", "value": 5 }
+}'
+echo
+echo
+
+
+echo "04. PATCH the entity (triggers both again)"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:W1/attrs/t -X PATCH -H 'NGSILD-Tenant: captn' --payload '{ "type": "Property", "value": 6 }'
+echo
+echo
+
+
+echo "05. GET the entity — broker healthy"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:W1 -H 'NGSILD-Tenant: captn'
+echo
+echo
+
+
+--EXPECT--
+01. Create HTTP subscription SA
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:SA
+Content-Length: 0
+
+
+
+
+02. Create HTTPS subscription SB
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:SB
+Content-Length: 0
+
+
+
+
+03. Create a matching entity (triggers both notifications)
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:W1
+Content-Length: 0
+
+
+
+
+04. PATCH the entity (triggers both again)
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+
+
+
+
+05. GET the entity — broker healthy
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: captn
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 97
+
+{
+  "id": "urn:ngsi-ld:W1",
+  "t": {
+    "type": "Property",
+    "value": 6
+  },
+  "type": "W"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
