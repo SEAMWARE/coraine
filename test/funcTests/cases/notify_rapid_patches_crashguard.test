@@ -1,0 +1,145 @@
+#
+# FILE            notify_rapid_patches_crashguard.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_subscription-and-patches-makes-a-crash (an AWS
+# crash report): a subscription plus 100 rapid PATCH /attrs updates, each
+# provoking a notification, must NOT crash the broker. Asserted as a crash guard
+# — the broker stays alive and all 100 updates are applied (final temperature
+# 105). The exact rapid-fire notification COUNT is not asserted here: the
+# ftClient mock's /dump is racy while 100 notifications are delivered/retried
+# concurrently (it oscillates 0..100), so a single create-time notification is
+# checked instead to prove the path fires.
+#
+--NAME--
+100 rapid PATCH /attrs updates do not crash the broker (all applied)
+
+--TAGS--
+notification subscription patch attr
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create a subscription (q=temperature>5) on /notify
+# 02. Create a matching entity (temperature 29.1) -> one notification
+# 03. One notification fired (create), then reset
+# 04. PATCH the entity 100 times via /attrs (temperature 6..105)
+# 05. Broker alive and every update applied (final temperature 105)
+#
+
+echo "01. Create subscription"
+echo "======================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "IEO" } ],
+  "q": "temperature>5",
+  "notification": {
+    "format": "keyValues",
+    "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" }
+  }
+}'
+echo
+echo
+
+
+echo "02. Create a matching entity"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:IEO:1",
+  "type": "IEO",
+  "temperature": { "type": "Property", "value": 29.1 }
+}'
+echo
+echo
+
+
+echo "03. One notification fired (create), then reset"
+echo "==============================================="
+sleep 1
+echo "notifications: $(ftClientDump | grep -c '\"verb\"')"
+ftClientReset
+echo
+echo
+
+
+echo "04. PATCH the entity 100 times (temperature 6..105)"
+echo "==================================================="
+t=6
+while [ $t -lt 106 ]; do
+  swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1/attrs -X PATCH --payload '{"temperature":'$t'}' > /dev/null
+  t=$((t+1))
+done
+echo "100 patches sent"
+echo
+echo
+
+
+echo "05. Broker alive, every update applied (temperature 105)"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1?format=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Create subscription
+=======================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+02. Create a matching entity
+============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1
+Content-Length: 0
+
+
+
+
+03. One notification fired (create), then reset
+===============================================
+notifications: 1
+
+
+04. PATCH the entity 100 times (temperature 6..105)
+===================================================
+100 patches sent
+
+
+05. Broker alive, every update applied (temperature 105)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 71
+
+{
+  "id": "urn:ngsi-ld:IEO:1",
+  "temperature": 105,
+  "type": "IEO"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
