@@ -1,0 +1,151 @@
+#
+# FILE            batch_upsert_over_1000_entities.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_batch_upsert_over_1000_entities (issue #1951).
+# A batch upsert of more than 1000 entities must not hit a hidden 1000-entity
+# cap: all 1101 are created, and a re-upsert updates them in place (no dups).
+#
+--NAME--
+Batch upsert of more than 1000 entities (no hidden 1000-entity cap)
+
+--TAGS--
+batch upsert entity count
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+buildPayload() {
+  local v=$1 i out
+  out='['
+  for ((i=1; i<=1101; i++)); do
+    [ $i -gt 1 ] && out+=','
+    out+=$(printf '{"id":"urn:ngsi-ld:T:%04d","type":"T","P":{"type":"Property","value":"%s"}}' $i "$v")
+  done
+  out+=']'
+  printf '%s' "$out"
+}
+
+#
+# 01. Upsert 1101 NEW entities (value v1)
+# 02. Count type T (expect 1101)
+# 03. Re-upsert the SAME 1101 with v2 (all updates, no error)
+# 04. Count type T (still 1101 - no duplicates)
+# 05. Boundary entity urn:ngsi-ld:T:1101 updated to v2
+# 06. First entity urn:ngsi-ld:T:0001 updated to v2
+#
+
+echo "01. Upsert 1101 NEW entities (value v1)"
+echo "======================================="
+out=$(swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$(buildPayload v1)")
+echo "$out" | grep "^HTTP/"
+echo
+echo
+
+
+echo "02. Count of type T entities (expect 1101)"
+echo "=========================================="
+out=$(swCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=T&limit=1&count=true')
+echo "$out" | grep -i "NGSILD-Results-Count"
+echo
+echo
+
+
+echo "03. Re-upsert the SAME 1101 entities with value v2 (all updates)"
+echo "==============================================================="
+out=$(swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$(buildPayload v2)")
+echo "$out" | grep "^HTTP/"
+echo
+echo
+
+
+echo "04. Count of type T entities (still 1101 - no duplicates)"
+echo "========================================================="
+out=$(swCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=T&limit=1&count=true')
+echo "$out" | grep -i "NGSILD-Results-Count"
+echo
+echo
+
+
+echo "05. Boundary entity urn:ngsi-ld:T:1101 updated to v2"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:1101
+echo
+echo
+
+
+echo "06. First entity urn:ngsi-ld:T:0001 updated to v2"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:0001
+echo
+echo
+
+
+--EXPECT--
+01. Upsert 1101 NEW entities (value v1)
+=======================================
+HTTP/1.1 201 Created
+
+
+02. Count of type T entities (expect 1101)
+==========================================
+NGSILD-Results-Count: 1101
+
+
+03. Re-upsert the SAME 1101 entities with value v2 (all updates)
+===============================================================
+HTTP/1.1 204 No Content
+
+
+04. Count of type T entities (still 1101 - no duplicates)
+=========================================================
+NGSILD-Results-Count: 1101
+
+
+05. Boundary entity urn:ngsi-ld:T:1101 updated to v2
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 104
+
+{
+  "P": {
+    "type": "Property",
+    "value": "v2"
+  },
+  "id": "urn:ngsi-ld:T:1101",
+  "type": "T"
+}
+
+
+
+06. First entity urn:ngsi-ld:T:0001 updated to v2
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 104
+
+{
+  "P": {
+    "type": "Property",
+    "value": "v2"
+  },
+  "id": "urn:ngsi-ld:T:0001",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,112 @@
+#
+# FILE            attr_name_multibyte_q_filter.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_0737. Multi-byte (here fullwidth) characters
+# in an attribute name must round-trip on create/GET and be usable in a q-filter.
+#
+--NAME--
+Multi-byte characters in an attribute name round-trip and work in a q-filter
+
+--TAGS--
+attr query q entity
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create E1 with a multi-byte attribute name (ｎａｍｅ)
+# 02. GET E1 — the multi-byte attribute name renders back unchanged
+# 03. Query q=ｎａｍｅ==1 — E1 matches
+#
+
+echo "01. Create E1 with a multi-byte attribute name"
+echo "=============================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "ｎａｍｅ": {
+    "type": "Property",
+    "value": 1
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1"
+echo "=========="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+echo
+echo
+
+
+echo "03. Query q=ｎａｍｅ==1 — E1 matches"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'q=ｎａｍｅ==1'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with a multi-byte attribute name
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+Content-Length: 0
+
+
+
+
+02. GET E1
+==========
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 117
+
+{
+  "ｎａｍｅ": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T"
+}
+
+
+
+03. Query q=ｎａｍｅ==1 — E1 matches
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 137
+
+[
+  {
+    "ｎａｍｅ": {
+      "type": "Property",
+      "value": 1
+    },
+    "id": "urn:ngsi-ld:entities:E1",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

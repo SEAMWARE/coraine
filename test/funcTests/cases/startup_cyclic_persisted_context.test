@@ -1,0 +1,71 @@
+#
+# FILE            startup_cyclic_persisted_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1899_cyclic_context_startup. The persisted
+# context cache (DB "swBroker", collection "contexts") is seeded with two array
+# @contexts that reference each other (cycle: A -> [B], B -> [A]); the broker must
+# still start (no hang re-resolving the cycle). sw is immune by design:
+# contextCacheReload only rehydrates OBJECT @contexts and skips array @contexts,
+# so it never recursively re-downloads on startup. This pins that behaviour.
+#
+--NAME--
+Broker startup does not hang on a cyclic array @context in the persisted cache
+
+--TAGS--
+context jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+
+# Seed the persisted context cache (swBroker.contexts) with the A<->B cycle.
+# kind 1 = DB_CONTEXT_KIND_CACHED; body is the raw stand-alone @context document.
+mongosh --port $SW_MONGO_PORT --quiet swBroker <<'MONGOEOF'
+db.contexts.insertMany([
+  { _id: "http://localhost:7080/jsonldContexts/cycleA",
+    url: "http://localhost:7080/jsonldContexts/cycleA", kind: 1,
+    body: '{"@context":["http://localhost:7080/jsonldContexts/cycleB"]}' },
+  { _id: "http://localhost:7080/jsonldContexts/cycleB",
+    url: "http://localhost:7080/jsonldContexts/cycleB", kind: 1,
+    body: '{"@context":["http://localhost:7080/jsonldContexts/cycleA"]}' }
+])
+MONGOEOF
+
+# If startup hung on the cyclic cache, swBrokerStart would time out and the test
+# would fail here.
+swBrokerStart
+
+--RUN--
+
+#
+# Reaching the RUN section already proves the broker came up (swBrokerStart blocks
+# until the port answers). This GET confirms it actually serves requests.
+#
+echo "01. Broker is up and serving after loading the cyclic persisted contexts"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Nothing&limit=1'
+echo
+echo
+
+
+--EXPECT--
+01. Broker is up and serving after loading the cyclic persisted contexts
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop -db swBroker
+swDbDrop
