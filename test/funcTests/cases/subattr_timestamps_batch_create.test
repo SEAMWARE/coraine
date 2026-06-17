@@ -1,0 +1,122 @@
+#
+# FILE            subattr_timestamps_batch_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_new_subattr-timestamps-batch-create. Batch-create
+# entities whose attribute carries a sub-attribute (MD1); a sysAttrs GET must
+# show createdAt/modifiedAt on BOTH the attribute and its sub-attribute.
+# (Orion's mongo-dump inspection steps are dropped — sw's DB schema differs;
+# the API GET with sysAttrs is the portable oracle.)
+#
+--NAME--
+Sub-attribute createdAt/modifiedAt are set on batch create (visible via sysAttrs)
+
+--TAGS--
+batch entity sysAttrs createdAt
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Batch-create E1 and E2, each with A1 carrying a sub-property MD1
+# 02. GET ?type=T with sysAttrs — createdAt/modifiedAt on A1 and on sub-attr MD1
+#
+
+echo "01. Batch-create E1 and E2, each with A1 carrying sub-property MD1"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {
+    "id": "urn:ngsi-ld:entities:E1",
+    "type": "T",
+    "A1": { "type": "Property", "value": "E1:A1", "MD1": { "type": "Property", "value": "E1:A1:MD1" } }
+  },
+  {
+    "id": "urn:ngsi-ld:entities:E2",
+    "type": "T",
+    "A1": { "type": "Property", "value": "E2:A1", "MD1": { "type": "Property", "value": "E2:A1:MD1" } }
+  }
+]'
+echo
+echo
+
+
+echo "02. GET ?type=T with sysAttrs — timestamps on A1 and sub-attr MD1"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&sysAttrs=true'
+echo
+echo
+
+
+--EXPECT--
+01. Batch-create E1 and E2, each with A1 carrying sub-property MD1
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+[
+  "urn:ngsi-ld:entities:E1",
+  "urn:ngsi-ld:entities:E2"
+]
+
+
+
+02. GET ?type=T with sysAttrs — timestamps on A1 and sub-attr MD1
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "A1": {
+      "MD1": {
+        "createdAt": "REGEX(.*)",
+        "modifiedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": "E1:A1:MD1"
+      },
+      "createdAt": "REGEX(.*)",
+      "modifiedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": "E1:A1"
+    },
+    "createdAt": "REGEX(.*)",
+    "id": "urn:ngsi-ld:entities:E1",
+    "modifiedAt": "REGEX(.*)",
+    "type": "T"
+  },
+  {
+    "A1": {
+      "MD1": {
+        "createdAt": "REGEX(.*)",
+        "modifiedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": "E2:A1:MD1"
+      },
+      "createdAt": "REGEX(.*)",
+      "modifiedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": "E2:A1"
+    },
+    "createdAt": "REGEX(.*)",
+    "id": "urn:ngsi-ld:entities:E2",
+    "modifiedAt": "REGEX(.*)",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -1,0 +1,274 @@
+#
+# FILE            deep_subattr_nesting_q.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Deeply-nested sub-attributes (5 levels: a > b > c > d > e). The broker stores,
+# round-trips and filters on the deep dot-path: q=a.b.c.d.e==4 matches, ==5 does
+# not. With sysAttrs, createdAt/modifiedAt render as ISO strings at EVERY level
+# — both on a GET and inside a notification (sysAttrs subscription firing on the
+# create). sw is not bound by a fixed metadata layout, so depth is arbitrary.
+#
+--NAME--
+Deep sub-attribute nesting (5 levels): q on a.b.c.d.e + sysAttrs timestamps on GET and notification
+
+--TAGS--
+entity attr query sysAttrs notification subscription
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+#
+# 01. Subscribe to type T with sysAttrs notifications -> ftClient
+# 02. Create the 5-level entity (a>b>c>d>e, e=4) -> fires a notification
+# 03. q=a.b.c.d.e==4 matches; 04. q=a.b.c.d.e==5 does not
+# 05. GET by id, sysAttrs -> createdAt/modifiedAt ISO strings at all 5 levels
+# 06. The notification carried the same sysAttrs entity (timestamps at depth)
+#
+
+echo "01. Subscribe to type T with sysAttrs notifications"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "notification": {
+    "sysAttrs": true,
+    "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" }
+  }
+}'
+echo
+echo
+
+
+echo "02. Create entity with 5 levels of nested sub-attributes"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+  "id": "urn:ngsi-ld:Deep:1",
+  "type": "T",
+  "a": { "type": "Property", "value": "A",
+    "b": { "type": "Property", "value": "B",
+      "c": { "type": "Property", "value": "C",
+        "d": { "type": "Property", "value": "D",
+          "e": { "type": "Property", "value": 4 } } } } }
+}'
+echo
+echo
+
+
+echo "03. q=a.b.c.d.e==4 — matches"
+echo "==========================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=a.b.c.d.e==4&attrs=a'
+echo
+echo
+
+
+echo "04. q=a.b.c.d.e==5 — no match"
+echo "============================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=a.b.c.d.e==5'
+echo
+echo
+
+
+echo "05. GET by id, sysAttrs — timestamps (ISO) at all 5 levels"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Deep:1' --urlParams 'sysAttrs=true'
+echo
+echo
+
+
+echo "06. The notification carried the sysAttrs entity (timestamps at depth)"
+echo "======================================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Subscribe to type T with sysAttrs notifications
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+02. Create entity with 5 levels of nested sub-attributes
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Deep:1
+Content-Length: 0
+
+
+
+
+03. q=a.b.c.d.e==4 — matches
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 453
+
+[
+  {
+    "a": {
+      "b": {
+        "c": {
+          "d": {
+            "e": {
+              "type": "Property",
+              "value": 4
+            },
+            "type": "Property",
+            "value": "D"
+          },
+          "type": "Property",
+          "value": "C"
+        },
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": "A"
+    },
+    "id": "urn:ngsi-ld:Deep:1",
+    "type": "T"
+  }
+]
+
+
+
+04. q=a.b.c.d.e==5 — no match
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+05. GET by id, sysAttrs — timestamps (ISO) at all 5 levels
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "b": {
+      "c": {
+        "createdAt": "REGEX(.*)",
+        "d": {
+          "createdAt": "REGEX(.*)",
+          "e": {
+            "createdAt": "REGEX(.*)",
+            "modifiedAt": "REGEX(.*)",
+            "type": "Property",
+            "value": 4
+          },
+          "modifiedAt": "REGEX(.*)",
+          "type": "Property",
+          "value": "D"
+        },
+        "modifiedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": "C"
+      },
+      "createdAt": "REGEX(.*)",
+      "modifiedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": "B"
+    },
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": "A"
+  },
+  "createdAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:Deep:1",
+  "modifiedAt": "REGEX(.*)",
+  "type": "T"
+}
+
+
+
+06. The notification carried the sysAttrs entity (timestamps at depth)
+======================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "a": {
+            "b": {
+              "c": {
+                "createdAt": "REGEX(.*)",
+                "d": {
+                  "createdAt": "REGEX(.*)",
+                  "e": {
+                    "createdAt": "REGEX(.*)",
+                    "modifiedAt": "REGEX(.*)",
+                    "type": "Property",
+                    "value": 4
+                  },
+                  "modifiedAt": "REGEX(.*)",
+                  "type": "Property",
+                  "value": "D"
+                },
+                "modifiedAt": "REGEX(.*)",
+                "type": "Property",
+                "value": "C"
+              },
+              "createdAt": "REGEX(.*)",
+              "modifiedAt": "REGEX(.*)",
+              "type": "Property",
+              "value": "B"
+            },
+            "createdAt": "REGEX(.*)",
+            "modifiedAt": "REGEX(.*)",
+            "type": "Property",
+            "value": "A"
+          },
+          "createdAt": "REGEX(.*)",
+          "id": "urn:ngsi-ld:Deep:1",
+          "modifiedAt": "REGEX(.*)",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+ftClientStop
+swBrokerStop
+swDbDrop
