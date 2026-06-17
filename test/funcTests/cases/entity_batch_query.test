@@ -136,12 +136,12 @@ Content-Length: 120
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 167
+Content-Length: 142
 
 {
-  "detail": "Query body must carry \"type\": \"Query\"",
+  "detail": "type",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Mandatory field missing",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

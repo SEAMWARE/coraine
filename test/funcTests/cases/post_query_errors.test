@@ -1,0 +1,739 @@
+#
+# FILE            post_query_errors.test
+# Copyright 2026 Seamware
+#
+# Exhaustive § 5.2.6.5.1 Query payload validation matrix for
+# POST /entityOperations/query. The allowed member set is the full spec Query
+# data type. Covers wrong JSON types, duplicated/unknown/empty fields, bad
+# q-expressions, the mandatory 'type':'Query' discriminator, entities-member
+# id-as-URI, the full geoQ sub-object (mandatory geometry/coordinates/georel,
+# type/unknown/duplicate, georel syntax), and datasetId members as URIs. Cases
+# 01-29 are malformed and must be rejected 400 BadRequestData (never a crash or
+# 200); cases 30-31 are valid Queries (200) guarding against over-rejection —
+# case 30 carries join/joinLevel (linked-entity retrieval). EXPECT carries sw's
+# own ProblemDetails wording. Validation runs in pCheckQuery before the service
+# routine, so nothing malformed reaches the query handler. The local=true param
+# suppresses the query-breadth gate so each structural error surfaces (sw checks
+# breadth before body structure).
+#
+--NAME--
+POST /entityOperations/query payload validation — 29 malformed bodies all 400, 2 valid 200
+
+--TAGS--
+query entityOperations error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. POST Query with a payload body that is not an object"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '[ 1, 2, 3 ]'
+echo
+echo
+
+
+echo "02. POST Query with a payload body that is an empty object"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{}'
+echo
+echo
+
+
+echo "03. POST Query with an unknown field 'noQ'"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "noQ": "17" }'
+echo
+echo
+
+
+echo "04. POST Query with an 'entities' field that is not an array"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": { "a": 12 } }'
+echo
+echo
+
+
+echo "05. POST Query with a duplicated 'entities' field"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": [ { "type": "T" } ], "entities": [ { "type": "T" } ] }'
+echo
+echo
+
+
+echo "06. POST Query with an 'entities' field that has a non-object as member of the array"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": [ "not an object" ] }'
+echo
+echo
+
+
+echo "07. POST Query with an 'entities' field that has an empty object as member of the array"
+echo "======================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": [ {} ] }'
+echo
+echo
+
+
+echo "08. POST Query with an 'attrs' field that is not an array"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "attrs": false }'
+echo
+echo
+
+
+echo "09. POST Query with a duplicated 'attrs' field"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "attrs": [ "A1" ], "attrs": [ "A1" ] }'
+echo
+echo
+
+
+echo "10. POST Query with an 'attrs' array that is empty"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "attrs": [ ] }'
+echo
+echo
+
+
+echo "11. POST Query with an 'attrs' field that has a non-string as member of the array"
+echo "================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "attrs": [ "A1", 13 ] }'
+echo
+echo
+
+
+echo "12. POST Query with an 'attrs' field that has an empty string as member of the array"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "attrs": [ "A1", "" ] }'
+echo
+echo
+
+
+echo "13. POST Query with a 'q' field that is not a string"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "q": true }'
+echo
+echo
+
+
+echo "14. POST Query with a duplicated 'q' field"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "q": "A==12", "q": "A==13" }'
+echo
+echo
+
+
+echo "15. POST Query with a 'q' string that is empty"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "q": "" }'
+echo
+echo
+
+
+echo "16. POST Query with a 'q' string == 'A=='"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "q": "A==" }'
+echo
+echo
+
+
+echo "17. POST Query without 'type': 'Query'"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "q": "A==5" }'
+echo
+echo
+
+
+echo "18. POST Query with duplicated 'type': 'Query'"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "type": "Query", "q": "A==5" }'
+echo
+echo
+
+
+echo "19. POST Query with 'type' that is not a string"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": 12, "q": "A==5" }'
+echo
+echo
+
+
+echo "20. POST Query with 'type' that is a string but != 'Query'"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "querie", "q": "A==5" }'
+echo
+echo
+
+
+echo "21. POST Query with an entities member 'id' that is not a URI"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": [ { "type": "T", "id": "notauri" } ] }'
+echo
+echo
+
+
+echo "22. POST Query geoQ with mandatory 'geometry' missing"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "georel": "near;maxDistance==1000", "coordinates": [ 1, 2 ] } }'
+echo
+echo
+
+
+echo "23. POST Query geoQ with mandatory 'coordinates' missing"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "georel": "near;maxDistance==1000", "geometry": "Point" } }'
+echo
+echo
+
+
+echo "24. POST Query geoQ with mandatory 'georel' missing"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "geometry": "Point", "coordinates": [ 1, 2 ] } }'
+echo
+echo
+
+
+echo "25. POST Query geoQ with an unknown field"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "geometry": "Point", "coordinates": [ 1, 2 ], "georel": "near;maxDistance==1000", "bogus": 1 } }'
+echo
+echo
+
+
+echo "26. POST Query geoQ with a duplicated field"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "geometry": "Point", "geometry": "Point", "coordinates": [ 1, 2 ], "georel": "near;maxDistance==1000" } }'
+echo
+echo
+
+
+echo "27. POST Query geoQ with 'geometry' that is not a string"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "geometry": 5, "coordinates": [ 1, 2 ], "georel": "near;maxDistance==1000" } }'
+echo
+echo
+
+
+echo "28. POST Query geoQ with an invalid 'georel'"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "geoQ": { "geometry": "Point", "coordinates": [ 1, 2 ], "georel": "bogus" } }'
+echo
+echo
+
+
+echo "29. POST Query with a 'datasetId' member that is not a URI"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "datasetId": [ "urn:ds:1", "14" ] }'
+echo
+echo
+
+
+echo "30. POST Query with join / joinLevel (linked-entity retrieval) is valid -> 200"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": [ { "type": "T" } ], "join": "flat", "joinLevel": 1 }'
+echo
+echo
+
+
+echo "31. POST Query that is valid -> 200 (sanity, no over-rejection)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/query --urlParams 'local=true' -X POST --payload '{ "type": "Query", "entities": [ { "type": "T" } ] }'
+echo
+echo
+
+
+--EXPECT--
+01. POST Query with a payload body that is not an object
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "the POST Query payload body must be a JSON object",
+  "status": 400,
+  "title": "Not a JSON Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. POST Query with a payload body that is an empty object
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 142
+
+{
+  "detail": "type",
+  "status": 400,
+  "title": "Mandatory field missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. POST Query with an unknown field 'noQ'
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 186
+
+{
+  "detail": "https://uri.etsi.org/ngsi-ld/default-context/noQ",
+  "status": 400,
+  "title": "Invalid field for query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. POST Query with an 'entities' field that is not an array
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 139
+
+{
+  "detail": "entities",
+  "status": 400,
+  "title": "Not a JSON Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. POST Query with a duplicated 'entities' field
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 139
+
+{
+  "detail": "entities",
+  "status": 400,
+  "title": "Duplicated field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. POST Query with an 'entities' field that has a non-object as member of the array
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "entities array member",
+  "status": 400,
+  "title": "Not a JSON Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. POST Query with an 'entities' field that has an empty object as member of the array
+=======================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 142
+
+{
+  "detail": "type",
+  "status": 400,
+  "title": "Mandatory field missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. POST Query with an 'attrs' field that is not an array
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 136
+
+{
+  "detail": "attrs",
+  "status": 400,
+  "title": "Not a JSON Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. POST Query with a duplicated 'attrs' field
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 136
+
+{
+  "detail": "attrs",
+  "status": 400,
+  "title": "Duplicated field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. POST Query with an 'attrs' array that is empty
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 131
+
+{
+  "detail": "attrs",
+  "status": 400,
+  "title": "Empty Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. POST Query with an 'attrs' field that has a non-string as member of the array
+=================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 150
+
+{
+  "detail": "attrs array member",
+  "status": 400,
+  "title": "Not a JSON String",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. POST Query with an 'attrs' field that has an empty string as member of the array
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 145
+
+{
+  "detail": "attrs array member",
+  "status": 400,
+  "title": "Empty String",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. POST Query with a 'q' field that is not a string
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 133
+
+{
+  "detail": "q",
+  "status": 400,
+  "title": "Not a JSON String",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. POST Query with a duplicated 'q' field
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 132
+
+{
+  "detail": "q",
+  "status": 400,
+  "title": "Duplicated field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. POST Query with a 'q' string that is empty
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 128
+
+{
+  "detail": "q",
+  "status": 400,
+  "title": "Empty String",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. POST Query with a 'q' string == 'A=='
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 195
+
+{
+  "detail": "unfinished statement (operator with no value) in q expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+17. POST Query without 'type': 'Query'
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 142
+
+{
+  "detail": "type",
+  "status": 400,
+  "title": "Mandatory field missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. POST Query with duplicated 'type': 'Query'
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 135
+
+{
+  "detail": "type",
+  "status": 400,
+  "title": "Duplicated field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. POST Query with 'type' that is not a string
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 136
+
+{
+  "detail": "type",
+  "status": 400,
+  "title": "Not a JSON String",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+20. POST Query with 'type' that is a string but != 'Query'
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 206
+
+{
+  "detail": "must be a JSON String with the value 'Query'",
+  "status": 400,
+  "title": "Invalid value for 'type' member of a POST Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+21. POST Query with an entities member 'id' that is not a URI
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 152
+
+{
+  "detail": "Not a valid URI: 'notauri'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+22. POST Query geoQ with mandatory 'geometry' missing
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 146
+
+{
+  "detail": "geometry",
+  "status": 400,
+  "title": "Mandatory field missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+23. POST Query geoQ with mandatory 'coordinates' missing
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 149
+
+{
+  "detail": "coordinates",
+  "status": 400,
+  "title": "Mandatory field missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+24. POST Query geoQ with mandatory 'georel' missing
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "detail": "georel",
+  "status": 400,
+  "title": "Mandatory field missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+25. POST Query geoQ with an unknown field
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 188
+
+{
+  "detail": "https://uri.etsi.org/ngsi-ld/default-context/bogus",
+  "status": 400,
+  "title": "Invalid field for query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+26. POST Query geoQ with a duplicated field
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 139
+
+{
+  "detail": "geometry",
+  "status": 400,
+  "title": "Duplicated field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+27. POST Query geoQ with 'geometry' that is not a string
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 140
+
+{
+  "detail": "geometry",
+  "status": 400,
+  "title": "Not a JSON String",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+28. POST Query geoQ with an invalid 'georel'
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 155
+
+{
+  "detail": "unknown georel: 'bogus'",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+29. POST Query with a 'datasetId' member that is not a URI
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 147
+
+{
+  "detail": "Not a valid URI: '14'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+30. POST Query with join / joinLevel (linked-entity retrieval) is valid -> 200
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+31. POST Query that is valid -> 200 (sanity, no over-rejection)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

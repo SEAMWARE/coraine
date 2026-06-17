@@ -12,6 +12,7 @@
 #include "swRest/SwRestVerb.h"                   // SwVerbGet, SwVerbPost, SwVerbDelete, SwVerbPatch
 #include "swNgsild/ldParams.h"                   // LD_PARAMS_GET_ENTITIES, LD_PARAMS_GET_ENTITY, LD_PARAMS_POST_ENTITIES, LD_PARAMS_DELETE_ENTITY, LD_PARAMS_PATCH_ENTITY
 #include "swNgsild/LdOp.h"                       // LdOp*
+#include "swNgsild/ldPCheckQuery.h"              // pCheckQuery
 
 #include "serviceRoutines/getEntities.h"         // getEntities
 #include "serviceRoutines/getEntity.h"           // getEntity
@@ -153,7 +154,7 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/upsert", postEntityBatchUpsert, LD_PARAM_OPTIONS | LD_PARAM_LOCAL, LdOpBatchUpsert },
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/merge",  postEntityBatchMerge,  LD_PARAM_LOCAL,         LdOpBatchMerge  },
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/delete", postEntityBatchDelete, LD_PARAM_LOCAL,         LdOpBatchDelete },
-  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery  },
+  { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery, pCheckQuery },
 
   // Context Source Identity (§ 5.15 / § 6.33)
   { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone },
