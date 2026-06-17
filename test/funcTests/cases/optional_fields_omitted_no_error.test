@@ -1,0 +1,75 @@
+#
+# FILE            optional_fields_omitted_no_error.test
+# Copyright 2026 Seamware
+# Ported from orion-ld ngsild_new-false-error-for-optional-field-not-present.
+# Creating a subscription / registration / entity with ONLY the mandatory
+# fields succeeds (no false error) and each is retrievable. (Orion's final
+# logfile-grep step is Orion-internal and dropped — the API success is the oracle.)
+#
+--NAME--
+Subscription / registration / entity with only mandatory fields create cleanly
+--TAGS--
+subscription registration entity error
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+
+echo "01. Create subscription (minimal fields)"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "type": "Subscription", "entities": [ { "type": "FillingSensor" } ], "notification": { "endpoint": { "uri": "http://receiver.example.org/notify" } } }' | head -1
+echo
+echo
+
+echo "02. Create registration (minimal fields)"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "Vehicle" } ] } ], "endpoint": "http://my.csource.org:1026" }' | head -1
+echo
+echo
+
+echo "03. Create entity (minimal fields)"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E1", "type": "T" }' | head -1
+echo
+echo
+
+echo "04. GET the entity back"
+echo "======================="
+swCurl --url '/ngsi-ld/v1/entities/urn:E1'
+echo
+echo
+
+--EXPECT--
+01. Create subscription (minimal fields)
+========================================
+HTTP/1.1 201 Created
+
+
+02. Create registration (minimal fields)
+========================================
+HTTP/1.1 201 Created
+
+
+03. Create entity (minimal fields)
+==================================
+HTTP/1.1 201 Created
+
+
+04. GET the entity back
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 36
+
+{
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

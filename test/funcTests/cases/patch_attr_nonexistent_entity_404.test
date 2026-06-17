@@ -1,0 +1,79 @@
+#
+# FILE            patch_attr_nonexistent_entity_404.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Ported from orion-ld ngsild_issue_1478-without-registration. Updating an
+# attribute on a non-existent entity (no registration to forward to) must 404,
+# not crash. Uses a tenant to mirror the original.
+#
+--NAME--
+Update attribute on a non-existent entity returns 404 (no crash)
+
+--TAGS--
+entity attr error tenant
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create entity Building:farm001 in tenant openiot
+# 02. PATCH an attr on a DIFFERENT, non-existent entity (Filling:001) -> 404
+#
+
+echo "01. Create entity Building:farm001 (tenant openiot)"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'NGSILD-Tenant: openiot' --payload '{
+  "id": "urn:ngsi-ld:Building:farm001",
+  "type": "Building",
+  "name": { "type": "Property", "value": "Farm 001" }
+}'
+echo
+echo
+
+
+echo "02. PATCH attr on non-existent entity Filling:001 -> 404"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Filling:001/attrs/remove' -X PATCH --header 'NGSILD-Tenant: openiot' --payload '{ "type": "Property", "value": " " }'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity Building:farm001 (tenant openiot)
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: openiot
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Building:farm001
+Content-Length: 0
+
+
+
+
+02. PATCH attr on non-existent entity Filling:001 -> 404
+=======================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: openiot
+Content-Length: 168
+
+{
+  "detail": "entity 'urn:ngsi-ld:Filling:001' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swDbDrop -tenant openiot

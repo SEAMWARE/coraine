@@ -1,0 +1,63 @@
+#
+# FILE            entity_no_context_roundtrip.test
+# Copyright 2026 Seamware
+# Ported from orion-ld ngsild_content-len. Create an entity with no @context,
+# then query it by type — it round-trips. (Orion's exact Content-Length header
+# assertions are Orion-internal and dropped; the body round-trip is the oracle.)
+#
+--NAME--
+Entity created without @context round-trips on a type query
+--TAGS--
+entity query context
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+
+echo "01. Create entity (no @context)"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:entities:E2", "type": "T", "P1": { "type": "Property", "value": 12 } }'
+echo
+echo
+
+echo "02. GET ?type=T — the entity round-trips"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T'
+echo
+echo
+
+--EXPECT--
+01. Create entity (no @context)
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:entities:E2
+Content-Length: 0
+
+
+
+
+02. GET ?type=T — the entity round-trips
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+[
+  {
+    "P1": {
+      "type": "Property",
+      "value": 12
+    },
+    "id": "urn:entities:E2",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
