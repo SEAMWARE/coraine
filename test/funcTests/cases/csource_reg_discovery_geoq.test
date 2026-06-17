@@ -87,14 +87,12 @@ echo
 ===========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:Madrid
 Content-Length: 0
 
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:Barcelona
 Content-Length: 0
 

@@ -131,7 +131,6 @@ echo
 =============================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two
 Content-Length: 0
 
@@ -174,7 +173,6 @@ Content-Length: REGEX(\d+)
 =============================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Day
 Content-Length: 0
 
@@ -217,7 +215,6 @@ Content-Length: REGEX(\d+)
 ==================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Mix
 Content-Length: 0
 
@@ -260,7 +257,6 @@ Content-Length: REGEX(\d+)
 =========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Default
 Content-Length: 0
 
@@ -334,7 +330,6 @@ Content-Length: 206
 ===========================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 

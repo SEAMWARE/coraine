@@ -147,7 +147,6 @@ echo
 ===================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
 Content-Length: 0
 
@@ -158,7 +157,6 @@ Content-Length: 0
 ================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Device
 Content-Length: 0
 
@@ -169,7 +167,6 @@ Content-Length: 0
 =============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:S1
 Content-Length: 0
 
@@ -212,7 +209,6 @@ Content-Length: 370
 ==========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:S2
 Content-Length: 0
 
@@ -255,7 +251,6 @@ Content-Length: 370
 =================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:S3
 Content-Length: 0
 

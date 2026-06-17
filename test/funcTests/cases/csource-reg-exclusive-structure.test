@@ -207,7 +207,6 @@ Content-Length: REGEX(\d+)
 ================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:exclusive-prop
 Content-Length: REGEX(\d+)
 
@@ -218,7 +217,6 @@ Content-Length: REGEX(\d+)
 ====================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:exclusive-rel
 Content-Length: REGEX(\d+)
 
@@ -229,7 +227,6 @@ Content-Length: REGEX(\d+)
 ======================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:inclusive-typeonly
 Content-Length: REGEX(\d+)
 
@@ -240,7 +237,6 @@ Content-Length: REGEX(\d+)
 ===========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:redirect-typeonly
 Content-Length: REGEX(\d+)
 

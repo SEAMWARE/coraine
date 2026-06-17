@@ -184,7 +184,6 @@ echo
 =================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: 0
 
@@ -192,7 +191,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V3
 Content-Length: 0
 
@@ -200,7 +198,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V2
 Content-Length: 0
 
@@ -208,7 +205,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V4
 Content-Length: 0
 
@@ -216,7 +212,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V5
 Content-Length: 0
 
@@ -227,7 +222,6 @@ Content-Length: 0
 ===========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
 Content-Length: 0
 
@@ -235,7 +229,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP2
 Content-Length: 0
 
@@ -426,7 +419,6 @@ Content-Length: 130
 ========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: 0
 
@@ -475,7 +467,6 @@ Content-Length: 318
 =======================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:S1
 Content-Length: 0
 
@@ -483,7 +474,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl
 Content-Length: 0
 
@@ -509,7 +499,6 @@ Content-Length: 69
 ===============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:C1
 Content-Length: 0
 
@@ -517,7 +506,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Redir
 Content-Length: 0
 
@@ -543,7 +531,6 @@ Content-Length: 70
 ==========================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Aux
 Content-Length: 0
 

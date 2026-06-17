@@ -41,7 +41,6 @@ echo
 =======================================
 HTTP/1.1 415 Unsupported Media Type
 Date: REGEX(.*)
-Content-Type: application/json
 Content-Length: 0
 
 

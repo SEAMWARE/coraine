@@ -157,7 +157,6 @@ Content-Length: REGEX(\d+)
 =========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/REGEX(urn:ngsi-ld:Snapshot:[0-9a-f]{8}:[0-9a-f]{4})
 Content-Length: REGEX(\d+)
 
@@ -168,7 +167,6 @@ Content-Length: REGEX(\d+)
 ==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 Content-Length: REGEX(\d+)
 
@@ -245,7 +243,6 @@ Content-Length: REGEX(\d+)
 ===================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 

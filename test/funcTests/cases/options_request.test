@@ -62,7 +62,6 @@ echo
 ===================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 Allow: GET, POST, DELETE, HEAD, OPTIONS
 
 
@@ -72,7 +71,6 @@ Allow: GET, POST, DELETE, HEAD, OPTIONS
 ==================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 
 
@@ -82,7 +80,6 @@ Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 ========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 Allow: GET, POST, HEAD, OPTIONS
 
 
@@ -92,7 +89,6 @@ Allow: GET, POST, HEAD, OPTIONS
 ===============================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 Allow: GET, DELETE, HEAD, OPTIONS
 
 

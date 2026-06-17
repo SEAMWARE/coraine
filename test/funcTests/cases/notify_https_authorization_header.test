@@ -67,7 +67,6 @@ echo
 =======================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 NGSILD-Tenant: captn
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 Content-Length: 0
@@ -112,7 +111,6 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: captn
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 23
 
 [

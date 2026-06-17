@@ -142,7 +142,6 @@ echo
 =========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 Content-Length: 0
 
@@ -153,7 +152,6 @@ Content-Length: 0
 =====================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 
@@ -249,7 +247,6 @@ Content-Length: 179
 =============================
 HTTP/1.1 411 Length Required
 Date: REGEX(.*)
-Content-Type: application/json
 Content-Length: 0
 
 
@@ -275,7 +272,6 @@ Content-Length: 178
 ===========================================
 HTTP/1.1 415 Unsupported Media Type
 Date: REGEX(.*)
-Content-Type: application/json
 Content-Length: 0
 
 

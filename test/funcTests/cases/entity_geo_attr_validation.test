@@ -157,7 +157,6 @@ Content-Length: 230
 ===========================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:E:3
 Content-Length: 0
 
@@ -200,7 +199,6 @@ Content-Length: 236
 ========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:E:6
 Content-Length: 0
 
@@ -211,7 +209,6 @@ Content-Length: 0
 ==========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:E:7
 Content-Length: 0
 
@@ -238,7 +235,6 @@ Content-Length: 226
 ==============================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:E:9
 Content-Length: 0
 

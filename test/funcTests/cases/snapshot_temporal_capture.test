@@ -96,7 +96,6 @@ echo
 ================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Hist
 Content-Length: 0
 

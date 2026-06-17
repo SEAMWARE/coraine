@@ -106,7 +106,6 @@ echo
 =====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl
 Content-Length: 0
 
@@ -149,7 +148,6 @@ Content-Length: 151
 ===============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Dead
 Content-Length: 0
 
@@ -160,7 +158,6 @@ Content-Length: 0
 =================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveRedir
 Content-Length: 0
 
@@ -199,7 +196,6 @@ Content-Length: 366
 ===========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MixExcl
 Content-Length: 0
 
@@ -207,7 +203,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:MixIncl
 Content-Length: 0
 
@@ -218,7 +213,6 @@ Content-Length: 0
 =========================================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V3
 Content-Length: 0
 

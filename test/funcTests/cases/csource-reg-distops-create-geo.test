@@ -119,7 +119,6 @@ echo
 ======================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Iberia
 Content-Length: REGEX(\d+)
 
@@ -130,7 +129,6 @@ Content-Length: REGEX(\d+)
 ===========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Scandi
 Content-Length: REGEX(\d+)
 
@@ -141,7 +139,6 @@ Content-Length: REGEX(\d+)
 ==================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V1
 Content-Length: REGEX(\d+)
 

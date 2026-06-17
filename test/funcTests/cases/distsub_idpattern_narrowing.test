@@ -101,7 +101,6 @@ echo
 ===================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:V
 Content-Length: 0
 
@@ -112,7 +111,6 @@ Content-Length: 0
 ==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:S1
 Content-Length: 0
 
@@ -156,7 +154,6 @@ Content-Length: 408
 ==========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:S2
 Content-Length: 0
 
@@ -220,7 +217,6 @@ Content-Length: 800
 =============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:S3
 Content-Length: 0
 

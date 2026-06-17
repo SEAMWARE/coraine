@@ -386,7 +386,6 @@ Content-Length: 81
 ========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:E1
 Content-Length: 0
@@ -398,7 +397,6 @@ Content-Length: 0
 ========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 NGSILD-Tenant: t2
 Location: /ngsi-ld/v1/entities/urn:E2
 Content-Length: 0

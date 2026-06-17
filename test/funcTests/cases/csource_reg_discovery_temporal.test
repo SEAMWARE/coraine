@@ -130,28 +130,24 @@ echo
     CSR_Mgmt_Q1     managementInterval  = 2026-01-01..2026-03-31
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Latest
 Content-Length: 0
 
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Q1_Q2
 Content-Length: 0
 
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Q3_open
 Content-Length: 0
 
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Mgmt_Q1
 Content-Length: 0
 

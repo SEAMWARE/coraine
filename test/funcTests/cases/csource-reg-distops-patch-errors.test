@@ -102,7 +102,6 @@ echo
 ============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NoMerge
 Content-Length: 0
 
@@ -139,7 +138,6 @@ Content-Length: REGEX(\d+)
 ===================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:DeadMerge
 Content-Length: 0
 
@@ -147,7 +145,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LiveMerge
 Content-Length: 0
 

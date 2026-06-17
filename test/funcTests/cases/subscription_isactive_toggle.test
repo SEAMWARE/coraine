@@ -150,7 +150,6 @@ echo
 ================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
 Content-Length: 0
 
@@ -161,7 +160,6 @@ Content-Length: 0
 ====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 Content-Length: 0
 
@@ -210,7 +208,6 @@ done
 ========================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 
@@ -250,7 +247,6 @@ Content-Length: 344
 =================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
 Content-Length: 0
 
@@ -265,7 +261,6 @@ Content-Length: 0
 =======================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 
@@ -305,7 +300,6 @@ Content-Length: 343
 ====================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V3
 Content-Length: 0
 

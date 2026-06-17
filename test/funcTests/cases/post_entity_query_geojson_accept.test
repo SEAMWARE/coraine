@@ -66,7 +66,6 @@ echo
 ==============================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 Content-Length: REGEX(\d+)
 

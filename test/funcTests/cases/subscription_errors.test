@@ -698,7 +698,6 @@ Content-Length: REGEX(\d+)
 =========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err
 Content-Length: REGEX(\d+)
 
@@ -737,7 +736,6 @@ Content-Length: REGEX(\d+)
 =========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:OK
 Content-Length: REGEX(\d+)
 
@@ -780,7 +778,6 @@ Content-Length: REGEX(\d+)
 ==========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:bareQ
 Content-Length: REGEX(\d+)
 

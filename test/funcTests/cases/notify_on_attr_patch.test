@@ -105,7 +105,6 @@ echo
 ===========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1
 Content-Length: 0
 
@@ -116,7 +115,6 @@ Content-Length: 0
 =================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscriptions:S1
 Content-Length: 0
 
@@ -127,7 +125,6 @@ Content-Length: 0
 ==========================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 
@@ -169,7 +166,6 @@ Content-Type: application/json
 ===============================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 

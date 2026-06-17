@@ -109,7 +109,6 @@ Content-Length: REGEX(\d+)
 =======================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
 
 
 

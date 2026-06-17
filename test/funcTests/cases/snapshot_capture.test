@@ -158,7 +158,6 @@ echo
 =================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 Content-Length: REGEX(\d+)
 
@@ -166,7 +165,6 @@ Content-Length: REGEX(\d+)
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
 Content-Length: REGEX(\d+)
 
@@ -174,7 +172,6 @@ Content-Length: REGEX(\d+)
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:S1
 Content-Length: REGEX(\d+)
 
@@ -185,7 +182,6 @@ Content-Length: REGEX(\d+)
 =======================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Vehicles
 Content-Length: REGEX(\d+)
 
@@ -230,7 +226,6 @@ Content-Length: REGEX(\d+)
 =================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Mixed
 Content-Length: REGEX(\d+)
 
@@ -286,7 +281,6 @@ Content-Length: REGEX(\d+)
 ==================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:V1Only
 Content-Length: REGEX(\d+)
 
@@ -332,7 +326,6 @@ Content-Length: REGEX(\d+)
 ===============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
 Content-Length: REGEX(\d+)
 
@@ -378,7 +371,6 @@ Content-Length: REGEX(\d+)
 =====================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Empty
 Content-Length: REGEX(\d+)
 

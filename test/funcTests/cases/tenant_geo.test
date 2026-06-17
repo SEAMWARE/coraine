@@ -116,7 +116,6 @@ echo
 ===========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:e1
 Content-Length: REGEX(\d+)
@@ -128,7 +127,6 @@ Content-Length: REGEX(\d+)
 ==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 NGSILD-Tenant: t2
 Location: /ngsi-ld/v1/entities/urn:e2
 Content-Length: REGEX(\d+)
@@ -211,7 +209,6 @@ Content-Length: REGEX(\d+)
 =======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 NGSILD-Tenant: t1
 Location: /ngsi-ld/v1/entities/urn:e3
 Content-Length: REGEX(\d+)

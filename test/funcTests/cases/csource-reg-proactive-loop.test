@@ -198,7 +198,6 @@ Content-Length: REGEX(\d+)
 ==============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Self
 Content-Length: 0
 
@@ -225,7 +224,6 @@ Content-Length: 151
 ===================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:V2
 Content-Length: 0
 
@@ -233,7 +231,6 @@ Content-Length: 0
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CBtoCP1
 Content-Length: 0
 

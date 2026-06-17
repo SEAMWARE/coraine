@@ -180,7 +180,6 @@ Content-Length: 154
 ==============================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-good
 Content-Length: 0
 
@@ -191,7 +190,6 @@ Content-Length: 0
 ===========================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-none
 Content-Length: 0
 
@@ -202,7 +200,6 @@ Content-Length: 0
 ==========================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/csourceRegistrations/urn:R:dsi-mixed
 Content-Length: 0
 

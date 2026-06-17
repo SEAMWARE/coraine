@@ -70,7 +70,6 @@ echo
 =======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
 Location: /ngsi-ld/v1/entities/urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3
 Content-Length: 0
 
