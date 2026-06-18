@@ -131,13 +131,13 @@ Content-Length: 0
           "id": "urn:CSR:A",
           "information": [
             {
+              "attributeNames": [
+                "speed"
+              ],
               "entities": [
                 {
                   "type": "Vehicle"
                 }
-              ],
-              "propertyNames": [
-                "speed"
               ]
             }
           ],
@@ -145,18 +145,18 @@ Content-Length: 0
           "type": "ContextSourceRegistration"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "newlyMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"
@@ -183,13 +183,13 @@ Date: REGEX(.*)
           "id": "urn:CSR:A",
           "information": [
             {
+              "attributeNames": [
+                "speed"
+              ],
               "entities": [
                 {
                   "type": "Vehicle"
                 }
-              ],
-              "propertyNames": [
-                "speed"
               ]
             }
           ],
@@ -197,18 +197,18 @@ Date: REGEX(.*)
           "type": "ContextSourceRegistration"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "newlyMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"
@@ -221,13 +221,13 @@ Date: REGEX(.*)
           "id": "urn:CSR:A",
           "information": [
             {
+              "attributeNames": [
+                "speed"
+              ],
               "entities": [
                 {
                   "type": "Vehicle"
                 }
-              ],
-              "propertyNames": [
-                "speed"
               ]
             }
           ],
@@ -235,18 +235,18 @@ Date: REGEX(.*)
           "type": "ContextSourceRegistration"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "noLongerMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"
@@ -273,13 +273,13 @@ Date: REGEX(.*)
           "id": "urn:CSR:A",
           "information": [
             {
+              "attributeNames": [
+                "speed"
+              ],
               "entities": [
                 {
                   "type": "Vehicle"
                 }
-              ],
-              "propertyNames": [
-                "speed"
               ]
             }
           ],
@@ -287,18 +287,18 @@ Date: REGEX(.*)
           "type": "ContextSourceRegistration"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "newlyMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"
@@ -311,13 +311,13 @@ Date: REGEX(.*)
           "id": "urn:CSR:A",
           "information": [
             {
+              "attributeNames": [
+                "speed"
+              ],
               "entities": [
                 {
                   "type": "Vehicle"
                 }
-              ],
-              "propertyNames": [
-                "speed"
               ]
             }
           ],
@@ -325,18 +325,18 @@ Date: REGEX(.*)
           "type": "ContextSourceRegistration"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "noLongerMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"

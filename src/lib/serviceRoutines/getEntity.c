@@ -64,7 +64,7 @@ static void stripInfoAttrsFromLocal(KjNode* localP, LdRegInfo* riP)
   if (localP == NULL || localP->type != KjObject)
     return;
 
-  bool wildcard = (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL);
+  bool wildcard = (riP->attributeNamesV == NULL);
 
   KjNode* curP = localP->value.firstChildP;
   while (curP != NULL)
@@ -75,8 +75,7 @@ static void stripInfoAttrsFromLocal(KjNode* localP, LdRegInfo* riP)
         strcmp(curP->name, "id")   != 0 &&
         strcmp(curP->name, "type") != 0 &&
         (wildcard ||
-         kStringInArray(curP->name, riP->propertyNamesV) ||
-         kStringInArray(curP->name, riP->relationshipNamesV)))
+         kStringInArray(curP->name, riP->attributeNamesV)))
     {
       kjChildRemove(localP, curP);
     }
@@ -454,7 +453,7 @@ static bool userWantsField(const char* name)
 //
 static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAlloc* kaP)
 {
-  if (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL)
+  if (riP->attributeNamesV == NULL)
     return "";
 
   bool wantType  = userWantsField("type");
@@ -471,14 +470,12 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
 
   int totalLen = 0;
   int count    = 0;
-  char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
 
-  for (int li = 0; lists[li] != NULL; li++)
-    for (int i = 0; lists[li][i] != NULL; i++)
-    {
-      totalLen += strlen(ldCompactOrEncode(lists[li][i], forwardCtx, kaP)) + 1;
-      count++;
-    }
+  for (int i = 0; riP->attributeNamesV[i] != NULL; i++)
+  {
+    totalLen += strlen(ldCompactOrEncode(riP->attributeNamesV[i], forwardCtx, kaP)) + 1;
+    count++;
+  }
 
   if (count == 0)
     return "";
@@ -496,15 +493,14 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
   // writes directly; subsequent attrs prepend a comma.
   int firstAttrPos = pos;
 
-  for (int li = 0; lists[li] != NULL; li++)
-    for (int i = 0; lists[li][i] != NULL; i++)
-    {
-      if (pos > firstAttrPos) buf[pos++] = ',';
-      const char* n = ldCompactOrEncode(lists[li][i], forwardCtx, kaP);
-      int nlen = strlen(n);
-      strcpy(buf + pos, n);
-      pos += nlen;
-    }
+  for (int i = 0; riP->attributeNamesV[i] != NULL; i++)
+  {
+    if (pos > firstAttrPos) buf[pos++] = ',';
+    const char* n = ldCompactOrEncode(riP->attributeNamesV[i], forwardCtx, kaP);
+    int nlen = strlen(n);
+    strcpy(buf + pos, n);
+    pos += nlen;
+  }
 
   buf[pos] = 0;
   return buf;

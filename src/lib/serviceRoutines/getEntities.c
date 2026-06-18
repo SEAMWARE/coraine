@@ -389,9 +389,9 @@ static const char* buildPickParam(char** vec, KAlloc* kaP, SwldContext* csrCtx)
 //
 // intersectAndPick - intersect `wanted` with reg's exports, render pick param
 //
-// propV/relV : NULL-terminated arrays of expanded IRIs that the source
-//              "exports". Either may be NULL. Both NULL means the source
-//              exports everything (no restriction).
+// exportV    : NULL-terminated array of expanded IRIs that the source
+//              "exports". NULL means the source exports everything (no
+//              restriction).
 // wanted     : NULL = user wants every attr the source has, char** = the
 //              IRI set the broker needs back
 // kaP        : output allocator
@@ -401,11 +401,11 @@ static const char* buildPickParam(char** vec, KAlloc* kaP, SwldContext* csrCtx)
 // Returns the rendered "&pick=A,B,C" fragment, "" when no pick should
 // be sent (source exports everything AND user wants everything).
 //
-static const char* intersectAndPick(char** propV, char** relV, char** wanted, KAlloc* kaP, bool* outSkipP, SwldContext* csrCtx)
+static const char* intersectAndPick(char** exportV, char** wanted, KAlloc* kaP, bool* outSkipP, SwldContext* csrCtx)
 {
   *outSkipP = false;
 
-  bool regRestricts = (propV != NULL || relV != NULL);
+  bool regRestricts = (exportV != NULL);
 
   if (wanted == NULL)
   {
@@ -414,19 +414,7 @@ static const char* intersectAndPick(char** propV, char** relV, char** wanted, KA
       return "";  // exports everything → no pick
 
     // Reg restricts → forward exports as pick (avoids overquery on attrs the reg won't deliver)
-    int    cap = 0;
-    char** lists[] = { propV, relV, NULL };
-    for (int li = 0; lists[li] != NULL; li++)
-      for (int a = 0; lists[li][a] != NULL; a++)
-        cap++;
-
-    char** vec = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
-    int    n   = 0;
-    for (int li = 0; lists[li] != NULL; li++)
-      for (int a = 0; lists[li][a] != NULL; a++)
-        vec[n++] = lists[li][a];
-    vec[n] = NULL;
-    return buildPickParam(vec, kaP, csrCtx);
+    return buildPickParam(exportV, kaP, csrCtx);
   }
 
   // User has pick: intersect(wanted, exports).
@@ -444,12 +432,8 @@ static const char* intersectAndPick(char** propV, char** relV, char** wanted, KA
   {
     bool found = false;
 
-    char** lists[] = { propV, relV, NULL };
-    for (int li = 0; lists[li] != NULL && !found; li++)
-      for (int a = 0; lists[li][a] != NULL; a++)
-      {
-        if (strcmp(wanted[w], lists[li][a]) == 0) { found = true; break; }
-      }
+    for (int a = 0; exportV[a] != NULL; a++)
+      if (strcmp(wanted[w], exportV[a]) == 0) { found = true; break; }
 
     if (found)
       narrowed[nN++] = wanted[w];
@@ -470,13 +454,13 @@ static const char* intersectAndPick(char** propV, char** relV, char** wanted, KA
 
 // -----------------------------------------------------------------------------
 //
-// csrUnionExports - union of all infoV[*].propertyNamesV + relationshipNamesV
+// csrUnionExports - union of all infoV[*].attributeNamesV
 //
 // Split-mode forwards are CSR-level (not per-RegistrationInfo), so the
 // "exports" set the broker should narrow against is the union across
 // every info entry of the CSR. Returns a NULL-terminated, deduped char**
 // allocated in kaP, or NULL when the CSR has no restriction at all
-// (every info entry has propertyNamesV == relationshipNamesV == NULL).
+// (every info entry has attributeNamesV == NULL).
 //
 static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
 {
@@ -485,12 +469,10 @@ static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
   bool anyRestricts = false;
   for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
   {
-    if (riP->propertyNamesV != NULL || riP->relationshipNamesV != NULL)
+    if (riP->attributeNamesV != NULL)
       anyRestricts = true;
-    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
-    for (int li = 0; lists[li] != NULL; li++)
-      for (int a = 0; lists[li][a] != NULL; a++)
-        cap++;
+    for (int a = 0; riP->attributeNamesV != NULL && riP->attributeNamesV[a] != NULL; a++)
+      cap++;
   }
 
   if (!anyRestricts)
@@ -500,15 +482,13 @@ static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
   int    n   = 0;
   for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
   {
-    char** lists[] = { riP->propertyNamesV, riP->relationshipNamesV, NULL };
-    for (int li = 0; lists[li] != NULL; li++)
-      for (int a = 0; lists[li][a] != NULL; a++)
-      {
-        bool dup = false;
-        for (int i = 0; i < n; i++)
-          if (strcmp(out[i], lists[li][a]) == 0) { dup = true; break; }
-        if (!dup) out[n++] = lists[li][a];
-      }
+    for (int a = 0; riP->attributeNamesV != NULL && riP->attributeNamesV[a] != NULL; a++)
+    {
+      bool dup = false;
+      for (int i = 0; i < n; i++)
+        if (strcmp(out[i], riP->attributeNamesV[a]) == 0) { dup = true; break; }
+      if (!dup) out[n++] = riP->attributeNamesV[a];
+    }
   }
   out[n] = NULL;
   return out;
@@ -1707,7 +1687,7 @@ bool getEntities(void)
           {
             char** csrExports = csrUnionExports(csr, &swRest.kalloc);
             bool   skip       = false;
-            const char* pickParam = intersectAndPick(csrExports, NULL, pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
+            const char* pickParam = intersectAndPick(csrExports, pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
             if (skip) continue;
 
             const char* splitBase = buildSplitForwardQueryString(ldDistOpForwardContext(csr));
@@ -1741,7 +1721,7 @@ bool getEntities(void)
               }
 
               bool        skip      = false;
-              const char* pickParam = intersectAndPick(riP->propertyNamesV, riP->relationshipNamesV,
+              const char* pickParam = intersectAndPick(riP->attributeNamesV,
                                                         pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
               if (skip) { csrSkipped = true; break; }
 

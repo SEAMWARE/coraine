@@ -975,10 +975,10 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 231
+Content-Length: 211
 
 {
-  "detail": "'information' element must have at least one of 'entities', 'propertyNames', 'relationshipNames'",
+  "detail": "'information' element must have at least one of 'entities', 'attributeNames'",
   "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -1401,10 +1401,10 @@ Content-Length: 178
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 195
+Content-Length: 174
 
 {
-  "detail": "'information[].propertyNames' / 'relationshipNames' must not be empty",
+  "detail": "'information[].attributeNames' must not be empty",
   "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -1465,10 +1465,10 @@ Content-Length: 182
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 195
+Content-Length: 174
 
 {
-  "detail": "'information[].propertyNames' / 'relationshipNames' must not be empty",
+  "detail": "'information[].attributeNames' must not be empty",
   "status": 400,
   "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

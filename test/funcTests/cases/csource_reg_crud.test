@@ -152,7 +152,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -163,7 +163,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 228
 
 {
   "endpoint": "http://csource.example.com",
@@ -186,8 +186,8 @@ Content-Length: REGEX(\d+)
 =================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
-Location: REGEX(/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+)
-Content-Length: REGEX(\d+)
+Location: /ngsi-ld/v1/csourceRegistrations/REGEX(urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+)
+Content-Length: 0
 
 
 
@@ -198,7 +198,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 746
 
 [
   {
@@ -218,18 +218,18 @@ Content-Length: REGEX(\d+)
   {
     "description": "Vehicle data source",
     "endpoint": "http://other.example.com",
-    "id": REGEX("urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+"),
+    "id": "REGEX(urn:ngsi-ld:ContextSourceRegistration:[0-9a-f]+:[0-9]+)",
     "information": [
       {
+        "attributeNames": [
+          "temperature",
+          "humidity"
+        ],
         "entities": [
           {
             "id": "urn:ngsi-ld:Building:B1",
             "type": "Building"
           }
-        ],
-        "propertyNames": [
-          "temperature",
-          "humidity"
         ]
       }
     ],
@@ -254,7 +254,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 271
 
 {
   "description": "Updated R1 description",
@@ -287,7 +287,7 @@ Date: REGEX(.*)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 167
 
 {
   "detail": "registration 'urn:doesnt:exist' not found",
@@ -303,7 +303,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "registration 'urn:ngsi-ld:CSR:R1' not found",
@@ -319,7 +319,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -329,7 +329,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 176
 
 {
   "detail": "registration 'urn:ngsi-ld:CSR:R1' already exists",

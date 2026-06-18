@@ -195,7 +195,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "exclusive Registration 'information[]' element must declare at least one of 'propertyNames' or 'relationshipNames' — entity-wide exclusive claims are not supported (§ 9.3.3)",
+  "detail": "exclusive Registration 'information[]' element must declare 'attributeNames' — entity-wide exclusive claims are not supported (§ 9.3.3)",
   "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

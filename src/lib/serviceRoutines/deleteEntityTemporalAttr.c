@@ -46,14 +46,10 @@ static bool csrCoversAttr(LdRegCacheItem* csr, const char* attrIri)
 {
   for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
   {
-    if (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL)
+    if (riP->attributeNamesV == NULL)
       return true;
-    if (riP->propertyNamesV != NULL)
-      for (int i = 0; riP->propertyNamesV[i] != NULL; i++)
-        if (strcmp(riP->propertyNamesV[i], attrIri) == 0) return true;
-    if (riP->relationshipNamesV != NULL)
-      for (int i = 0; riP->relationshipNamesV[i] != NULL; i++)
-        if (strcmp(riP->relationshipNamesV[i], attrIri) == 0) return true;
+    for (int i = 0; riP->attributeNamesV[i] != NULL; i++)
+      if (strcmp(riP->attributeNamesV[i], attrIri) == 0) return true;
   }
   return false;
 }

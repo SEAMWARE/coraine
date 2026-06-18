@@ -75,7 +75,7 @@ static void stripInfoAttrsFromEntity(KjNode* entityP, LdRegInfo* riP)
   if (entityP == NULL || entityP->type != KjObject)
     return;
 
-  bool wildcard = (riP->propertyNamesV == NULL && riP->relationshipNamesV == NULL);
+  bool wildcard = (riP->attributeNamesV == NULL);
 
   KjNode* curP = entityP->value.firstChildP;
   while (curP != NULL)
@@ -87,12 +87,9 @@ static void stripInfoAttrsFromEntity(KjNode* entityP, LdRegInfo* riP)
         strcmp(curP->name, "type") != 0)
     {
       bool covered = wildcard;
-      if (!covered && riP->propertyNamesV != NULL)
-        for (int j = 0; riP->propertyNamesV[j] != NULL; j++)
-          if (strcmp(curP->name, riP->propertyNamesV[j]) == 0) { covered = true; break; }
-      if (!covered && riP->relationshipNamesV != NULL)
-        for (int j = 0; riP->relationshipNamesV[j] != NULL; j++)
-          if (strcmp(curP->name, riP->relationshipNamesV[j]) == 0) { covered = true; break; }
+      if (!covered && riP->attributeNamesV != NULL)
+        for (int j = 0; riP->attributeNamesV[j] != NULL; j++)
+          if (strcmp(curP->name, riP->attributeNamesV[j]) == 0) { covered = true; break; }
 
       if (covered)
         kjChildRemove(entityP, curP);

@@ -1,0 +1,237 @@
+#
+# FILE            csource-reg-attributenames.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# RegistrationInfo attributeNames (§ 5.2.10) — the single attribute-name list
+# that supersedes the deprecated propertyNames / relationshipNames split.
+# Covers:
+#   - attributeNames (new form)                  -> 201, rendered as attributeNames
+#   - propertyNames + relationshipNames (old)    -> 201, MERGED into one attributeNames
+#   - relationshipNames only (old)               -> 201, rendered as attributeNames
+#   - attributeNames + propertyNames (mix)       -> 400 Invalid Registration
+#
+--NAME--
+CSR RegistrationInfo attributeNames — new form, old-pair merge, mix rejected
+
+--TAGS--
+registration attributeNames
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Register with attributeNames (new form) -> 201"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN1","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed","brand"]}]}'
+echo
+echo
+
+
+echo "02. GET it -> attributeNames rendered"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN1
+echo
+echo
+
+
+echo "03. Register with propertyNames + relationshipNames (old pair) -> 201"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN2","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"],"relationshipNames":["isParked"]}]}'
+echo
+echo
+
+
+echo "04. GET it -> the pair is MERGED into one attributeNames"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN2
+echo
+echo
+
+
+echo "05. Register with relationshipNames only (old form) -> 201"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN3","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"relationshipNames":["isParked"]}]}'
+echo
+echo
+
+
+echo "06. GET it -> attributeNames rendered"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN3
+echo
+echo
+
+
+echo "07. Mix attributeNames + propertyNames -> 400"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN4","type":"ContextSourceRegistration","endpoint":"http://cp4.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed"],"propertyNames":["brand"]}]}'
+echo
+echo
+
+
+echo "08. Mix attributeNames + relationshipNames -> 400"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN5","type":"ContextSourceRegistration","endpoint":"http://cp5.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed"],"relationshipNames":["isParked"]}]}'
+echo
+echo
+
+--EXPECT--
+01. Register with attributeNames (new form) -> 201
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN1
+Content-Length: 0
+
+
+
+
+02. GET it -> attributeNames rendered
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 304
+
+{
+  "endpoint": "http://cp1.example",
+  "id": "urn:CSR:AN1",
+  "information": [
+    {
+      "attributeNames": [
+        "speed",
+        "brand"
+      ],
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "mode": "inclusive",
+  "type": "ContextSourceRegistration"
+}
+
+
+
+03. Register with propertyNames + relationshipNames (old pair) -> 201
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN2
+Content-Length: 0
+
+
+
+
+04. GET it -> the pair is MERGED into one attributeNames
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 307
+
+{
+  "endpoint": "http://cp2.example",
+  "id": "urn:CSR:AN2",
+  "information": [
+    {
+      "attributeNames": [
+        "speed",
+        "isParked"
+      ],
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "mode": "inclusive",
+  "type": "ContextSourceRegistration"
+}
+
+
+
+05. Register with relationshipNames only (old form) -> 201
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN3
+Content-Length: 0
+
+
+
+
+06. GET it -> attributeNames rendered
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 290
+
+{
+  "endpoint": "http://cp3.example",
+  "id": "urn:CSR:AN3",
+  "information": [
+    {
+      "attributeNames": [
+        "isParked"
+      ],
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "mode": "inclusive",
+  "type": "ContextSourceRegistration"
+}
+
+
+
+07. Mix attributeNames + propertyNames -> 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "'information' element must use 'attributeNames' OR the deprecated 'propertyNames'/'relationshipNames' pair, not both",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Mix attributeNames + relationshipNames -> 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "'information' element must use 'attributeNames' OR the deprecated 'propertyNames'/'relationshipNames' pair, not both",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

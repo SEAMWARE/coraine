@@ -112,18 +112,18 @@ HTTP/1.1 201 Created
   {
     "body": {
       "data": [],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "newlyMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"
@@ -136,13 +136,13 @@ HTTP/1.1 201 Created
           "id": "urn:CSR:A",
           "information": [
             {
+              "attributeNames": [
+                "spd"
+              ],
               "entities": [
                 {
                   "type": "Vehicle"
                 }
-              ],
-              "propertyNames": [
-                "spd"
               ]
             }
           ],
@@ -150,18 +150,18 @@ HTTP/1.1 201 Created
           "type": "ContextSourceRegistration"
         }
       ],
-      "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
       "triggerReason": "newlyMatching",
       "type": "ContextSourceNotification"
     },
     "headers": {
-      "Content-Length": REGEX("[0-9]+"),
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": REGEX("swBroker/.*")
+      "User-Agent": "REGEX(swBroker/.*)"
     },
     "url": "/s1",
     "verb": "POST"

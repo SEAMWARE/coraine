@@ -266,7 +266,7 @@ bool postEntityAttrs(void)
   // or Via loop. exclusive/redirect chop, inclusive clones.
   //
   // Fragment is in API form. ldEntityFragmentForInfo extracts per-CSR
-  // slices (whose attrs match the CSR's propertyNames/relationshipNames)
+  // slices (whose attrs match the CSR's attributeNames)
   // and, when detach=true, removes them from the original fragment so
   // exclusive-claimed attrs don't leak to the local path. Forward body
   // is the slice rendered with @context; CSR endpoint gets a POST to

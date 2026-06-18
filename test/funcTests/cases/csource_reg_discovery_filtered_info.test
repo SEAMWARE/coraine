@@ -121,7 +121,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 322
+Content-Length: 323
 
 [
   {
@@ -129,13 +129,13 @@ Content-Length: 322
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -151,7 +151,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 479
+Content-Length: 481
 
 [
   {
@@ -159,23 +159,23 @@ Content-Length: 479
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       },
       {
+        "attributeNames": [
+          "name"
+        ],
         "entities": [
           {
             "type": "Person"
           }
-        ],
-        "propertyNames": [
-          "name"
         ]
       }
     ],
@@ -191,7 +191,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 322
+Content-Length: 323
 
 [
   {
@@ -199,13 +199,13 @@ Content-Length: 322
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -221,7 +221,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 326
+Content-Length: 327
 
 [
   {
@@ -229,13 +229,13 @@ Content-Length: 326
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "location"
+        ],
         "entities": [
           {
             "type": "Building"
           }
-        ],
-        "propertyNames": [
-          "location"
         ]
       }
     ],
@@ -257,7 +257,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1006
+Content-Length: 1010
 
 [
   {
@@ -265,33 +265,33 @@ Content-Length: 1006
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       },
       {
+        "attributeNames": [
+          "name"
+        ],
         "entities": [
           {
             "type": "Person"
           }
-        ],
-        "propertyNames": [
-          "name"
         ]
       },
       {
+        "attributeNames": [
+          "location"
+        ],
         "entities": [
           {
             "type": "Building"
           }
-        ],
-        "propertyNames": [
-          "location"
         ]
       }
     ],
@@ -302,14 +302,14 @@ Content-Length: 1006
     "id": "urn:ngsi-ld:CSR:Pinned",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "id": "urn:ngsi-ld:Vehicle:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -325,7 +325,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1016
+Content-Length: 1020
 
 [
   {
@@ -333,33 +333,33 @@ Content-Length: 1016
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       },
       {
+        "attributeNames": [
+          "name"
+        ],
         "entities": [
           {
             "type": "Person"
           }
-        ],
-        "propertyNames": [
-          "name"
         ]
       },
       {
+        "attributeNames": [
+          "location"
+        ],
         "entities": [
           {
             "type": "Building"
           }
-        ],
-        "propertyNames": [
-          "location"
         ]
       }
     ],
@@ -370,14 +370,14 @@ Content-Length: 1016
     "id": "urn:ngsi-ld:CSR:Pattern",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "idPattern": "^urn:ngsi-ld:Vehicle:P.*",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -393,7 +393,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 642
+Content-Length: 645
 
 [
   {
@@ -401,33 +401,33 @@ Content-Length: 642
     "id": "urn:ngsi-ld:CSR:Multi",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       },
       {
+        "attributeNames": [
+          "name"
+        ],
         "entities": [
           {
             "type": "Person"
           }
-        ],
-        "propertyNames": [
-          "name"
         ]
       },
       {
+        "attributeNames": [
+          "location"
+        ],
         "entities": [
           {
             "type": "Building"
           }
-        ],
-        "propertyNames": [
-          "location"
         ]
       }
     ],

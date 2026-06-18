@@ -196,7 +196,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 673
+Content-Length: 675
 
 [
   {
@@ -204,13 +204,13 @@ Content-Length: 673
     "id": "urn:CSR:A",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -222,14 +222,14 @@ Content-Length: 673
     "id": "urn:CSR:C",
     "information": [
       {
+        "attributeNames": [
+          "color"
+        ],
         "entities": [
           {
             "id": "urn:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "color"
         ]
       }
     ],
@@ -246,7 +246,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 673
+Content-Length: 675
 
 [
   {
@@ -254,13 +254,13 @@ Content-Length: 673
     "id": "urn:CSR:A",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -272,14 +272,14 @@ Content-Length: 673
     "id": "urn:CSR:C",
     "information": [
       {
+        "attributeNames": [
+          "color"
+        ],
         "entities": [
           {
             "id": "urn:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "color"
         ]
       }
     ],
@@ -296,7 +296,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 673
+Content-Length: 675
 
 [
   {
@@ -304,13 +304,13 @@ Content-Length: 673
     "id": "urn:CSR:A",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -322,14 +322,14 @@ Content-Length: 673
     "id": "urn:CSR:C",
     "information": [
       {
+        "attributeNames": [
+          "color"
+        ],
         "entities": [
           {
             "id": "urn:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "color"
         ]
       }
     ],
@@ -346,7 +346,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 324
+Content-Length: 325
 
 [
   {
@@ -354,13 +354,13 @@ Content-Length: 324
     "id": "urn:CSR:A",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -377,7 +377,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 324
+Content-Length: 325
 
 [
   {
@@ -385,13 +385,13 @@ Content-Length: 324
     "id": "urn:CSR:A",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -408,7 +408,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 352
+Content-Length: 353
 
 [
   {
@@ -416,14 +416,14 @@ Content-Length: 352
     "id": "urn:CSR:C",
     "information": [
       {
+        "attributeNames": [
+          "color"
+        ],
         "entities": [
           {
             "id": "urn:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "color"
         ]
       }
     ],
@@ -440,7 +440,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 673
+Content-Length: 675
 
 [
   {
@@ -448,13 +448,13 @@ Content-Length: 673
     "id": "urn:CSR:A",
     "information": [
       {
+        "attributeNames": [
+          "speed"
+        ],
         "entities": [
           {
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "speed"
         ]
       }
     ],
@@ -466,14 +466,14 @@ Content-Length: 673
     "id": "urn:CSR:C",
     "information": [
       {
+        "attributeNames": [
+          "color"
+        ],
         "entities": [
           {
             "id": "urn:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "color"
         ]
       }
     ],
@@ -490,7 +490,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 352
+Content-Length: 353
 
 [
   {
@@ -498,14 +498,14 @@ Content-Length: 352
     "id": "urn:CSR:C",
     "information": [
       {
+        "attributeNames": [
+          "color"
+        ],
         "entities": [
           {
             "id": "urn:V1",
             "type": "Vehicle"
           }
-        ],
-        "propertyNames": [
-          "color"
         ]
       }
     ],

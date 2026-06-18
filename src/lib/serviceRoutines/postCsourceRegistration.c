@@ -83,34 +83,21 @@ static char* regIdGenerate(KAlloc* allocP)
 //
 // attrSetsOverlap - do two RegistrationInfo attr-sets share any attribute?
 //
-// An info element with NEITHER propertyNames NOR relationshipNames means
-// "all attributes" (per spec § 5.2.10 the absence of attribute restrictions
-// means the registration covers any attribute). Wildcard always overlaps.
+// An info element with no attributeNames means "all attributes" (per spec
+// § 5.2.10 the absence of attribute restrictions means the registration covers
+// any attribute). Wildcard always overlaps.
 //
-static bool attrSetsOverlap(char** propsA, char** relsA, char** propsB, char** relsB)
+static bool attrSetsOverlap(char** attrsA, char** attrsB)
 {
-  bool aWild = (propsA == NULL && relsA == NULL);
-  bool bWild = (propsB == NULL && relsB == NULL);
+  bool aWild = (attrsA == NULL);
+  bool bWild = (attrsB == NULL);
 
   if (aWild || bWild)
     return true;
 
-  if (propsA != NULL)
-  {
-    for (int i = 0; propsA[i] != NULL; i++)
-    {
-      if (kStringInArray(propsA[i], propsB)) return true;
-      if (kStringInArray(propsA[i], relsB))  return true;
-    }
-  }
-  if (relsA != NULL)
-  {
-    for (int i = 0; relsA[i] != NULL; i++)
-    {
-      if (kStringInArray(relsA[i], propsB)) return true;
-      if (kStringInArray(relsA[i], relsB))  return true;
-    }
-  }
+  for (int i = 0; attrsA[i] != NULL; i++)
+    if (kStringInArray(attrsA[i], attrsB)) return true;
+
   return false;
 }
 
@@ -118,12 +105,12 @@ static bool attrSetsOverlap(char** propsA, char** relsA, char** propsB, char** r
 
 // -----------------------------------------------------------------------------
 //
-// attrIRIArray - extract propertyNames / relationshipNames as a NULL-terminated
+// attrIRIArray - extract an attributeNames array as a NULL-terminated
 //                array of EXPANDED IRIs.
 //
 // swldExpandTree intentionally doesn't @vocab-coerce array values (would
-// launder bad input past validators), so propertyNames / relationshipNames
-// arrive in this routine as their short-name form. The cached items are
+// launder bad input past validators), so attributeNames items arrive in this
+// routine as their short-name form. The cached items are
 // stored expanded (ldRegCache.c attrIRIArrayExtract) so we expand the new
 // reg's names on-the-fly to compare apples-to-apples.
 //
@@ -200,8 +187,7 @@ static const char* cacheConflict(LdRegCache* cacheP,
                                   LdRegMode   newMode,
                                   const char* entityId,
                                   const char* entityType,
-                                  char**      newProps,
-                                  char**      newRels)
+                                  char**      newAttrs)
 {
   if (cacheP == NULL)
     return NULL;
@@ -251,7 +237,7 @@ static const char* cacheConflict(LdRegCache* cacheP,
       if (entityMatches == false)
         continue;
 
-      if (attrSetsOverlap(newProps, newRels, riP->propertyNamesV, riP->relationshipNamesV))
+      if (attrSetsOverlap(newAttrs, riP->attributeNamesV))
         return itemP->regId;
     }
   }
@@ -266,10 +252,10 @@ static const char* cacheConflict(LdRegCache* cacheP,
 // localEntityConflict - does local entity 'entityId' have any of the new reg's attrs?
 //
 // Returns true if the local store has the entity AND it carries at least one
-// of the listed attribute IRIs. A wildcard new-reg attr-set (both propsP and
-// relsP NULL, "all attrs") makes this conflict if the entity exists at all.
+// of the listed attribute IRIs. A wildcard new-reg attr-set (newAttrs NULL,
+// "all attrs") makes this conflict if the entity exists at all.
 //
-static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** newProps, char** newRels)
+static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** newAttrs)
 {
   if (db.entityRetrieve == NULL)
     return false;
@@ -280,7 +266,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
     return false;
 
   // Wildcard new-reg attrs → any entity with this id is a conflict
-  if (newProps == NULL && newRels == NULL)
+  if (newAttrs == NULL)
     return true;
 
   // Walk entity attrs (skipping system fields). The local entity's attr names
@@ -292,8 +278,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
     if (strcmp(attrP->name, "id") == 0)   continue;
     if (strcmp(attrP->name, "type") == 0) continue;
 
-    if (kStringInArray(attrP->name, newProps)) return true;
-    if (kStringInArray(attrP->name, newRels))  return true;
+    if (kStringInArray(attrP->name, newAttrs)) return true;
   }
   return false;
 }
@@ -326,8 +311,7 @@ static bool conflictCheck(KjNode* regP, LdRegMode newMode)
     if (infoP->type != KjObject)
       continue;
 
-    char** newProps = attrIRIArray(kjLookup(infoP, "propertyNames"),     &swRest.kalloc);
-    char** newRels  = attrIRIArray(kjLookup(infoP, "relationshipNames"), &swRest.kalloc);
+    char** newAttrs = attrIRIArray(kjLookup(infoP, "attributeNames"), &swRest.kalloc);
 
     KjNode* entitiesP = kjLookup(infoP, LD_VOCAB_ENTITIES);
     if (entitiesP == NULL || entitiesP->type != KjArray)
@@ -353,7 +337,7 @@ static bool conflictCheck(KjNode* regP, LdRegMode newMode)
       const char* entityType = (typeP != NULL && typeP->type == KjString) ? typeP->value.s : NULL;
 
       // Check 1: cached registration overlap
-      const char* conflictingRegId = cacheConflict(cacheP, newMode, entityId, entityType, newProps, newRels);
+      const char* conflictingRegId = cacheConflict(cacheP, newMode, entityId, entityType, newAttrs);
       if (conflictingRegId != NULL)
       {
         ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
@@ -363,7 +347,7 @@ static bool conflictCheck(KjNode* regP, LdRegMode newMode)
       }
 
       // Check 2: local entity overlap
-      if (localEntityConflict(tenantP, entityId, newProps, newRels))
+      if (localEntityConflict(tenantP, entityId, newAttrs))
       {
         ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
                 "registration overlaps with locally-stored entity '%s'", entityId);
