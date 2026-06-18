@@ -175,7 +175,7 @@ Content-Length: REGEX(\d+)
     {
       "attributeName": "ownedBy",
       "attributeTypes": [
-        "Relationship"
+        "Property"
       ],
       "id": "https://uri.etsi.org/ngsi-ld/default-context/ownedBy",
       "type": "Attribute"
@@ -240,7 +240,7 @@ Content-Length: REGEX(\d+)
   "attributeCount": 0,
   "attributeName": "ownedBy",
   "attributeTypes": [
-    "Relationship"
+    "Property"
   ],
   "id": "https://uri.etsi.org/ngsi-ld/default-context/ownedBy",
   "type": "Attribute",
