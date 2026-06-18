@@ -244,7 +244,7 @@ bool purgeEntities(void)
   //
   if (!swNgsild.local && !hasRestrictiveFilter())
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
             "Purge Entities requires at least one of id, type, idPattern, q, geoquery, scopeQ — or ?local=true");
     return true;
   }

@@ -122,22 +122,22 @@ bool patchEntityTemporalInstance(void)
 
   if (entityId == NULL || entityId[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing entity id in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing entity id in URL");
     return true;
   }
   if (attrWild == NULL || attrWild[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing attribute name in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing attribute name in URL");
     return true;
   }
   if (instanceId == NULL || instanceId[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing instance id in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing instance id in URL");
     return true;
   }
   if (bodyP == NULL || bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "request body must be a JSON-LD object (EntityTemporal Fragment)");
     return true;
   }

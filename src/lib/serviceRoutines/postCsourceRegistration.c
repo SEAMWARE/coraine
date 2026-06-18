@@ -419,12 +419,12 @@ bool postCsourceRegistration(void)
   }
   else if (idP->type != KjString)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "registration 'id' must be a string");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "registration 'id' must be a string");
     return true;
   }
   else if (idP->value.s[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "registration 'id' must not be empty");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "registration 'id' must not be empty");
     return true;
   }
   else if (ldCheckUri(idP->value.s) == false)

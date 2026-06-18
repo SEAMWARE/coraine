@@ -291,7 +291,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "reload is only valid for Cached contexts",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -355,7 +355,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "'url' must be a non-empty string",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -403,7 +403,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "the Core @context cannot be deleted",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -419,7 +419,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "the Core @context cannot be deleted",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

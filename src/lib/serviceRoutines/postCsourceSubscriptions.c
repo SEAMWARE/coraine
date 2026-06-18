@@ -77,7 +77,7 @@ bool postCsourceSubscriptions(void)
            : -1L;
     if (n < 1)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'timeInterval' must be a positive integer (seconds)");
       return true;
     }
@@ -98,7 +98,7 @@ bool postCsourceSubscriptions(void)
   }
   else if (idP->type != KjString)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "subscription 'id' must be a string");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "subscription 'id' must be a string");
     return true;
   }
 

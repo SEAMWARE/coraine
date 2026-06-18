@@ -87,14 +87,14 @@ bool patchSnapshot(void)
 
   if (id == NULL || id[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component",
             "Snapshot id missing in URL");
     return true;
   }
 
   if (fragP == NULL || fragP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "Snapshot fragment must be a JSON object");
     return true;
   }
@@ -120,7 +120,7 @@ bool patchSnapshot(void)
   {
     if (kjLookup(fragP, IMMUTABLE_FIELDS[i]) != NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "field '%s' cannot be modified via PATCH", IMMUTABLE_FIELDS[i]);
       return true;
     }
@@ -135,7 +135,7 @@ bool patchSnapshot(void)
             : -1L;
     if (pn < 1 || pn > 10)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotPriority' must be an integer between 1 and 10");
       return true;
     }
@@ -148,7 +148,7 @@ bool patchSnapshot(void)
   {
     if (lifeP->type != KjString || (lifeNs = ldIso8601DurationParseNs(lifeP->value.s)) < 0)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")");
       return true;
     }

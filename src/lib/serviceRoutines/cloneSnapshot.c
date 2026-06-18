@@ -95,7 +95,7 @@ bool cloneSnapshot(void)
   const char* sourceId = swRest.in.wildcard[0];
   if (sourceId == NULL || sourceId[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component",
             "Source snapshot id missing in URL");
     return true;
   }
@@ -119,7 +119,7 @@ bool cloneSnapshot(void)
   KjNode* bodyP = swRest.in.requestTree;
   if (bodyP != NULL && bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "Snapshot fragment must be a JSON object");
     return true;
   }
@@ -130,7 +130,7 @@ bool cloneSnapshot(void)
     if (kjLookup(bodyP, "snapshotQueriesDetails") != NULL ||
         kjLookup(bodyP, "snapshotTemporalQueriesDetails") != NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "snapshotQueriesDetails / snapshotTemporalQueriesDetails must not be supplied on clone");
       return true;
     }
@@ -174,7 +174,7 @@ bool cloneSnapshot(void)
               : -1L;
       if (pn < 1 || pn > 10)
       {
-        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
                 "'snapshotPriority' must be an integer between 1 and 10");
         return true;
       }

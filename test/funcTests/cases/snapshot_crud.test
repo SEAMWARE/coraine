@@ -131,7 +131,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "Snapshot 'type' must be \"Snapshot\"",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -147,7 +147,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "Snapshot 'type' must be \"Snapshot\"",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

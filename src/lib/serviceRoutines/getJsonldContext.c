@@ -169,7 +169,7 @@ bool getJsonldContext(void)
 
   if (contextId == NULL || contextId[0] == '\0')
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "context id is missing");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "context id is missing");
     return true;
   }
 

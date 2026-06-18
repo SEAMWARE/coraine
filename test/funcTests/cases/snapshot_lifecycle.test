@@ -232,7 +232,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "field 'id' cannot be modified via PATCH",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -248,7 +248,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "field 'snapshotQueries' cannot be modified via PATCH",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -264,7 +264,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "'snapshotPriority' must be an integer between 1 and 10",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

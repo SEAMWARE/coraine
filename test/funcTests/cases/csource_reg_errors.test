@@ -1113,12 +1113,12 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 160
+Content-Length: 168
 
 {
   "detail": "registration 'id' must be a string",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -1161,12 +1161,12 @@ Content-Length: 182
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 161
+Content-Length: 169
 
 {
   "detail": "registration 'id' must not be empty",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

@@ -201,7 +201,7 @@ HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 301
+Content-Length: 304
 
 {
   "errors": [
@@ -210,7 +210,7 @@ Content-Length: 301
       "error": {
         "detail": "Entity 'id' is mandatory for CreateEntity",
         "status": 400,
-        "title": "Bad Request",
+        "title": "Invalid Entity",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
     }
@@ -232,7 +232,7 @@ Content-Length: 169
 {
   "detail": "Batch Entity Creation: input array is empty",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -243,12 +243,12 @@ Content-Length: 169
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 173
+Content-Length: 181
 
 {
   "detail": "Batch Entity Creation: null entry at position 1",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Array Entry",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -259,12 +259,12 @@ Content-Length: 173
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 173
+Content-Length: 178
 
 {
   "detail": "Batch Entity Creation body must be a JSON array",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not a JSON Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

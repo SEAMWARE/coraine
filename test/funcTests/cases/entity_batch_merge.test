@@ -326,7 +326,7 @@ Content-Length: 166
 {
   "detail": "Batch Entity Merge: input array is empty",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -337,12 +337,12 @@ Content-Length: 166
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 178
 
 {
   "detail": "Batch Entity Merge: null entry at position 1",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Array Entry",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -353,12 +353,12 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 175
 
 {
   "detail": "Batch Entity Merge body must be a JSON array",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not a JSON Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

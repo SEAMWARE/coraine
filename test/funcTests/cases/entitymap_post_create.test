@@ -81,21 +81,21 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V2
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:S1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -105,7 +105,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-NGSILD-EntityMap: REGEX(.*)
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
 Content-Length: REGEX(\d+)
 
 {
@@ -117,8 +117,8 @@ Content-Length: REGEX(\d+)
       "@none"
     ]
   },
-  "expiresAt": REGEX(.*)
-  "id": REGEX(.*)
+  "expiresAt": "REGEX(.*)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
   "linkedMaps": {},
   "type": "EntityMap"
 }
@@ -130,13 +130,13 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-NGSILD-EntityMap: REGEX(.*)
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
 Content-Length: REGEX(\d+)
 
 {
   "entityMap": {},
-  "expiresAt": REGEX(.*)
-  "id": REGEX(.*)
+  "expiresAt": "REGEX(.*)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
   "linkedMaps": {},
   "type": "EntityMap"
 }
@@ -148,7 +148,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
-NGSILD-EntityMap: REGEX(.*)
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
 Content-Length: REGEX(\d+)
 
 {
@@ -163,8 +163,8 @@ Content-Length: REGEX(\d+)
       "@none"
     ]
   },
-  "expiresAt": REGEX(.*)
-  "id": REGEX(.*)
+  "expiresAt": "REGEX(.*)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
   "linkedMaps": {},
   "type": "EntityMap"
 }
@@ -176,12 +176,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 179
 
 {
   "detail": "Query body must carry \"type\": \"Query\"",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Mandatory Field Missing",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -192,12 +192,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 179
 
 {
   "detail": "Query body must carry \"type\": \"Query\"",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Mandatory Field Missing",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

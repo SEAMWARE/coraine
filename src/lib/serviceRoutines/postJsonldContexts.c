@@ -174,7 +174,7 @@ bool postJsonldContexts(void)
     //
     if (urlP->type != KjString || urlP->value.s[0] == '\0')
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'url' must be a non-empty string");
       return true;
     }

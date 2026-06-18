@@ -56,7 +56,7 @@ bool postExNotification(void)
 
   if (parentSubId == NULL || parentSubId[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing parent subscription id in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing parent subscription id in URL");
     return true;
   }
 
@@ -84,7 +84,7 @@ bool postExNotification(void)
   KjNode* bodyTree = swRest.in.requestTree;
   if (bodyTree == NULL || bodyTree->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "notification body must be a JSON object");
     return true;
   }

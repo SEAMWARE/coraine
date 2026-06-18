@@ -358,7 +358,7 @@ Content-Length: 167
 {
   "detail": "Batch Entity Upsert: input array is empty",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -369,12 +369,12 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 171
+Content-Length: 179
 
 {
   "detail": "Batch Entity Upsert: null entry at position 1",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Array Entry",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -385,12 +385,12 @@ Content-Length: 171
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 171
+Content-Length: 176
 
 {
   "detail": "Batch Entity Upsert body must be a JSON array",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not a JSON Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

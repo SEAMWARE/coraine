@@ -81,7 +81,7 @@ static bool validateSnapshot(KjNode* snapP)
 {
   if (snapP == NULL || snapP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "Snapshot payload must be a JSON object");
     return false;
   }
@@ -89,7 +89,7 @@ static bool validateSnapshot(KjNode* snapP)
   KjNode* typeP = kjLookup(snapP, "type");
   if (typeP == NULL || typeP->type != KjString || strcmp(typeP->value.s, "Snapshot") != 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
             "Snapshot 'type' must be \"Snapshot\"");
     return false;
   }
@@ -98,20 +98,20 @@ static bool validateSnapshot(KjNode* snapP)
   KjNode* tqP = kjLookup(snapP, "snapshotTemporalQueries");
   if (qP == NULL && tqP == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "at least one of 'snapshotQueries' or 'snapshotTemporalQueries' is required");
     return false;
   }
 
   if (qP != NULL && qP->type != KjArray)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "'snapshotQueries' must be an array");
     return false;
   }
   if (tqP != NULL && tqP->type != KjArray)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "'snapshotTemporalQueries' must be an array");
     return false;
   }
@@ -124,7 +124,7 @@ static bool validateSnapshot(KjNode* snapP)
             : -1L;
     if (pn < 1 || pn > 10)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotPriority' must be an integer between 1 and 10");
       return false;
     }
@@ -135,7 +135,7 @@ static bool validateSnapshot(KjNode* snapP)
   {
     if (lifeP->type != KjString || ldIso8601DurationParseNs(lifeP->value.s) < 0)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")");
       return false;
     }
@@ -202,7 +202,7 @@ bool postSnapshot(void)
   }
   else if (idP->type != KjString)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "Snapshot 'id' must be a string");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "Snapshot 'id' must be a string");
     return true;
   }
 

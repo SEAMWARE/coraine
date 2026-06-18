@@ -121,7 +121,7 @@ bool postSubscriptions(void)
   }
   else if (idP->type != KjString)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "subscription 'id' must be a string");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "subscription 'id' must be a string");
     return true;
   }
 

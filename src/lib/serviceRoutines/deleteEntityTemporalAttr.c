@@ -102,12 +102,12 @@ bool deleteEntityTemporalAttr(void)
 
   if (entityId == NULL || entityId[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing entity id in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing entity id in URL");
     return true;
   }
   if (attrWild == NULL || attrWild[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing attribute name in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing attribute name in URL");
     return true;
   }
 

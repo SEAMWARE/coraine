@@ -210,7 +210,7 @@ Tenant* tenantFromRequest(bool autoCreate)
   tP = tenantGetOrCreate(tenantName);
   if (tP == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "tenant name too long: '%s'", tenantName);
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "tenant name too long: '%s'", tenantName);
     return NULL;
   }
 

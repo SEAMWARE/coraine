@@ -106,7 +106,7 @@ bool putEntityAttr(void)
 
   if (bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "attribute fragment must be a JSON object");
     return true;
   }
@@ -119,7 +119,7 @@ bool putEntityAttr(void)
   // the broker would expand the bogus name via @vocab and 404 on lookup.
   if (!ldIsValidName(attrWild))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Attribute Name",
             "Invalid attribute name '%s' in URL path", attrWild);
     return true;
   }
@@ -134,7 +134,7 @@ bool putEntityAttr(void)
   //
   if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
             "scope cannot be replaced via Replace Attribute");
     return true;
   }

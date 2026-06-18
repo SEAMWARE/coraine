@@ -299,12 +299,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 206
+Content-Length: 214
 
 {
   "detail": "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -315,12 +315,12 @@ Content-Length: 206
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 206
+Content-Length: 214
 
 {
   "detail": "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -371,12 +371,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 206
+Content-Length: 214
 
 {
   "detail": "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Field Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

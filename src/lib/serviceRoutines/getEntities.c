@@ -1524,7 +1524,7 @@ bool getEntities(void)
     bool hasId     = (swNgsild.idV != NULL || swNgsild.idPattern != NULL);
     if (!hasType && !hasAttrs && !hasQ && !hasGeo && !isLocal && !hasId)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
               "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied");
       return true;
     }

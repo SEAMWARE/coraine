@@ -157,7 +157,7 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 179
 
 {
   "detail": "'limit' must be a non-negative integer (got '-1')",
@@ -173,7 +173,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 180
 
 {
   "detail": "'limit' must be a non-negative integer (got 'abc')",
@@ -189,12 +189,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 222
+Content-Length: 226
 
 {
   "detail": "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Query Too Broad",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -282,7 +282,7 @@ Content-Length: 78
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 180
 
 {
   "detail": "'offset' must be a non-negative integer (got '-1')",
@@ -298,7 +298,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 181
 
 {
   "detail": "'offset' must be a non-negative integer (got 'abc')",
@@ -314,7 +314,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "Unknown/unsupported URL parameter: page",

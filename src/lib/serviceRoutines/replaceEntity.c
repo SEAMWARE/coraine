@@ -192,7 +192,7 @@ bool replaceEntity(void)
   KjNode* bodyIdP = kjLookup(entityP, "id");
   if (bodyIdP != NULL && bodyIdP->type == KjString && strcmp(bodyIdP->value.s, entityId) != 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Entity Id Mismatch",
             "entity id in payload ('%s') does not match URL ('%s')",
             bodyIdP->value.s, entityId);
     return true;
@@ -248,7 +248,7 @@ bool replaceEntity(void)
 
     if (!typeEqual(newTypeP, oldTypeP))
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "entity type cannot be changed on Replace");
       return true;
     }

@@ -498,7 +498,7 @@ bool postEntityBatchUpsert(void)
 
   if (bodyP->type != KjArray)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "Batch Entity Upsert body must be a JSON array");
     return true;
   }
@@ -508,7 +508,7 @@ bool postEntityBatchUpsert(void)
   {
     if (c->type == KjNull)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
               "Batch Entity Upsert: null entry at position %d", total);
       return true;
     }
@@ -519,7 +519,7 @@ bool postEntityBatchUpsert(void)
                        swNgsild.batchPreErrors->value.firstChildP != NULL);
   if (total == 0 && !hasPreErrors)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Empty Array",
             "Batch Entity Upsert: input array is empty");
     return true;
   }
@@ -548,7 +548,7 @@ bool postEntityBatchUpsert(void)
     if (inP->type != KjObject)
     {
       addBatchError(errorsP, "", 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
                     "entity must be a JSON object", NULL);
       continue;
     }
@@ -566,7 +566,7 @@ bool postEntityBatchUpsert(void)
       snapshot[sizeof(snapshot) - 1] = 0;
 
       addBatchError(errorsP, eid, 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request", snapshot, NULL);
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Entity", snapshot, NULL);
 
       swRest.out.httpStatusCode   = 0;
       swRest.out.problemType      = NULL;
@@ -579,7 +579,7 @@ bool postEntityBatchUpsert(void)
     if (idP == NULL || idP->type != KjString)
     {
       addBatchError(errorsP, "", 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
                     "entity id is missing or not a string", NULL);
       continue;
     }

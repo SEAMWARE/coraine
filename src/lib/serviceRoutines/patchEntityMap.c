@@ -47,7 +47,7 @@ bool patchEntityMap(void)
 
   if (bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "EntityMap fragment must be a JSON object");
     return true;
   }
@@ -69,28 +69,28 @@ bool patchEntityMap(void)
       continue;
     }
 
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
             "field '%s' cannot be updated on an EntityMap — only expiresAt is mutable", fP->name);
     return true;
   }
 
   if (expiresAtP == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "Update EntityMap requires expiresAt in the body");
     return true;
   }
 
   if (expiresAtP->type != KjString)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
             "expiresAt must be an ISO 8601 DateTime string");
     return true;
   }
 
   if (ldCheckDateTime(expiresAtP->value.s) < 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
             "expiresAt is not a valid ISO 8601 DateTime: '%s'", expiresAtP->value.s);
     return true;
   }

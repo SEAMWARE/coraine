@@ -195,7 +195,7 @@ bool purgeSnapshots(void)
     qP = ldQParse(qStr, &swRest.kalloc);
     if (qP == NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid q-expression",
               "invalid q expression: '%s'", qStr);
       return true;
     }

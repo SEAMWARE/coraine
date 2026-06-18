@@ -119,7 +119,7 @@ bool patchEntityAttr(void)
 
   if (bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "attribute fragment must be a JSON object");
     return true;
   }
@@ -134,7 +134,7 @@ bool patchEntityAttr(void)
   //
   if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
             "scope cannot be modified via Partial Attribute Update");
     return true;
   }
@@ -334,7 +334,7 @@ bool patchEntityAttr(void)
           if (existingTypeP != NULL && existingTypeP->type == KjString &&
               strcmp(fragTypeP->value.s, existingTypeP->value.s) != 0)
           {
-            ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+            ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Attribute Type Change",
                     "attribute type mismatch: cannot change '%s' from '%s' to '%s'",
                     attrWild, existingTypeP->value.s, fragTypeP->value.s);
             return true;

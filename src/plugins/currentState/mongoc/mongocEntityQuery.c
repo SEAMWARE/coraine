@@ -1064,7 +1064,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       result             = DB_BAD_INPUT;
       filterP->errStatus = 400;
       filterP->errType   = LD_ERROR_BAD_REQUEST_DATA;
-      filterP->errTitle  = "Bad Request";
+      filterP->errTitle  = "Invalid Query";
       snprintf(filterP->errDetail, sizeof(filterP->errDetail), "%s", error.message);
     }
     else

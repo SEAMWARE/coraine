@@ -34,7 +34,7 @@ bool getSnapshot(void)
 
   if (id == NULL || id[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component",
             "Snapshot id missing in URL");
     return true;
   }

@@ -379,19 +379,19 @@ bool getEntitiesTemporal(void)
   // is mandatory; for timerel=between, endTimeAt is too.
   if (swNgsild.timerel == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "missing required URL parameter 'timerel'");
     return true;
   }
   if (swNgsild.timeAt == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "missing required URL parameter 'timeAt' (timerel='%s')", swNgsild.timerel);
     return true;
   }
   if (strcmp(swNgsild.timerel, "between") == 0 && swNgsild.endTimeAt == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "missing required URL parameter 'endTimeAt' for timerel='between'");
     return true;
   }
@@ -404,7 +404,7 @@ bool getEntitiesTemporal(void)
       && swNgsild.attrsV == NULL && swNgsild.qExpr == NULL && swNgsild.georel == NULL
       && swNgsild.local == false)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
             "at least one of 'id', 'idPattern', 'type', 'attrs', 'q', 'georel', or 'local' must be supplied");
     return true;
   }

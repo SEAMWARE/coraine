@@ -362,7 +362,7 @@ bool postEntities(void)
 
   if (idP == NULL || idP->type != KjString)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "entity id is missing or not a string");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry", "entity id is missing or not a string");
     return true;
   }
 

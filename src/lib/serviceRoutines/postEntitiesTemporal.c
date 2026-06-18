@@ -148,7 +148,7 @@ bool postEntitiesTemporal(void)
 
   if (bodyP == NULL || bodyP->type != KjObject)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "request body must be a JSON-LD object (EntityTemporal)");
     return true;
   }
@@ -158,7 +158,7 @@ bool postEntitiesTemporal(void)
 
   if (idP == NULL || idP->type != KjString || idP->value.s[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "EntityTemporal must include a non-empty 'id'");
     return true;
   }
@@ -166,7 +166,7 @@ bool postEntitiesTemporal(void)
     return true;
   if (typeP == NULL || typeP->type != KjString || typeP->value.s[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "EntityTemporal must include a non-empty 'type'");
     return true;
   }

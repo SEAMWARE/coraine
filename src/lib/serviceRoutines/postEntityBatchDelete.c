@@ -303,7 +303,7 @@ bool postEntityBatchDelete(void)
 
   if (bodyP->type != KjArray)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "Batch Entity Delete body must be a JSON array");
     return true;
   }
@@ -313,7 +313,7 @@ bool postEntityBatchDelete(void)
   {
     if (c->type == KjNull)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
               "Batch Entity Delete: null entry at position %d", total);
       return true;
     }
@@ -322,7 +322,7 @@ bool postEntityBatchDelete(void)
 
   if (total == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Empty Array",
             "Batch Entity Delete: input array is empty");
     return true;
   }
@@ -341,14 +341,14 @@ bool postEntityBatchDelete(void)
     if (inP->type != KjString)
     {
       addBatchError(errorsP, "", 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
                     "entry must be a URI string", NULL);
       continue;
     }
     if (inP->value.s == NULL || inP->value.s[0] == 0)
     {
       addBatchError(errorsP, "", 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
                     "empty entity id", NULL);
       continue;
     }

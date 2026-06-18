@@ -523,12 +523,12 @@ HTTP/1.1 201 Created
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 203
+Content-Length: 213
 
 {
   "detail": "attribute type mismatch: cannot change 'A1' from 'Property' to 'Relationship'",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Attribute Type Change",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

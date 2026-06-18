@@ -265,7 +265,7 @@ HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 286
+Content-Length: 294
 
 {
   "errors": [
@@ -274,7 +274,7 @@ Content-Length: 286
       "error": {
         "detail": "entry must be a URI string",
         "status": 400,
-        "title": "Bad Request",
+        "title": "Invalid Array Entry",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
     }
@@ -296,7 +296,7 @@ Content-Length: 167
 {
   "detail": "Batch Entity Delete: input array is empty",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Empty Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -307,12 +307,12 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 171
+Content-Length: 179
 
 {
   "detail": "Batch Entity Delete: null entry at position 1",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid Array Entry",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -323,12 +323,12 @@ Content-Length: 171
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 171
+Content-Length: 176
 
 {
   "detail": "Batch Entity Delete body must be a JSON array",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not a JSON Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

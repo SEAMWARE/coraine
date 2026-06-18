@@ -295,7 +295,7 @@ bool getEntityTemporal(void)
 
   if (entityId == NULL || entityId[0] == 0)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "missing entity id in URL");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing entity id in URL");
     return true;
   }
 
@@ -306,13 +306,13 @@ bool getEntityTemporal(void)
   {
     if (swNgsild.timeAt == NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
               "missing required URL parameter 'timeAt' (timerel='%s')", swNgsild.timerel);
       return true;
     }
     if (strcmp(swNgsild.timerel, "between") == 0 && swNgsild.endTimeAt == NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
               "missing required URL parameter 'endTimeAt' for timerel='between'");
       return true;
     }

@@ -322,12 +322,12 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 179
+Content-Length: 183
 
 {
   "detail": "scope cannot be modified via Partial Attribute Update",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -338,12 +338,12 @@ Content-Length: 179
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: 176
 
 {
   "detail": "scope cannot be replaced via Replace Attribute",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Immutable Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

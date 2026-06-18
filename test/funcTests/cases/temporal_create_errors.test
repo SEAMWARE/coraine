@@ -93,7 +93,7 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "Not a valid URI: 'invalidId'",
@@ -109,12 +109,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 182
 
 {
   "detail": "EntityTemporal must include a non-empty 'id'",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Mandatory Field Missing",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -125,12 +125,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 182
 
 {
   "detail": "EntityTemporal must include a non-empty 'id'",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Mandatory Field Missing",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -141,7 +141,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 501 Not Implemented
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 224
 
 {
   "detail": "broker started without TRoE support; 'temporal-entity create' requires a TRoE plugin",

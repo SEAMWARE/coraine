@@ -52,7 +52,7 @@ bool deleteJsonldContext(void)
 
   if (contextId == NULL || contextId[0] == '\0')
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "context id is missing");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "context id is missing");
     return true;
   }
 
@@ -83,7 +83,7 @@ bool deleteJsonldContext(void)
     else if (v != NULL && strcasecmp(v, "false") == 0) reload = false;
     else
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'reload' must be a boolean ('true' or 'false')");
       return true;
     }
@@ -102,7 +102,7 @@ bool deleteJsonldContext(void)
   {
     if (!reload)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "the Core @context cannot be deleted");
       return true;
     }
@@ -156,7 +156,7 @@ bool deleteJsonldContext(void)
     // reload on an evicted entry — only Cached is reloadable.
     if (row.kind != DB_CONTEXT_KIND_CACHED)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "reload is only valid for Cached contexts");
       return true;
     }
@@ -172,7 +172,7 @@ bool deleteJsonldContext(void)
   {
     if (existingP->kind != SwldKindCached)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "reload is only valid for Cached contexts");
       return true;
     }

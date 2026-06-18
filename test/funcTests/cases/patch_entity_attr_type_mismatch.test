@@ -73,7 +73,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V1
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -91,12 +91,12 @@ Date: REGEX(.*)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 216
 
 {
   "detail": "attribute type mismatch: cannot change 'speed' from 'Property' to 'Relationship'",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Attribute Type Change",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
