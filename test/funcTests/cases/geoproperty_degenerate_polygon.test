@@ -1,0 +1,214 @@
+#
+# FILE            geoproperty_degenerate_polygon.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Polygon whose ring is four identical points is degenerate (zero area, no
+# distinct vertices). It must be rejected up front by geo-validation — never
+# passed to the storage backend with a leaked backend error — and a near-point
+# geo-query must still work against a valid Point GeoProperty.
+#
+--NAME--
+GeoProperty — reject a degenerate Polygon (4 identical points); near-point geo-query
+
+--TAGS--
+geo geoproperty validation query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create an entity urn:ngsi-ld:test123:99 with a location property"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id" : "urn:ngsi-ld:test123:99",
+  "type" : "testtype",
+  "brandName" : {
+    "type" : "Property",
+    "address" : {
+      "type" : "Property",
+      "value" : {
+        "city" : "Berlin",
+        "street" : "Ulrich Strasse"
+      }
+    },
+    "value" : [
+      {
+        "bla1" : "Mercedes"
+      },
+      {
+        "bla2" : "Audi"
+      }
+    ],
+    "unitCode" : "EUR"
+  },
+  "isParked" : {
+    "type" : "Relationship",
+    "providedBy" : {
+      "type" : "Relationship",
+      "object" : "urn:ngsi-ld:Person:Bob"
+    },
+    "object" :"urn:ngsi-ld:OffStreetParking:Downtown1",
+    "observedAt" : "2017-07-29T12:00:04Z"
+  },
+  "location" : {
+    "type" : "GeoProperty",
+    "value" : {
+      "type" : "Point",
+      "coordinates" : [ 8.6447165, 49.4184066 ]
+    },
+    "observedAt" :"2021-07-19T12:01:12.466Z"
+  }
+}'
+echo
+echo
+
+
+echo "02. Attempt to create an entity with a degenerate Polygon (4 identical points) -> 400"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:test:6",
+  "type" : "testtype",
+  "brandName": {
+    "type" : "Property",
+    "address" : {
+      "type" : "Property",
+      "value" : {
+        "city" : "Berlin",
+        "street" : "Ulrich Strasse"
+      }
+    },
+    "value" : [
+      {
+       "bla1" : "Mercedes"
+      },
+      {
+        "bla2" : "Audi"
+      }
+    ],
+    "unitCode" : "EUR"
+  },
+  "isParked" : {
+    "type" : "Relationship",
+      "providedBy" : {
+        "type" : "Relationship",
+        "object" : "urn:ngsi-ld:Person:Bob"
+      },
+    "object" :"urn:ngsi-ld:OffStreetParking:Downtown1",
+    "observedAt" : "2017-07-29T12:00:04Z"
+  },
+  "location" : {
+    "type" : "GeoProperty",
+    "value" : {
+      "type" : "Polygon",
+      "coordinates" : [ [
+        [ 8.6447165, 49.4184066 ],
+        [ 8.6447165, 49.4184066 ],
+        [ 8.6447165, 49.4184066 ],
+        [ 8.6447165, 49.4184066 ]
+      ] ]
+    },
+    "observedAt" :"2021-07-19T12:01:12.466Z"
+  }
+}'
+echo
+echo
+
+
+echo "03. Query using geometry URL params"
+echo "==================================="
+swCurl --url '/ngsi-ld/v1/entities?type=testtype&geoproperty=location&georel=near;maxDistance==1500&geometry=Point&coordinates=%5B8.6447165,49.4184066%5D&limit=500'
+echo
+echo
+
+--EXPECT--
+01. Create an entity urn:ngsi-ld:test123:99 with a location property
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:test123:99
+Content-Length: 0
+
+
+
+
+02. Attempt to create an entity with a degenerate Polygon (4 identical points) -> 400
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 233
+
+{
+  "detail": "GeoProperty rejected by storage geometry validator (likely self-intersecting or degenerate polygon)",
+  "status": 400,
+  "title": "Invalid GeoProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Query using geometry URL params
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 931
+
+[
+  {
+    "brandName": {
+      "address": {
+        "type": "Property",
+        "value": {
+          "city": "Berlin",
+          "street": "Ulrich Strasse"
+        }
+      },
+      "type": "Property",
+      "unitCode": "EUR",
+      "value": [
+        {
+          "bla1": "Mercedes"
+        },
+        {
+          "bla2": "Audi"
+        }
+      ]
+    },
+    "geoDistance": 0,
+    "id": "urn:ngsi-ld:test123:99",
+    "isParked": {
+      "object": "urn:ngsi-ld:OffStreetParking:Downtown1",
+      "observedAt": "2017-07-29T12:00:04Z",
+      "providedBy": {
+        "object": "urn:ngsi-ld:Person:Bob",
+        "type": "Relationship"
+      },
+      "type": "Relationship"
+    },
+    "location": {
+      "observedAt": "2021-07-19T12:01:12.466Z",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          8.6447165,
+          49.4184066
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "testtype"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

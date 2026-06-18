@@ -1,0 +1,899 @@
+#
+# FILE            geoproperty_coord_validation_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Exhaustive validation of malformed GeoProperty values on entity create — a
+# non-object GeoProperty, duplicated GeoProperty / type / coordinates, missing or
+# non-array coordinates, and per-geometry coordinate-shape errors for Point,
+# Polygon, LineString, MultiPoint and MultiLineString. Every case must fail with
+# 400, never reach the storage backend. A trailing case guards a Relationship
+# whose object is a Number.
+#
+--NAME--
+GeoProperty coordinate validation — malformed geometries rejected with 400
+
+--TAGS--
+geo geoproperty validation error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Attempt to create an Entity with a GeoProperty that is not a JSON Object - see failure"
+echo "=========================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": 12 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Attempt to create an Entity with a duplicated GeoProperty - see failure"
+echo "==========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ 1, 2 ] },
+  "G1": { "type": "Point", "coordinates": [ 1, 3 ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Attempt to create an Entity with a GeoProperty that contains no 'type' field - see failure"
+echo "=============================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "coordinates": [ 1, 2 ] } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Attempt to create an Entity with a GeoProperty with a 'type' that is not a string  - see failure"
+echo "===================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "type": 12, "coordinates": [ 1, 2 ] } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Attempt to create an Entity with a GeoProperty with a 'type' whose string is not a valid geometry name - see failure"
+echo "========================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "type": "punto", "coordinates": [ 1, 2 ] }}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Attempt to create an Entity with a GeoProperty that has a duplicated 'type' - see failure"
+echo "============================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ 1, 2 ], "type": "Point" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Attempt to create an Entity with a GeoProperty that contains no 'coordinates' field - see failure"
+echo "====================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "type": "Point" } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. Attempt to create an Entity with a GeoProperty that has a duplicated	'coordinates' - see failure"
+echo "===================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ 1, 2 ], "coordinates": [ 1, 2 ] }}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. Attempt to create an Entity with a GeoProperty that has a 'coordinates' field that is not an Array - see failure"
+echo "===================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": true } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. Attempt to create an Entity with a GeoProperty that has a 'coordinates' field that is an empty Array - see failure"
+echo "======================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "11. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an empty array - see failure"
+echo "==================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ ] } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "12. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of ONE Number - see failure"
+echo "==========================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ 7 ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "13. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of FOUR Numbers - see failure"
+echo "============================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ 1, 2.0, 3, 4.0 ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "14. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of a Number and a non-number - see failure"
+echo "=========================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ 5.0, false ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "15. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of two Numbers and a non-number - see failure"
+echo "============================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Point", "coordinates": [ 1, 2.0, "string" ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "16. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' with 'coordinates' that is a double array - see failure"
+echo "====================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Polygon", "coordinates": [ [ 1, 2.0 ], [ 5, 4 ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "17. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' with 'coordinates' that is a cuadruple array - see failure"
+echo "========================================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Polygon", "coordinates": [ [ [ [ 1, 2.0 ], [ 5, 4 ] ] ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "18. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' and its triple array items is an array of three Points - see failure"
+echo "=================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Polygon", "coordinates": [ [ [ 2, 0 ], [ 0, 5 ], [ 2, 0 ] ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "19. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' and its triple array items is an array of four numbers and a non-number - see failure"
+echo "==================================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Polygon", "coordinates": [ [ [ 2, 0 ], [ 0, 5 ], [ 0, 0 ], "OK",  [ 2, 0 ] ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "20. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' and its triple array items is an array where first item != last item"
+echo "=================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "Polygon", "coordinates": [ [ [ 2, 0 ], [ 0, 5 ], [ 0, 0 ], [ 1, 0 ] ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "21. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' that is not a double array - see failure"
+echo "============================================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "LineString", "coordinates": [ 1, 2.0 ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "22. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with one of its Points not being an array - see failure"
+echo "==========================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], "string" ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "23. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with one of its Points as an array of only ONE Number - see failure"
+echo "======================================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], [ 5 ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "24. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with one of its Points as an array of a Number and a String - see failure"
+echo "============================================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], [ 5, "string" ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "25. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with	one of its Points as an empty array - see failure"
+echo "=========================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], [ ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "26. Attempt to create an Entity with a GeoProperty that has a 'type==MultiPoint' with 'coordinates' that is not a double array - see failure"
+echo "============================================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "MultiPoint", "coordinates": [ 1, 2.0 ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "27. Attempt to create an Entity with a GeoProperty that has a 'type==MultiPoint' with 'coordinates' where one of the Points is an empty array - see failure"
+echo "==========================================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "MultiPoint", "coordinates": [ [ 1, 2.0 ], [] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "28. Attempt to create an Entity with a GeoProperty that has a 'type==MultiPoint' and one of its double array items is not a number - see failure"
+echo "================================================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "MultiPoint", "coordinates": [ [ 1, 2.0 ], [ 3, "string" ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "29. Attempt to create an Entity with a GeoProperty that has a 'type==MultiLineString' with 'coordinates' that is a double array - see failure"
+echo "============================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "MultiLineString", "coordinates": [ [ 1, 2.0 ], [ 5, 4 ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "30. Attempt to create an Entity with a GeoProperty that has a 'type==MultiLineString' with 'coordinates' that is a cuadruple array - see failure"
+echo "================================================================================================================================================"
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "G1": { "type": "MultiLineString", "coordinates": [ [ [ [ 1, 2.0 ], [ 5, 4 ] ] ] ] }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "41. POST /ngsi-ld/v1/entities, with a Relationship R1 whose object is a Number - see error"
+echo "=========================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "T",
+  "R1": { "object": 14 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Attempt to create an Entity with a GeoProperty that is not a JSON Object - see failure
+==========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 161
+
+{
+  "detail": "GeoJSON value must be an object",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Attempt to create an Entity with a duplicated GeoProperty - see failure
+===========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 207
+
+{
+  "detail": "Duplicated field in entity: 'https://uri.etsi.org/ngsi-ld/default-context/G1'",
+  "status": 400,
+  "title": "Duplicate Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Attempt to create an Entity with a GeoProperty that contains no 'type' field - see failure
+==============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "GeoJSON must have a 'type' string field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Attempt to create an Entity with a GeoProperty with a 'type' that is not a string  - see failure
+====================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "GeoJSON must have a 'type' string field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Attempt to create an Entity with a GeoProperty with a 'type' whose string is not a valid geometry name - see failure
+========================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'punto'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Attempt to create an Entity with a GeoProperty that has a duplicated 'type' - see failure
+=============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON geometry has a duplicate 'type' field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Attempt to create an Entity with a GeoProperty that contains no 'coordinates' field - see failure
+=====================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Attempt to create an Entity with a GeoProperty that has a duplicated	'coordinates' - see failure
+====================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 182
+
+{
+  "detail": "GeoJSON geometry has a duplicate 'coordinates' field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Attempt to create an Entity with a GeoProperty that has a 'coordinates' field that is not an Array - see failure
+====================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Attempt to create an Entity with a GeoProperty that has a 'coordinates' field that is an empty Array - see failure
+======================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an empty array - see failure
+===================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of ONE Number - see failure
+===========================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of FOUR Numbers - see failure
+=============================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of a Number and a non-number - see failure
+==========================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON latitude must be a number",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. Attempt to create an Entity with a GeoProperty that has a 'type==Point' with 'coordinates' that is an array of two Numbers and a non-number - see failure
+=============================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON altitude must be a number",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' with 'coordinates' that is a double array - see failure
+=====================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "GeoJSON polygon ring must have at least 4 positions",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+17. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' with 'coordinates' that is a cuadruple array - see failure
+========================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "GeoJSON polygon ring must have at least 4 positions",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' and its triple array items is an array of three Points - see failure
+==================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "GeoJSON polygon ring must have at least 4 positions",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' and its triple array items is an array of four numbers and a non-number - see failure
+===================================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON position must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+20. Attempt to create an Entity with a GeoProperty that has a 'type==Polygon' and its triple array items is an array where first item != last item
+==================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON polygon ring must be closed (first == last position)",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+21. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' that is not a double array - see failure
+============================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON position must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+22. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with one of its Points not being an array - see failure
+===========================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON position must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+23. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with one of its Points as an array of only ONE Number - see failure
+=======================================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+24. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with one of its Points as an array of a Number and a String - see failure
+=============================================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON latitude must be a number",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+25. Attempt to create an Entity with a GeoProperty that has a 'type==LineString' with 'coordinates' with	one of its Points as an empty array - see failure
+==========================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+26. Attempt to create an Entity with a GeoProperty that has a 'type==MultiPoint' with 'coordinates' that is not a double array - see failure
+============================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON position must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+27. Attempt to create an Entity with a GeoProperty that has a 'type==MultiPoint' with 'coordinates' where one of the Points is an empty array - see failure
+===========================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+28. Attempt to create an Entity with a GeoProperty that has a 'type==MultiPoint' and one of its double array items is not a number - see failure
+================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON latitude must be a number",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+29. Attempt to create an Entity with a GeoProperty that has a 'type==MultiLineString' with 'coordinates' that is a double array - see failure
+=============================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON position must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+30. Attempt to create an Entity with a GeoProperty that has a 'type==MultiLineString' with 'coordinates' that is a cuadruple array - see failure
+================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 179
+
+{
+  "detail": "GeoJSON LineString must have at least 2 positions",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+41. POST /ngsi-ld/v1/entities, with a Relationship R1 whose object is a Number - see error
+==========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 255
+
+{
+  "detail": "Relationship 'https://uri.etsi.org/ngsi-ld/default-context/R1': 'object' must be a URI string or an array of URI strings",
+  "status": 400,
+  "title": "Invalid Relationship",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
