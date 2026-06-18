@@ -152,12 +152,12 @@ Content-Length: 142
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 158
+Content-Length: 181
 
 {
-  "detail": "Query body must be a JSON object",
+  "detail": "the POST Query payload body must be a JSON object",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not a JSON Object",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
