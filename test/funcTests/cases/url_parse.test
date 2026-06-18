@@ -1,0 +1,426 @@
+#
+# FILE            url_parse.test
+# Copyright 2026 Seamware
+#
+# URL-parsing robustness across every resource collection/member endpoint. The
+# entity-id wildcard must capture a full http:// URL (embedded slashes and all)
+# as the entity id; non-URI subscription/registration ids are rejected 400; an
+# unknown service path is 404. EXPECT carries sw's own ProblemDetails wording.
+#
+--NAME--
+URL parsing — URL-as-entity-id, non-URI ids, unknown path
+
+--TAGS--
+url parse entity subscription registration error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. GET /ngsi-ld/v1/entities?type=T"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T'
+echo
+echo
+
+
+echo "02. GET /ngsi-ld/v1/entities/<url-as-id>"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx'
+echo
+echo
+
+
+echo "03. GET /ngsi-ld/v1/subscriptions"
+echo "================================="
+swCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. GET /ngsi-ld/v1/subscriptions/urn:S1"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1
+echo
+echo
+
+
+echo "05. GET /ngsi-ld/v1/csourceRegistrations"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations
+echo
+echo
+
+
+echo "06. GET /ngsi-ld/v1/csourceRegistrations/urn:R1"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1
+echo
+echo
+
+
+echo "07. GET /ngsi-ld/v1/jsonldContexts/C1"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/jsonldContexts/C1
+echo
+echo
+
+
+echo "08. POST /ngsi-ld/v1/entities (url-as-id)"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "http://a.b.c/E8", "type": "A", "name": { "type": "Property", "value": "John" } }'
+echo
+echo
+
+
+echo "09. POST /ngsi-ld/v1/entities/<url-as-id>/attrs (entity absent)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E9.xxx/attrs' -X POST --payload '{ "A1": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "10. POST /ngsi-ld/v1/subscriptions"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "type": "Subscription", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://valid.url/url", "accept": "application/ld+json" } } }' | head -1
+echo
+echo
+
+
+echo "11. POST /ngsi-ld/v1/csourceRegistrations"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "id": "http://a.b.c/E1", "type": "T" } ] } ], "endpoint": "http://my.csource.org:1026" }' | head -1
+echo
+echo
+
+
+echo "12. PATCH /ngsi-ld/v1/entities/<url-as-id>/attrs (entity absent)"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx/attrs' -X PATCH --payload '{ "a": 1 }'
+echo
+echo
+
+
+echo "13. PATCH /ngsi-ld/v1/subscriptions/S1 (non-URI id)"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/S1 -X PATCH --payload '{ "a": 1 }'
+echo
+echo
+
+
+echo "14. PATCH /ngsi-ld/v1/csourceRegistrations/R1 (non-URI id)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/R1 -X PATCH --payload '{ "a": 1 }'
+echo
+echo
+
+
+echo "15. DELETE /ngsi-ld/v1/entities/<url-as-id> (entity absent)"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E9.xxx' -X DELETE
+echo
+echo
+
+
+echo "16. DELETE /ngsi-ld/v1/entities/<url-as-id>/attrs/<url-as-attr>"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx/attrs/http://a.b.c/list/of/attributes/A1.xxx' -X DELETE
+echo
+echo
+
+
+echo "17. DELETE /ngsi-ld/v1/subscriptions/urn:S1 (absent)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 -X DELETE
+echo
+echo
+
+
+echo "18. DELETE /ngsi-ld/v1/csourceRegistrations/urn:R1 (absent)"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1 -X DELETE
+echo
+echo
+
+
+echo "19. GET /ngsi-ld/nada (unknown service path)"
+echo "============================================"
+swCurl --url /ngsi-ld/nada
+echo
+echo
+
+
+--EXPECT--
+01. GET /ngsi-ld/v1/entities?type=T
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+02. GET /ngsi-ld/v1/entities/<url-as-id>
+========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+03. GET /ngsi-ld/v1/subscriptions
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+04. GET /ngsi-ld/v1/subscriptions/urn:S1
+========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 157
+
+{
+  "detail": "subscription 'urn:S1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. GET /ngsi-ld/v1/csourceRegistrations
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required",
+  "status": 400,
+  "title": "Too Wide Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. GET /ngsi-ld/v1/csourceRegistrations/urn:R1
+===============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 157
+
+{
+  "detail": "registration 'urn:R1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET /ngsi-ld/v1/jsonldContexts/C1
+=====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 156
+
+{
+  "detail": "JSON-LD context 'C1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. POST /ngsi-ld/v1/entities (url-as-id)
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/http://a.b.c/E8
+Content-Length: 0
+
+
+
+
+09. POST /ngsi-ld/v1/entities/<url-as-id>/attrs (entity absent)
+==============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "entity 'http://a.b.c/list/of/entities/E9.xxx' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. POST /ngsi-ld/v1/subscriptions
+==================================
+HTTP/1.1 201 Created
+
+
+11. POST /ngsi-ld/v1/csourceRegistrations
+=========================================
+HTTP/1.1 201 Created
+
+
+12. PATCH /ngsi-ld/v1/entities/<url-as-id>/attrs (entity absent)
+===============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 187
+
+{
+  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx/attrs' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+13. PATCH /ngsi-ld/v1/subscriptions/S1 (non-URI id)
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 149
+
+{
+  "detail": "'S1' is not a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. PATCH /ngsi-ld/v1/csourceRegistrations/R1 (non-URI id)
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 149
+
+{
+  "detail": "'R1' is not a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. DELETE /ngsi-ld/v1/entities/<url-as-id> (entity absent)
+==========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "entity 'http://a.b.c/list/of/entities/E9.xxx' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+16. DELETE /ngsi-ld/v1/entities/<url-as-id>/attrs/<url-as-attr>
+==============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx/attrs/http://a.b.c/list/of/attributes/A1.xxx' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+17. DELETE /ngsi-ld/v1/subscriptions/urn:S1 (absent)
+====================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 157
+
+{
+  "detail": "subscription 'urn:S1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+18. DELETE /ngsi-ld/v1/csourceRegistrations/urn:R1 (absent)
+===========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 157
+
+{
+  "detail": "registration 'urn:R1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+19. GET /ngsi-ld/nada (unknown service path)
+============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "GET /ngsi-ld/nada is not a recognized resource",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

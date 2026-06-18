@@ -724,7 +724,7 @@ bool postEntities(void)
       // not a MUST, so technically valid input — but we can't index it.
       // Surface as 400 so the client sees a real error class instead of
       // a misleading 500.
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",
               "GeoProperty rejected by storage geometry validator (likely "
               "self-intersecting or degenerate polygon)");
       return true;

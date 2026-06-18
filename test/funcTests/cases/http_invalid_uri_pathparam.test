@@ -63,12 +63,12 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 165
 
 {
   "detail": "'thisisaninvaliduri' is not a valid URI",
   "status": 400,
-  "title": "Bad Request Data",
+  "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -79,12 +79,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 152
 
 {
   "detail": "'badid' is not a valid URI",
   "status": 400,
-  "title": "Bad Request Data",
+  "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -95,12 +95,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "'notauri' is not a valid URI",
   "status": 400,
-  "title": "Bad Request Data",
+  "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -111,7 +111,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 173
 
 {
   "detail": "entity 'urn:ngsi-ld:T:does-not-exist' not found",

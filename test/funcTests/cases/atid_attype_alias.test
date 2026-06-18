@@ -1,0 +1,656 @@
+#
+# FILE            atid_attype_alias.test
+# Copyright 2026 Seamware
+#
+# @id / @type (the JSON-LD keywords) are accepted as aliases for the NGSI-LD
+# entity id / type at the top level of an entity (and normalized to id / type).
+# Inside an attribute, @type / @value are JSON-LD typed-value literals and are
+# left untouched. This matrix exercises invalid / missing @id / @type across
+# entity, subscription, registration and the batch operations; case 24 is a valid
+# @id/@type entity (201) guarding the alias. EXPECT carries sw's own wording.
+#
+--NAME--
+@id / @type alias validation across entity, subscription, registration, batch
+
+--TAGS--
+entity subscription registration batch atid attype alias error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Entity @id invalid (non-URI) -> 400"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "@id": "123", "@type": "T", "P1": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "02. Entity @type not a string -> 400"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "@id": "urn:ngsi-ld:E01", "@type": 123, "P1": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "03. Entity without @id -> 400"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "@type": "T", "P1": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "04. Entity without @type -> 400"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "@id": "urn:ngsi-ld:E01", "P1": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "05. Entity without @id and @type -> 400"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "P1": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "06. Subscription @id invalid (non-URI) -> 400"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "@id": "123", "@type": "Subscription", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://valid.url/url" } } }'
+echo
+echo
+
+
+echo "07. Subscription @type not a string -> 400"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "@id": "urn:ngsi-ld:S1", "@type": 123, "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://valid.url/url" } } }'
+echo
+echo
+
+
+echo "08. Subscription without @type -> 400"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "@id": "urn:ngsi-ld:S1", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://valid.url/url" } } }'
+echo
+echo
+
+
+echo "09. Registration @id invalid (non-URI) -> 400"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "@id": "123", "@type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "Vehicle" } ] } ], "endpoint": "http://my.csource.org:1026" }'
+echo
+echo
+
+
+echo "10. Registration @type not a string -> 400"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "@id": "urn:ngsi-ld:R1", "@type": 123, "information": [ { "entities": [ { "type": "Vehicle" } ] } ], "endpoint": "http://my.csource.org:1026" }'
+echo
+echo
+
+
+echo "11. Registration without @type -> 400"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "@id": "urn:ngsi-ld:R1", "information": [ { "entities": [ { "type": "Vehicle" } ] } ], "endpoint": "http://my.csource.org:1026" }'
+echo
+echo
+
+
+echo "12. Batch create — @id invalid -> 207 with per-entity error"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create -X POST --urlParams 'local=true' --payload '[ { "@id": "123", "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "13. Batch create — @type not a string -> 207"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entityOperations/create -X POST --urlParams 'local=true' --payload '[ { "@id": "urn:ngsi-ld:E1", "@type": 123, "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "14. Batch create — without @id -> 207"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create -X POST --urlParams 'local=true' --payload '[ { "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "15. Batch create — without @type -> 207"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create -X POST --urlParams 'local=true' --payload '[ { "@id": "urn:ngsi-ld:E1", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "16. Batch update — @id invalid -> 207"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update -X POST --urlParams 'local=true' --payload '[ { "@id": "123", "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "17. Batch update — without @id -> 207"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update -X POST --urlParams 'local=true' --payload '[ { "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "18. Batch upsert (options=update) — @id invalid -> 207"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --urlParams 'options=update&local=true' --payload '[ { "@id": "123", "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "19. Batch upsert (options=update) — without @type -> 207"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --urlParams 'options=update&local=true' --payload '[ { "@id": "urn:ngsi-ld:E1", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "20. Batch upsert (options=replace) — @id invalid -> 207"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --urlParams 'options=replace&local=true' --payload '[ { "@id": "123", "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "21. Batch upsert (options=replace) — @type not a string -> 207"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --urlParams 'options=replace&local=true' --payload '[ { "@id": "urn:ngsi-ld:E1", "@type": 123, "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "22. Batch upsert (options=replace) — without @id -> 207"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --urlParams 'options=replace&local=true' --payload '[ { "@type": "Vehicle", "P1": { "type": "Property", "value": 1 } } ]'
+echo
+echo
+
+
+echo "23. Entity with attribute @type/@value literal — preserved, created -> 201"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "@id": "urn:ngsi-ld:E:lit", "@type": "T", "P1": { "type": "Property", "value": { "@type": "https://w3.org/types/DateTime", "@value": "2018-12-04T12:00:00Z" } } }' | head -1
+echo
+echo
+
+
+echo "24. Valid @id/@type entity -> 201 (alias guard)"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "@id": "urn:ngsi-ld:E:ok", "@type": "T", "P1": { "type": "Property", "value": 1 } }' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Entity @id invalid (non-URI) -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 148
+
+{
+  "detail": "Not a valid URI: '123'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Entity @type not a string -> 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "Entity 'type' must be a string or array of strings",
+  "status": 400,
+  "title": "Invalid Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Entity without @id -> 400
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "Entity 'id' is mandatory for CreateEntity",
+  "status": 400,
+  "title": "Missing Entity Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Entity without @type -> 400
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "Entity 'type' is mandatory for CreateEntity",
+  "status": 400,
+  "title": "Missing Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Entity without @id and @type -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "Entity 'id' is mandatory for CreateEntity",
+  "status": 400,
+  "title": "Missing Entity Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Subscription @id invalid (non-URI) -> 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "Subscription 'type' is mandatory for create",
+  "status": 400,
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Subscription @type not a string -> 400
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "Subscription 'type' is mandatory for create",
+  "status": 400,
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Subscription without @type -> 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "Subscription 'type' is mandatory for create",
+  "status": 400,
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Registration @id invalid (non-URI) -> 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "Registration 'type' is mandatory for create",
+  "status": 400,
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Registration @type not a string -> 400
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "Registration 'type' is mandatory for create",
+  "status": 400,
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. Registration without @type -> 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "Registration 'type' is mandatory for create",
+  "status": 400,
+  "title": "Missing Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. Batch create — @id invalid -> 207 with per-entity error
+==========================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 272
+
+{
+  "errors": [
+    {
+      "entityId": "123",
+      "error": {
+        "detail": "Not a valid URI: '123'",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+13. Batch create — @type not a string -> 207
+============================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 311
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:E1",
+      "error": {
+        "detail": "Entity 'type' must be a string or array of strings",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+14. Batch create — without @id -> 207
+=====================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 288
+
+{
+  "errors": [
+    {
+      "entityId": "",
+      "error": {
+        "detail": "Entity 'id' is mandatory for CreateEntity",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+15. Batch create — without @type -> 207
+=======================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 304
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:E1",
+      "error": {
+        "detail": "Entity 'type' is mandatory for CreateEntity",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+16. Batch update — @id invalid -> 207
+=====================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 272
+
+{
+  "errors": [
+    {
+      "entityId": "123",
+      "error": {
+        "detail": "Not a valid URI: '123'",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+17. Batch update — without @id -> 207
+=====================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 288
+
+{
+  "errors": [
+    {
+      "entityId": "",
+      "error": {
+        "detail": "entity id is missing or not a string",
+        "status": 400,
+        "title": "Invalid Array Entry",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+18. Batch upsert (options=update) — @id invalid -> 207
+======================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 272
+
+{
+  "errors": [
+    {
+      "entityId": "123",
+      "error": {
+        "detail": "Not a valid URI: '123'",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+19. Batch upsert (options=update) — without @type -> 207
+========================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 304
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:E1",
+      "error": {
+        "detail": "Entity 'type' is mandatory for CreateEntity",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+20. Batch upsert (options=replace) — @id invalid -> 207
+=======================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 272
+
+{
+  "errors": [
+    {
+      "entityId": "123",
+      "error": {
+        "detail": "Not a valid URI: '123'",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+21. Batch upsert (options=replace) — @type not a string -> 207
+=============================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 311
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:E1",
+      "error": {
+        "detail": "Entity 'type' must be a string or array of strings",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+22. Batch upsert (options=replace) — without @id -> 207
+=======================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 288
+
+{
+  "errors": [
+    {
+      "entityId": "",
+      "error": {
+        "detail": "Entity 'id' is mandatory for CreateEntity",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+23. Entity with attribute @type/@value literal — preserved, created -> 201
+==========================================================================
+HTTP/1.1 201 Created
+
+
+24. Valid @id/@type entity -> 201 (alias guard)
+===============================================
+HTTP/1.1 201 Created
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

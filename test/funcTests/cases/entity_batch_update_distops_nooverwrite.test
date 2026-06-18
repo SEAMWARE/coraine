@@ -136,7 +136,7 @@ HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 630
+Content-Length: 626
 
 {
   "errors": [
@@ -145,7 +145,7 @@ Content-Length: 630
       "error": {
         "detail": "all attrs already exist; nothing to update under noOverwrite",
         "status": 400,
-        "title": "Bad Request Data",
+        "title": "Already Exists",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       }
     },
@@ -154,7 +154,7 @@ Content-Length: 630
       "error": {
         "detail": "all attrs already exist; nothing to update under noOverwrite",
         "status": 400,
-        "title": "Bad Request Data",
+        "title": "Already Exists",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
       },
       "registrationId": "urn:CSR:EX"

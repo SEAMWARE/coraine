@@ -939,7 +939,7 @@ bool postEntityBatchUpdate(void)
       // overall response to 207 instead of 204 (ETSI 005_02_03).
       if (anyNoOverwriteSkip)
         addBatchError(errorsP, g->id, 400,
-                      LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
+                      LD_ERROR_BAD_REQUEST_DATA, "Already Exists",
                       "some attrs already existed; skipped under noOverwrite",
                       NULL);
     }
@@ -949,7 +949,7 @@ bool postEntityBatchUpdate(void)
       // Surface as a BatchEntityError so the response status is 207, not
       // a silent 204 (ETSI 005_02_01 expects this).
       addBatchError(errorsP, g->id, 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
+                    LD_ERROR_BAD_REQUEST_DATA, "Already Exists",
                     "all attrs already exist; nothing to update under noOverwrite",
                     NULL);
     }
