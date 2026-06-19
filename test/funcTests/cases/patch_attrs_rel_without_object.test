@@ -1,0 +1,110 @@
+#
+# FILE            patch_attrs_rel_without_object.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# PATCH /entities/{id}/attrs with a Relationship carrying "value" instead of the
+# mandatory "object" is rejected with 400. A Relationship's only legal
+# value-bearing field is "object"; per TS 104-175 5.2.6.4.4 / 5.3.2 / 8.2.3 such
+# input is invalid against the API data type definitions, so 10.2.3.4's
+# pre-update validation raises BadRequestData for the whole request (not a
+# per-attribute 207). The error names both the wrong field and the right one.
+# (Ported from an orion-ld attribute-validation case.)
+#
+--NAME--
+PATCH /attrs — Relationship with "value" instead of "object" — 400
+
+--TAGS--
+entity-patch validation relationship
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity urn:ngsi-ld:T:001 with a Relationship R1"
+echo "=========================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T",
+  "R1": {
+    "type": "Relationship",
+    "object": "http://a.b.c/hola"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH /attrs with R1 as Relationship but 'value' (no 'object') — 400"
+echo "========================================================================"
+payload='{
+  "R1": {
+    "type": "Relationship",
+    "value": "http://a.b.c/errIsGoodSometimes"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. GET the entity — R1 unchanged"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+echo
+echo
+
+
+--EXPECT--
+01. Create entity urn:ngsi-ld:T:001 with a Relationship R1
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+Content-Length: 0
+
+
+
+
+02. PATCH /attrs with R1 as Relationship but 'value' (no 'object') — 400
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 255
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship carries its value in 'object', not 'value'",
+  "status": 400,
+  "title": "Wrong Value Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET the entity — R1 unchanged
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "R1": {
+    "object": "http://a.b.c/hola",
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

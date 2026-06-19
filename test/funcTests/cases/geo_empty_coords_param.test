@@ -1,0 +1,134 @@
+#
+# FILE            geo_empty_coords_param.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A geoquery whose coordinates= URI-param has an empty right-hand side, and one
+# that supplies geometry/georel but no coordinates at all, must each be rejected
+# with a clean 400 Invalid geo-query. A follow-up GET confirms ordinary queries
+# still work. (Ported from an orion-ld geoquery validation case.)
+#
+--NAME--
+GeoQuery with empty or missing coordinates URI-param — 400
+
+--TAGS--
+geo query validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity with a compound Property P100"
+echo "==============================================="
+payload='{
+  "id": "urn:ngsi-ld:T_Query:E1",
+  "type": "T_Query",
+  "P100": {
+    "type": "Property",
+    "value": { "P1": 1, "P2": 2 },
+    "P1": { "type": "Property", "value": 2 }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Geoquery with empty coordinates= RHS — 400"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities?geometry=Point&coordinates=&georel=near;maxDistance==10&type=Building'
+echo
+echo
+
+
+echo "03. Geoquery with geometry+georel but no coordinates at all — 400"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?geometry=Point&georel=near;maxDistance==10&type=Building'
+echo
+echo
+
+
+echo "04. Ordinary query still works"
+echo "=============================="
+swCurl --url '/ngsi-ld/v1/entities?type=T_Query'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with a compound Property P100
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T_Query:E1
+Content-Length: 0
+
+
+
+
+02. Geoquery with empty coordinates= RHS — 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "coordinates value is empty",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Geoquery with geometry+georel but no coordinates at all — 400
+=================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "incomplete geo-query: missing coordinates",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Ordinary query still works
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 245
+
+[
+  {
+    "P100": {
+      "P1": {
+        "type": "Property",
+        "value": 2
+      },
+      "type": "Property",
+      "value": {
+        "P1": 1,
+        "P2": 2
+      }
+    },
+    "id": "urn:ngsi-ld:T_Query:E1",
+    "type": "T_Query"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
