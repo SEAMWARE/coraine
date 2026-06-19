@@ -379,7 +379,7 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 170
 
 {
   "detail": "Subscription 'type' is mandatory for create",
@@ -395,7 +395,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "Subscription 'type' must be 'Subscription'",
@@ -411,7 +411,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 185
 
 {
   "detail": "Subscription must have 'entities' or 'watchedAttributes'",
@@ -427,7 +427,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 186
 
 {
   "detail": "Subscription 'notification' is mandatory for create",
@@ -443,7 +443,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 154
 
 {
   "detail": "'entities' must not be empty",
@@ -459,7 +459,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 198
 
 {
   "detail": "'entities' item must have at least 'type', 'id', or 'idPattern'",
@@ -475,7 +475,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "'entities[].type' must be a string",
@@ -491,7 +491,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 171
 
 {
   "detail": "'watchedAttributes' must be an array",
@@ -507,7 +507,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 176
 
 {
   "detail": "'watchedAttributes' items must be strings",
@@ -523,7 +523,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 195
 
 {
   "detail": "'timeInterval' and 'watchedAttributes' are mutually exclusive",
@@ -539,7 +539,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 164
 
 {
   "detail": "'throttling' must be a number",
@@ -555,7 +555,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 163
 
 {
   "detail": "'isActive' must be a boolean",
@@ -571,7 +571,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 168
 
 {
   "detail": "'notification.endpoint' must not be empty",
@@ -587,7 +587,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 159
 
 {
   "detail": "'notification' must not be empty",
@@ -603,7 +603,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 175
 
 {
   "detail": "'expiresAt' is not a valid ISO 8601 DateTime",
@@ -619,7 +619,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "'q' must be a string",
@@ -635,7 +635,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 213
 
 {
   "detail": "'geoQ' requires 'geometry', 'coordinates', and 'georel' — missing 'geometry'",
@@ -651,7 +651,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 178
 
 {
   "detail": "'geoQ.geometry' has invalid value 'Hexagon'",
@@ -667,12 +667,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 175
 
 {
-  "detail": "entities",
+  "detail": "Duplicate member 'entities' in a JSON object",
   "status": 400,
-  "title": "Duplicated field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -683,7 +683,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 169
 
 {
   "detail": "'status' is read-only and cannot be set",
@@ -699,13 +699,13 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 153
 
 {
   "detail": "'id' cannot be modified",
@@ -721,7 +721,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 155
 
 {
   "detail": "'type' cannot be modified",
@@ -737,7 +737,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:OK
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -747,7 +747,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 161
 
 {
   "detail": "missing ')' in q expression",
@@ -763,7 +763,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 161
 
 {
   "detail": "missing ')' in q expression",
@@ -779,7 +779,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:bareQ
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 

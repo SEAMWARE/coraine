@@ -324,12 +324,12 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 159
+Content-Length: 169
 
 {
-  "detail": "Duplicate 'id' / '@id' in entity",
+  "detail": "Duplicate member 'id' in a JSON object",
   "status": 400,
-  "title": "Duplicate Id",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -356,12 +356,12 @@ Content-Length: 184
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 165
+Content-Length: 171
 
 {
-  "detail": "Duplicate 'type' / '@type' in entity",
+  "detail": "Duplicate member 'type' in a JSON object",
   "status": 400,
-  "title": "Duplicate Type",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

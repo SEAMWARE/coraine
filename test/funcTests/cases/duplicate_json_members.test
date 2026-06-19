@@ -1,0 +1,148 @@
+#
+# FILE            duplicate_json_members.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# JSON (RFC 8259 § 4) only says member names SHOULD be unique; NGSI-LD makes it
+# a MUST via the 0..1 / 1..1 cardinalities of its data-type definitions (§ 5.2.6),
+# enforced through § 8.2.3. Duplicate members are rejected with 400 at every
+# level — top-level Attributes, sub-attributes, and inside a JSON-LD value
+# object — EXCEPT inside a JsonProperty's `json` value, which is opaque raw JSON
+# (JSON semantics apply there).
+#
+--NAME--
+Duplicate JSON members rejected (except inside opaque JsonProperty json)
+
+--TAGS--
+validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Duplicate top-level Attribute (P1 twice) — 400"
+echo "=================================================="
+payload='{ "id": "urn:ngsi-ld:D1", "type": "T", "P1": { "type": "Property", "value": 1 }, "P1": { "type": "Property", "value": 2 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Duplicate sub-attribute (unitCode twice) — 400"
+echo "=================================================="
+payload='{ "id": "urn:ngsi-ld:D2", "type": "T", "P": { "type": "Property", "value": 1, "unitCode": "A", "unitCode": "B" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Duplicate member inside a value object (@value twice) — 400"
+echo "==============================================================="
+payload='{ "id": "urn:ngsi-ld:D3", "type": "T", "P": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00Z", "@value": "2019-01-01T00:00:00Z" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Duplicate keys inside a JsonProperty 'json' value — accepted (opaque)"
+echo "========================================================================="
+payload='{ "id": "urn:ngsi-ld:D4", "type": "T", "J": { "type": "JsonProperty", "json": { "a": 1, "a": 2 } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. GET D4 — JsonProperty stored"
+echo "================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:D4
+echo
+echo
+
+
+--EXPECT--
+01. Duplicate top-level Attribute (P1 twice) — 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "Duplicate member 'P1' in a JSON object",
+  "status": 400,
+  "title": "Duplicate Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Duplicate sub-attribute (unitCode twice) — 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "Duplicate member 'unitCode' in a JSON object",
+  "status": 400,
+  "title": "Duplicate Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Duplicate member inside a value object (@value twice) — 400
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "Duplicate member '@value' in a JSON object",
+  "status": 400,
+  "title": "Duplicate Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Duplicate keys inside a JsonProperty 'json' value — accepted (opaque)
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:D4
+Content-Length: 0
+
+
+
+
+05. GET D4 — JsonProperty stored
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 133
+
+{
+  "J": {
+    "json": {
+      "a": 2,
+      "a": 1
+    },
+    "type": "JsonProperty"
+  },
+  "id": "urn:ngsi-ld:D4",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

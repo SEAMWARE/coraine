@@ -1,0 +1,120 @@
+#
+# FILE            reserved_subattr_names.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# `observedAt` (§ 5.2.4) and `unitCode` (§ 5.2.6) are core-context structural
+# sub-attributes — they have no meaning as a top-level Attribute name and are
+# rejected there with 400. They remain valid as sub-attributes of an Attribute.
+#
+--NAME--
+Reserved sub-attribute names (observedAt / unitCode) forbidden as Attribute names
+
+--TAGS--
+validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. observedAt as an Attribute name — 400"
+echo "========================================="
+payload='{ "id": "urn:ngsi-ld:R1", "type": "T", "observedAt": "2022-02-16T17:05:00Z" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. unitCode as an Attribute name — 400"
+echo "======================================="
+payload='{ "id": "urn:ngsi-ld:R2", "type": "T", "unitCode": "CEL" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. observedAt + unitCode as sub-attributes — accepted"
+echo "======================================================"
+payload='{ "id": "urn:ngsi-ld:R3", "type": "T", "temperature": { "type": "Property", "value": 21, "unitCode": "CEL", "observedAt": "2022-02-16T17:05:00Z" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET R3 — sub-attributes preserved"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:R3
+echo
+echo
+
+
+--EXPECT--
+01. observedAt as an Attribute name — 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 220
+
+{
+  "detail": "'observedAt' is a structural sub-attribute and cannot be used as an Attribute name",
+  "status": 400,
+  "title": "Reserved Attribute Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. unitCode as an Attribute name — 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 218
+
+{
+  "detail": "'unitCode' is a structural sub-attribute and cannot be used as an Attribute name",
+  "status": 400,
+  "title": "Reserved Attribute Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. observedAt + unitCode as sub-attributes — accepted
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:R3
+Content-Length: 0
+
+
+
+
+04. GET R3 — sub-attributes preserved
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 173
+
+{
+  "id": "urn:ngsi-ld:R3",
+  "temperature": {
+    "observedAt": "2022-02-16T17:05:00Z",
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 21
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

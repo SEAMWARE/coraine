@@ -315,12 +315,12 @@ Content-Length: 139
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 139
+Content-Length: 175
 
 {
-  "detail": "entities",
+  "detail": "Duplicate member 'entities' in a JSON object",
   "status": 400,
-  "title": "Duplicated field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -379,12 +379,12 @@ Content-Length: 136
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 136
+Content-Length: 172
 
 {
-  "detail": "attrs",
+  "detail": "Duplicate member 'attrs' in a JSON object",
   "status": 400,
-  "title": "Duplicated field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -459,12 +459,12 @@ Content-Length: 133
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 132
+Content-Length: 168
 
 {
-  "detail": "q",
+  "detail": "Duplicate member 'q' in a JSON object",
   "status": 400,
-  "title": "Duplicated field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -523,12 +523,12 @@ Content-Length: 142
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 135
+Content-Length: 171
 
 {
-  "detail": "type",
+  "detail": "Duplicate member 'type' in a JSON object",
   "status": 400,
-  "title": "Duplicated field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -651,12 +651,12 @@ Content-Length: 188
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 139
+Content-Length: 175
 
 {
-  "detail": "geometry",
+  "detail": "Duplicate member 'geometry' in a JSON object",
   "status": 400,
-  "title": "Duplicated field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

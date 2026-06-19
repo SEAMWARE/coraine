@@ -419,12 +419,12 @@ Content-Length: 161
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 207
+Content-Length: 169
 
 {
-  "detail": "Duplicated field in entity: 'https://uri.etsi.org/ngsi-ld/default-context/G1'",
+  "detail": "Duplicate member 'G1' in a JSON object",
   "status": 400,
-  "title": "Duplicate Field",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -483,12 +483,12 @@ Content-Length: 168
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 175
+Content-Length: 171
 
 {
-  "detail": "GeoJSON geometry has a duplicate 'type' field",
+  "detail": "Duplicate member 'type' in a JSON object",
   "status": 400,
-  "title": "Invalid GeoJSON",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -515,12 +515,12 @@ Content-Length: 175
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 182
+Content-Length: 178
 
 {
-  "detail": "GeoJSON geometry has a duplicate 'coordinates' field",
+  "detail": "Duplicate member 'coordinates' in a JSON object",
   "status": 400,
-  "title": "Invalid GeoJSON",
+  "title": "Duplicate Member",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

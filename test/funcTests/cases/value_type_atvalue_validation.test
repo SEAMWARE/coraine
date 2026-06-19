@@ -1,0 +1,314 @@
+#
+# FILE            value_type_atvalue_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A JSON-LD typed value { "@type":..., "@value":... } inside a Property value is
+# validated: @type must be a string, exactly one @type and one @value, no extra
+# members (neither plain nor @-prefixed), @value present, and for @type=DateTime
+# the @value must be a valid ISO8601 datetime string. Correct typed values (and
+# a plain compound without @value/@type) are accepted and round-trip.
+#
+--NAME--
+JSON-LD typed value (@type/@value) — validation matrix
+
+--TAGS--
+validation datetime format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. @type not a string — error"
+echo "=============================="
+payload='{ "id": "urn:ngsi-ld:E01", "type": "T", "P1": { "type": "Property", "value": { "@type": 1, "@value": "2018-12-04T12:00:00" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Two @type members — error"
+echo "============================="
+payload='{ "id": "urn:ngsi-ld:E02", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@type": "DateTime", "@value": "2018-12-04T12:00:00" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Two @value members — error"
+echo "=============================="
+payload='{ "id": "urn:ngsi-ld:E03", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00", "@value": "2018-12-04T12:00:00" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Extra non-@ member — error"
+echo "=============================="
+payload='{ "id": "urn:ngsi-ld:E04", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "a": 19, "@value": "2018-12-04T12:00:00" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Extra @X member — error"
+echo "==========================="
+payload='{ "id": "urn:ngsi-ld:E05", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@X": 22, "@value": "2018-12-04T12:00:00" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Missing @value — error"
+echo "=========================="
+payload='{ "id": "urn:ngsi-ld:E06", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. DateTime @type with non-string @value — error"
+echo "================================================="
+payload='{ "id": "urn:ngsi-ld:E07", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": 12 } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. DateTime @type with non-ISO8601 @value — error"
+echo "=================================================="
+payload='{ "id": "urn:ngsi-ld:E08", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "not-a-date" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. DateTime @type with correct ISO8601 @value — created"
+echo "========================================================"
+payload='{ "id": "urn:ngsi-ld:E09", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. Plain compound value without @value/@type — created"
+echo "======================================================="
+payload='{ "id": "urn:ngsi-ld:E10", "type": "T", "P1": { "type": "Property", "value": { "a": 1, "b": 2 } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "11. GET E09"
+echo "==========="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E09
+echo
+echo
+
+
+echo "12. GET E10"
+echo "==========="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E10
+echo
+echo
+
+
+--EXPECT--
+01. @type not a string — error
+==============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 250
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': the '@type' of a JSON-LD value object must be a string",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Two @type members — error
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "Duplicate member '@type' in a JSON object",
+  "status": 400,
+  "title": "Duplicate Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Two @value members — error
+==============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "Duplicate member '@value' in a JSON object",
+  "status": 400,
+  "title": "Duplicate Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Extra non-@ member — error
+==============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 252
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': a JSON-LD value object accepts only '@value' and '@type'",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Extra @X member — error
+===========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 252
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': a JSON-LD value object accepts only '@value' and '@type'",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Missing @value — error
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 237
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': a JSON-LD value object must have '@value'",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. DateTime @type with non-string @value — error
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 DateTime for '@type':'DateTime'",
+  "status": 400,
+  "title": "Invalid DateTime Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. DateTime @type with non-ISO8601 @value — error
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 DateTime for '@type':'DateTime'",
+  "status": 400,
+  "title": "Invalid DateTime Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. DateTime @type with correct ISO8601 @value — created
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E09
+Content-Length: 0
+
+
+
+
+10. Plain compound value without @value/@type — created
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E10
+Content-Length: 0
+
+
+
+
+11. GET E09
+===========
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "P1": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2018-12-04T12:00:00"
+    }
+  },
+  "id": "urn:ngsi-ld:E09",
+  "type": "T"
+}
+
+
+
+12. GET E10
+===========
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+{
+  "P1": {
+    "type": "Property",
+    "value": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  "id": "urn:ngsi-ld:E10",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
