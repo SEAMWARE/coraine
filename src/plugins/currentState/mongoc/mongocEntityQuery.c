@@ -207,11 +207,11 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   // sub-attribute) object itself; with a "[...]" value path, existence
   // is of the FINAL value member.
   //
-  if (term->op == LdQExists && term->valuePathN == 0)
+  if ((term->op == LdQExists || term->op == LdQNotExists) && term->valuePathN == 0)
   {
     bson_t existsDoc;
     bson_append_document_begin(docP, path, -1, &existsDoc);
-    bson_append_bool(&existsDoc, "$exists", 7, true);
+    bson_append_bool(&existsDoc, "$exists", 7, (term->op == LdQExists));
     bson_append_document_end(docP, &existsDoc);
     return;
   }
@@ -227,11 +227,11 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   for (int i = 0; i < term->valuePathN; i++)
     pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->valuePathV[i]));
 
-  if (term->op == LdQExists)
+  if (term->op == LdQExists || term->op == LdQNotExists)
   {
     bson_t existsDoc;
     bson_append_document_begin(docP, path, -1, &existsDoc);
-    bson_append_bool(&existsDoc, "$exists", 7, true);
+    bson_append_bool(&existsDoc, "$exists", 7, (term->op == LdQExists));
     bson_append_document_end(docP, &existsDoc);
     return;
   }

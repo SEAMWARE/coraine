@@ -1,0 +1,326 @@
+#
+# FILE            subscription_notify_q.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A subscription's `q` gates its notifications: a change notifies only when the
+# resulting entity matches the q expression. Covers EQ (integer and string), OR,
+# AND, attribute-exists and attribute-not-exists. Each section uses its own
+# entity type so its subscription cannot match another section's entities; a
+# matching entity produces one notification and a non-matching entity produces
+# none. The accumulator is reset between sections.
+#
+--NAME--
+Subscription q gates notifications — EQ / OR / AND / exists / not-exists
+
+--TAGS--
+subscription notification q
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
+
+echo "01. q=P1==5 on T1 — M1 (P1=5) notifies, N1 (P1=6) does not"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T1"}],"q":"P1==5","notification":{"endpoint":'"$EP"'}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M1","type":"T1","P1":{"type":"Property","value":5}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N1","type":"T1","P1":{"type":"Property","value":6}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "02. q=S==\"abc\" on T2 — M2 notifies, N2 does not"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S2","type":"Subscription","entities":[{"type":"T2"}],"q":"S==\"abc\"","notification":{"endpoint":'"$EP"'}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M2","type":"T2","S":{"type":"Property","value":"abc"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N2","type":"T2","S":{"type":"Property","value":"xyz"}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "03. q=A==1|B==2 (OR) on T3 — M3 (B=2) notifies, N3 (A=9,B=9) does not"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S3","type":"Subscription","entities":[{"type":"T3"}],"q":"A==1|B==2","notification":{"endpoint":'"$EP"'}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M3","type":"T3","B":{"type":"Property","value":2}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N3","type":"T3","A":{"type":"Property","value":9},"B":{"type":"Property","value":9}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "04. q=A==1;B==2 (AND) on T4 — M4 (A=1,B=2) notifies, N4 (A=1,B=9) does not"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S4","type":"Subscription","entities":[{"type":"T4"}],"q":"A==1;B==2","notification":{"endpoint":'"$EP"'}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":2}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":9}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "05. q=P (exists) on T5 — M5 (has P) notifies, N5 (no P) does not"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S5","type":"Subscription","entities":[{"type":"T5"}],"q":"P","notification":{"endpoint":'"$EP"'}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M5","type":"T5","P":{"type":"Property","value":1}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N5","type":"T5","Other":{"type":"Property","value":1}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "06. q=!P (not-exists) on T6 — M6 (no P) notifies, N6 (has P) does not"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S6","type":"Subscription","entities":[{"type":"T6"}],"q":"!P","notification":{"endpoint":'"$EP"'}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M6","type":"T6","Other":{"type":"Property","value":1}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N6","type":"T6","P":{"type":"Property","value":1}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+--EXPECT--
+01. q=P1==5 on T1 — M1 (P1=5) notifies, N1 (P1=6) does not
+==========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P1": {
+            "type": "Property",
+            "value": 5
+          },
+          "id": "urn:ngsi-ld:M1",
+          "type": "T1"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "223",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+02. q=S=="abc" on T2 — M2 notifies, N2 does not
+================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "S": {
+            "type": "Property",
+            "value": "abc"
+          },
+          "id": "urn:ngsi-ld:M2",
+          "type": "T2"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S2",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "226",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+03. q=A==1|B==2 (OR) on T3 — M3 (B=2) notifies, N3 (A=9,B=9) does not
+=====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "B": {
+            "type": "Property",
+            "value": 2
+          },
+          "id": "urn:ngsi-ld:M3",
+          "type": "T3"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S3",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "222",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. q=A==1;B==2 (AND) on T4 — M4 (A=1,B=2) notifies, N4 (A=1,B=9) does not
+==========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "A": {
+            "type": "Property",
+            "value": 1
+          },
+          "B": {
+            "type": "Property",
+            "value": 2
+          },
+          "id": "urn:ngsi-ld:M4",
+          "type": "T4"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S4",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "256",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. q=P (exists) on T5 — M5 (has P) notifies, N5 (no P) does not
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P": {
+            "type": "Property",
+            "value": 1
+          },
+          "id": "urn:ngsi-ld:M5",
+          "type": "T5"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S5",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "222",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+06. q=!P (not-exists) on T6 — M6 (no P) notifies, N6 (has P) does not
+=====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "Other": {
+            "type": "Property",
+            "value": 1
+          },
+          "id": "urn:ngsi-ld:M6",
+          "type": "T6"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S6",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "226",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+ftClientStop

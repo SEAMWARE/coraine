@@ -77,8 +77,8 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
       return NULL;
   }
 
-  // Existence-only check (no operator).
-  if (tP->op == LdQExists && tP->valueType == LdQNoValue)
+  // Existence / non-existence check (no operator).
+  if ((tP->op == LdQExists || tP->op == LdQNotExists) && tP->valueType == LdQNoValue)
   {
     char attrEsc[1024];
     escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
@@ -86,8 +86,8 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
     int   sz  = (int) strlen(attrEsc) + 128;
     char* buf = (char*) kaAlloc(allocP, sz);
     snprintf(buf, sz,
-             "EXISTS (SELECT 1 FROM troe_attrs WHERE tenant = $2 AND entity_id = $1 AND attr_name = '%s')",
-             attrEsc);
+             "%sEXISTS (SELECT 1 FROM troe_attrs WHERE tenant = $2 AND entity_id = $1 AND attr_name = '%s')",
+             (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
     return buf;
   }
 

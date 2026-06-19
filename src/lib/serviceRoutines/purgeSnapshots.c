@@ -85,6 +85,8 @@ static bool matchTerm(KjNode* tree, LdQTerm* termP)
 
   if (termP->op == LdQExists)
     return fldP != NULL;
+  if (termP->op == LdQNotExists)
+    return fldP == NULL;
 
   if (fldP == NULL) return false;
 
