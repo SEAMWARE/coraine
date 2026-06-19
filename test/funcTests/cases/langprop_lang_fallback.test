@@ -1,0 +1,169 @@
+#
+# FILE            langprop_lang_fallback.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# When a ?lang filter does not match any key of a LanguageProperty's
+# languageMap, the fallback order is (clause 10): @none if present, then "en"
+# (our implementation-defined default for the "up to the implementation"
+# choice), then the first key.
+#
+--NAME--
+LanguageProperty lang-filter fallback — @none > en > first key
+
+--TAGS--
+langProp format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed: E1 {es,en,sv}, E2 {es,sv}, E3 {@none,es}, E4 {es,@none,en}"
+echo "===================================================================="
+payload='{
+  "id":"urn:ngsi-ld:T:E1","type":"T",
+  "g":{"type":"LanguageProperty","languageMap":{"es":"Hola","en":"Hello","sv":"Hej"}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+payload='{
+  "id":"urn:ngsi-ld:T:E2","type":"T",
+  "g":{"type":"LanguageProperty","languageMap":{"es":"Hola","sv":"Hej"}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+payload='{
+  "id":"urn:ngsi-ld:T:E3","type":"T",
+  "g":{"type":"LanguageProperty","languageMap":{"@none":"None","es":"Hola"}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+payload='{
+  "id":"urn:ngsi-ld:T:E4","type":"T",
+  "g":{"type":"LanguageProperty","languageMap":{"es":"Hola","@none":"None","en":"Hello"}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. E1 ?lang=fr (no fr, en present) — en chosen"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr'
+echo
+echo
+
+
+echo "03. E2 ?lang=fr (no fr, no en, no @none) — first key (es)"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2?lang=fr'
+echo
+echo
+
+
+echo "04. E3 ?lang=fr (@none present) — @none chosen"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E3?lang=fr'
+echo
+echo
+
+
+echo "05. E4 ?lang=fr (@none and en present) — @none wins over en"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E4?lang=fr'
+echo
+echo
+
+
+--EXPECT--
+01. Seed: E1 {es,en,sv}, E2 {es,sv}, E3 {@none,es}, E4 {es,@none,en}
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. E1 ?lang=fr (no fr, en present) — en chosen
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "en",
+    "type": "Property",
+    "value": "Hello"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+03. E2 ?lang=fr (no fr, no en, no @none) — first key (es)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 122
+
+{
+  "g": {
+    "lang": "es",
+    "type": "Property",
+    "value": "Hola"
+  },
+  "id": "urn:ngsi-ld:T:E2",
+  "type": "T"
+}
+
+
+
+04. E3 ?lang=fr (@none present) — @none chosen
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "g": {
+    "lang": "@none",
+    "type": "Property",
+    "value": "None"
+  },
+  "id": "urn:ngsi-ld:T:E3",
+  "type": "T"
+}
+
+
+
+05. E4 ?lang=fr (@none and en present) — @none wins over en
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "g": {
+    "lang": "@none",
+    "type": "Property",
+    "value": "None"
+  },
+  "id": "urn:ngsi-ld:T:E4",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

@@ -1,0 +1,219 @@
+#
+# FILE            langprop_create_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# LanguageProperty creation error matrix (§ 5.2.6): missing languageMap, a
+# languageMap that is not an object, a non-string languageMap value, a forbidden
+# value-key (value / object), a forbidden sub-attribute (unitCode), and empty
+# key / empty value in the languageMap.
+#
+--NAME--
+LanguageProperty create — error matrix
+
+--TAGS--
+langProp validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. 'lang' instead of 'languageMap' (no languageMap)"
+echo "===================================================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "lang": { "en": "el", "es": "ele" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. languageMap is not an object"
+echo "================================"
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "languageMap": "en=el, es=ele" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. languageMap value is not a string (sv: 12)"
+echo "=============================================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "languageMap": { "en": "el", "sv": 12 } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. LanguageProperty with a forbidden 'value' key"
+echo "================================================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "languageMap": { "en": "el" }, "value": 1 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. LanguageProperty with a forbidden 'object' key"
+echo "=================================================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "object": "urn:E1", "languageMap": { "en": "el" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. LanguageProperty with a forbidden 'unitCode' sub-attribute"
+echo "=============================================================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "unitCode": "cm", "languageMap": { "en": "el" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. languageMap key is empty"
+echo "============================"
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "languageMap": { "": "el", "es": "ele" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. languageMap value is empty"
+echo "=============================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "languageMap": { "en": "", "es": "ele" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. 'lang' instead of 'languageMap' (no languageMap)
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/L' of type LanguageProperty must have 'languageMap'",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. languageMap is not an object
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 174
+
+{
+  "detail": "'languageMap' must be a JSON object",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. languageMap value is not a string (sv: 12)
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 205
+
+{
+  "detail": "languageMap values must be strings or arrays of strings (key 'sv')",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. LanguageProperty with a forbidden 'value' key
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/L' has 2 value keys (only one allowed)",
+  "status": 400,
+  "title": "Conflicting Value Keys",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. LanguageProperty with a forbidden 'object' key
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/L' has 2 value keys (only one allowed)",
+  "status": 400,
+  "title": "Conflicting Value Keys",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. LanguageProperty with a forbidden 'unitCode' sub-attribute
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 263
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/L' of type LanguageProperty has a forbidden NGSI-LD term: 'unitCode'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. languageMap key is empty
+============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 178
+
+{
+  "detail": "'languageMap' has an empty language key",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. languageMap value is empty
+==============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "languageMap value for 'en' is an empty string",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

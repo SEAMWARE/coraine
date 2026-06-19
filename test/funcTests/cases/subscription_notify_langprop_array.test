@@ -1,0 +1,238 @@
+#
+# FILE            subscription_notify_langprop_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A LanguageProperty whose languageMap values are arrays of strings is notified
+# correctly: the normalized notification carries the full languageMap (arrays
+# intact), and a subscription-level `lang` filter reduces it to the matching
+# language's value.
+#
+--NAME--
+Notification of a LanguageProperty with array-valued languageMap (+ lang filter)
+
+--TAGS--
+langProp subscription notification
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+echo "01. Normalized subscription on type T"
+echo "====================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:N",
+  "type": "Subscription",
+  "entities": [{"type":"T"}],
+  "notification": { "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Subscription with lang=es"
+echo "============================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Lang",
+  "type": "Subscription",
+  "entities": [{"type":"T"}],
+  "lang": "es",
+  "notification": { "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. Subscription with lang=fr (absent — falls back to en)"
+echo "========================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Fallback",
+  "type": "Subscription",
+  "entities": [{"type":"T"}],
+  "lang": "fr",
+  "notification": { "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. Create entity with an array-valued LanguageProperty — 3 notifications"
+echo "========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "greeting": {
+    "type": "LanguageProperty",
+    "languageMap": { "en": ["Hello", "Hi"], "es": ["Hola", "Buenas"] }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Dump ftClient — normalized keeps arrays; lang=es→es; lang=fr→en (fallback)"
+echo "=============================================================================="
+sleep 0.4
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Normalized subscription on type T
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:N
+Content-Length: 0
+
+
+
+
+02. Subscription with lang=es
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Lang
+Content-Length: 0
+
+
+
+
+03. Subscription with lang=fr (absent — falls back to en)
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Fallback
+Content-Length: 0
+
+
+
+
+04. Create entity with an array-valued LanguageProperty — 3 notifications
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+05. Dump ftClient — normalized keeps arrays; lang=es→es; lang=fr→en (fallback)
+==============================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "greeting": {
+            "languageMap": {
+              "en": [
+                "Hello",
+                "Hi"
+              ],
+              "es": [
+                "Hola",
+                "Buenas"
+              ]
+            },
+            "type": "LanguageProperty"
+          },
+          "id": "urn:ngsi-ld:T:E1",
+          "type": "T"
+        }
+      ],
+      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f:]+)",
+      "notifiedAt": "REGEX([0-9T:.Z-]+)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:N",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "299",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker/0.3"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "greeting": {
+            "lang": "es",
+            "type": "Property",
+            "value": [
+              "Hola",
+              "Buenas"
+            ]
+          },
+          "id": "urn:ngsi-ld:T:E1",
+          "type": "T"
+        }
+      ],
+      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f:]+)",
+      "notifiedAt": "REGEX([0-9T:.Z-]+)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Lang",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "273",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker/0.3"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "greeting": {
+            "lang": "en",
+            "type": "Property",
+            "value": [
+              "Hello",
+              "Hi"
+            ]
+          },
+          "id": "urn:ngsi-ld:T:E1",
+          "type": "T"
+        }
+      ],
+      "id": "urn:ngsi-ld:Notification:REGEX([0-9a-f:]+)",
+      "notifiedAt": "REGEX([0-9T:.Z-]+)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Fallback",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "274",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swBroker/0.3"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+ftClientStop
