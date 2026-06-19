@@ -1,0 +1,193 @@
+#
+# FILE            query_q_langprop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# q over a LanguageProperty needs no type-specific handling: a languageMap is
+# stored under the universal `value` key like every other attribute value, so
+# the §4.9 value-path syntax q=L[es]==... resolves to ...value.es and matches the
+# chosen language's string (or any element of its array). Combined with a ?lang
+# filter, the matched entities are reduced to the requested language.
+#
+--NAME--
+q over a LanguageProperty (L[lang]==value), string and array values, with ?lang
+
+--TAGS--
+langProp q query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed string-valued (E1,E2) and array-valued (A1,A2) LanguageProperties"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":"one","es":"uno"}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":"two","es":"dos"}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A1","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":["one"],"es":["uno","ein"]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A2","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":["two"],"es":["dos","deux"]}}}' | head -1
+echo
+echo
+
+
+echo "02. q=L[es]==uno — string E1 + array A1 (es array contains uno)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22uno%22'
+echo
+echo
+
+
+echo "03. q=L[es]==dos — string E2 + array A2"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22'
+echo
+echo
+
+
+echo "04. q=L[es]==nope — no match"
+echo "==========================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22nope%22'
+echo
+echo
+
+
+echo "05. q=L[es]==dos with lang=en — match E2/A2, rendered in English"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22&lang=en'
+echo
+echo
+
+
+--EXPECT--
+01. Seed string-valued (E1,E2) and array-valued (A1,A2) LanguageProperties
+==========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=L[es]==uno — string E1 + array A1 (es array contains uno)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 396
+
+[
+  {
+    "L": {
+      "languageMap": {
+        "en": "one",
+        "es": "uno"
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:E1",
+    "type": "T"
+  },
+  {
+    "L": {
+      "languageMap": {
+        "en": "one",
+        "es": [
+          "uno",
+          "ein"
+        ]
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:A1",
+    "type": "T"
+  }
+]
+
+
+
+03. q=L[es]==dos — string E2 + array A2
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 397
+
+[
+  {
+    "L": {
+      "languageMap": {
+        "en": "two",
+        "es": "dos"
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:E2",
+    "type": "T"
+  },
+  {
+    "L": {
+      "languageMap": {
+        "en": "two",
+        "es": [
+          "dos",
+          "deux"
+        ]
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:A2",
+    "type": "T"
+  }
+]
+
+
+
+04. q=L[es]==nope — no match
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+05. q=L[es]==dos with lang=en — match E2/A2, rendered in English
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 279
+
+[
+  {
+    "L": {
+      "lang": "en",
+      "type": "Property",
+      "value": "two"
+    },
+    "id": "urn:ngsi-ld:E2",
+    "type": "T"
+  },
+  {
+    "L": {
+      "lang": "en",
+      "type": "Property",
+      "value": "two"
+    },
+    "id": "urn:ngsi-ld:A2",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
