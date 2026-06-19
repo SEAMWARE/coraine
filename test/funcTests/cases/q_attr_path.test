@@ -184,7 +184,7 @@ HTTP/1.1 201 Created
 
 05. GET via core — segment-wise %-encoding, raw dot separator
 ==============================================================
-  "q": "https%3A%2F%2Fexample%2Eorg%2Fx%2Ey.https%3A%2F%2Fexample%2Eorg%2Fsub%2Eprop>3",
+  "q": "https://example%2Eorg/x%2Ey.https://example%2Eorg/sub%2Eprop>3",
 
 
 06. Create E3 — m with object value {c: {d: 7}} via ctxA
@@ -206,7 +206,7 @@ HTTP/1.1 201 Created
 ===========================================================
 HTTP/1.1 201 Created
   "q": "m[c.d]>5",
-  "q": "https%3A%2F%2Fexample%2Eorg%2Fx%2Ey[c.d]>5",
+  "q": "https://example%2Eorg/x%2Ey[c.d]>5",
 
 
 --TEARDOWN--

@@ -1056,7 +1056,7 @@ static const char* buildQueryString(SwldContext* csrCtx)
   // terms OR-ed together and AND-ed onto the initial q:
   //     q=(<initial q>);(a|b|c)     — or just q=a|b|c without a q.
   //
-  char* qRendered = (swNgsild.qExpr != NULL) ? ldQRender(swNgsild.qExpr, csrCtx, &swRest.kalloc) : NULL;
+  char* qRendered = (swNgsild.qExpr != NULL) ? ldQRender(swNgsild.qExpr, csrCtx, &swRest.kalloc, false) : NULL;
   if (qRendered != NULL && qRendered[0] == 0) qRendered = NULL;
 
   char* attrsExists = NULL;
@@ -1070,7 +1070,7 @@ static const char* buildQueryString(SwldContext* csrCtx)
     for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
     {
       if (i > 0) attrsExists[apos++] = '|';
-      const char* v = ldCompactOrEncode(swNgsild.attrsV[i], csrCtx, &swRest.kalloc);
+      const char* v = ldCompactOrEncode(swNgsild.attrsV[i], csrCtx, &swRest.kalloc, false);
       strcpy(attrsExists + apos, v);
       apos += strlen(v);
     }

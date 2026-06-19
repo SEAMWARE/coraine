@@ -136,7 +136,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 387
+Content-Length: 379
 
 {
   "entities": [
@@ -154,7 +154,7 @@ Content-Length: 387
     "attributeCreated",
     "attributeUpdated"
   ],
-  "q": "a2>5;b2<10;https%3A%2F%2Fexample%2Eorg%2Fcargo%2Evolume",
+  "q": "a2>5;b2<10;https://example%2Eorg/cargo%2Evolume",
   "status": "active",
   "type": "Subscription"
 }
@@ -167,7 +167,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 463
+Content-Length: 439
 
 {
   "entities": [
@@ -185,7 +185,7 @@ Content-Length: 463
     "attributeCreated",
     "attributeUpdated"
   ],
-  "q": "https%3A%2F%2Fexample%2Eorg%2Fspeed%2Emax>5;https%3A%2F%2Fexample%2Eorg%2Ftemp-unit<10;https%3A%2F%2Fexample%2Eorg%2Fcargo%2Evolume",
+  "q": "https://example%2Eorg/speed%2Emax>5;https://example%2Eorg/temp-unit<10;https://example%2Eorg/cargo%2Evolume",
   "status": "active",
   "type": "Subscription"
 }

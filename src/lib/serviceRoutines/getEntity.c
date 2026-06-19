@@ -473,7 +473,7 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
 
   for (int i = 0; riP->attributeNamesV[i] != NULL; i++)
   {
-    totalLen += strlen(ldCompactOrEncode(riP->attributeNamesV[i], forwardCtx, kaP)) + 1;
+    totalLen += strlen(ldCompactOrEncode(riP->attributeNamesV[i], forwardCtx, kaP, false)) + 1;
     count++;
   }
 
@@ -496,7 +496,7 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
   for (int i = 0; riP->attributeNamesV[i] != NULL; i++)
   {
     if (pos > firstAttrPos) buf[pos++] = ',';
-    const char* n = ldCompactOrEncode(riP->attributeNamesV[i], forwardCtx, kaP);
+    const char* n = ldCompactOrEncode(riP->attributeNamesV[i], forwardCtx, kaP, false);
     int nlen = strlen(n);
     strcpy(buf + pos, n);
     pos += nlen;

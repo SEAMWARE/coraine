@@ -207,7 +207,7 @@ bool deleteEntityAttr(void)
     // %-encode the IRI when it has no short form there.
     for (int i = 0; i < n; i++)
     {
-      const char* fwdAttr = ldCompactOrEncode(attrIri, ldDistOpForwardContext(items[i].csr), &swRest.kalloc);
+      const char* fwdAttr = ldCompactOrEncode(attrIri, ldDistOpForwardContext(items[i].csr), &swRest.kalloc, false);
       items[i].url = attrUrl(items[i].csr->endpoint, entityId, fwdAttr);
     }
 

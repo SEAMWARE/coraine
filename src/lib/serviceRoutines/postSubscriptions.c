@@ -162,7 +162,7 @@ bool postSubscriptions(void)
     if (qExprForCache != NULL)
     {
       // Render back to expanded q-string for DB storage
-      char* expandedQ = ldQRender(qExprForCache, NULL, &swRest.kalloc);
+      char* expandedQ = ldQRender(qExprForCache, NULL, &swRest.kalloc, false);
       if (expandedQ != NULL)
         qP->value.s = expandedQ;
     }

@@ -1,0 +1,180 @@
+#
+# FILE            subscription_q_render.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A subscription's q is stored with its attribute names expanded to IRIs and
+# rendered back compacted against the @context of the GET request (§ 8.2.4):
+#  - core context only: the IRI has no short form, so it is emitted as the long
+#    name with its q-grammar-significant characters percent-encoded (dots → %2E)
+#    while URL-reserved characters (':' '/') stay raw — keeping the q parseable
+#    without over-encoding the body.
+#  - a user context that maps the IRI to a short term: q re-compacts to that
+#    term, and a DIFFERENT user context yields a DIFFERENT short term.
+#
+--NAME--
+Subscription q rendering — long-name encoding (body) + re-compaction per @context
+
+--TAGS--
+subscription q context jsonldcontext
+
+--INIT--
+swDbDrop
+swBrokerStart
+contextServerStart
+
+--RUN--
+
+contextServerPush /jsonldContexts/ctxTemp '{
+  "@context": { "temp": "https://example.org/v1.0/a.b/temperature" }
+}'
+contextServerPush /jsonldContexts/ctxCelsius '{
+  "@context": { "celsius": "https://example.org/v1.0/a.b/temperature" }
+}'
+
+LH='rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+
+echo "01. Create a subscription under ctxTemp with q=temp==5"
+echo "======================================================"
+payload='{
+  "id": "urn:ngsi-ld:Sub:QR",
+  "type": "Subscription",
+  "entities": [{"type":"T"}],
+  "q": "temp==5",
+  "notification": { "endpoint": {"uri":"http://localhost:7701/notify"} }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H "Link: <http://localhost:7080/jsonldContexts/ctxTemp>; $LH" | head -1
+echo
+echo
+
+
+echo "02. GET under core context — uncompactable IRI, q-grammar chars encoded, : / raw"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR
+echo
+echo
+
+
+echo "03. GET under ctxTemp — q re-compacts to 'temp'"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR \
+  -H "Link: <http://localhost:7080/jsonldContexts/ctxTemp>; $LH"
+echo
+echo
+
+
+echo "04. GET under ctxCelsius — same IRI, q re-compacts to a DIFFERENT term 'celsius'"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR \
+  -H "Link: <http://localhost:7080/jsonldContexts/ctxCelsius>; $LH"
+echo
+echo
+
+
+--EXPECT--
+01. Create a subscription under ctxTemp with q=temp==5
+======================================================
+HTTP/1.1 201 Created
+
+
+02. GET under core context — uncompactable IRI, q-grammar chars encoded, : / raw
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 364
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:ngsi-ld:Sub:QR",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "q": "https://example%2Eorg/v1%2E0/a%2Eb/temperature==5",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+03. GET under ctxTemp — q re-compacts to 'temp'
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxTemp>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 322
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:ngsi-ld:Sub:QR",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "q": "temp==5",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+04. GET under ctxCelsius — same IRI, q re-compacts to a DIFFERENT term 'celsius'
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxCelsius>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 325
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:ngsi-ld:Sub:QR",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "q": "celsius==5",
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+contextServerStop

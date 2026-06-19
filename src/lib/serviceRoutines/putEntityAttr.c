@@ -240,7 +240,7 @@ bool putEntityAttr(void)
       // The {attrId} path component is an alias too — emit the short the
       // receiver's @context (the one this forward carries) understands;
       // %-encode the IRI when it has no short form there.
-      const char* fwdAttr = ldCompactOrEncode(attrIri, fwdCtx, &swRest.kalloc);
+      const char* fwdAttr = ldCompactOrEncode(attrIri, fwdCtx, &swRest.kalloc, false);
       items[i].url     = attrUrl(items[i].csr->endpoint, entityId, fwdAttr);
       items[i].body    = bodyStr;
       items[i].bodyLen = strlen(bodyStr);
