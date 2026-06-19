@@ -1,0 +1,463 @@
+#
+# FILE            troe_timescale_geo_shapes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE timescale persistence of every GeoJSON geometry type, including the
+# optional altitude (Z) coordinate. Unlike a PostGIS-backed store (one typed
+# geometry column per shape, lossy WKT round-trips), the timescale plugin keeps
+# the GeoProperty value as verbatim JSONB in troe_attrs.v_compound, so Point /
+# LineString / Polygon / Multi* and their 2D/3D forms all travel the same code
+# path. One test therefore covers what orion-ld split across a file per shape:
+# the geometry — altitude included — must survive storage AND retrieval
+# unchanged, both as a top-level GeoProperty (v_compound) and as a geo
+# sub-property (sub_attrs).
+#
+--NAME--
+TRoE timescale - GeoJSON geometry shapes (2D/3D) round-trip
+
+--TAGS--
+troe timescale postgres geo
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Create E1 with one attribute per GeoJSON geometry type (mixed 2D/3D)"
+echo "======================================================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "p":   {"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2,3]}},
+  "ls":  {"type":"GeoProperty","value":{"type":"LineString","coordinates":[[1,2,3],[4,5,6]]}},
+  "pg":  {"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[0,0,1],[1,0,1],[1,1,1],[0,0,1]]]}},
+  "mp":  {"type":"GeoProperty","value":{"type":"MultiPoint","coordinates":[[1,2],[4,5]]}},
+  "mls": {"type":"GeoProperty","value":{"type":"MultiLineString","coordinates":[[[1,2,3],[4,5,6]],[[7,8,9],[10,11,12]]]}},
+  "mpg": {"type":"GeoProperty","value":{"type":"MultiPolygon","coordinates":[[[[0,0,1],[1,0,1],[1,1,1],[0,0,1]]]]}},
+  "obs": {"type":"Property","value":1,"where":{"type":"GeoProperty","value":{"type":"Point","coordinates":[9,9,9]}}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET E1 — every geometry (and its Z) preserved on retrieval"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "03. troe_attrs.v_compound — geometry stored verbatim as JSONB"
+echo "============================================================="
+sleep 0.2
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
+  -c "SELECT regexp_replace(attr_name, '.*/', ''), v_compound FROM troe_attrs WHERE v_compound IS NOT NULL ORDER BY attr_name"
+echo
+echo
+
+
+echo "04. troe_attrs.sub_attrs — geo sub-property kept under its parent"
+echo "================================================================"
+psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
+  -c "SELECT regexp_replace(attr_name, '.*/', ''), sub_attrs->'https://uri.etsi.org/ngsi-ld/default-context/where'->'value' FROM troe_attrs WHERE sub_attrs IS NOT NULL ORDER BY attr_name"
+echo
+echo
+
+
+echo "05. GET /temporal/entities/urn:ngsi-ld:E1 — Z survives the temporal path too"
+echo "============================================================================"
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with one attribute per GeoJSON geometry type (mixed 2D/3D)
+=======================================================================
+HTTP/1.1 201 Created
+
+
+02. GET E1 — every geometry (and its Z) preserved on retrieval
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 2217
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "ls": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          4,
+          5,
+          6
+        ]
+      ],
+      "type": "LineString"
+    }
+  },
+  "mls": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        [
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            4,
+            5,
+            6
+          ]
+        ],
+        [
+          [
+            7,
+            8,
+            9
+          ],
+          [
+            10,
+            11,
+            12
+          ]
+        ]
+      ],
+      "type": "MultiLineString"
+    }
+  },
+  "mp": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        [
+          1,
+          2
+        ],
+        [
+          4,
+          5
+        ]
+      ],
+      "type": "MultiPoint"
+    }
+  },
+  "mpg": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        [
+          [
+            [
+              0,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        ]
+      ],
+      "type": "MultiPolygon"
+    }
+  },
+  "obs": {
+    "type": "Property",
+    "value": 1,
+    "where": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          9,
+          9,
+          9
+        ],
+        "type": "Point"
+      }
+    }
+  },
+  "p": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        1,
+        2,
+        3
+      ],
+      "type": "Point"
+    }
+  },
+  "pg": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        [
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      ],
+      "type": "Polygon"
+    }
+  },
+  "type": "T"
+}
+
+
+
+03. troe_attrs.v_compound — geometry stored verbatim as JSONB
+=============================================================
+ls|{"type": "LineString", "coordinates": [[1, 2, 3], [4, 5, 6]]}
+mls|{"type": "MultiLineString", "coordinates": [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]}
+mp|{"type": "MultiPoint", "coordinates": [[1, 2], [4, 5]]}
+mpg|{"type": "MultiPolygon", "coordinates": [[[[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 0, 1]]]]}
+p|{"type": "Point", "coordinates": [1, 2, 3]}
+pg|{"type": "Polygon", "coordinates": [[[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 0, 1]]]}
+
+
+04. troe_attrs.sub_attrs — geo sub-property kept under its parent
+================================================================
+obs|{"type": "Point", "coordinates": [9, 9, 9]}
+
+
+05. GET /temporal/entities/urn:ngsi-ld:E1 — Z survives the temporal path too
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3148
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "ls": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            4,
+            5,
+            6
+          ]
+        ],
+        "type": "LineString"
+      }
+    }
+  ],
+  "mls": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              4,
+              5,
+              6
+            ]
+          ],
+          [
+            [
+              7,
+              8,
+              9
+            ],
+            [
+              10,
+              11,
+              12
+            ]
+          ]
+        ],
+        "type": "MultiLineString"
+      }
+    }
+  ],
+  "mp": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "type": "MultiPoint"
+      }
+    }
+  ],
+  "mpg": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          [
+            [
+              [
+                0,
+                0,
+                1
+              ],
+              [
+                1,
+                0,
+                1
+              ],
+              [
+                1,
+                1,
+                1
+              ],
+              [
+                0,
+                0,
+                1
+              ]
+            ]
+          ]
+        ],
+        "type": "MultiPolygon"
+      }
+    }
+  ],
+  "obs": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "Property",
+      "value": 1,
+      "where": {
+        "type": "GeoProperty",
+        "value": {
+          "coordinates": [
+            9,
+            9,
+            9
+          ],
+          "type": "Point"
+        }
+      }
+    }
+  ],
+  "p": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2,
+          3
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "pg": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          [
+            [
+              0,
+              0,
+              1
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    }
+  ],
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swTroeDrop
