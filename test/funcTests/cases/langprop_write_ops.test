@@ -1,0 +1,232 @@
+#
+# FILE            langprop_write_ops.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A LanguageProperty travels every single-entity write operation — PATCH
+# /entities/{id} (merge), PATCH /entities/{id}/attrs/{attr}, POST
+# /entities/{id}/attrs (append), PUT /entities/{id} (replace) — and round-trips.
+# A languageMap that is not an object, or whose value is not a string, is
+# rejected with 400 (checkLanguageMap, § 5.2.6).
+#
+--NAME--
+LanguageProperty through PATCH entity / PATCH attr / POST attrs / PUT entity
+
+--TAGS--
+langProp attr entity-patch entity-append
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. POST entity with LanguageProperty L1"
+echo "========================================"
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "L1": { "languageMap": { "en": "English", "es": "Spanish", "sv": "Swedish" } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH /attrs/L1 — change es to Castellano"
+echo "============================================="
+payload='{ "languageMap": { "en": "English", "es": "Castellano", "sv": "Swedish" } }'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L1 --payload "$payload"
+echo
+echo
+
+
+echo "03. POST /attrs — append LanguageProperty L2"
+echo "============================================"
+payload='{ "L2": { "languageMap": { "en": "Two", "es": "Dos" } } }'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs --payload "$payload"
+echo
+echo
+
+
+echo "04. PATCH /entities/{id} — merge, change L1 es to Espanol"
+echo "========================================================="
+payload='{ "L1": { "languageMap": { "en": "English", "es": "Espanol", "sv": "Swedish" } } }'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
+echo
+echo
+
+
+echo "05. GET — L1 es=Espanol, L2 present"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+echo
+echo
+
+
+echo "06. PUT /entities/{id} — replace with a single LanguageProperty L3"
+echo "=================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "L3": { "languageMap": { "en": "Three", "fr": "Trois" } }
+}'
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
+echo
+echo
+
+
+echo "07. GET — only L3 remains"
+echo "========================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+echo
+echo
+
+
+echo "08. PATCH /attrs/L3 with languageMap = 13 (not an object) — 400"
+echo "=============================================================="
+payload='{ "languageMap": 13 }'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L3 --payload "$payload"
+echo
+echo
+
+
+echo "09. PATCH /attrs/L3 with languageMap.en = 14 (not a string) — 400"
+echo "================================================================"
+payload='{ "languageMap": { "en": 14 } }'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L3 --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. POST entity with LanguageProperty L1
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. PATCH /attrs/L1 — change es to Castellano
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. POST /attrs — append LanguageProperty L2
+============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. PATCH /entities/{id} — merge, change L1 es to Espanol
+=========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET — L1 es=Espanol, L2 present
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 299
+
+{
+  "L1": {
+    "languageMap": {
+      "en": "English",
+      "es": "Espanol",
+      "sv": "Swedish"
+    },
+    "type": "LanguageProperty"
+  },
+  "L2": {
+    "languageMap": {
+      "en": "Two",
+      "es": "Dos"
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+06. PUT /entities/{id} — replace with a single LanguageProperty L3
+==================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. GET — only L3 remains
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 161
+
+{
+  "L3": {
+    "languageMap": {
+      "en": "Three",
+      "fr": "Trois"
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+08. PATCH /attrs/L3 with languageMap = 13 (not an object) — 400
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 174
+
+{
+  "detail": "'languageMap' must be a JSON object",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. PATCH /attrs/L3 with languageMap.en = 14 (not a string) — 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 205
+
+{
+  "detail": "languageMap values must be strings or arrays of strings (key 'en')",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

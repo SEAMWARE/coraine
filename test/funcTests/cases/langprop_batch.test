@@ -1,0 +1,145 @@
+#
+# FILE            langprop_batch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# LanguageProperty through the batch operations — create, update, upsert
+# (§ 5.6.7 / 5.6.8 / 5.6.9). The languageMap round-trips on a subsequent GET.
+#
+--NAME--
+LanguageProperty through batch create / update / upsert
+
+--TAGS--
+langProp batch
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Batch create two entities with a LanguageProperty L"
+echo "======================================================="
+payload='[
+  { "id": "urn:ngsi-ld:T:B1", "type": "T", "L": { "languageMap": { "en": "One", "es": "Uno" } } },
+  { "id": "urn:ngsi-ld:T:B2", "type": "T", "L": { "languageMap": { "en": "Two", "es": "Dos" } } }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+echo
+echo
+
+
+echo "02. Batch update — change B1:L es to Único"
+echo "=========================================="
+payload='[
+  { "id": "urn:ngsi-ld:T:B1", "type": "T", "L": { "languageMap": { "en": "One", "es": "Unico" } } }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+echo
+echo
+
+
+echo "03. Batch upsert — update B2 and create B3"
+echo "=========================================="
+payload='[
+  { "id": "urn:ngsi-ld:T:B2", "type": "T", "L": { "languageMap": { "en": "Two", "es": "DosUpserted" } } },
+  { "id": "urn:ngsi-ld:T:B3", "type": "T", "L": { "languageMap": { "en": "Three", "fr": "Trois" } } }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
+echo
+echo
+
+
+echo "04. GET all three — languageMaps round-trip"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T'
+echo
+echo
+
+
+--EXPECT--
+01. Batch create two entities with a LanguageProperty L
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 47
+
+[
+  "urn:ngsi-ld:T:B1",
+  "urn:ngsi-ld:T:B2"
+]
+
+
+
+02. Batch update — change B1:L es to Único
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. Batch upsert — update B2 and create B3
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 25
+
+[
+  "urn:ngsi-ld:T:B3"
+]
+
+
+
+04. GET all three — languageMaps round-trip
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 554
+
+[
+  {
+    "L": {
+      "languageMap": {
+        "en": "One",
+        "es": "Unico"
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:T:B1",
+    "type": "T"
+  },
+  {
+    "L": {
+      "languageMap": {
+        "en": "Two",
+        "es": "DosUpserted"
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:T:B2",
+    "type": "T"
+  },
+  {
+    "L": {
+      "languageMap": {
+        "en": "Three",
+        "fr": "Trois"
+      },
+      "type": "LanguageProperty"
+    },
+    "id": "urn:ngsi-ld:T:B3",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
