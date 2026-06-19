@@ -74,12 +74,12 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 227
+Content-Length: 255
 
 {
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship must have 'object'",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship carries its value in 'object', not 'value'",
   "status": 400,
-  "title": "Missing Value",
+  "title": "Wrong Value Field",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
