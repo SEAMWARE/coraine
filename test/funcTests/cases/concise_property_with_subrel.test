@@ -1,0 +1,129 @@
+#
+# FILE            concise_property_with_subrel.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Property given in concise form (no "type", a bare "value") carrying a
+# sub-Relationship (a bare "object") is accepted, and a concise GET renders it
+# back in the same concise shape — before and after a PATCH of the same
+# attribute.
+#
+--NAME--
+Concise Property with a sub-Relationship — create, concise GET, PATCH, GET
+
+--TAGS--
+attr sub-attributes format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 with a concise Property carrying a sub-Relationship"
+echo "================================================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "temperature": {
+    "value": 7,
+    "providedBy": { "object": "urn:ngsi-ld:Building:barn001" }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET (concise)"
+echo "================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1?format=concise'
+echo
+echo
+
+
+echo "03. PATCH /attrs with the same concise attribute"
+echo "================================================"
+payload='{
+  "temperature": {
+    "value": 7,
+    "providedBy": { "object": "urn:ngsi-ld:Building:barn001" }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "04. GET (concise) — unchanged"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1?format=concise'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with a concise Property carrying a sub-Relationship
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. GET (concise)
+=================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 157
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "temperature": {
+    "providedBy": {
+      "object": "urn:ngsi-ld:Building:barn001"
+    },
+    "value": 7
+  },
+  "type": "T"
+}
+
+
+
+03. PATCH /attrs with the same concise attribute
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. GET (concise) — unchanged
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 157
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "temperature": {
+    "providedBy": {
+      "object": "urn:ngsi-ld:Building:barn001"
+    },
+    "value": 7
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

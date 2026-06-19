@@ -1,0 +1,183 @@
+#
+# FILE            subattr_expansion.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Sub-attributes of both Properties and Relationships, in every combination
+# (Prop/Prop, Prop/Rel, Rel/Prop, Rel/Rel), are stored and round-trip through a
+# GET — their names expand on the way in and compact back on the way out.
+# Appending an attribute with its own sub-attribute via POST /attrs behaves the
+# same.
+#
+--NAME--
+Sub-attribute expansion round-trip (Prop/Rel sub-attrs, create + append)
+
+--TAGS--
+attr sub-attributes create retrieve
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity with all four sub-attr combinations"
+echo "====================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T",
+  "Prop": {
+    "type": "Property",
+    "value": "p",
+    "Prop": { "type": "Property", "value": "pp" },
+    "Rel":  { "type": "Relationship", "object": "urn:ngsi-ld:x" }
+  },
+  "Rel": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:x",
+    "Prop": { "type": "Property", "value": "rp" },
+    "Rel":  { "type": "Relationship", "object": "urn:ngsi-ld:x" }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET — sub-attrs round-trip"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+echo
+echo
+
+
+echo "03. Append Prop2 (with a Prop2 sub-attr) via POST /attrs"
+echo "========================================================"
+payload='{
+  "Prop2": {
+    "type": "Property",
+    "value": "p2",
+    "Prop2": { "type": "Property", "value": "p2p2" }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs --payload "$payload"
+echo
+echo
+
+
+echo "04. GET — Prop2/Prop2 round-trips"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with all four sub-attr combinations
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+Content-Length: 0
+
+
+
+
+02. GET — sub-attrs round-trip
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 477
+
+{
+  "Prop": {
+    "Prop": {
+      "type": "Property",
+      "value": "pp"
+    },
+    "Rel": {
+      "object": "urn:ngsi-ld:x",
+      "type": "Relationship"
+    },
+    "type": "Property",
+    "value": "p"
+  },
+  "Rel": {
+    "Prop": {
+      "type": "Property",
+      "value": "rp"
+    },
+    "Rel": {
+      "object": "urn:ngsi-ld:x",
+      "type": "Relationship"
+    },
+    "object": "urn:ngsi-ld:x",
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T"
+}
+
+
+
+03. Append Prop2 (with a Prop2 sub-attr) via POST /attrs
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. GET — Prop2/Prop2 round-trips
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 607
+
+{
+  "Prop": {
+    "Prop": {
+      "type": "Property",
+      "value": "pp"
+    },
+    "Rel": {
+      "object": "urn:ngsi-ld:x",
+      "type": "Relationship"
+    },
+    "type": "Property",
+    "value": "p"
+  },
+  "Prop2": {
+    "Prop2": {
+      "type": "Property",
+      "value": "p2p2"
+    },
+    "type": "Property",
+    "value": "p2"
+  },
+  "Rel": {
+    "Prop": {
+      "type": "Property",
+      "value": "rp"
+    },
+    "Rel": {
+      "object": "urn:ngsi-ld:x",
+      "type": "Relationship"
+    },
+    "object": "urn:ngsi-ld:x",
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:T:001",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
