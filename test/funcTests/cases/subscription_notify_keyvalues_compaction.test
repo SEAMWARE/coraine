@@ -1,0 +1,118 @@
+#
+# FILE            subscription_notify_keyvalues_compaction.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A keyValues (simplified) notification compacts attribute names against the
+# subscription's @context, just like a normalized one. An attribute whose IRI
+# the subscription context maps to a short term is rendered under that short term
+# in the keyValues notification body.
+#
+--NAME--
+keyValues notification compacts attribute names via the subscription @context
+
+--TAGS--
+subscription notification format context
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+contextServerStart
+
+--RUN--
+
+contextServerPush /jsonldContexts/ctxSub '{
+  "@context": { "speed": "https://example.org/v1.0/a.b/speed" }
+}'
+
+LH='rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+
+echo "01. keyValues subscription bound to ctxSub (maps speed -> dotted IRI)"
+echo "===================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:KV",
+  "type": "Subscription",
+  "entities": [{"type":"T"}],
+  "notification": {
+    "format": "keyValues",
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H "Link: <http://localhost:7080/jsonldContexts/ctxSub>; $LH" | head -1
+echo
+echo
+
+
+echo "02. Create E1 with speed (via ctxSub) — triggers the notification"
+echo "================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "speed": { "type": "Property", "value": 80 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H "Link: <http://localhost:7080/jsonldContexts/ctxSub>; $LH" | head -1
+echo
+echo
+
+
+echo "03. Dump ftClient — keyValues body renders the SHORT term 'speed'"
+echo "================================================================="
+sleep 0.4
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. keyValues subscription bound to ctxSub (maps speed -> dotted IRI)
+====================================================================
+HTTP/1.1 201 Created
+
+
+02. Create E1 with speed (via ctxSub) — triggers the notification
+=================================================================
+HTTP/1.1 201 Created
+
+
+03. Dump ftClient — keyValues body renders the SHORT term 'speed'
+=================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:ngsi-ld:T:E1",
+          "speed": 80,
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:KV",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<http://localhost:7080/jsonldContexts/ctxSub>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "Ngsild-Attribute-Format": "simplified",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+ftClientStop
+contextServerStop
