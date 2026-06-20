@@ -36,6 +36,44 @@ echo
 echo
 
 
+echo "03. Seed an entity to PATCH"
+echo "==========================="
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "P1": { "type": "Property", "value": 1 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. PATCH with Content-Type application/merge-patch+json -> accepted (RFC 7396)"
+echo "==============================================================================="
+payload='{ "P1": "urn:ngsi-ld:null", "P2": { "type": "Property", "value": 2 } }'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
+echo "05. GET — P1 deleted, P2 added (the merge-patch was applied)"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
+echo
+echo
+
+
+echo "06. POST /entities with Content-Type application/merge-patch+json -> 415 (PATCH-only media type)"
+echo "==============================================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E2", "type": "T" }'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
+echo "07. PATCH with Content-Type text/plain -> 415"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload 'Just a text' -H 'Content-Type: text/plain'
+echo
+echo
+
+
 --EXPECT--
 01. Create with Content-Type text/plain
 =======================================
@@ -59,6 +97,61 @@ Content-Length: 176
   "title": "Invalid Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
+
+
+
+03. Seed an entity to PATCH
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+04. PATCH with Content-Type application/merge-patch+json -> accepted (RFC 7396)
+===============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET — P1 deleted, P2 added (the merge-patch was applied)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
+
+{
+  "P2": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+06. POST /entities with Content-Type application/merge-patch+json -> 415 (PATCH-only media type)
+===============================================================================================
+HTTP/1.1 415 Unsupported Media Type
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. PATCH with Content-Type text/plain -> 415
+=============================================
+HTTP/1.1 415 Unsupported Media Type
+Date: REGEX(.*)
+Content-Length: 0
+
 
 
 
