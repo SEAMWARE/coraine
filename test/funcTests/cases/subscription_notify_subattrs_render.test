@@ -1,0 +1,159 @@
+#
+# FILE            subscription_notify_subattrs_render.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Notification rendering of sub-attributes and compound/array values. A
+# normalized notification must carry, intact: a Property and a Relationship each
+# with sub-properties of every scalar type (int, float, bool, string), a
+# Property whose value is an array, and a Relationship whose object is an array
+# of URIs.
+#
+--NAME--
+Notification renders sub-attributes (every type) + array value / array object
+
+--TAGS--
+subscription notification sub-attributes
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+echo "01. Normalized subscription on type T"
+echo "====================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [{"type":"T"}],
+  "notification": { "format":"normalized", "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Create E1: Property + Relationship with sub-props of every type; array value; array object"
+echo "=============================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Entity:E1",
+  "type": "T",
+  "P1": {
+    "type": "Property",
+    "value": [ 1, 2 ],
+    "pp_int":    { "type":"Property", "value": 1 },
+    "pp_float":  { "type":"Property", "value": 1.5 },
+    "pp_bool":   { "type":"Property", "value": true },
+    "pp_string": { "type":"Property", "value": "STR" },
+    "pp_rel":    { "type":"Relationship", "object": "urn:ngsi-ld:Entity:E9" }
+  },
+  "R1": {
+    "type": "Relationship",
+    "object": [ "urn:ngsi-ld:Entity:E1", "urn:ngsi-ld:Entity:E2" ],
+    "rp_int":    { "type":"Property", "value": 7 },
+    "rp_string": { "type":"Property", "value": "RP" }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. Dump ftClient — sub-property values + array value + array object all present"
+echo "================================================================================"
+sleep 0.4
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Normalized subscription on type T
+=====================================
+HTTP/1.1 201 Created
+
+
+02. Create E1: Property + Relationship with sub-props of every type; array value; array object
+==============================================================================================
+HTTP/1.1 201 Created
+
+
+03. Dump ftClient — sub-property values + array value + array object all present
+================================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P1": {
+            "pp_bool": {
+              "type": "Property",
+              "value": true
+            },
+            "pp_float": {
+              "type": "Property",
+              "value": 1.5
+            },
+            "pp_int": {
+              "type": "Property",
+              "value": 1
+            },
+            "pp_rel": {
+              "object": "urn:ngsi-ld:Entity:E9",
+              "type": "Relationship"
+            },
+            "pp_string": {
+              "type": "Property",
+              "value": "STR"
+            },
+            "type": "Property",
+            "value": [
+              1,
+              2
+            ]
+          },
+          "R1": {
+            "object": [
+              "urn:ngsi-ld:Entity:E1",
+              "urn:ngsi-ld:Entity:E2"
+            ],
+            "rp_int": {
+              "type": "Property",
+              "value": 7
+            },
+            "rp_string": {
+              "type": "Property",
+              "value": "RP"
+            },
+            "type": "Relationship"
+          },
+          "id": "urn:ngsi-ld:Entity:E1",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+ftClientStop
