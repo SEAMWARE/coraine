@@ -193,6 +193,39 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   // mongocEscapeDotsInKey returns a shared thread-local buffer — copy each
   // segment into `path` before the next call.
   //
+  //
+  // System temporal attributes (createdAt / modifiedAt) are stored as top-level
+  // integer (nanosecond) fields on the entity doc — NOT under attr.@none.value.
+  // q over them compares numerically against term->value.ns (parsed from the
+  // ISO 8601 right-hand side). Entity-level only (no sub-path / value-path).
+  //
+  if ((term->subPathN == 0) && (term->valuePathN == 0) && (term->valueType == LdQDateTime) &&
+      ((strcmp(term->attr, "createdAt") == 0) || (strcmp(term->attr, "modifiedAt") == 0)))
+  {
+    if (term->op == LdQEqual)
+    {
+      bson_append_int64(docP, term->attr, -1, term->value.ns);
+    }
+    else
+    {
+      const char* mongoOp = NULL;
+      switch (term->op)
+      {
+      case LdQUnequal:   mongoOp = "$ne";  break;
+      case LdQGreater:   mongoOp = "$gt";  break;
+      case LdQLess:      mongoOp = "$lt";  break;
+      case LdQGreaterEq: mongoOp = "$gte"; break;
+      case LdQLessEq:    mongoOp = "$lte"; break;
+      default:           mongoOp = "$eq";  break;
+      }
+      bson_t opDoc;
+      bson_append_document_begin(docP, term->attr, -1, &opDoc);
+      bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
+      bson_append_document_end(docP, &opDoc);
+    }
+    return;
+  }
+
   char path[1024];
   int  pos = snprintf(path, sizeof(path), "%s", mongocEscapeDotsInKey(term->attr));
   if (term->subPathN > 0)
