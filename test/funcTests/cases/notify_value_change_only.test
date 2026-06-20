@@ -1,0 +1,237 @@
+#
+# FILE            notify_value_change_only.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --notifyValueChangeOnly (non-spec, off by default): a notification is
+# suppressed for an update that leaves the attribute *value* unchanged, even when
+# sub-attributes or the modifiedAt timestamp changed. A real value change, an
+# attribute append, or an attribute delete still notifies. (The default,
+# NGSI-LD-compliant behaviour — notify on every update — is covered by
+# notify_default_value_neutral.)
+#
+--NAME--
+notifyValueChangeOnly flag — suppress notifications for value-neutral updates
+
+--TAGS--
+subscription notification
+
+--INIT--
+swDbDrop
+swBrokerStart --notifyValueChangeOnly
+ftClientStart
+
+--RUN--
+
+echo "01. Subscribe + create E with P=5 (unitCode A) — notifies"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S","type":"Subscription","entities":[{"type":"T"}],"notificationTrigger":["attributeCreated","attributeUpdated","attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:7701/notify","accept":"application/json"}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E","type":"T","P":{"type":"Property","value":5,"unitCode":"A"}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "02. PATCH P value 5->5 with unitCode A->B — value unchanged, SUPPRESSED"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P -X PATCH --payload '{"value":5,"unitCode":"B"}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "03. PATCH P value 5->9 — value changed, NOTIFIES"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P -X PATCH --payload '{"value":9}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "04. POST /attrs append Q=1 — new attribute, NOTIFIES"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs --payload '{"Q":{"type":"Property","value":1}}' | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "05. DELETE /attrs/Q — attribute removed, NOTIFIES"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/Q -X DELETE | head -1
+sleep 0.3
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+--EXPECT--
+01. Subscribe + create E with P=5 (unitCode A) — notifies
+=========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P": {
+            "type": "Property",
+            "unitCode": "A",
+            "value": 5
+          },
+          "id": "urn:ngsi-ld:E",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "234",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+02. PATCH P value 5->5 with unitCode A->B — value unchanged, SUPPRESSED
+======================================================================
+HTTP/1.1 204 No Content
+[]
+
+03. PATCH P value 5->9 — value changed, NOTIFIES
+================================================
+HTTP/1.1 204 No Content
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P": {
+            "type": "Property",
+            "unitCode": "B",
+            "value": 9
+          },
+          "id": "urn:ngsi-ld:E",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "234",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. POST /attrs append Q=1 — new attribute, NOTIFIES
+====================================================
+HTTP/1.1 204 No Content
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P": {
+            "type": "Property",
+            "unitCode": "B",
+            "value": 9
+          },
+          "Q": {
+            "type": "Property",
+            "value": 1
+          },
+          "id": "urn:ngsi-ld:E",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "268",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. DELETE /attrs/Q — attribute removed, NOTIFIES
+=================================================
+HTTP/1.1 204 No Content
+[
+  {
+    "body": {
+      "data": [
+        {
+          "P": {
+            "type": "Property",
+            "unitCode": "B",
+            "value": 9
+          },
+          "Q": {
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "id": "urn:ngsi-ld:E",
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:S",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "285",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+ftClientStop

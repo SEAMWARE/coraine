@@ -863,12 +863,12 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 177
+Content-Length: 171
 
 {
-  "detail": "Registration payload must be a JSON object",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Invalid Registration",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -959,12 +959,12 @@ Content-Length: 184
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 171
 
 {
-  "detail": "'information' must have at least one element",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -975,12 +975,12 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 211
+Content-Length: 172
 
 {
-  "detail": "'information' element must have at least one of 'entities', 'attributeNames'",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Invalid Registration",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -1225,12 +1225,12 @@ Content-Length: 175
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 176
+Content-Length: 172
 
 {
-  "detail": "'information[].entities' must be an array",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Invalid Registration",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -1241,12 +1241,12 @@ Content-Length: 176
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: 171
 
 {
-  "detail": "'information[].entities' must not be empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -1353,12 +1353,12 @@ Content-Length: 189
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 167
+Content-Length: 171
 
 {
-  "detail": "'entities[].type' array must not be empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -1401,12 +1401,12 @@ Content-Length: 178
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 174
+Content-Length: 171
 
 {
-  "detail": "'information[].attributeNames' must not be empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -1465,12 +1465,12 @@ Content-Length: 182
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 174
+Content-Length: 171
 
 {
-  "detail": "'information[].attributeNames' must not be empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

@@ -1,0 +1,204 @@
+#
+# FILE            empty_object_array_input.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An empty object {} or empty array [] is valid JSON but carries no NGSI-LD
+# content, so it is rejected (400) anywhere in an incoming write body — the
+# whole body, a batch array, or a nested attribute value. The check runs on the
+# raw tree BEFORE JSON-LD expansion (which would otherwise silently drop the
+# empty object, like it drops null). A JsonProperty's `json` value is exempt
+# (opaque raw JSON — an empty {} / [] there is legitimate).
+#
+--NAME--
+Empty object / array rejected anywhere in incoming write body (json exempt)
+
+--TAGS--
+validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Whole body is {} — 400"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{}'
+echo
+echo
+
+
+echo "02. Whole body is [] — 400"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '[]'
+echo
+echo
+
+
+echo "03. Batch create with [] — 400"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[]'
+echo
+echo
+
+
+echo "04. Nested empty Property value {} — 400"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":{}}}'
+echo
+echo
+
+
+echo "05. Nested empty Property value [] — 400"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","P":{"type":"Property","value":[]}}'
+echo
+echo
+
+
+echo "06. JsonProperty json:{} — accepted (opaque, exempt)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J1","type":"T","J":{"type":"JsonProperty","json":{}}}'
+echo
+echo
+
+
+echo "07. JsonProperty json:[] — accepted (opaque, exempt)"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J2","type":"T","J":{"type":"JsonProperty","json":[]}}'
+echo
+echo
+
+
+echo "08. GET J1 — empty json object round-trips"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J1
+echo
+echo
+
+
+--EXPECT--
+01. Whole body is {} — 400
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "an empty object is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Whole body is [] — 400
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Batch create with [] — 400
+==============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Nested empty Property value {} — 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "an empty object is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Nested empty Property value [] — 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. JsonProperty json:{} — accepted (opaque, exempt)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:J1
+Content-Length: 0
+
+
+
+
+07. JsonProperty json:[] — accepted (opaque, exempt)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:J2
+Content-Length: 0
+
+
+
+
+08. GET J1 — empty json object round-trips
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 101
+
+{
+  "J": {
+    "json": {},
+    "type": "JsonProperty"
+  },
+  "id": "urn:ngsi-ld:J1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

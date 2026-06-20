@@ -321,12 +321,12 @@ Content-Length: 77
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 166
+Content-Length: 171
 
 {
-  "detail": "Batch Entity Merge: input array is empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

@@ -443,12 +443,12 @@ Content-Length: 186
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 154
+Content-Length: 171
 
 {
-  "detail": "'entities' must not be empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -459,12 +459,12 @@ Content-Length: 154
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 172
 
 {
-  "detail": "'entities' item must have at least 'type', 'id', or 'idPattern'",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Invalid Subscription",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -571,12 +571,12 @@ Content-Length: 163
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: 172
 
 {
-  "detail": "'notification.endpoint' must not be empty",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Object",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -587,12 +587,12 @@ Content-Length: 168
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 159
+Content-Length: 172
 
 {
-  "detail": "'notification' must not be empty",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Object",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

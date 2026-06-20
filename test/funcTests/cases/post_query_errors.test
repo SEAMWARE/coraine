@@ -267,12 +267,12 @@ Content-Length: 181
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 142
+Content-Length: 172
 
 {
-  "detail": "type",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Mandatory field missing",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -347,12 +347,12 @@ Content-Length: 153
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 142
+Content-Length: 172
 
 {
-  "detail": "type",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Mandatory field missing",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -395,12 +395,12 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 131
+Content-Length: 171
 
 {
-  "detail": "attrs",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

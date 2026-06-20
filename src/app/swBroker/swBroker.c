@@ -186,6 +186,7 @@ char*          troeName     = "none";
 char*          apiNames     = NULL;
 unsigned int   prettySpaces = 0;
 bool           localOnly    = false;
+bool           notifyValueChangeOnly = false;
 bool           fg           = false;
 int            poolSize     = 32;
 char*          corsOrigin   = NULL;
@@ -211,6 +212,7 @@ static KArg kargV[] =
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
   { "--localOnly",          "-local",       KaBool,   _vp &localOnly,    KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "local-only mode (no distributed operations)" },
+  { "--notifyValueChangeOnly", "-nvco",     KaBool,   _vp &notifyValueChangeOnly, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--defaultUserContext", "-duc",         KaString, _vp &defaultUserContext, KaOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
@@ -620,6 +622,7 @@ int main(int argC, char* argV[])
   }
 
   ldLocalOnly           = localOnly;
+  ldNotifyValueChangeOnly = notifyValueChangeOnly;
   ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
   ldDefaultContextUrl   = defaultUserContext;
   ldBrokerStartTimeSec  = (long long) time(NULL);

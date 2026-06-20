@@ -175,12 +175,12 @@ Content-Length: 190
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 185
+Content-Length: 172
 
 {
-  "detail": "Update EntityMap requires expiresAt in the body",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Mandatory Field Missing",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

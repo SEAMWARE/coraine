@@ -276,12 +276,12 @@ Content-Length: 165
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 174
+Content-Length: 172
 
 {
-  "detail": "Entity 'id' is mandatory for ReplaceEntity",
+  "detail": "an empty object is not valid NGSI-LD input",
   "status": 400,
-  "title": "Missing Entity Id",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

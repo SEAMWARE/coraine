@@ -133,12 +133,12 @@ Content-Length: 167
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 161
+Content-Length: 171
 
 {
-  "detail": "'datasetId' array must not be empty",
+  "detail": "an empty array is not valid NGSI-LD input",
   "status": 400,
-  "title": "Empty Array",
+  "title": "Empty Structure",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

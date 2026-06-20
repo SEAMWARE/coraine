@@ -47,29 +47,32 @@ echo
 --EXPECT--
 01. Create entity with an empty-array Property value
 ====================================================
-HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
-Content-Length: 0
+Content-Type: application/json
+Content-Length: 171
 
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
 02. GET the entity
 ==================
-HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 102
+Content-Length: 162
 
 {
-  "P1": {
-    "type": "Property",
-    "value": []
-  },
-  "id": "urn:ngsi-ld:T:001",
-  "type": "T"
+  "detail": "entity 'urn:ngsi-ld:T:001' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 
