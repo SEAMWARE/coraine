@@ -1,0 +1,185 @@
+#
+# FILE            troe_timescale_temporal_lastn_firstn_order.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7 / § 14 — temporal pagination direction:
+#   - lastN  → the most-recent N, in DESCENDING order (clause 14: "last n
+#              timestamps in descending ordering")
+#   - firstN → the earliest N, in ASCENDING order (clause 7)
+#   - neither → instances are an "unordered JSON array" (clause 5); sw emits
+#              ascending (chronological).
+# Raw output (no post-processing) so the instance order is asserted directly.
+#
+--NAME--
+TRoE temporal pagination order — lastN descending, firstN ascending
+
+--TAGS--
+troe timescale postgres temporal lastN firstN order
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "00. Seed urn:V1 speed=10/20/30/40 at 09:00/10:00/11:00/12:00"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}'
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}'
+echo
+echo
+
+
+echo "01. lastN=2 — the 2 most recent, DESCENDING by observedAt: 40 then 30"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=2'
+echo
+echo
+
+
+echo "02. firstN=2 — the 2 earliest, ASCENDING by observedAt: 10 then 20"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2'
+echo
+echo
+
+
+echo "03. neither — all 4, sw default ascending (10,20,30,40)"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
+echo
+echo
+
+
+--EXPECT--
+00. Seed urn:V1 speed=10/20/30/40 at 09:00/10:00/11:00/12:00
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+01. lastN=2 — the 2 most recent, DESCENDING by observedAt: 40 then 30
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?lastN=2&offsetN=2>;rel="intervalbefore";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+02. firstN=2 — the 2 earliest, ASCENDING by observedAt: 10 then 20
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&offsetN=2>;rel="intervalafter";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. neither — all 4, sw default ascending (10,20,30,40)
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
