@@ -45,6 +45,10 @@
 #include "swNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
 #include "swNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
+#include "swNgsild/ldQParse.h"                       // ldQParse
+#include "swNgsild/LdTypeExpr.h"                     // ldTypeExprParse
+#include "swNgsild/LdScopeExpr.h"                    // ldScopeExprParse
+#include "swNgsild/LdGeoRel.h"                       // ldGeoRelParse
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -1239,6 +1243,85 @@ static const char* buildSplitForwardQueryString(SwldContext* csrCtx)
 //
 // -----------------------------------------------------------------------------
 //
+// bindEntityMapFilters - § 9 "same parameters" enforcement on EntityMap reuse.
+//
+// A filter param present at map creation may be re-sent with the SAME value or
+// omitted; a DIFFERENT value, or a filter NOT used at creation, is rejected
+// with 400 BadRequestData. (Modify / introduce are spec-clear violations of
+// "shall use the same parameters"; allowing the OMIT case is the lenient
+// direction, pending spec-doubt #96.) An omitted bound filter is re-parsed
+// into swNgsild so applyResultFilters re-applies it live — an entity whose
+// value has drifted out of the bound `q` since map creation still drops.
+//
+// Returns true and raises the 400 on a conflict; false otherwise.
+//
+static bool bindEntityMapFilters(LdEntityMap* mapP)
+{
+  KAlloc* kaP = &swRest.kalloc;
+
+  struct { const char* name; const char* req; const char* bound; } f[] = {
+    { "type",        swNgsild.type,        mapP->boundType        },
+    { "q",           swNgsild.q,           mapP->boundQ           },
+    { "scopeQ",      swNgsild.scopeQ,      mapP->boundScopeQ      },
+    { "georel",      swNgsild.georel,      mapP->boundGeorel      },
+    { "geometry",    swNgsild.geometry,    mapP->boundGeometry    },
+    { "coordinates", swNgsild.coordinates, mapP->boundCoordinates },
+    { "geoproperty", swNgsild.geoproperty, mapP->boundGeoproperty }
+  };
+
+  for (int i = 0; i < (int) (sizeof(f) / sizeof(f[0])); i++)
+  {
+    if (f[i].req == NULL)
+      continue;
+    if (f[i].bound == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' was not part of the query that created entity map '%s'",
+              f[i].name, swNgsild.entityMapId);
+      return true;
+    }
+    if (strcmp(f[i].req, f[i].bound) != 0)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' differs from the query that created entity map '%s'",
+              f[i].name, swNgsild.entityMapId);
+      return true;
+    }
+  }
+
+  // Omitted bound filters → re-apply (parse into swNgsild for applyResultFilters).
+  if (swNgsild.type == NULL && mapP->boundType != NULL)
+  {
+    swNgsild.type     = mapP->boundType;
+    swNgsild.typeExpr = ldTypeExprParse(mapP->boundType, kaP);
+  }
+  if (swNgsild.q == NULL && mapP->boundQ != NULL)
+  {
+    swNgsild.q     = mapP->boundQ;
+    swNgsild.qExpr = ldQParse(mapP->boundQ, kaP);
+  }
+  if (swNgsild.scopeQ == NULL && mapP->boundScopeQ != NULL)
+  {
+    swNgsild.scopeQ    = mapP->boundScopeQ;
+    swNgsild.scopeExpr = ldScopeExprParse(mapP->boundScopeQ, kaP);
+  }
+  if (swNgsild.georel == NULL && mapP->boundGeorel != NULL)
+  {
+    swNgsild.georel      = mapP->boundGeorel;
+    swNgsild.geoRel      = ldGeoRelParse(mapP->boundGeorel, kaP);
+    swNgsild.geometry    = mapP->boundGeometry;
+    swNgsild.coordinates = mapP->boundCoordinates;
+    if (mapP->boundGeoproperty != NULL)
+      swNgsild.geoproperty = mapP->boundGeoproperty;
+  }
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // entityMapPaginate - GET /entities?entityMap=<mapId> (§ 5.2.39 / § 5.7.2.4)
 //
 // Frozen-snapshot pagination: the map fixes "where each entity is" at
@@ -1260,6 +1343,11 @@ static bool entityMapPaginate(void)
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", swNgsild.entityMapId);
     return true;
   }
+
+  // § 9 same-parameters: reject a modified / newly-introduced filter; default
+  // an omitted bound filter so it is re-applied live (see bindEntityMapFilters).
+  if (bindEntityMapFilters(mapP))
+    return true;
 
   // Build result array from map entries at [offset..offset+limit]
   KjNode* arrayP = kjArray(NULL, NULL);
@@ -1982,6 +2070,13 @@ bool getEntities(void)
       // Default lifetime: 5 minutes
       LdEntityMap* mapP = ldEntityMapCreate((LdEntityMapStore*) tP->entityMapStoreP,
                                              5ULL * 60 * 1000000000ULL, tP);
+
+      // Bind the query's filter params to the map (§ 9 same-parameters): a
+      // later paginated reuse may re-send these with the same value or omit
+      // them, but not modify or introduce one.
+      ldEntityMapSetFilters(mapP, swNgsild.type, swNgsild.q, swNgsild.scopeQ,
+                            swNgsild.georel, swNgsild.geometry, swNgsild.coordinates,
+                            swNgsild.geoproperty);
 
       //
       // Walk the sorted array, add each entity ID to the map along with

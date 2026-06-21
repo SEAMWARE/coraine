@@ -5,16 +5,17 @@
 #
 # Copyright 2026 Seamware
 #
-# § 5.7.2.4 — paginating an existing EntityMap with filter URL params.
-#
-# The EntityMap is a frozen "for entity X, here are the sources that
-# contribute to it" snapshot. The current request's q / geoQ / scopeQ /
-# type filters STILL APPLY on the assembled entities — the map only
-# fixes source selection, not the result set. A page may return < limit
-# entities when filters strip some (§ 5.5.9 allows this).
+# § 9 ("shall use the same parameters") + § 5.7.2.4 — an EntityMap binds the
+# filter params of the query that created it. On a paginated reuse:
+#   - a bound filter may be re-sent with the SAME value, or OMITTED (then the
+#     broker re-applies it live, so an entity whose value drifted out of the
+#     bound q since creation still drops);
+#   - a DIFFERENT value, or a filter NOT used at creation, is rejected 400.
+# (modify/introduce are spec-clear violations; allowing the omit case is the
+# lenient direction, see spec-doubts-2 #96.)
 #
 --NAME--
-EntityMap pagination — filter params re-apply per spec § 5.7.2.4
+EntityMap reuse — bound query params: omit/same OK, modify/introduce 400, live re-filter
 
 --TAGS--
 entitymap query pagination distops
@@ -25,93 +26,88 @@ swBrokerStart
 
 --RUN--
 
-echo "01. Seed urn:V1 (color=red, speed=10)"
-echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"},"speed":{"type":"Property","value":10}}'
+echo "01. Seed urn:V1 (speed=10)"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
-echo "02. Seed urn:V2 (color=blue, speed=20)"
-echo "======================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"},"speed":{"type":"Property","value":20}}'
+echo "02. Seed urn:V2 (speed=20)"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
 echo
 echo
 
 
-echo "03. Seed urn:V3 (color=green, speed=30)"
-echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"},"speed":{"type":"Property","value":30}}'
+echo "03. Seed urn:V3 (speed=30)"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
 echo
 echo
 
 
-echo "04. Create EntityMap from broad query (?entityMap=true)"
-echo "======================================================="
-MAP_ID=$(swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+echo "04. Create EntityMap with type=Vehicle & q=speed>15 — map binds those, page = V2,V3"
+echo "==================================================================================="
+MAP_ID=$(swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 if [ -n "$MAP_ID" ]; then echo "Map captured (id present): yes"; else echo "Map captured (id present): no"; fi
 echo
 echo
 
 
-echo "05. Paginate with q=color==\"blue\" — only V2 returned (V1, V3 filtered out)"
-echo "==========================================================================="
-echo "    Map has 3 entries; current request's q is re-applied per § 5.7.2.4."
-echo "    Page returns < limit because filters stripped 2 of 3 entries."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22blue%22"
+echo "05. Reuse with the SAME params (type=Vehicle & q=speed>15) — V2,V3"
+echo "================================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&type=Vehicle&q=speed%3E15"
 echo
 echo
 
 
-echo "06. Paginate with q=speed>15 — V2, V3 (V1 filtered out)"
-echo "======================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E15"
-echo
-echo
-
-
-echo "07. Paginate with q that matches none — empty array"
-echo "==================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22purple%22"
-echo
-echo
-
-
-echo "08. Paginate without filters — all 3 (sanity check)"
-echo "==================================================="
+echo "06. Reuse OMITTING the bound params — broker re-applies them, V2,V3"
+echo "==================================================================="
 swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID"
 echo
 echo
 
 
-echo "09. Paginate q=color==\"blue\"&count=true — NGSILD-Results-Count is the MAP count (3), not the 1 returned"
-echo "========================================================================================================"
-echo "    The count header reports the frozen map entry count, NOT a live post-filter total"
-echo "    (the live total would require fetching+filtering every page)."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22blue%22&count=true"
+echo "07. Reuse MODIFYING q (speed>25) — 400 (a bound filter may not be changed)"
+echo "=========================================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E25"
 echo
 echo
 
 
-echo "10. Page 1 (limit=2,offset=0) q=speed>15&count=true — map batch [V1,V2], V1 dropped -> only [V2]"
-echo "==============================================================================================="
-echo "    Page returns 1 of the batch's 2; Results-Count still 3; next link advances by limit (offset=2)."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E15&limit=2&offset=0&count=true"
+echo "08. Reuse MODIFYING type (Car) — 400"
+echo "===================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&type=Car"
 echo
 echo
 
 
-echo "11. Page 2 (limit=2,offset=2) q=speed>15&count=true — map batch [V3] -> [V3]; batches stayed intact"
-echo "=================================================================================================="
-echo "    Despite the drop on page 1, page 2 covers the next map batch, not a re-filled one."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E15&limit=2&offset=2&count=true"
+echo "09. Reuse INTRODUCING scopeQ (not used at creation) — 400"
+echo "========================================================="
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&scopeQ=/Sales"
+echo
+echo
+
+
+echo "10. Mutate urn:V2 speed -> 5 (now fails the bound q=speed>15)"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":5}'
+echo
+echo
+
+
+echo "11. Reuse OMITTING params — bound q re-applied live, V2 now drops, only V3"
+echo "=========================================================================="
+echo "    Map still has 2 entries (count=2), but the live re-filter strips V2."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&count=true"
 echo
 echo
 
 
 --EXPECT--
-01. Seed urn:V1 (color=red, speed=10)
-=====================================
+01. Seed urn:V1 (speed=10)
+==========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V1
@@ -120,8 +116,8 @@ Content-Length: 0
 
 
 
-02. Seed urn:V2 (color=blue, speed=20)
-======================================
+02. Seed urn:V2 (speed=20)
+==========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V2
@@ -130,8 +126,8 @@ Content-Length: 0
 
 
 
-03. Seed urn:V3 (color=green, speed=30)
-=======================================
+03. Seed urn:V3 (speed=30)
+==========================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V3
@@ -140,52 +136,21 @@ Content-Length: 0
 
 
 
-04. Create EntityMap from broad query (?entityMap=true)
-=======================================================
+04. Create EntityMap with type=Vehicle & q=speed>15 — map binds those, page = V2,V3
+===================================================================================
 Map captured (id present): yes
 
 
-05. Paginate with q=color=="blue" — only V2 returned (V1, V3 filtered out)
-===========================================================================
-    Map has 3 entries; current request's q is re-applied per § 5.7.2.4.
-    Page returns < limit because filters stripped 2 of 3 entries.
+05. Reuse with the SAME params (type=Vehicle & q=speed>15) — V2,V3
+=================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 190
+Content-Length: 237
 
 [
   {
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "id": "urn:V2",
-    "speed": {
-      "type": "Property",
-      "value": 20
-    },
-    "type": "Vehicle"
-  }
-]
-
-
-
-06. Paginate with q=speed>15 — V2, V3 (V1 filtered out)
-=======================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 378
-
-[
-  {
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
     "id": "urn:V2",
     "speed": {
       "type": "Property",
@@ -194,10 +159,6 @@ Content-Length: 378
     "type": "Vehicle"
   },
   {
-    "color": {
-      "type": "Property",
-      "value": "green"
-    },
     "id": "urn:V3",
     "speed": {
       "type": "Property",
@@ -209,44 +170,16 @@ Content-Length: 378
 
 
 
-07. Paginate with q that matches none — empty array
-===================================================
+06. Reuse OMITTING the bound params — broker re-applies them, V2,V3
+===================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
-
-[]
-
-
-
-08. Paginate without filters — all 3 (sanity check)
-===================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 564
+Content-Length: 237
 
 [
   {
-    "color": {
-      "type": "Property",
-      "value": "red"
-    },
-    "id": "urn:V1",
-    "speed": {
-      "type": "Property",
-      "value": 10
-    },
-    "type": "Vehicle"
-  },
-  {
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
     "id": "urn:V2",
     "speed": {
       "type": "Property",
@@ -255,10 +188,6 @@ Content-Length: 564
     "type": "Vehicle"
   },
   {
-    "color": {
-      "type": "Property",
-      "value": "green"
-    },
     "id": "urn:V3",
     "speed": {
       "type": "Property",
@@ -270,79 +199,74 @@ Content-Length: 564
 
 
 
-09. Paginate q=color=="blue"&count=true — NGSILD-Results-Count is the MAP count (3), not the 1 returned
-========================================================================================================
-    The count header reports the frozen map entry count, NOT a live post-filter total
-    (the live total would require fetching+filtering every page).
+07. Reuse MODIFYING q (speed>25) — 400 (a bound filter may not be changed)
+==========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(.*)'",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Reuse MODIFYING type (Car) — 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "URL parameter 'type' differs from the query that created entity map 'REGEX(.*)'",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Reuse INTRODUCING scopeQ (not used at creation) — 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 235
+
+{
+  "detail": "URL parameter 'scopeQ' was not part of the query that created entity map 'REGEX(.*)'",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Mutate urn:V2 speed -> 5 (now fails the bound q=speed>15)
+============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+11. Reuse OMITTING params — bound q re-applied live, V2 now drops, only V3
+==========================================================================
+    Map still has 2 entries (count=2), but the live re-filter strips V2.
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-NGSILD-Results-Count: 3
+NGSILD-Results-Count: 2
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 190
+Content-Length: 120
 
 [
   {
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "id": "urn:V2",
-    "speed": {
-      "type": "Property",
-      "value": 20
-    },
-    "type": "Vehicle"
-  }
-]
-
-
-
-10. Page 1 (limit=2,offset=0) q=speed>15&count=true — map batch [V1,V2], V1 dropped -> only [V2]
-===============================================================================================
-    Page returns 1 of the batch's 2; Results-Count still 3; next link advances by limit (offset=2).
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-NGSILD-Results-Count: 3
-Link: REGEX(.*)
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 190
-
-[
-  {
-    "color": {
-      "type": "Property",
-      "value": "blue"
-    },
-    "id": "urn:V2",
-    "speed": {
-      "type": "Property",
-      "value": 20
-    },
-    "type": "Vehicle"
-  }
-]
-
-
-
-11. Page 2 (limit=2,offset=2) q=speed>15&count=true — map batch [V3] -> [V3]; batches stayed intact
-==================================================================================================
-    Despite the drop on page 1, page 2 covers the next map batch, not a re-filled one.
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-NGSILD-Results-Count: 3
-Link: REGEX(.*)
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 191
-
-[
-  {
-    "color": {
-      "type": "Property",
-      "value": "green"
-    },
     "id": "urn:V3",
     "speed": {
       "type": "Property",
@@ -356,4 +280,3 @@ Content-Length: 191
 
 --TEARDOWN--
 swBrokerStop
-swDbDrop

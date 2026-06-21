@@ -5,14 +5,13 @@
 #
 # Copyright 2026 Seamware
 #
-# § 5.7.2.4 — symmetric case to entitymap_paginate_with_filter.
+# § 9 / § 5.7.2.4 — symmetric case to entitymap_paginate_with_filter.
 #
 # When a query carries `?entityMap=true` AND filter URL params (q, geoQ,
-# scopeQ, type), the resulting EntityMap shall reflect ONLY entities
-# matching the filters. Subsequent paginations of that map page through
-# the filtered set; filters re-apply on each page (§ 5.7.2.4) but the
-# map's frozen entry list is itself the filtered subset, not the
-# unfiltered universe.
+# scopeQ, type), the resulting EntityMap reflects ONLY entities matching
+# the filters AND binds those params. Subsequent paginations may omit them
+# (the broker re-applies the bound values) or re-send the same values, but
+# may not modify them (→ 400).
 #
 --NAME--
 EntityMap creation — filter params shape the map at create time
@@ -78,19 +77,18 @@ echo
 echo
 
 
-echo "07. Paginate same map without any filter — V2 + V4 (the frozen filtered set)"
-echo "============================================================================"
-echo "    Map fixes the source mapping; filters from create-time are NOT remembered."
-echo "    But the map's entry set is already only V2 + V4 (red+green never made it in)."
+echo "07. Paginate same map OMITTING the filters — bound type+q re-applied, V2 + V4"
+echo "============================================================================="
+echo "    The map binds type=Vehicle & q=color==blue; omitting them re-applies the"
+echo "    bound values, and the entry set is already only V2 + V4 anyway."
 swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&orderBy=id"
 echo
 echo
 
 
-echo "08. Paginate same map with q=color==\"red\" — empty"
-echo "================================================="
-echo "    Map only contains V2 + V4 (blue); current request's q filters that to nothing."
-echo "    Filter narrows; it cannot re-introduce V1 (red) — the map froze it out."
+echo "08. Paginate same map MODIFYING q (color==\"red\") — 400 (bound q may not change)"
+echo "================================================================================"
+echo "    The bound q is color==blue; sending a different q is rejected, not narrowed."
 swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22red%22"
 echo
 echo
@@ -192,17 +190,17 @@ Content-Length: 230
     ]
   },
   "expiresAt": "REGEX(.*)",
-  REGEX(.*EntityMap.*),
+  "id": "REGEX(.*)",
   "linkedMaps": {},
   "type": "EntityMap"
 }
 
 
 
-07. Paginate same map without any filter — V2 + V4 (the frozen filtered set)
-============================================================================
-    Map fixes the source mapping; filters from create-time are NOT remembered.
-    But the map's entry set is already only V2 + V4 (red+green never made it in).
+07. Paginate same map OMITTING the filters — bound type+q re-applied, V2 + V4
+=============================================================================
+    The map binds type=Vehicle & q=color==blue; omitting them re-applies the
+    bound values, and the entry set is already only V2 + V4 anyway.
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -230,17 +228,20 @@ Content-Length: 245
 
 
 
-08. Paginate same map with q=color=="red" — empty
-=================================================
-    Map only contains V2 + V4 (blue); current request's q filters that to nothing.
-    Filter narrows; it cannot re-introduce V1 (red) — the map froze it out.
-HTTP/1.1 200 OK
+08. Paginate same map MODIFYING q (color=="red") — 400 (bound q may not change)
+================================================================================
+    The bound q is color==blue; sending a different q is rejected, not narrowed.
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Content-Length: 227
 
-[]
+{
+  "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(.*)'",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
