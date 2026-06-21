@@ -84,6 +84,31 @@ echo
 echo
 
 
+echo "09. Paginate q=color==\"blue\"&count=true — NGSILD-Results-Count is the MAP count (3), not the 1 returned"
+echo "========================================================================================================"
+echo "    The count header reports the frozen map entry count, NOT a live post-filter total"
+echo "    (the live total would require fetching+filtering every page)."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22blue%22&count=true"
+echo
+echo
+
+
+echo "10. Page 1 (limit=2,offset=0) q=speed>15&count=true — map batch [V1,V2], V1 dropped -> only [V2]"
+echo "==============================================================================================="
+echo "    Page returns 1 of the batch's 2; Results-Count still 3; next link advances by limit (offset=2)."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E15&limit=2&offset=0&count=true"
+echo
+echo
+
+
+echo "11. Page 2 (limit=2,offset=2) q=speed>15&count=true — map batch [V3] -> [V3]; batches stayed intact"
+echo "=================================================================================================="
+echo "    Despite the drop on page 1, page 2 covers the next map batch, not a re-filled one."
+swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E15&limit=2&offset=2&count=true"
+echo
+echo
+
+
 --EXPECT--
 01. Seed urn:V1 (color=red, speed=10)
 =====================================
@@ -229,6 +254,90 @@ Content-Length: 564
     },
     "type": "Vehicle"
   },
+  {
+    "color": {
+      "type": "Property",
+      "value": "green"
+    },
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "value": 30
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+09. Paginate q=color=="blue"&count=true — NGSILD-Results-Count is the MAP count (3), not the 1 returned
+========================================================================================================
+    The count header reports the frozen map entry count, NOT a live post-filter total
+    (the live total would require fetching+filtering every page).
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 190
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+10. Page 1 (limit=2,offset=0) q=speed>15&count=true — map batch [V1,V2], V1 dropped -> only [V2]
+===============================================================================================
+    Page returns 1 of the batch's 2; Results-Count still 3; next link advances by limit (offset=2).
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 3
+Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 190
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+11. Page 2 (limit=2,offset=2) q=speed>15&count=true — map batch [V3] -> [V3]; batches stayed intact
+==================================================================================================
+    Despite the drop on page 1, page 2 covers the next map batch, not a re-filled one.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 3
+Link: REGEX(.*)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 191
+
+[
   {
     "color": {
       "type": "Property",
