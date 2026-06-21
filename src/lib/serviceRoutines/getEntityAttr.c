@@ -30,6 +30,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/ldEntityToApi.h"                  // ldEntityToApi
 #include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldRender.h"                       // ldToConcise, ldToSimplified
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -122,6 +123,24 @@ bool getEntityAttr(void)
 
   ldEntityToApi(wrap, &swRest.kalloc);
 
+  //
+  // Representation format. This route sets rawResponse (below) to skip the
+  // renderHook, so apply the same transforms it would — in the same order
+  // (strip sysAttrs → format) — here on the transient single-attr wrapper.
+  // Reusing ldToConcise/ldToSimplified means the attribute renders exactly
+  // as it does inside GET /entities{,/{id}}: a value-only Property/Geo
+  // collapses to its bare value under both concise and simplified; every
+  // other type keeps its value-key. (sysAttrs + simplified is not a spec
+  // error — in simplified the sysAttrs simply have nowhere to appear.)
+  //
+  if (swNgsild.sysAttrs == false)
+    ldStripSysAttrs(wrap);
+
+  if (swNgsild.format == LdFormatConcise)
+    ldToConcise(wrap, &swRest.kalloc);
+  else if (swNgsild.format == LdFormatSimplified)
+    ldToSimplified(wrap, &swRest.kalloc);
+
   KjNode* unwrapped = wrap->value.firstChildP;
   if (unwrapped == NULL)
   {
@@ -129,9 +148,6 @@ bool getEntityAttr(void)
             "failed to transform attribute '%s'", attrWild);
     return true;
   }
-
-  if (swNgsild.sysAttrs == false)
-    ldStripSysAttrs(unwrapped);
 
   //
   // Root: rawResponse prevents renderHook from running ldEntityToApi again

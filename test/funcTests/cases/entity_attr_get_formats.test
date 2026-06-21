@@ -1,0 +1,532 @@
+#
+# FILE            entity_attr_get_formats.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /entities/{id}/attrs/{attr} across every attribute kind
+# (Property / Relationship / VocabProperty / LanguageProperty /
+# JsonProperty) in each representation: normalized, ?options=sysAttrs,
+# ?format=concise, ?format=simplified.
+#
+# The single-attribute route reuses the same ldToConcise / ldToSimplified
+# render the entity routes use, so each attribute collapses exactly as it
+# would inside GET /entities/{id}: a value-only Property reduces to its bare
+# value under concise + simplified; every other type keeps its value-key.
+# Each attribute carries an `xtra` sub-attribute to exercise sub-attr
+# rendering (kept + concised in concise; dropped in simplified).
+#
+--NAME--
+GET single attribute — normalized / sysAttrs / concise / simplified, every attr kind
+
+--TAGS--
+retrieve attr attribute format
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 00. Create urn:E1 with one attribute of each kind (+ xtra sub-attr)
+# p (Property), r (Relationship), v (VocabProperty), l (LanguageProperty), j (JsonProperty)
+#
+
+echo "00. Create urn:E1"
+echo "================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "p": { "type": "Property",         "value": 12,                          "xtra": 1 },
+  "r": { "type": "Relationship",     "object": "urn:E2",                   "xtra": 1 },
+  "v": { "type": "VocabProperty",    "vocab": "sensor",                    "xtra": 1 },
+  "l": { "type": "LanguageProperty", "languageMap": { "en": "one", "es": "uno" }, "xtra": 1 },
+  "j": { "type": "JsonProperty",     "json": { "a": 1, "b": 2 },           "xtra": 1 },
+  "pe": { "type": "Property",        "value": 7, "expiresAt": "2099-12-31T23:59:59Z" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+for attr in p r v l j; do
+  echo "GET /attrs/$attr — normalized"
+  echo "============================="
+  swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/$attr
+  echo
+  echo
+
+  echo "GET /attrs/$attr — options=sysAttrs"
+  echo "==================================="
+  swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'options=sysAttrs'
+  echo
+  echo
+
+  echo "GET /attrs/$attr — format=concise"
+  echo "================================="
+  swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'format=concise'
+  echo
+  echo
+
+  echo "GET /attrs/$attr — format=simplified"
+  echo "===================================="
+  swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'format=simplified'
+  echo
+  echo
+done
+
+
+echo "EX1. GET /attrs/pe — normalized, NO sysAttrs: expiresAt stays (it is NOT a system attr)"
+echo "======================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/pe
+echo
+echo
+
+
+echo "EX2. GET /attrs/pe — options=sysAttrs: expiresAt + createdAt + modifiedAt"
+echo "========================================================================="
+swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/pe" --urlParams 'options=sysAttrs'
+echo
+echo
+
+
+echo "ZZ. GET /attrs/p — format=simplified + options=sysAttrs (not a 400; simplified wins)"
+echo "==================================================================================="
+swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/p" --urlParams 'format=simplified&options=sysAttrs'
+echo
+echo
+
+
+--EXPECT--
+00. Create urn:E1
+=================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+GET /attrs/p — normalized
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "type": "Property",
+  "value": 12,
+  "xtra": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/p — options=sysAttrs
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(.*)",
+  "type": "Property",
+  "value": 12,
+  "xtra": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/p — format=concise
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "value": 12,
+  "xtra": 1
+}
+
+
+
+GET /attrs/p — format=simplified
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+12
+
+
+GET /attrs/r — normalized
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "object": "urn:E2",
+  "type": "Relationship",
+  "xtra": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/r — options=sysAttrs
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(.*)",
+  "object": "urn:E2",
+  "type": "Relationship",
+  "xtra": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/r — format=concise
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "object": "urn:E2",
+  "xtra": 1
+}
+
+
+
+GET /attrs/r — format=simplified
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+"urn:E2"
+
+
+GET /attrs/v — normalized
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "type": "VocabProperty",
+  "vocab": "sensor",
+  "xtra": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/v — options=sysAttrs
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(.*)",
+  "type": "VocabProperty",
+  "vocab": "sensor",
+  "xtra": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/v — format=concise
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "vocab": "sensor",
+  "xtra": 1
+}
+
+
+
+GET /attrs/v — format=simplified
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "vocab": "sensor"
+}
+
+
+
+GET /attrs/l — normalized
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "languageMap": {
+    "en": "one",
+    "es": "uno"
+  },
+  "type": "LanguageProperty",
+  "xtra": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/l — options=sysAttrs
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "languageMap": {
+    "en": "one",
+    "es": "uno"
+  },
+  "modifiedAt": "REGEX(.*)",
+  "type": "LanguageProperty",
+  "xtra": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/l — format=concise
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "languageMap": {
+    "en": "one",
+    "es": "uno"
+  },
+  "xtra": 1
+}
+
+
+
+GET /attrs/l — format=simplified
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "languageMap": {
+    "en": "one",
+    "es": "uno"
+  }
+}
+
+
+
+GET /attrs/j — normalized
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "json": {
+    "a": 1,
+    "b": 2
+  },
+  "type": "JsonProperty",
+  "xtra": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/j — options=sysAttrs
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "json": {
+    "a": 1,
+    "b": 2
+  },
+  "modifiedAt": "REGEX(.*)",
+  "type": "JsonProperty",
+  "xtra": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+
+GET /attrs/j — format=concise
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "json": {
+    "a": 1,
+    "b": 2
+  },
+  "xtra": 1
+}
+
+
+
+GET /attrs/j — format=simplified
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "json": {
+    "a": 1,
+    "b": 2
+  }
+}
+
+
+
+EX1. GET /attrs/pe — normalized, NO sysAttrs: expiresAt stays (it is NOT a system attr)
+=======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "2099-12-31T23:59:59Z",
+  "type": "Property",
+  "value": 7
+}
+
+
+
+EX2. GET /attrs/pe — options=sysAttrs: expiresAt + createdAt + modifiedAt
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "expiresAt": "2099-12-31T23:59:59Z",
+  "modifiedAt": "REGEX(.*)",
+  "type": "Property",
+  "value": 7
+}
+
+
+
+ZZ. GET /attrs/p — format=simplified + options=sysAttrs (not a 400; simplified wins)
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+12
+
+
+--TEARDOWN--
+swBrokerStop
