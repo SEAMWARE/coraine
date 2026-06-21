@@ -1,0 +1,216 @@
+#
+# FILE            linked_entities_objecttype_split.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.1.4 + § 7.7.1 — a linked entity may live PART on one broker, PART on
+# another. When a join follows a Relationship (gated by objectType), the
+# target is assembled exactly like a top-level retrieveEntity: the local
+# copy is merged with every type-matched registration's contribution
+# (§ 4.5.5.3). Here urn:X is split — attr "local" on CB, attr "remote" on
+# CP1 (inclusive registration) — and the inlined entity must carry BOTH.
+#
+--NAME--
+Linked entities — join assembles a target split across two brokers
+
+--TAGS--
+retrieve linked-entities registration distops
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Seed CP1 with urn:X (type Tx) carrying attr "remote"
+# 02. Register CP1 (inclusive) for urn:X / type Tx
+# 03. Seed CB (local) with urn:X (type Tx) carrying attr "local" — urn:X is now split
+# 04. Seed CB with urn:E1 -> linkToX (Relationship object urn:X, objectType Tx)
+# 05. GET urn:X directly on CB -> merged { local, remote } (top-level retrieve)
+# 06. GET urn:E1?join=inline&joinLevel=1 -> linkToX.entity = urn:X with BOTH attrs
+#
+
+echo "01. Seed CP1 with urn:X (attr remote)"
+echo "====================================="
+payload='{
+  "id": "urn:X",
+  "type": "Tx",
+  "remote": {
+    "type": "Property",
+    "value": "from-CP1"
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Register CP1 (inclusive) for urn:X / type Tx"
+echo "================================================"
+payload='{
+  "id": "urn:CSR:X",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:X", "type": "Tx" }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. Seed CB (local) with urn:X (attr local) — urn:X now split"
+echo "============================================================="
+payload='{
+  "id": "urn:X",
+  "type": "Tx",
+  "local": {
+    "type": "Property",
+    "value": "from-CB"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Seed CB with urn:E1 -> linkToX (objectType Tx)"
+echo "=================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T1",
+  "linkToX": {
+    "type": "Relationship",
+    "object": "urn:X",
+    "objectType": "Tx"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. GET urn:X on CB -> merged { local, remote }"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:X
+echo
+echo
+
+
+echo "06. GET urn:E1?join=inline&joinLevel=1 -> linkToX.entity carries both attrs"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:E1?join=inline&joinLevel=1'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with urn:X (attr remote)
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:X
+Content-Length: 0
+
+
+
+
+02. Register CP1 (inclusive) for urn:X / type Tx
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:X
+Content-Length: 0
+
+
+
+
+03. Seed CB (local) with urn:X (attr local) — urn:X now split
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:X
+Content-Length: 0
+
+
+
+
+04. Seed CB with urn:E1 -> linkToX (objectType Tx)
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+05. GET urn:X on CB -> merged { local, remote }
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:X",
+  "local": {
+    "type": "Property",
+    "value": "from-CB"
+  },
+  "remote": {
+    "type": "Property",
+    "value": "from-CP1"
+  },
+  "type": "Tx"
+}
+
+
+
+06. GET urn:E1?join=inline&joinLevel=1 -> linkToX.entity carries both attrs
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "linkToX": {
+    "entity": {
+      "id": "urn:X",
+      "local": {
+        "type": "Property",
+        "value": "from-CB"
+      },
+      "remote": {
+        "type": "Property",
+        "value": "from-CP1"
+      },
+      "type": "Tx"
+    },
+    "object": "urn:X",
+    "objectType": "Tx",
+    "type": "Relationship"
+  },
+  "type": "T1"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1

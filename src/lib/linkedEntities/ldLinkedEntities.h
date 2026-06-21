@@ -91,10 +91,23 @@ extern void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Ten
 //
 // linkedFetchOne - single-entity lookup (local DB → reg-cache → dist-op GET)
 //
+// objectTypeV is a NULL-terminated array of the target's entity-type
+// IRI(s) (a Relationship's objectType, already @vocab-expanded), or NULL
+// when the type is unknown. When non-NULL it scopes the reg-cache match
+// to those types so only the registrations that can serve the type are
+// forwarded to.
+//
+// typedRemoteOnly is the § 7.7.1 linked-retrieval fan-out gate: when true,
+// a target that is not stored locally is only fetched remotely if its type
+// is known (objectTypeV != NULL) — without a type the broker leaves it as a
+// bare object URI rather than spraying a GET at every registration. Pass
+// false to keep the legacy fetch-by-id-regardless behaviour (q-filter
+// evaluation, notification linked-entity inclusion).
+//
 // Returns 0 on success and *entityPP set to a storage-format tree
 // allocated in the request arena. Non-zero on miss.
 //
-extern int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP);
+extern int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnly, KjNode** entityPP, Tenant* tenantP);
 
 
 

@@ -5,15 +5,23 @@
 #
 # Copyright 2026 Seamware
 #
-# § 4.5.23 / § 4.9 — when a Relationship's target lives on a remote
-# Context Source, follow the registration and fetch via dist-op so
-# linked-entity expansion (join=flat / inline) and q sub-queries
-# (q=rel{...}) work across brokers.
+# § 4.5.23 / § 7.7.1 — a Relationship whose target lives on a remote
+# Context Source is only FOLLOWED during a join when it carries an
+# objectType: that type scopes the registration lookup (no blind fan-out),
+# and a non-local target without objectType is left as a bare object URI
+# (the spec's "known limitation"). This test toggles objectType on
+# urn:V1's owner with a merge-PATCH and shows the join following / not
+# following the link accordingly.
+#
+# q sub-queries (q=rel{...}, § 4.9) are NOT subject to that gate — the
+# predicate can only be evaluated by following the link, so q follows by
+# id regardless of objectType (steps 13/14 still match with objectType
+# removed).
 #
 # REQUIRE_DB: mongoc
 #
 --NAME--
-Linked entities — cross-CSR retrieval (join + q={})
+Linked entities — cross-CSR join gated by objectType (toggled via PATCH) + q={}
 
 --TAGS--
 retrieve query distops linked-entities
@@ -29,13 +37,10 @@ swBrokerStart -role CP1
 #
 # Seed:
 #   CP1: urn:Alice (Person, age 35), urn:Bob (Person, age 22)
-#   CB:  CSR pointing CP1 for type Person
-#        urn:V1 → owner=urn:Alice
+#   CB:  CSR → CP1 for type Person
+#        urn:V1 → owner=urn:Alice   (no objectType initially)
 #        urn:V2 → owner=urn:Bob
 #
-
-CP1="http://localhost:'$CP1_PORT'"
-
 
 echo "01. Seed urn:Alice on CP1"
 echo "========================="
@@ -51,8 +56,8 @@ echo
 echo
 
 
-echo "03. Register CSR on CB → CP1 for Person (with retrieveEntity, queryEntities)"
-echo "============================================================================"
+echo "03. Register CSR on CB → CP1 for Person (retrieveEntity, queryEntity)"
+echo "====================================================================="
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:Persons",
   "type": "ContextSourceRegistration",
@@ -65,8 +70,8 @@ echo
 echo
 
 
-echo "04. Seed urn:V1 (owner=Alice) on CB"
-echo "==================================="
+echo "04. Seed urn:V1 (owner=Alice, NO objectType) on CB"
+echo "=================================================="
 swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:Alice"}}'
 echo
 echo
@@ -79,29 +84,66 @@ echo
 echo
 
 
-echo "06. GET V1?join=flat — V1 + Alice fetched from CP1"
-echo "=================================================="
+echo "06. GET V1?join=flat — owner has NO objectType → Alice NOT followed (gate)"
+echo "=========================================================================="
 swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=1&local=true'
 echo
 echo
 
 
-echo "07. GET V1?join=inline — owner.entity carries Alice fetched from CP1"
+echo "07. GET V1?join=inline — no objectType → owner has no entity sub-attr"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=1&local=true'
+echo
+echo
+
+
+echo "08. PATCH V1 — merge objectType=Person onto owner"
+echo "================================================="
+payload='{ "owner": { "objectType": "Person" } }'
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "09. GET V1?join=flat — objectType present → V1 + Alice fetched from CP1"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=1&local=true'
+echo
+echo
+
+
+echo "10. GET V1?join=inline — owner.entity carries Alice fetched from CP1"
 echo "===================================================================="
 swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=1&local=true'
 echo
 echo
 
 
-echo "08. Query Vehicles q=owner{age>30} — only V1 (Alice on CP1, age 35)"
+echo "11. PATCH V1 — delete objectType from owner (urn:ngsi-ld:null sentinel)"
+echo "======================================================================="
+payload='{ "owner": { "objectType": "urn:ngsi-ld:null" } }'
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "12. GET V1?join=inline — objectType gone → Alice NOT followed again"
 echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=1&local=true'
+echo
+echo
+
+
+echo "13. Query Vehicles q=owner{age>30} — V1 (q-linked follows by id, ungated)"
+echo "=========================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=true&q=owner%7Bage%3E30%7D'
 echo
 echo
 
 
-echo "09. Query Vehicles q=owner{age<30} — only V2 (Bob on CP1, age 22)"
-echo "================================================================="
+echo "14. Query Vehicles q=owner{age<30} — V2 (q-linked follows by id, ungated)"
+echo "=========================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=true&q=owner%7Bage%3C30%7D'
 echo
 echo
@@ -128,8 +170,8 @@ Content-Length: 0
 
 
 
-03. Register CSR on CB → CP1 for Person (with retrieveEntity, queryEntities)
-============================================================================
+03. Register CSR on CB → CP1 for Person (retrieveEntity, queryEntity)
+=====================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Persons
@@ -138,8 +180,8 @@ Content-Length: 0
 
 
 
-04. Seed urn:V1 (owner=Alice) on CB
-===================================
+04. Seed urn:V1 (owner=Alice, NO objectType) on CB
+==================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:V1
@@ -158,19 +200,74 @@ Content-Length: 0
 
 
 
-06. GET V1?join=flat — V1 + Alice fetched from CP1
-==================================================
+06. GET V1?join=flat — owner has NO objectType → Alice NOT followed (gate)
+==========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 317
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "object": "urn:Alice",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+07. GET V1?join=inline — no objectType → owner has no entity sub-attr
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "object": "urn:Alice",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+08. PATCH V1 — merge objectType=Person onto owner
+=================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. GET V1?join=flat — objectType present → V1 + Alice fetched from CP1
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
 [
   {
     "id": "urn:V1",
     "owner": {
       "object": "urn:Alice",
+      "objectType": "Person",
       "type": "Relationship"
     },
     "speed": {
@@ -191,13 +288,13 @@ Content-Length: 317
 
 
 
-07. GET V1?join=inline — owner.entity carries Alice fetched from CP1
+10. GET V1?join=inline — owner.entity carries Alice fetched from CP1
 ====================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 315
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:V1",
@@ -211,6 +308,7 @@ Content-Length: 315
       "type": "Person"
     },
     "object": "urn:Alice",
+    "objectType": "Person",
     "type": "Relationship"
   },
   "speed": {
@@ -222,13 +320,44 @@ Content-Length: 315
 
 
 
-08. Query Vehicles q=owner{age>30} — only V1 (Alice on CP1, age 35)
+11. PATCH V1 — delete objectType from owner (urn:ngsi-ld:null sentinel)
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+12. GET V1?join=inline — objectType gone → Alice NOT followed again
 ===================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 200
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "owner": {
+    "object": "urn:Alice",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+13. Query Vehicles q=owner{age>30} — V1 (q-linked follows by id, ungated)
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -247,13 +376,13 @@ Content-Length: 200
 
 
 
-09. Query Vehicles q=owner{age<30} — only V2 (Bob on CP1, age 22)
-=================================================================
+14. Query Vehicles q=owner{age<30} — V2 (q-linked follows by id, ungated)
+==========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 198
+Content-Length: REGEX(\d+)
 
 [
   {
@@ -275,5 +404,3 @@ Content-Length: 198
 --TEARDOWN--
 swBrokerStop
 swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1

@@ -36,6 +36,8 @@
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
 
+#include "serviceRoutines/getEntity.h"               // distributedRetrieveOne, DistRetrieveErr
+
 #include "linkedEntities/ldLinkedEntities.h"          // Own interface
 
 
@@ -191,13 +193,54 @@ static void collectRelationshipTargets(KjNode* entityP, const char*** outIdsP, i
 //
 // Returns 0 on success and *entityPP set; non-zero on miss.
 //
-int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
+int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnly, KjNode** entityPP, Tenant* tenantP)
 {
   if (entityId == NULL || entityPP == NULL || tenantP == NULL)
     return -1;
 
   *entityPP = NULL;
 
+  // ---------------------------------------------------------------------------
+  // § 7.7.1 join retrieval. Assemble the (possibly split) target from the
+  // local copy + every type-matched registration — same § 4.5.5.3 merge a
+  // top-level retrieveEntity does. objectType is both the fan-out GATE (a
+  // non-local target with no type is left as a bare object URI, not followed)
+  // and the type that SCOPES the registration lookup so the GET reaches only
+  // the sources serving that type.
+  // ---------------------------------------------------------------------------
+  if (typedRemoteOnly)
+  {
+    if (objectTypeV != NULL && !ldLocalOnly && tenantP->regCacheP != NULL)
+    {
+      DistRetrieveErr err     = {0};
+      bool            matched = false;
+      KjNode*         merged  = distributedRetrieveOne(entityId, objectTypeV, tenantP, true, &matched, &err);
+      if (matched && merged != NULL)
+      {
+        *entityPP = merged;
+        return 0;
+      }
+      // No type-matched source (or an exclusive source failed) — fall back to
+      // the local part; a missed remote link is not fatal to the join.
+    }
+
+    // Gate / fallback: local part only. A non-local typeless target (or one
+    // whose type matches no registration) is followed only if held locally.
+    if (db.entityRetrieve != NULL)
+    {
+      int r = db.entityRetrieve(tenantP, entityId, entityPP);
+      if (r == DB_OK && *entityPP != NULL)
+        return 0;
+    }
+    return -1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // q-filter evaluation / notification linked-entity inclusion: legacy
+  // fetch-by-id (local first, else the first registration that answers 200).
+  // No § 7.7.1 gate — following the link is required to evaluate the predicate
+  // / include the entity, and the target id alone drives the lookup.
+  // ---------------------------------------------------------------------------
   if (db.entityRetrieve != NULL)
   {
     int r = db.entityRetrieve(tenantP, entityId, entityPP);
@@ -217,7 +260,7 @@ int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
   for (int m = 0; m < 4; m++)
   {
     LdRegCacheItem** matchV = NULL;
-    int matchN = ldRegCacheMatchForRetrieve(regCacheP, entityId, NULL, modes[m], &matchV);
+    int matchN = ldRegCacheMatchForRetrieve(regCacheP, entityId, objectTypeV, modes[m], &matchV);
 
     for (int i = 0; i < matchN; i++)
     {
@@ -266,6 +309,53 @@ int linkedFetchOne(const char* entityId, KjNode** entityPP, Tenant* tenantP)
   }
 
   return -1;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// instObjectTypeV - NULL-terminated array of a Relationship instance's
+// objectType value(s), or NULL when the instance carries no objectType.
+//
+// objectType is @vocab-coerced (core context, annex B: "@type":"@vocab"),
+// so the stored value(s) are already expanded type IRIs — the same
+// namespace the reg-cache matches on. Both the single-string and the
+// String[] form (§ 5.2.6) are handled.
+//
+static char** instObjectTypeV(KjNode* instP)
+{
+  KjNode* otP = kjLookup(instP, "objectType");
+  if (otP == NULL)
+    return NULL;
+
+  if (otP->type == KjString && otP->value.s != NULL)
+  {
+    char** v = (char**) kaAlloc(&swRest.kalloc, 2 * sizeof(char*));
+    v[0] = otP->value.s;
+    v[1] = NULL;
+    return v;
+  }
+
+  if (otP->type == KjArray)
+  {
+    int n = 0;
+    for (KjNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
+      if (eP->type == KjString && eP->value.s != NULL)
+        n++;
+    if (n == 0)
+      return NULL;
+
+    char** v = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
+    int    i = 0;
+    for (KjNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
+      if (eP->type == KjString && eP->value.s != NULL)
+        v[i++] = eP->value.s;
+    v[i] = NULL;
+    return v;
+  }
+
+  return NULL;
 }
 
 
@@ -353,7 +443,7 @@ static void flatBfs(KjNode*         outArr,
             continue;
 
           KjNode* targetEntityP = NULL;
-          int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+          int     r             = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetEntityP, tenantP);
           if (r != 0 || targetEntityP == NULL)
           {
             *visitedPP = visitedAppend(*visitedPP, tid);
@@ -559,7 +649,7 @@ static void inlineWalk(KjNode*       entityP,
         continue;
 
       KjNode* targetP = NULL;
-      int     r       = linkedFetchOne(tid, &targetP, tenantP);
+      int     r       = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetP, tenantP);
       if (r != 0 || targetP == NULL)
       {
         *visitedPP = visitedAppend(*visitedPP, tid);
@@ -710,7 +800,10 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
       if (visitedContains(*visitedPP, tid)) continue;
 
       KjNode* targetEntityP = NULL;
-      int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+      // Notification linked-entity inclusion keeps the legacy fetch-by-id
+      // path (typedRemoteOnly=false); the § 7.7.1 gate is applied on the
+      // GET ?join retrieval path only for now.
+      int     r             = linkedFetchOne(tid, NULL, false, &targetEntityP, tenantP);
       if (r != 0 || targetEntityP == NULL)
       {
         *visitedPP = visitedAppend(*visitedPP, tid);
@@ -790,7 +883,8 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
       if (visitedContains(*visitedPP, tid)) continue;
 
       KjNode* targetEntityP = NULL;
-      int     r             = linkedFetchOne(tid, &targetEntityP, tenantP);
+      // Legacy fetch-by-id (see notifFlatBfs) — gate is GET ?join only.
+      int     r             = linkedFetchOne(tid, NULL, false, &targetEntityP, tenantP);
       if (r != 0 || targetEntityP == NULL)
       {
         *visitedPP = visitedAppend(*visitedPP, tid);

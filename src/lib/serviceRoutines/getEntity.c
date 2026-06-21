@@ -451,13 +451,17 @@ static bool userWantsField(const char* name)
 // `id` is NOT included — the broker knows the id (it's the URL it
 // forwarded to) and reinjects it via ensureEntityId on the way back.
 //
-static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAlloc* kaP)
+static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAlloc* kaP, bool forceTypeScope)
 {
   if (riP->attributeNamesV == NULL)
     return "";
 
-  bool wantType  = userWantsField("type");
-  bool wantScope = userWantsField("scope");
+  // forceTypeScope: a whole-entity fetch (e.g. a linked-entity assemble)
+  // always needs type + scope back so the merge is complete — it has no
+  // request pick/omit to consult. The request-driven retrieve consults
+  // userWantsField so it doesn't fetch members it would strip anyway.
+  bool wantType  = forceTypeScope || userWantsField("type");
+  bool wantScope = forceTypeScope || userWantsField("scope");
 
   // The CS will interpret the URL params via the same @context that
   // accompanies the forward (Link header for application/json, body
@@ -515,12 +519,12 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
 // — the registration's types are expanded IRIs that need not compact
 // for the receiver, and the pinned id alone identifies the entity.
 //
-static char* buildQueryFormUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId)
+static char* buildQueryFormUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId, bool forceTypeScope)
 {
   const char* base    = csr->endpoint;
   const char* path    = "/ngsi-ld/v1/entities?id=";
   const char* qs      = "&sysAttrs=true";
-  const char* pickRaw = buildInfoPickParam(csr, riP, &swRest.kalloc);
+  const char* pickRaw = buildInfoPickParam(csr, riP, &swRest.kalloc, forceTypeScope);
 
   int baseLen = strlen(base);
   int pathLen = strlen(path);
@@ -577,7 +581,7 @@ static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char*
 
 // buildForwardUrl - compose retrieveEntity URL for one (csr, riP) pair
 //
-static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId)
+static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* entityId, bool forceTypeScope)
 {
   const char* base = csr->endpoint;
   const char* path = "/ngsi-ld/v1/entities/";
@@ -600,7 +604,7 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   bool isAux = (csr->mode == LdRegModeAuxiliary);
 
   const char* qs       = (isAux && !swNgsild.sysAttrs) ? "" : "?sysAttrs=true";
-  const char* pickRaw  = buildInfoPickParam(csr, riP, &swRest.kalloc);
+  const char* pickRaw  = buildInfoPickParam(csr, riP, &swRest.kalloc, forceTypeScope);
   const char* pick     = pickRaw;
   if (qs[0] == '\0' && pickRaw[0] == '&')
   {
@@ -696,6 +700,231 @@ static void ensureEntityId(KjNode* treeP, const char* entityId)
 
 // -----------------------------------------------------------------------------
 //
+// distributedRetrieveOne - § 5.7.1.4 single-entity distributed assemble
+//
+// Reads the local copy and merges every type-matched registration's
+// contribution per § 4.5.5.3: exclusive/redirect strip the locally-held
+// registered attrs then forward; inclusive merges (newest wins);
+// auxiliary fills gaps only. Returns the merged storage-shape entity (in
+// the request arena), or NULL when no source has it.
+//
+// `typeV` (NULL-terminated expanded type IRIs, or NULL) scopes the
+// exclusive/redirect/inclusive reg match — only registrations serving the
+// type are forwarded to, instead of every registration covering the id.
+// Auxiliary is matched by id regardless of type (it only ever fills gaps).
+//
+// `*matchedP` is set true when at least one registration matched: the
+// caller uses it to tell "no distributed handling, fall through to a plain
+// local read" (false) from "distributed result is authoritative" (true).
+//
+// `wholeForward` forces type+scope into each forward pick so the merged
+// entity is complete even with no request projection to consult — used by
+// the linked-entity assemble, which always wants the whole target.
+//
+// On an exclusive-source failure the merge aborts: returns NULL with
+// *errP populated (status 502). The caller decides whether that is fatal
+// (retrieveEntity → 502) or merely a missed link (join → leave unfollowed).
+// DistRetrieveErr + this prototype live in getEntity.h.
+//
+KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
+                               bool wholeForward, bool* matchedP, DistRetrieveErr* errP)
+{
+  if (matchedP != NULL) *matchedP = false;
+  if (errP != NULL) { errP->status = 0; errP->noEndpoint = false; errP->upstreamDetail = NULL; errP->regId = NULL; errP->upstreamCode = 0; }
+  if (entityId == NULL || tP == NULL)
+    return NULL;
+
+  LdRegCacheItem**  exclV  = NULL;
+  LdRegCacheItem**  redirV = NULL;
+  LdRegCacheItem**  inclV  = NULL;
+  LdRegCacheItem**  auxV   = NULL;
+  int               exclN  = 0;
+  int               redirN = 0;
+  int               inclN  = 0;
+  int               auxN   = 0;
+
+  if (tP->regCacheP != NULL)
+  {
+    exclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP, entityId, typeV, LdRegModeExclusive, &exclV);
+    redirN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP, entityId, typeV, LdRegModeRedirect,  &redirV);
+    inclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP, entityId, typeV, LdRegModeInclusive, &inclV);
+    auxN   = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP, entityId, NULL,  LdRegModeAuxiliary, &auxV);
+  }
+
+  // Loop detection per § 5.7.5 — our own Via alias already inbound → serve
+  // locally, suppress forwards.
+  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
+  if (ldDistOpLoopDetected(ownAlias))
+  {
+    ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
+    ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
+    ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
+    ldRegCacheMatchRelease(auxV,   auxN);   auxV   = NULL; auxN   = 0;
+  }
+
+  if (exclN == 0 && redirN == 0 && inclN == 0 && auxN == 0)
+    return NULL;   // no distributed handling — *matchedP stays false
+
+  if (matchedP != NULL) *matchedP = true;
+
+  // Local lookup (always — per § 5.7.1.4)
+  KjNode* destP = NULL;
+  db.entityRetrieve(tP, entityId, &destP);
+
+  int64_t nowNs = nowNanoseconds();
+
+  LdRegCacheItem** groups[]  = { exclV, redirV, inclV, auxV };
+  int              counts[]  = { exclN, redirN, inclN, auxN };
+  bool             stripG[]  = { true,  true,   false, false };
+
+  // Exclusive endpoint check: fail-fast 502 BEFORE we batch.
+  for (int i = 0; i < exclN; i++)
+  {
+    if (exclV[i]->endpoint == NULL)
+    {
+      if (errP != NULL) { errP->status = 502; errP->noEndpoint = true; errP->regId = exclV[i]->regId; }
+      ldRegCacheMatchRelease(exclV,  exclN);
+      ldRegCacheMatchRelease(redirV, redirN);
+      ldRegCacheMatchRelease(inclV,  inclN);
+      ldRegCacheMatchRelease(auxV,   auxN);
+      return NULL;
+    }
+  }
+
+  int total = 0;
+  for (int g = 0; g < 4; g++)
+    for (int i = 0; i < counts[g]; i++)
+      for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
+
+  LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+  memset(items, 0, total * sizeof(LdDistOpBatchItem));
+  LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+  int*                 itemGroup = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
+  LdRegInfo**          itemRiP   = (LdRegInfo**)          kaAlloc(&swRest.kalloc, total * sizeof(LdRegInfo*));
+  int                  itemCount = 0;
+  memset(results, 0, total * sizeof(LdDistOpBatchResult));
+
+  for (int g = 0; g < 4; g++)
+  {
+    for (int i = 0; i < counts[g]; i++)
+    {
+      LdRegCacheItem* csr = groups[g][i];
+      if (csr->endpoint == NULL) continue;
+      if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+
+      bool canRetrieve = ldRegOpSupported(csr, LdOpRetrieveEntity);
+      bool canQE       = ldRegOpSupported(csr, LdOpQueryEntities);
+      bool canQB       = ldRegOpSupported(csr, LdOpBatchQuery);
+      if (!canRetrieve && !canQE && !canQB) continue;
+
+      for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+      {
+        if (!infoEntryMatchesEntity(riP, entityId)) continue;
+
+        if (canRetrieve)
+        {
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = buildForwardUrl(csr, riP, entityId, wholeForward);
+          items[itemCount].body    = NULL;
+          items[itemCount].bodyLen = 0;
+        }
+        else if (canQE)
+        {
+          items[itemCount].csr     = csr;
+          items[itemCount].url     = buildQueryFormUrl(csr, riP, entityId, wholeForward);
+          items[itemCount].body    = NULL;
+          items[itemCount].bodyLen = 0;
+        }
+        else
+          buildQueryBatchForm(csr, riP, entityId, &items[itemCount]);
+
+        itemGroup[itemCount]     = g;
+        itemRiP[itemCount]       = riP;
+        itemCount++;
+      }
+    }
+  }
+
+  if (itemCount > 0)
+  {
+    ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+
+    // Pass 1 — § 4.3.6.3 local-strip for excl/redir BEFORE any merge.
+    for (int i = 0; i < itemCount; i++)
+    {
+      if (stripG[itemGroup[i]] && destP != NULL)
+        stripInfoAttrsFromLocal(destP, itemRiP[i]);
+    }
+
+    // Pass 2 — merge the upstream results.
+    for (int i = 0; i < itemCount; i++)
+    {
+      int g      = itemGroup[i];
+      int upCode = results[i].statusCode;
+
+      if (upCode == 404 && g == 0) continue;  // exclusive: 404 tolerated
+      if (upCode < 200 || upCode >= 300)
+      {
+        if (g == 0)
+        {
+          // Exclusive non-2xx (except 404) → abort with a 502 for the caller.
+          if (errP != NULL)
+          {
+            errP->status         = 502;
+            errP->upstreamDetail = results[i].errorDetail;
+            errP->regId          = (items[i].csr != NULL) ? items[i].csr->regId : NULL;
+            errP->upstreamCode   = upCode;
+          }
+          ldRegCacheMatchRelease(exclV,  exclN);
+          ldRegCacheMatchRelease(redirV, redirN);
+          ldRegCacheMatchRelease(inclV,  inclN);
+          ldRegCacheMatchRelease(auxV,   auxN);
+          return NULL;
+        }
+        continue;  // redir/incl/aux: tolerate failures
+      }
+
+      KjNode* upP = results[i].responseTree;
+      if (upP == NULL) continue;
+
+      if (upP->type == KjArray)
+      {
+        upP = upP->value.firstChildP;
+        if (upP == NULL) continue;
+        upP->next = NULL;
+      }
+
+      SwldContext* respCtxP = (results[i].responseContextUrl != NULL)
+                              ? swldContextFromUrl(results[i].responseContextUrl, &swRest.kalloc) : NULL;
+      if (respCtxP == NULL)
+        respCtxP = swldCoreContext();
+      swldExpandTree(upP, respCtxP, &swRest.kalloc);
+      ldStripAtContext(upP);
+      apiAttrToStorageWrap(upP, swRest.kjsonP);
+      ldExpiresAtPropagate(upP);
+      ensureEntityId(upP, entityId);
+
+      if (destP == NULL)
+        destP = upP;
+      else if (g == 3)
+        mergeAuxiliaryInto(destP, upP);
+      else
+        mergeOneSourceInto(destP, upP, nowNs);
+    }
+  }
+
+  ldRegCacheMatchRelease(exclV,  exclN);
+  ldRegCacheMatchRelease(redirV, redirN);
+  ldRegCacheMatchRelease(inclV,  inclN);
+  ldRegCacheMatchRelease(auxV,   auxN);
+
+  return destP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getEntity -
 //
 bool getEntity(void)
@@ -734,238 +963,36 @@ bool getEntity(void)
   //
   if (swNgsild.local == false)
   {
-    Tenant*           tP        = (Tenant*) swNgsild.tenantP;
-    LdRegCacheItem**  exclV     = NULL;
-    LdRegCacheItem**  redirV    = NULL;
-    LdRegCacheItem**  inclV     = NULL;
-    LdRegCacheItem**  auxV      = NULL;
-    int               exclN     = 0;
-    int               redirN    = 0;
-    int               inclN     = 0;
-    int               auxN      = 0;
+    Tenant*          tP      = (Tenant*) swNgsild.tenantP;
+    bool             matched = false;
+    DistRetrieveErr  err     = {0};
 
-    char** entityTypeV = swNgsild.typeV;   // expanded in preServiceHook; NULL = no filter
+    // Request-driven retrieve: scope the reg match by the request's type
+    // (NULL = no type filter), and let buildInfoPickParam honour the
+    // request projection for the forward pick (wholeForward = false).
+    KjNode*          destP   = distributedRetrieveOne(entityId, swNgsild.typeV, tP, false, &matched, &err);
 
-    if (tP != NULL && tP->regCacheP != NULL)
+    if (matched)
     {
-      exclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, entityTypeV,
-                                          LdRegModeExclusive, &exclV);
-      redirN = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, entityTypeV,
-                                          LdRegModeRedirect, &redirV);
-      inclN  = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, entityTypeV,
-                                          LdRegModeInclusive, &inclV);
-      auxN   = ldRegCacheMatchForRetrieve((LdRegCache*) tP->regCacheP,
-                                          entityId, NULL,
-                                          LdRegModeAuxiliary, &auxV);
-    }
-
-    // Loop detection per § 5.7.5 / RFC 7230 — if our own Via alias is
-    // already in the inbound request, skip forwards entirely (a looped
-    // request should still be served locally; suppressing forwards is
-    // all that loop detection actually mandates).
-    const char* ownAlias = ldCsourceAliasForTenant(tP != NULL ? tP->name : NULL,
-                                                    &swRest.kalloc);
-    if (ldDistOpLoopDetected(ownAlias))
-    {
-      ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
-      ldRegCacheMatchRelease(redirV, redirN); redirV = NULL; redirN = 0;
-      ldRegCacheMatchRelease(inclV,  inclN);  inclV  = NULL; inclN  = 0;
-      ldRegCacheMatchRelease(auxV,   auxN);   auxV   = NULL; auxN   = 0;
-    }
-
-    if (exclN > 0 || redirN > 0 || inclN > 0 || auxN > 0)
-    {
-
-      // Local lookup (always — per § 5.7.1.4)
-      KjNode* destP = NULL;
-      db.entityRetrieve(tP, entityId, &destP);
-
-      int64_t nowNs = nowNanoseconds();
-
-      //
-      // Per-RegistrationInfo dispatch. Each RegistrationInfo within a CSR
-      // is a separate (type, attr-set) coverage unit. One forward per
-      // matching RegistrationInfo, constrained by that entry's attrs and
-      // type. This avoids overquerying (§ 4.3.6.1).
-      //
-
-      //
-      // Batched fan-out over all four groups. Each (csr, riP) pair becomes
-      // one item; results processed in original (excl → redir → incl → aux)
-      // order so the local-strip + merge semantics match the sequential
-      // implementation. Exclusive non-2xx still raises a 502 — checked
-      // post-fact via the per-item group tag.
-      //
-      LdRegCacheItem** groups[]  = { exclV, redirV, inclV, auxV };
-      int              counts[]  = { exclN, redirN, inclN, auxN };
-      bool             stripG[]  = { true,  true,   false, false };
-
-      // Exclusive endpoint check: fail-fast 502 BEFORE we batch (the
-      // sequential code did this; preserving that semantic).
-      for (int i = 0; i < exclN; i++)
+      if (err.noEndpoint)
       {
-        if (exclV[i]->endpoint == NULL)
-        {
-          ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
-                  "exclusive registration '%s' has no endpoint", exclV[i]->regId);
-          ldRegCacheMatchRelease(exclV,  exclN);
-          ldRegCacheMatchRelease(redirV, redirN);
-          ldRegCacheMatchRelease(inclV,  inclN);
-          ldRegCacheMatchRelease(auxV,   auxN);
-          return true;
-        }
+        ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                "exclusive registration '%s' has no endpoint", err.regId);
+        return true;
       }
-
-      int total = 0;
-      for (int g = 0; g < 4; g++)
-        for (int i = 0; i < counts[g]; i++)
-          for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
-
-      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
-      memset(items, 0, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      int*                 itemGroup = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
-      LdRegInfo**          itemRiP   = (LdRegInfo**)          kaAlloc(&swRest.kalloc, total * sizeof(LdRegInfo*));
-      int                  itemCount = 0;
-      memset(results, 0, total * sizeof(LdDistOpBatchResult));
-
-      for (int g = 0; g < 4; g++)
+      if (err.status != 0)
       {
-        for (int i = 0; i < counts[g]; i++)
-        {
-          LdRegCacheItem* csr = groups[g][i];
-          if (csr->endpoint == NULL) continue;
-          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
-
-          // § 9.2 ops-aware forward form: prefer the native by-id
-          // retrieve; a CSR declaring only queryEntity gets the query
-          // form (GET /entities?id=), a queryBatch-only one gets
-          // POST /entityOperations/query. No read op at all → skip.
-          bool canRetrieve = ldRegOpSupported(csr, LdOpRetrieveEntity);
-          bool canQE       = ldRegOpSupported(csr, LdOpQueryEntities);
-          bool canQB       = ldRegOpSupported(csr, LdOpBatchQuery);
-          if (!canRetrieve && !canQE && !canQB) continue;
-
-          for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-          {
-            if (!infoEntryMatchesEntity(riP, entityId)) continue;
-
-            if (canRetrieve)
-            {
-              items[itemCount].csr     = csr;
-              items[itemCount].url     = buildForwardUrl(csr, riP, entityId);
-              items[itemCount].body    = NULL;
-              items[itemCount].bodyLen = 0;
-            }
-            else if (canQE)
-            {
-              items[itemCount].csr     = csr;
-              items[itemCount].url     = buildQueryFormUrl(csr, riP, entityId);
-              items[itemCount].body    = NULL;
-              items[itemCount].bodyLen = 0;
-            }
-            else
-              buildQueryBatchForm(csr, riP, entityId, &items[itemCount]);
-
-            itemGroup[itemCount]     = g;
-            itemRiP[itemCount]       = riP;
-            itemCount++;
-          }
-        }
+        // Exclusive source failed — the registrationId / upstream status
+        // ride along as structured ProblemDetails members (RFC 9457 §3.2).
+        if (err.upstreamDetail)
+          ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", err.upstreamDetail);
+        else
+          ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", err.upstreamCode);
+        ldErrorExtraString("registrationId", err.regId);
+        if (err.upstreamCode > 0)
+          ldErrorExtraInt("statusCode", err.upstreamCode);
+        return true;
       }
-
-      if (itemCount > 0)
-      {
-        ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
-
-        // Pass 1 — § 4.3.6.3 local-strip for excl/redir, regardless of the
-        // forward outcome: their CSRs claim these attrs and the LOCAL copy
-        // must not keep them. Run over the pristine local tree BEFORE any
-        // upstream merge — interleaving strip and merge let one redirect
-        // source's wildcard claim eat what another source had just
-        // contributed (ETSI D010_01_red: two whole-entity redirect CSRs,
-        // the second strip erased the first upstream's attrs).
-        for (int i = 0; i < itemCount; i++)
-        {
-          if (stripG[itemGroup[i]] && destP != NULL)
-            stripInfoAttrsFromLocal(destP, itemRiP[i]);
-        }
-
-        // Pass 2 — merge the upstream results.
-        for (int i = 0; i < itemCount; i++)
-        {
-          int        g      = itemGroup[i];
-          int        upCode = results[i].statusCode;
-
-          if (upCode == 404 && g == 0) continue;  // exclusive: 404 tolerated
-          if (upCode < 200 || upCode >= 300)
-          {
-            if (g == 0)
-            {
-              // Exclusive non-2xx (except 404) → abort. The registrationId of
-              // the failed endpoint rides along as a structured ProblemDetails
-              // member (RFC 9457 §3.2) — no need to parse it out of 'detail'.
-              const char* upErr = results[i].errorDetail;
-              if (upErr) ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", upErr);
-              else       ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", upCode);
-              ldErrorExtraString("registrationId", (items[i].csr != NULL) ? items[i].csr->regId : NULL);
-              if (upCode > 0)
-                ldErrorExtraInt("statusCode", upCode);   // the upstream status that caused the 502
-              ldRegCacheMatchRelease(exclV,  exclN);
-              ldRegCacheMatchRelease(redirV, redirN);
-              ldRegCacheMatchRelease(inclV,  inclN);
-              ldRegCacheMatchRelease(auxV,   auxN);
-              return true;
-            }
-            continue;  // redir/incl/aux: tolerate failures
-          }
-
-          // The forward response was parsed at reception (ldDistOpResultTree).
-          // Query-form forwards answer with an entity ARRAY — unwrap the single
-          // element. Then expand via the context that travels WITH the response
-          // (its json-ld#context Link, else core — NOT the client's request
-          // context: the CP speaks its own vocabulary).
-          KjNode* upP = results[i].responseTree;
-          if (upP == NULL) continue;
-
-          if (upP->type == KjArray)
-          {
-            upP = upP->value.firstChildP;
-            if (upP == NULL) continue;
-            upP->next = NULL;
-          }
-
-          SwldContext* respCtxP = (results[i].responseContextUrl != NULL)
-                                  ? swldContextFromUrl(results[i].responseContextUrl, &swRest.kalloc) : NULL;
-          if (respCtxP == NULL)
-            respCtxP = swldCoreContext();
-          swldExpandTree(upP, respCtxP, &swRest.kalloc);
-          ldStripAtContext(upP);
-          apiAttrToStorageWrap(upP, swRest.kjsonP);
-          ldExpiresAtPropagate(upP);
-
-          // CS replied via pick=type,<attrs> per buildInfoPickParam — so
-          // type rode back in the body but id did not. Reinject id (we
-          // know it from the URL we forwarded to) so the merged response
-          // is a well-formed entity per § 6.3.4.
-          ensureEntityId(upP, entityId);
-
-          if (destP == NULL)
-            destP = upP;
-          else if (g == 3)
-            mergeAuxiliaryInto(destP, upP);
-          else
-            mergeOneSourceInto(destP, upP, nowNs);
-        }
-      }
-
-      ldRegCacheMatchRelease(exclV,  exclN);
-      ldRegCacheMatchRelease(redirV, redirN);
-      ldRegCacheMatchRelease(inclV,  inclN);
-      ldRegCacheMatchRelease(auxV,   auxN);
 
       if (destP == NULL)
       {

@@ -1,0 +1,285 @@
+#
+# FILE            linked_entities_objecttype_gate.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.7.1 — linked-entity retrieval fan-out gate. During `?join` a
+# Relationship whose target is NOT stored locally is only followed when
+# it carries an `objectType`: that type scopes the registration lookup so
+# the GET is forwarded only to the context sources that serve the type,
+# instead of being sprayed at every registration. A non-local target with
+# no objectType is left as a bare `object` URI (the spec's "known
+# limitation"). Local targets are always followed, objectType or not.
+#
+# CP1 holds every remote target and is registered on CB with each pinned to
+# its real id+type (E2/T2, E3/T3, E5/T5). So the non-inlined relationships
+# below prove the gate / type-scoping — the targets ARE reachable, they are
+# deliberately not followed. (Pinning by id also keeps the registrations from
+# matching the local primary urn:E1, which would otherwise divert it to the
+# distributed-retrieve path instead of the local + join path.)
+#
+--NAME--
+Linked entities — join follows a non-local relationship only with a type-matched objectType
+
+--TAGS--
+retrieve linked-entities registration distops
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Seed CP1 with urn:E2 (type T2)  — remote, objectType will match its registration
+# 02. Seed CP1 with urn:E3 (type T3)  — remote, reached by the untyped relationship
+# 03. Seed CP1 with urn:E5 (type T5)  — remote, registered as T5 (objectType will say T9)
+# 04. Register CP1 on CB, each remote id pinned to its real type (E2/T2, E3/T3, E5/T5)
+# 05. Seed CB (local) with urn:E4 (type T4) — the local link target
+# 06. Seed CB with urn:E1, four relationships:
+#       linkLocalNoType     -> urn:E4  (local, no objectType)
+#       linkRemoteTyped     -> urn:E2  (remote, objectType T2 -> matches reg {E2,T2})
+#       linkRemoteWrongType -> urn:E5  (remote, objectType T9 -> reg is {E5,T5}, type mismatch)
+#       linkRemoteUntyped   -> urn:E3  (remote, no objectType)
+# 07. GET urn:E1?join=inline&joinLevel=1 on CB:
+#       linkLocalNoType     -> entity inlined (local always followed)
+#       linkRemoteTyped     -> entity inlined (typed + type-matched registration)
+#       linkRemoteWrongType -> NO entity     (objectType T9 != registered type T5: type-scoped lookup misses)
+#       linkRemoteUntyped   -> NO entity     (fan-out gate: non-local + no objectType)
+#
+
+echo "01. Seed CP1 with urn:E2 (type T2)"
+echo "=================================="
+payload='{
+  "id": "urn:E2",
+  "type": "T2",
+  "P": {
+    "type": "Property",
+    "value": "from-CP1-E2"
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed CP1 with urn:E3 (type T3)"
+echo "=================================="
+payload='{
+  "id": "urn:E3",
+  "type": "T3",
+  "P": {
+    "type": "Property",
+    "value": "from-CP1-E3"
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Seed CP1 with urn:E5 (type T5)"
+echo "=================================="
+payload='{
+  "id": "urn:E5",
+  "type": "T5",
+  "P": {
+    "type": "Property",
+    "value": "from-CP1-E5"
+  }
+}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Register CP1 on CB, each remote id pinned to its real type"
+echo "=============================================================="
+payload='{
+  "id": "urn:CSR:remote",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        { "id": "urn:E2", "type": "T2" },
+        { "id": "urn:E3", "type": "T3" },
+        { "id": "urn:E5", "type": "T5" }
+      ]
+    }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. Seed CB (local) with urn:E4 (type T4)"
+echo "========================================="
+payload='{
+  "id": "urn:E4",
+  "type": "T4",
+  "P": {
+    "type": "Property",
+    "value": "local-E4"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Seed CB with urn:E1 (four relationships)"
+echo "============================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T1",
+  "linkLocalNoType": {
+    "type": "Relationship",
+    "object": "urn:E4"
+  },
+  "linkRemoteTyped": {
+    "type": "Relationship",
+    "object": "urn:E2",
+    "objectType": "T2"
+  },
+  "linkRemoteWrongType": {
+    "type": "Relationship",
+    "object": "urn:E5",
+    "objectType": "T9"
+  },
+  "linkRemoteUntyped": {
+    "type": "Relationship",
+    "object": "urn:E3"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. GET urn:E1?join=inline&joinLevel=1 — only local + type-matched remote are inlined"
+echo "====================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:E1?join=inline&joinLevel=1'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with urn:E2 (type T2)
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+
+02. Seed CP1 with urn:E3 (type T3)
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E3
+Content-Length: 0
+
+
+
+
+03. Seed CP1 with urn:E5 (type T5)
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E5
+Content-Length: 0
+
+
+
+
+04. Register CP1 on CB, each remote id pinned to its real type
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:remote
+Content-Length: 0
+
+
+
+
+05. Seed CB (local) with urn:E4 (type T4)
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E4
+Content-Length: 0
+
+
+
+
+06. Seed CB with urn:E1 (four relationships)
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+07. GET urn:E1?join=inline&joinLevel=1 — only local + type-matched remote are inlined
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:E1",
+  "linkLocalNoType": {
+    "entity": {
+      "P": {
+        "type": "Property",
+        "value": "local-E4"
+      },
+      "id": "urn:E4",
+      "type": "T4"
+    },
+    "object": "urn:E4",
+    "type": "Relationship"
+  },
+  "linkRemoteTyped": {
+    "entity": {
+      "P": {
+        "type": "Property",
+        "value": "from-CP1-E2"
+      },
+      "id": "urn:E2",
+      "type": "T2"
+    },
+    "object": "urn:E2",
+    "objectType": "T2",
+    "type": "Relationship"
+  },
+  "linkRemoteUntyped": {
+    "object": "urn:E3",
+    "type": "Relationship"
+  },
+  "linkRemoteWrongType": {
+    "object": "urn:E5",
+    "objectType": "T9",
+    "type": "Relationship"
+  },
+  "type": "T1"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1

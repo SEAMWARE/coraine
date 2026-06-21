@@ -68,7 +68,10 @@
 //
 static int linkedFetcher(const char* entityId, KjNode** entityPP, void* userData)
 {
-  return linkedFetchOne(entityId, entityPP, (Tenant*) userData);
+  // q-filter evaluation must follow the relationship to test the predicate,
+  // so it uses the legacy fetch-by-id path (typedRemoteOnly=false); the
+  // § 7.7.1 fan-out gate applies to ?join retrieval, not filter matching.
+  return linkedFetchOne(entityId, NULL, false, entityPP, (Tenant*) userData);
 }
 
 
