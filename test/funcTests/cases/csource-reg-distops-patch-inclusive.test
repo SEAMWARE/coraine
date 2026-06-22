@@ -1,0 +1,196 @@
+#
+# FILE            csource-reg-distops-patch-inclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.x — an INCLUSIVE registration with the updateOps class replicates local
+# writes to the registered context source: a create AND a subsequent attribute
+# PATCH on CB are applied locally AND forwarded to CP1. Unlike exclusive/redirect
+# (which chop the attrs out of the local entity), inclusive keeps the local copy
+# and ALSO forwards — so the entity, and later the PATCH, are visible on CP1.
+#
+--NAME--
+Inclusive registration replicates create + attribute PATCH to the registered CP
+
+--TAGS--
+csource registration distop inclusive patch forward
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+#
+# 01. Register CB->CP1 inclusive (updateOps + redirectionOps) for type IE
+# 02. Create urn:ngsi-ld:IE:001 on CB — created locally AND forwarded to CP1
+# 03. GET on CB ?local=true — local copy has totalRAM=32
+# 04. GET on CP1 ?local=true — replicated copy has totalRAM=32
+# 05. PATCH totalRAM=64 on CB — applied locally AND forwarded to CP1
+# 06. GET on CP1 ?local=true — totalRAM changed to 64
+#
+
+echo "01. Register CB->CP1 inclusive (updateOps + redirectionOps) for type IE"
+echo "======================================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "information": [{"entities": [{"type": "IE"}]}],
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["updateOps", "redirectionOps"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:ngsi-ld:IE:001 on CB — local AND forwarded to CP1"
+echo "================================================================"
+payload='{
+  "id": "urn:ngsi-ld:IE:001",
+  "type": "IE",
+  "totalRAM": {"type": "Property", "value": 32},
+  "cPUCores": {"type": "Property", "value": 4}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET urn:ngsi-ld:IE:001 on CB ?local=true — totalRAM=32"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
+echo
+echo
+
+
+echo "04. GET urn:ngsi-ld:IE:001 on CP1 ?local=true — replicated, totalRAM=32"
+echo "======================================================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
+echo
+echo
+
+
+echo "05. PATCH totalRAM=64 on CB — local AND forwarded to CP1"
+echo "========================================================"
+payload='{
+  "totalRAM": {"type": "Property", "value": 64}
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:IE:001/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "06. GET urn:ngsi-ld:IE:001 on CP1 ?local=true — totalRAM=64"
+echo "==========================================================="
+swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 inclusive (updateOps + redirectionOps) for type IE
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:CP1
+Content-Length: 0
+
+
+
+
+02. Create urn:ngsi-ld:IE:001 on CB — local AND forwarded to CP1
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:IE:001
+Content-Length: 0
+
+
+
+
+03. GET urn:ngsi-ld:IE:001 on CB ?local=true — totalRAM=32
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "cPUCores": {
+    "type": "Property",
+    "value": 4
+  },
+  "id": "urn:ngsi-ld:IE:001",
+  "totalRAM": {
+    "type": "Property",
+    "value": 32
+  },
+  "type": "IE"
+}
+
+
+
+04. GET urn:ngsi-ld:IE:001 on CP1 ?local=true — replicated, totalRAM=32
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "cPUCores": {
+    "type": "Property",
+    "value": 4
+  },
+  "id": "urn:ngsi-ld:IE:001",
+  "totalRAM": {
+    "type": "Property",
+    "value": 32
+  },
+  "type": "IE"
+}
+
+
+
+05. PATCH totalRAM=64 on CB — local AND forwarded to CP1
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. GET urn:ngsi-ld:IE:001 on CP1 ?local=true — totalRAM=64
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "cPUCores": {
+    "type": "Property",
+    "value": 4
+  },
+  "id": "urn:ngsi-ld:IE:001",
+  "totalRAM": {
+    "type": "Property",
+    "value": 64
+  },
+  "type": "IE"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
