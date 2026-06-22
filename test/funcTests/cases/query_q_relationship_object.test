@@ -1,0 +1,95 @@
+#
+# FILE            query_q_relationship_object.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 — a q-filter term over a Relationship matches against the Relationship's
+# object (URI). q=R100=="urn:..." selects entities whose Relationship R100 points
+# at that object; a non-matching object yields no match.
+#
+--NAME--
+Query q over a Relationship — matches on the object URI
+
+--TAGS--
+query q relationship
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 (type T_Query) with Relationship R100 -> urn:ngsi-ld:T2:6789"
+echo "=========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T_Query:E1",
+  "type": "T_Query",
+  "R100": {"type": "Relationship", "object": "urn:ngsi-ld:T2:6789"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. q=R100==\"urn:ngsi-ld:T2:6789\" — matches E1 (on the object URI)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T_Query&q=R100==%22urn:ngsi-ld:T2:6789%22'
+echo
+echo
+
+
+echo "03. q=R100==\"urn:ngsi-ld:T2:OTHER\" — no match (different object)"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T_Query&q=R100==%22urn:ngsi-ld:T2:OTHER%22'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (type T_Query) with Relationship R100 -> urn:ngsi-ld:T2:6789
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T_Query:E1
+Content-Length: 0
+
+
+
+
+02. q=R100=="urn:ngsi-ld:T2:6789" — matches E1 (on the object URI)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 159
+
+[
+  {
+    "R100": {
+      "object": "urn:ngsi-ld:T2:6789",
+      "type": "Relationship"
+    },
+    "id": "urn:ngsi-ld:T_Query:E1",
+    "type": "T_Query"
+  }
+]
+
+
+
+03. q=R100=="urn:ngsi-ld:T2:OTHER" — no match (different object)
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop

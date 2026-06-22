@@ -1,0 +1,315 @@
+#
+# FILE            query_q_attr_types.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 — q across the remaining attribute types (the Property/Relationship/
+# Language/Vocab cases are covered elsewhere):
+#   - GeoProperty / JsonProperty: existence (q=attr).
+#   - ListProperty (valueList) / ListRelationship (objectList): a q equality term
+#     matches when ANY element of the list satisfies it.
+#
+--NAME--
+Query q across attribute types — Geo/Json existence, List membership
+
+--TAGS--
+query q geoproperty json-property
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 with GeoProperty, JsonProperty, ListProperty, ListRelationship"
+echo "==========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:QT:E1",
+  "type": "QT",
+  "geo": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [1, 2]}},
+  "jp": {"type": "JsonProperty", "json": {"a": 1, "b": "x"}},
+  "lp": {"type": "ListProperty", "valueList": [10, 20, 30]},
+  "lr": {"type": "ListRelationship", "objectList": ["urn:ngsi-ld:A", "urn:ngsi-ld:B"]}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. q=geo — GeoProperty existence, matches"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QT&q=geo'
+echo
+echo
+
+
+echo "03. q=jp — JsonProperty existence, matches"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QT&q=jp'
+echo
+echo
+
+
+echo "04. q=lp==20 — ListProperty, matches (20 is in the valueList)"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lp==20'
+echo
+echo
+
+
+echo "05. q=lp==99 — no match (99 not in the valueList)"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lp==99'
+echo
+echo
+
+
+echo "06. q=lr==\"urn:ngsi-ld:A\" — ListRelationship, matches (A is in the objectList)"
+echo "=============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lr==%22urn:ngsi-ld:A%22'
+echo
+echo
+
+
+echo "07. q=lr==\"urn:ngsi-ld:Z\" — no match (Z not in the objectList)"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lr==%22urn:ngsi-ld:Z%22'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with GeoProperty, JsonProperty, ListProperty, ListRelationship
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:QT:E1
+Content-Length: 0
+
+
+
+
+02. q=geo — GeoProperty existence, matches
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 570
+
+[
+  {
+    "geo": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "id": "urn:ngsi-ld:QT:E1",
+    "jp": {
+      "json": {
+        "a": 1,
+        "b": "x"
+      },
+      "type": "JsonProperty"
+    },
+    "lp": {
+      "type": "ListProperty",
+      "valueList": [
+        10,
+        20,
+        30
+      ]
+    },
+    "lr": {
+      "objectList": [
+        "urn:ngsi-ld:A",
+        "urn:ngsi-ld:B"
+      ],
+      "type": "ListRelationship"
+    },
+    "type": "QT"
+  }
+]
+
+
+
+03. q=jp — JsonProperty existence, matches
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 570
+
+[
+  {
+    "geo": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "id": "urn:ngsi-ld:QT:E1",
+    "jp": {
+      "json": {
+        "a": 1,
+        "b": "x"
+      },
+      "type": "JsonProperty"
+    },
+    "lp": {
+      "type": "ListProperty",
+      "valueList": [
+        10,
+        20,
+        30
+      ]
+    },
+    "lr": {
+      "objectList": [
+        "urn:ngsi-ld:A",
+        "urn:ngsi-ld:B"
+      ],
+      "type": "ListRelationship"
+    },
+    "type": "QT"
+  }
+]
+
+
+
+04. q=lp==20 — ListProperty, matches (20 is in the valueList)
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 570
+
+[
+  {
+    "geo": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "id": "urn:ngsi-ld:QT:E1",
+    "jp": {
+      "json": {
+        "a": 1,
+        "b": "x"
+      },
+      "type": "JsonProperty"
+    },
+    "lp": {
+      "type": "ListProperty",
+      "valueList": [
+        10,
+        20,
+        30
+      ]
+    },
+    "lr": {
+      "objectList": [
+        "urn:ngsi-ld:A",
+        "urn:ngsi-ld:B"
+      ],
+      "type": "ListRelationship"
+    },
+    "type": "QT"
+  }
+]
+
+
+
+05. q=lp==99 — no match (99 not in the valueList)
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+06. q=lr=="urn:ngsi-ld:A" — ListRelationship, matches (A is in the objectList)
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 570
+
+[
+  {
+    "geo": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "id": "urn:ngsi-ld:QT:E1",
+    "jp": {
+      "json": {
+        "a": 1,
+        "b": "x"
+      },
+      "type": "JsonProperty"
+    },
+    "lp": {
+      "type": "ListProperty",
+      "valueList": [
+        10,
+        20,
+        30
+      ]
+    },
+    "lr": {
+      "objectList": [
+        "urn:ngsi-ld:A",
+        "urn:ngsi-ld:B"
+      ],
+      "type": "ListRelationship"
+    },
+    "type": "QT"
+  }
+]
+
+
+
+07. q=lr=="urn:ngsi-ld:Z" — no match (Z not in the objectList)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+swBrokerStop
