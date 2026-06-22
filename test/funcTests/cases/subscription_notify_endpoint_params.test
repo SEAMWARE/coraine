@@ -1,0 +1,61 @@
+#
+# FILE            subscription_notify_endpoint_params.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.15 (Endpoint) — a Subscription's notification endpoint URI may carry a
+# query string (e.g. a subscription id or a routing tag the receiver expects).
+# When the broker sends the notification it must POST to that URI with the query
+# parameters intact, not strip or rewrite them. Here the endpoint URI carries
+# subId and tag query params; the received request must preserve both.
+#
+--NAME--
+Subscription notification — endpoint URI query parameters are preserved on the notification request
+
+--TAGS--
+subscription notification
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+EP='{"uri":"http://localhost:7701/notify?subId=urn:ngsi-ld:S1&tag=routeA","accept":"application/json"}'
+
+echo "01. Subscribe with an endpoint URI carrying ?subId=...&tag=routeA, then trigger"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | grep HTTP
+echo
+echo
+
+
+echo "02. Notification request preserves the endpoint query params (params + url)"
+echo "==========================================================================="
+sleep 0.5
+ftClientDump | grep -E "\"subId\"|\"tag\"|\"url\"|\"verb\"|\"params\""
+echo
+
+
+--EXPECT--
+01. Subscribe with an endpoint URI carrying ?subId=...&tag=routeA, then trigger
+===============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Notification request preserves the endpoint query params (params + url)
+===========================================================================
+    "params": {
+      "subId": "urn:ngsi-ld:S1",
+      "tag": "routeA"
+    "url": "/notify",
+    "verb": "POST"
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
