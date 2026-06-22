@@ -1,0 +1,77 @@
+#
+# FILE            subscription_notify_with_troe.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8 + § 4.21 — notifications and TRoE (temporal representation of entities)
+# must coexist: with TRoE enabled, each create/update both fires the matching
+# notification AND is recorded in temporal storage. This exercises the
+# interaction — a create and an update produce two notifications carrying the
+# right values, and the temporal history holds both instances afterwards.
+#
+--NAME--
+Subscription notification with TRoE enabled — notifications fire and temporal history is recorded
+
+--TAGS--
+subscription notification troe timescale
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+ftClientStart
+
+--RUN--
+
+EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
+
+echo "01. Subscribe to T, create E1 (temperature=5), then update to 10"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temperature":{"type":"Property","value":5}}' | grep HTTP
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs --payload '{"temperature":{"type":"Property","value":10}}' | grep HTTP
+echo
+echo
+
+
+echo "02. Two notifications fired, carrying temperature 5 then 10"
+echo "==========================================================="
+sleep 0.5
+ftClientDump | grep -E "subscriptionId|\"value\""
+echo
+echo
+
+
+echo "03. Temporal history holds both instances (5 and 10)"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1' | grep -E "\"value\"|\"id\""
+echo
+
+
+--EXPECT--
+01. Subscribe to T, create E1 (temperature=5), then update to 10
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+02. Two notifications fired, carrying temperature 5 then 10
+===========================================================
+            "value": 5
+      "subscriptionId": "urn:ngsi-ld:S1",
+            "value": 10
+      "subscriptionId": "urn:ngsi-ld:S1",
+
+
+03. Temporal history holds both instances (5 and 10)
+====================================================
+  "id": "urn:ngsi-ld:E1",
+      "value": 10
+      "value": 5
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
