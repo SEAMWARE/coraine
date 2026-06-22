@@ -1,0 +1,296 @@
+#
+# FILE            subscription_geoq_normalize.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+#
+# § 5.2.13 — geoQ.coordinates is "a JSON Array coherent with the geometry type";
+# a string-encoded form is also accepted (for JSON-LD compatibility). On intake
+# the broker normalizes the string form to the array form and persists THAT to
+# the DB — so the stored subscription is canonical and a cache rebuild after a
+# restart reads the array (not a string that was only ever normalized in the
+# volatile cache). This creates a sub with string-form coordinates, then
+# restarts the broker to prove the array form was written to the DB.
+#
+--NAME--
+Subscription geoQ — string coordinates normalized to array, persisted across restart
+
+--TAGS--
+geo subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create S1 with geoQ.coordinates as a STRING (Polygon, Iberia)
+# 02. GET S1 — coordinates already normalized to a JSON array
+# 03. Restart broker (sub reloads from the DB)
+# 04. GET S1 — STILL an array (proves the array form was persisted, not cached)
+# 05. Create E1 at Madrid (inside) — notification (cache rebuilt from DB matches)
+# 06. Dump ftClient — 1 notification: E1
+#
+
+echo "01. Create S1 with geoQ.coordinates as a STRING (Polygon, Iberia)"
+echo "================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [{"type": "City"}],
+  "geoQ": {
+    "georel": "within",
+    "geometry": "Polygon",
+    "coordinates": "[[[-10,36],[4,36],[4,44],[-10,44],[-10,36]]]",
+    "geoproperty": "location"
+  },
+  "notification": {
+    "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. GET S1 — coordinates normalized to a JSON array"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "03. Restart broker (sub reloads from the DB)"
+echo "============================================"
+swBrokerStop
+swBrokerStart
+echo "restarted"
+echo
+echo
+
+
+echo "04. GET S1 — still a JSON array (persisted to DB, not just cached)"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "05. Create entity E1 at Madrid (inside Iberia) — notification expected"
+echo "======================================================================"
+payload='{
+  "id": "urn:ngsi-ld:City:E1",
+  "type": "City",
+  "name": {"type": "Property", "value": "Madrid"},
+  "location": {
+    "type": "GeoProperty",
+    "value": {"type": "Point", "coordinates": [-3.691944, 40.418889]}
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Dump ftClient — 1 notification: E1"
+echo "======================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Create S1 with geoQ.coordinates as a STRING (Polygon, Iberia)
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+02. GET S1 — coordinates normalized to a JSON array
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 698
+
+{
+  "entities": [
+    {
+      "type": "City"
+    }
+  ],
+  "geoQ": {
+    "coordinates": [
+      [
+        [
+          -10,
+          36
+        ],
+        [
+          4,
+          36
+        ],
+        [
+          4,
+          44
+        ],
+        [
+          -10,
+          44
+        ],
+        [
+          -10,
+          36
+        ]
+      ]
+    ],
+    "geometry": "Polygon",
+    "geoproperty": "location",
+    "georel": "within"
+  },
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+03. Restart broker (sub reloads from the DB)
+============================================
+restarted
+
+
+04. GET S1 — still a JSON array (persisted to DB, not just cached)
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 698
+
+{
+  "entities": [
+    {
+      "type": "City"
+    }
+  ],
+  "geoQ": {
+    "coordinates": [
+      [
+        [
+          -10,
+          36
+        ],
+        [
+          4,
+          36
+        ],
+        [
+          4,
+          44
+        ],
+        [
+          -10,
+          44
+        ],
+        [
+          -10,
+          36
+        ]
+      ]
+    ],
+    "geometry": "Polygon",
+    "geoproperty": "location",
+    "georel": "within"
+  },
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+05. Create entity E1 at Madrid (inside Iberia) — notification expected
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:E1
+Content-Length: 0
+
+
+
+
+06. Dump ftClient — 1 notification: E1
+=======================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:ngsi-ld:City:E1",
+          "location": {
+            "type": "GeoProperty",
+            "value": {
+              "coordinates": [
+                -3.691944,
+                40.418889
+              ],
+              "type": "Point"
+            }
+          },
+          "name": {
+            "type": "Property",
+            "value": "Madrid"
+          },
+          "type": "City"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop

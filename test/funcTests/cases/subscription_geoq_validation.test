@@ -1,0 +1,190 @@
+#
+# FILE            subscription_geoq_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.13 — a Subscription's geoQ.coordinates must be "a JSON Array coherent
+# with the geometry type" (it MAY be string-encoded for JSON-LD compatibility).
+# A geometry/coordinates mismatch (e.g. Polygon geometry with Point-shaped
+# coordinates, or a non-closed ring) must be rejected with 400 BadRequestData
+# on BOTH create and PATCH — otherwise an unusable geoQ is persisted and the
+# subscription silently matches nothing, an inconsistent state.
+#
+--NAME--
+Subscription geoQ validation — geometry/coordinates mismatch rejected (create + PATCH)
+
+--TAGS--
+geo subscription validation error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. Create sub, geometry=Polygon + Point-shaped coordinates [2,2] — 400
+# 02. Create sub, geometry=Polygon + non-closed ring — 400
+# 03. Create a VALID Point sub (baseline for the PATCH) — 201
+# 04. PATCH its geoQ to geometry=Polygon + Point-shaped coordinates — 400
+# 05. PATCH its geoQ to a valid Polygon — 204 (sanity: valid PATCH accepted)
+#
+
+echo "01. Create sub: geometry=Polygon, coordinates=Point-shaped [2,2] — 400"
+echo "======================================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:V1",
+  "type": "Subscription",
+  "entities": [{"type": "City"}],
+  "geoQ": {
+    "georel": "within",
+    "geometry": "Polygon",
+    "coordinates": [2, 2],
+    "geoproperty": "location"
+  },
+  "notification": {"endpoint": {"uri": "http://localhost:9999/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create sub: geometry=Polygon, non-closed ring — 400"
+echo "======================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:V2",
+  "type": "Subscription",
+  "entities": [{"type": "City"}],
+  "geoQ": {
+    "georel": "within",
+    "geometry": "Polygon",
+    "coordinates": [[[0, 0], [1, 0], [1, 1]]],
+    "geoproperty": "location"
+  },
+  "notification": {"endpoint": {"uri": "http://localhost:9999/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. Create a valid Point subscription (baseline) — 201"
+echo "======================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:V3",
+  "type": "Subscription",
+  "entities": [{"type": "City"}],
+  "geoQ": {
+    "georel": "near;maxDistance==1000",
+    "geometry": "Point",
+    "coordinates": [1, 2],
+    "geoproperty": "location"
+  },
+  "notification": {"endpoint": {"uri": "http://localhost:9999/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. PATCH geoQ to geometry=Polygon + Point-shaped coordinates — 400"
+echo "==================================================================="
+payload='{
+  "geoQ": {
+    "georel": "within",
+    "geometry": "Polygon",
+    "coordinates": [1, 2],
+    "geoproperty": "location"
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "05. PATCH geoQ to a valid Polygon — 204"
+echo "======================================="
+payload='{
+  "geoQ": {
+    "georel": "within",
+    "geometry": "Polygon",
+    "coordinates": [[[-10, 36], [4, 36], [4, 44], [-10, 44], [-10, 36]]],
+    "geoproperty": "location"
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3 -X PATCH --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create sub: geometry=Polygon, coordinates=Point-shaped [2,2] — 400
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 167
+
+{
+  "detail": "GeoJSON polygon ring must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Create sub: geometry=Polygon, non-closed ring — 400
+=======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "GeoJSON polygon ring must have at least 4 positions",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Create a valid Point subscription (baseline) — 201
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3
+Content-Length: 0
+
+
+
+
+04. PATCH geoQ to geometry=Polygon + Point-shaped coordinates — 400
+===================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 167
+
+{
+  "detail": "GeoJSON polygon ring must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PATCH geoQ to a valid Polygon — 204
+=======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+--TEARDOWN--
+swBrokerStop
