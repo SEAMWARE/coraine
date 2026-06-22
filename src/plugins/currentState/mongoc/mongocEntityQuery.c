@@ -194,36 +194,60 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   // segment into `path` before the next call.
   //
   //
-  // System temporal attributes (createdAt / modifiedAt) are stored as top-level
-  // integer (nanosecond) fields on the entity doc — NOT under attr.@none.value.
-  // q over them compares numerically against term->value.ns (parsed from the
-  // ISO 8601 right-hand side). Entity-level only (no sub-path / value-path).
+  // The three timestamps — createdAt / modifiedAt / observedAt — are special:
+  // they are stored as int64 (nanosecond) fields, NOT as {value:...} objects.
+  // createdAt/modifiedAt sit at the entity top level; all three appear as the
+  // int64 leaf of an attribute instance (e.g. <attr>.@none.observedAt). q over
+  // them is a NUMERIC compare against term->value.ns.
   //
-  if ((term->subPathN == 0) && (term->valuePathN == 0) && (term->valueType == LdQDateTime) &&
-      ((strcmp(term->attr, "createdAt") == 0) || (strcmp(term->attr, "modifiedAt") == 0)))
+  // LdQValue is a union: for an LdQDateTime term the `ns` slot is live, so the
+  // overlapping `.s` slot holds those bytes reinterpreted as a pointer — it must
+  // NEVER be read as a string (bson_append_utf8 would strlen a wild address).
+  //
   {
-    if (term->op == LdQEqual)
+    const char* leaf = (term->subPathN > 0) ? term->subPathV[term->subPathN - 1] : term->attr;
+    bool        isTimestamp = (term->valueType == LdQDateTime) && (term->valuePathN == 0) &&
+                              ((strcmp(leaf, "observedAt") == 0) ||
+                               (strcmp(leaf, "createdAt")  == 0) ||
+                               (strcmp(leaf, "modifiedAt") == 0));
+    // observedAt is not an entity-level field — only an attribute-instance one.
+    if (isTimestamp && (term->subPathN == 0) && (strcmp(term->attr, "observedAt") == 0))
+      isTimestamp = false;
+
+    if (isTimestamp)
     {
-      bson_append_int64(docP, term->attr, -1, term->value.ns);
-    }
-    else
-    {
-      const char* mongoOp = NULL;
-      switch (term->op)
+      char tsPath[1024];
+      int  tp = snprintf(tsPath, sizeof(tsPath), "%s", mongocEscapeDotsInKey(term->attr));
+      if (term->subPathN > 0)
       {
-      case LdQUnequal:   mongoOp = "$ne";  break;
-      case LdQGreater:   mongoOp = "$gt";  break;
-      case LdQLess:      mongoOp = "$lt";  break;
-      case LdQGreaterEq: mongoOp = "$gte"; break;
-      case LdQLessEq:    mongoOp = "$lte"; break;
-      default:           mongoOp = "$eq";  break;
+        tp += snprintf(tsPath + tp, sizeof(tsPath) - tp, ".@none");
+        for (int i = 0; i < term->subPathN; i++)
+          tp += snprintf(tsPath + tp, sizeof(tsPath) - tp, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
       }
-      bson_t opDoc;
-      bson_append_document_begin(docP, term->attr, -1, &opDoc);
-      bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
-      bson_append_document_end(docP, &opDoc);
+
+      if (term->op == LdQEqual)
+      {
+        bson_append_int64(docP, tsPath, -1, term->value.ns);
+      }
+      else
+      {
+        const char* mongoOp = NULL;
+        switch (term->op)
+        {
+        case LdQUnequal:   mongoOp = "$ne";  break;
+        case LdQGreater:   mongoOp = "$gt";  break;
+        case LdQLess:      mongoOp = "$lt";  break;
+        case LdQGreaterEq: mongoOp = "$gte"; break;
+        case LdQLessEq:    mongoOp = "$lte"; break;
+        default:           mongoOp = "$eq";  break;
+        }
+        bson_t opDoc;
+        bson_append_document_begin(docP, tsPath, -1, &opDoc);
+        bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
+        bson_append_document_end(docP, &opDoc);
+      }
+      return;
     }
-    return;
   }
 
   char path[1024];
@@ -363,9 +387,15 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   }
   else if (term->valueType == LdQDateTime)
   {
+    //
+    // A DateTime compared against a regular attribute value (the createdAt /
+    // modifiedAt / observedAt timestamps are int64 and handled at the top of
+    // this function). The value lives in the union's ns slot — compare as int64,
+    // NEVER as a string (term->value.s aliases the ns bytes as a wild pointer).
+    //
     if (term->op == LdQEqual)
     {
-      bson_append_utf8(docP, path, -1, term->value.s, -1);
+      bson_append_int64(docP, path, -1, term->value.ns);
     }
     else
     {
@@ -383,7 +413,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
 
       bson_t opDoc;
       bson_append_document_begin(docP, path, -1, &opDoc);
-      bson_append_utf8(&opDoc, mongoOp, -1, term->value.s, -1);
+      bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
       bson_append_document_end(docP, &opDoc);
     }
   }

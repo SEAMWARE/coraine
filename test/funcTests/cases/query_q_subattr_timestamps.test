@@ -1,0 +1,214 @@
+#
+# FILE            query_q_subattr_timestamps.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 — q over the three timestamp fields (observedAt / createdAt / modifiedAt).
+# These are stored as int64 nanosecond fields (NOT {value:...} objects), at the
+# entity level and as the int64 leaf of an attribute instance. q over them is a
+# numeric DateTime compare and must work at the attribute level AND on a deeper
+# sub-attribute — q=temp.observedAt and q=temp.sub.observedAt.
+#
+# Regression: q over an attribute-level observedAt used to crash the broker — the
+# q-to-mongo builder read the LdQValue union's string slot for a DateTime (whose
+# live slot is the int64 ns), dereferencing a wild pointer in bson_append_utf8.
+#
+--NAME--
+Query q over sub-attribute timestamps — observedAt / createdAt at attr and deeper levels
+
+--TAGS--
+query q sub-attributes observedAt datetime
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 — temperature.observedAt=June, temperature.quality.observedAt=Sept"
+echo "==============================================================================="
+payload='{
+  "id": "urn:ngsi-ld:QO:E1",
+  "type": "QO",
+  "temperature": {
+    "type": "Property",
+    "value": 21,
+    "observedAt": "2024-06-15T12:00:00Z",
+    "quality": {"type": "Property", "value": 9, "observedAt": "2024-09-01T00:00:00Z"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. q=temperature.observedAt>2024-01 — matches (June > Jan)"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt%3E2024-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "03. q=temperature.observedAt>2099 — no match"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt%3E2099-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "04. q=temperature.observedAt==2024-06-15T12:00:00Z — exact match"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt==2024-06-15T12:00:00Z'
+echo
+echo
+
+
+echo "05. q=temperature.quality.observedAt>2024-01 — sub-sub-attribute, matches"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.quality.observedAt%3E2024-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "06. q=temperature.createdAt<2099 — attribute-level createdAt, matches"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.createdAt%3C2099-01-01T00:00:00Z'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 — temperature.observedAt=June, temperature.quality.observedAt=Sept
+===============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:QO:E1
+Content-Length: 0
+
+
+
+
+02. q=temperature.observedAt>2024-01 — matches (June > Jan)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 297
+
+[
+  {
+    "id": "urn:ngsi-ld:QO:E1",
+    "temperature": {
+      "observedAt": "2024-06-15T12:00:00Z",
+      "quality": {
+        "observedAt": "2024-09-01T00:00:00Z",
+        "type": "Property",
+        "value": 9
+      },
+      "type": "Property",
+      "value": 21
+    },
+    "type": "QO"
+  }
+]
+
+
+
+03. q=temperature.observedAt>2099 — no match
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+04. q=temperature.observedAt==2024-06-15T12:00:00Z — exact match
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 297
+
+[
+  {
+    "id": "urn:ngsi-ld:QO:E1",
+    "temperature": {
+      "observedAt": "2024-06-15T12:00:00Z",
+      "quality": {
+        "observedAt": "2024-09-01T00:00:00Z",
+        "type": "Property",
+        "value": 9
+      },
+      "type": "Property",
+      "value": 21
+    },
+    "type": "QO"
+  }
+]
+
+
+
+05. q=temperature.quality.observedAt>2024-01 — sub-sub-attribute, matches
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 297
+
+[
+  {
+    "id": "urn:ngsi-ld:QO:E1",
+    "temperature": {
+      "observedAt": "2024-06-15T12:00:00Z",
+      "quality": {
+        "observedAt": "2024-09-01T00:00:00Z",
+        "type": "Property",
+        "value": 9
+      },
+      "type": "Property",
+      "value": 21
+    },
+    "type": "QO"
+  }
+]
+
+
+
+06. q=temperature.createdAt<2099 — attribute-level createdAt, matches
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 297
+
+[
+  {
+    "id": "urn:ngsi-ld:QO:E1",
+    "temperature": {
+      "observedAt": "2024-06-15T12:00:00Z",
+      "quality": {
+        "observedAt": "2024-09-01T00:00:00Z",
+        "type": "Property",
+        "value": 9
+      },
+      "type": "Property",
+      "value": 21
+    },
+    "type": "QO"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
