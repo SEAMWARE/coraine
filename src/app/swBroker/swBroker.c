@@ -198,6 +198,7 @@ char*          contextSourceExtras = NULL;  // path to a JSON file (§ 5.2.40)
 char*          traceLevels  = NULL;
 bool           noSplitEntities = false;
 bool           asyncSnapshot   = false;
+bool           insecureNotif   = false;     // accept self-signed certs on TLS notifications/forwards
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
@@ -226,6 +227,7 @@ static KArg kargV[] =
   { "--distOpTimeout",      "-dtmo",        KaInt,    _vp &swRestClientDefaultRequestTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--cooldownMillis",     "-cms",         KaInt,    _vp &cooldownMillis, KaOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
+  { "--insecureNotif",      "-insecureNotif",KaBool,  _vp &insecureNotif, KaOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
   KARGS_END
 };
 
@@ -677,6 +679,11 @@ int main(int argC, char* argV[])
   // (uri.etsi.org via Cloudflare) but slash-versioned tokens pass.
   if (swRestClientInit(4, 60, "swBroker/" SWBROKER_VERSION) != 0)
     KT_X(1, "swRestClientInit failed");
+
+  // --insecureNotif → notifications/forwards to TLS endpoints accept self-signed
+  // certificates (set before the first TLS handshake, i.e. before swRestClientTlsInit)
+  if (insecureNotif)
+    swRestClientTlsInsecureSet(true);
 
   static KAlloc  contextAlloc;
   static char    contextBuffer[64 * 1024];

@@ -327,9 +327,26 @@ ftClientStart() {
   local pidFile=/tmp/ftClient.$port.pid
   ftClientStop --port $port 2>/dev/null
 
+  # Record the scheme so ftClientDump/ftClientReset reach the right URL: a
+  # --httpsKey/--httpsCertificate ftClient serves HTTPS, plain HTTP otherwise.
+  local scheme=http
+  case " ${extraParams[*]} " in
+    *" --httpsKey "*|*" -k "*) scheme=https ;;
+  esac
+  echo "$scheme" > /tmp/ftClient.$port.scheme
+
   $FT_CLIENT --port $port ${extraParams[*]} > /dev/null 2>&1 &
   echo $! > "$pidFile"
   swAwaitPort $port 5
+}
+
+
+# ftClientUrl <port> <path> - scheme-correct URL for the ftClient on <port>
+#
+ftClientUrl() {
+  local scheme=http
+  [ -f "/tmp/ftClient.$1.scheme" ] && scheme=$(cat "/tmp/ftClient.$1.scheme")
+  echo "$scheme://localhost:$1$2"
 }
 
 
@@ -376,7 +393,7 @@ ftClientDump() {
   done
 
   local raw
-  raw=$(curl -s "http://localhost:$port/dump")
+  raw=$(curl -sk "$(ftClientUrl $port /dump)")
 
   if [ -n "$KJSON" ] && [ -n "$raw" ] && [ "$raw" != "[]" ]; then
     echo "$raw" | $KJSON -sort | head -c -1
@@ -397,7 +414,24 @@ ftClientReset() {
     fi
     shift
   done
-  curl -s -X DELETE "http://localhost:$port/dump" > /dev/null
+  curl -sk -X DELETE "$(ftClientUrl $port /dump)" > /dev/null
+}
+
+
+# swHttpsCertGen [keyFile] [certFile] - generate a self-signed key + certificate
+#
+# For HTTPS-notification tests: ftClient serves TLS with this pair and the broker
+# (started with --insecureNotif) accepts the self-signed cert. Defaults to
+# /tmp/swFtClient.key + /tmp/swFtClient.pem, CN=localhost. All openssl chatter
+# goes to /dev/null so INIT stays stderr-clean.
+#
+swHttpsCertGen() {
+  local keyFile=${1:-/tmp/swFtClient.key}
+  local certFile=${2:-/tmp/swFtClient.pem}
+
+  openssl genrsa -out "$keyFile" 2048 > /dev/null 2>&1
+  openssl req -days 365 -new -x509 -key "$keyFile" -out "$certFile" \
+          -subj "/C=ES/ST=Madrid/L=Madrid/O=Seamware/OU=test/CN=localhost/" > /dev/null 2>&1
 }
 
 

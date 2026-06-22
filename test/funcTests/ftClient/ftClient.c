@@ -82,15 +82,19 @@ unsigned short ftPostStatus = 200;     // status returned for accumulate POSTs; 
 unsigned int   ftDelayMs    = 0;       // sleep before responding — for timeout tests
 unsigned short ftMqttPort   = 0;       // 0 = no MQTT subscription
 char*          ftMqttTopic  = (char*) "#"; // default: catch every topic
+char*          ftHttpsKey   = NULL;    // path to a PEM private key  (enables TLS when both set)
+char*          ftHttpsCert  = NULL;    // path to a PEM certificate  (enables TLS when both set)
 
 static KArg ftArgV[] =
 {
-  { "--port",       "-p",  KaUShort, _vp &ftPort,       KaOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
-  { "--foreground", "-fg", KaBool,   _vp &ftFg,         KaOpt, _vp KTRUE, _vp KFALSE, _vp KTRUE, "run in foreground" },
-  { "--status",     "-s",  KaUShort, _vp &ftPostStatus, KaOpt, _vp 200,   _vp 100, _vp 599, "HTTP status for accumulate POSTs (misbehave mode)" },
-  { "--delay",      NULL,  KaUInt,   _vp &ftDelayMs,    KaOpt, _vp 0,     _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
-  { "--mqttPort",   NULL,  KaUShort, _vp &ftMqttPort,   KaOpt, _vp 0,     _vp 0, _vp 65535, "MQTT broker port to subscribe to (0 = disabled)" },
-  { "--mqttTopic",  NULL,  KaString, _vp &ftMqttTopic,  KaOpt, _vp "#",   NULL,  NULL,      "MQTT topic to subscribe (default '#')" },
+  { "--port",            "-p",  KaUShort, _vp &ftPort,       KaOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
+  { "--foreground",      "-fg", KaBool,   _vp &ftFg,         KaOpt, _vp KTRUE, _vp KFALSE, _vp KTRUE, "run in foreground" },
+  { "--status",          "-s",  KaUShort, _vp &ftPostStatus, KaOpt, _vp 200,   _vp 100, _vp 599, "HTTP status for accumulate POSTs (misbehave mode)" },
+  { "--delay",           NULL,  KaUInt,   _vp &ftDelayMs,    KaOpt, _vp 0,     _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
+  { "--mqttPort",        NULL,  KaUShort, _vp &ftMqttPort,   KaOpt, _vp 0,     _vp 0, _vp 65535, "MQTT broker port to subscribe to (0 = disabled)" },
+  { "--mqttTopic",       NULL,  KaString, _vp &ftMqttTopic,  KaOpt, _vp "#",   NULL,  NULL,      "MQTT topic to subscribe (default '#')" },
+  { "--httpsKey",        "-k",  KaString, _vp &ftHttpsKey,   KaOpt, NULL,      NULL,  NULL,      "PEM private key file (serve HTTPS; needs --httpsCertificate)" },
+  { "--httpsCertificate","-c",  KaString, _vp &ftHttpsCert,  KaOpt, NULL,      NULL,  NULL,      "PEM certificate file (serve HTTPS; needs --httpsKey)" },
   KARGS_END
 };
 
@@ -538,6 +542,50 @@ static int ftServiceCount = sizeof(ftServices) / sizeof(ftServices[0]);
 
 // -----------------------------------------------------------------------------
 //
+// pemSlurp - read a PEM file into a malloc'd, NUL-terminated string
+//
+// swRest's HTTPS server options want the key/certificate as in-memory PEM, not
+// file paths. Returns NULL (and prints to stderr) on any error.
+//
+static char* pemSlurp(const char* path)
+{
+  FILE* f = fopen(path, "rb");
+  if (f == NULL)
+  {
+    fprintf(stderr, "ftClient: cannot open '%s'\n", path);
+    return NULL;
+  }
+
+  fseek(f, 0, SEEK_END);
+  long size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  if ((size <= 0) || (size > 64 * 1024))
+  {
+    fprintf(stderr, "ftClient: '%s' has unreasonable size %ld\n", path, size);
+    fclose(f);
+    return NULL;
+  }
+
+  char* buf = (char*) malloc(size + 1);
+  size_t n = fread(buf, 1, size, f);
+  fclose(f);
+
+  if (n != (size_t) size)
+  {
+    fprintf(stderr, "ftClient: short read on '%s'\n", path);
+    free(buf);
+    return NULL;
+  }
+
+  buf[size] = 0;
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // main
 //
 int main(int argC, char* argV[])
@@ -571,6 +619,19 @@ int main(int argC, char* argV[])
   dumpInit();
 
   swRestSetPrettySpaces(2);
+
+  // --httpsKey + --httpsCertificate → serve notifications over TLS
+  if ((ftHttpsKey != NULL) && (ftHttpsCert != NULL))
+  {
+    char* keyPem  = pemSlurp(ftHttpsKey);
+    char* certPem = pemSlurp(ftHttpsCert);
+
+    if ((keyPem == NULL) || (certPem == NULL))
+      return 1;
+
+    swRestHttpsServerCredentialsSet(keyPem, certPem);
+    KT_I("ftClient serving HTTPS on port %u", ftPort);
+  }
 
   if (swRestInit(ftServices, ftServiceCount, ftPort, 2) != 0)
   {

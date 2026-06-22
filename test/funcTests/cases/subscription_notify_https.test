@@ -1,0 +1,79 @@
+#
+# FILE            subscription_notify_https.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8 — a Subscription notification endpoint may be an https:// URL. The
+# broker, started with --insecureNotif (the endpoint sits in a trusted network
+# with a self-signed certificate), must deliver the notification over TLS and
+# count it. A self-signed key/cert is generated at INIT and ftClient serves
+# HTTPS with it; the broker subscribes to the https endpoint, an update fires
+# the notification, and the subscription counters reflect the delivery.
+#
+--NAME--
+Subscription notification over HTTPS (self-signed endpoint) — delivered and counted
+
+--TAGS--
+subscription notification https
+
+--INIT--
+swDbDrop
+swHttpsCertGen
+swBrokerStart --insecureNotif
+ftClientStart --httpsKey /tmp/swFtClient.key --httpsCertificate /tmp/swFtClient.pem
+
+--RUN--
+
+echo "01. Subscribe to T with an https endpoint, then create + update to trigger"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:S1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "notification": {"endpoint": {"uri": "https://localhost:7701/notify", "accept": "application/json"}}
+}' | grep HTTP
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | grep HTTP
+echo
+echo
+
+
+echo "02. Notification delivered over TLS — ftClient received it"
+echo "=========================================================="
+sleep 0.6
+ftClientDump | grep -E "subscriptionId|\"id\": \"urn:ngsi-ld:E1\"|\"value\""
+echo
+echo
+
+
+echo "03. Subscription counters reflect the successful HTTPS delivery"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S1 | grep -E "\"status\"|timesSent|notificationTrigger|\"success\""
+echo
+
+
+--EXPECT--
+01. Subscribe to T with an https endpoint, then create + update to trigger
+===========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Notification delivered over TLS — ftClient received it
+==========================================================
+            "value": 1
+          "id": "urn:ngsi-ld:E1",
+      "subscriptionId": "urn:ngsi-ld:S1",
+
+
+03. Subscription counters reflect the successful HTTPS delivery
+===============================================================
+    "status": "ok",
+    "timesSent": 1
+  "notificationTrigger": [
+  "status": "active",
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
