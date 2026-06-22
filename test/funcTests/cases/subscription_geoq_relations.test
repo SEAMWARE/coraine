@@ -1,0 +1,121 @@
+#
+# FILE            subscription_geoq_relations.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8 + § 7.2.4 — subscription geoQ matching across the georel matrix. Each
+# georel gets its own subscription (isolated by entity type so they can't
+# cross-match) and one entity whose geometry satisfies that georel; every
+# subscription must fire exactly one notification. Exercises the subscription
+# notify path (not just the query path) for within / contains / intersects /
+# disjoint / overlaps / equals.
+#
+--NAME--
+Subscription geoQ — georel matrix (within/contains/intersects/disjoint/overlaps/equals)
+
+--TAGS--
+geo subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+mksub() {  # $1=type  $2=georel  $3=geometry  $4=coordinates
+  payload='{
+    "id": "urn:ngsi-ld:Subscription:'$1'",
+    "type": "Subscription",
+    "entities": [{"type": "'$1'"}],
+    "geoQ": {"georel": "'$2'", "geometry": "'$3'", "coordinates": '$4', "geoproperty": "location"},
+    "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+  }'
+  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+}
+
+mkent() {  # $1=type  $2=geometry  $3=coordinates
+  payload='{"id": "urn:ngsi-ld:'$1':1", "type": "'$1'", "location": {"type": "GeoProperty", "value": {"type": "'$2'", "coordinates": '$3'}}}'
+  swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+}
+
+# Iberia bounding polygon, reused as a reference where useful
+IB='[[[-10,36],[4,36],[4,44],[-10,44],[-10,36]]]'
+
+echo "01. Create one subscription per georel (isolated by entity type)"
+echo "================================================================"
+mksub Within     within     Polygon "$IB"
+mksub Contains   contains   Point   '[-3.69,40.42]'
+mksub Intersects intersects Polygon '[[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]]'
+mksub Disjoint   disjoint   Polygon "$IB"
+mksub Overlaps   overlaps   Polygon '[[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]]'
+mksub Equals     equals     Point   '[-3.69,40.42]'
+echo
+echo
+
+
+echo "02. Create one matching entity per georel"
+echo "========================================="
+mkent Within     Point   '[-3.69,40.42]'
+mkent Contains   Polygon '[[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]]'
+mkent Intersects Polygon '[[[-4,39],[0,39],[0,43],[-4,43],[-4,39]]]'
+mkent Disjoint   Point   '[50,50]'
+mkent Overlaps   Polygon '[[[-4,39],[0,39],[0,43],[-4,43],[-4,39]]]'
+mkent Equals     Point   '[-3.69,40.42]'
+echo
+echo
+
+
+echo "03. Dump ftClient — one notification per georel (6 total), grouped by sub"
+echo "========================================================================="
+ftClientDump | grep -E "subscriptionId|\"id\": \"urn:ngsi-ld:[A-Z]" | sort
+echo
+
+
+--EXPECT--
+01. Create one subscription per georel (isolated by entity type)
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Create one matching entity per georel
+=========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. Dump ftClient — one notification per georel (6 total), grouped by sub
+=========================================================================
+          "id": "urn:ngsi-ld:Contains:1",
+          "id": "urn:ngsi-ld:Disjoint:1",
+          "id": "urn:ngsi-ld:Equals:1",
+          "id": "urn:ngsi-ld:Intersects:1",
+          "id": "urn:ngsi-ld:Overlaps:1",
+          "id": "urn:ngsi-ld:Within:1",
+REGEX(      "id": "urn:ngsi-ld:Notification:[0-9a-f]+:0001",)
+REGEX(      "id": "urn:ngsi-ld:Notification:[0-9a-f]+:0002",)
+REGEX(      "id": "urn:ngsi-ld:Notification:[0-9a-f]+:0003",)
+REGEX(      "id": "urn:ngsi-ld:Notification:[0-9a-f]+:0004",)
+REGEX(      "id": "urn:ngsi-ld:Notification:[0-9a-f]+:0005",)
+REGEX(      "id": "urn:ngsi-ld:Notification:[0-9a-f]+:0006",)
+      "subscriptionId": "urn:ngsi-ld:Subscription:Contains",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Disjoint",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Equals",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Intersects",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Overlaps",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Within",
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop

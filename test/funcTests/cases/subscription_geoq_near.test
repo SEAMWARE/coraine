@@ -1,0 +1,178 @@
+#
+# FILE            subscription_geoq_near.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.10 + § 5.8 + § 7.2.4 — subscription geoQ "near" matching, a custom
+# geoproperty (not the default "location"), and LineString / MultiPoint entity
+# geometries. Covers:
+#   - near;maxDistance  (entity inside the radius matches, outside does not)
+#   - near;minDistance + near;maxDistance (donut: only the annulus matches)
+#   - geoproperty other than "location"
+#   - LineString and MultiPoint entity geometries against an intersects georel
+# Each subscription is isolated by entity type so they can't cross-match.
+#
+--NAME--
+Subscription geoQ — near (maxDistance/donut), custom geoproperty, LineString/MultiPoint
+
+--TAGS--
+geo subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+# Madrid as the reference point for the "near" subscriptions
+MADRID='[-3.69,40.42]'
+
+echo "01. near;maxDistance — radius 200 km around Madrid (geoproperty=location)"
+echo "========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Near",
+  "type": "Subscription",
+  "entities": [{"type": "Near"}],
+  "geoQ": {"georel": "near;maxDistance==200000", "geometry": "Point", "coordinates": '$MADRID', "geoproperty": "location"},
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+
+echo "02. near;minDistance + maxDistance — donut 100..300 km around Madrid"
+echo "===================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Donut",
+  "type": "Subscription",
+  "entities": [{"type": "Donut"}],
+  "geoQ": {"georel": "near;minDistance==100000;maxDistance==300000", "geometry": "Point", "coordinates": '$MADRID', "geoproperty": "location"},
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+
+echo "03. intersects on a custom geoproperty 'area' (not location)"
+echo "============================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:CustomGeoprop",
+  "type": "Subscription",
+  "entities": [{"type": "CustomGeoprop"}],
+  "geoQ": {"georel": "intersects", "geometry": "Polygon", "coordinates": [[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]], "geoproperty": "area"},
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+
+echo "04. intersects against LineString and MultiPoint entity geometries"
+echo "=================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Shapes",
+  "type": "Subscription",
+  "entities": [{"type": "Shapes"}],
+  "geoQ": {"georel": "intersects", "geometry": "Polygon", "coordinates": [[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]], "geoproperty": "location"},
+  "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "05. Entities — one matching + one NON-matching per near/donut subscription"
+echo "=========================================================================="
+# Near: ~50 km NE of Madrid → inside 200 km radius → MATCH
+payload='{"id": "urn:ngsi-ld:Near:in",  "type": "Near", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-3.2,40.7]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+# Near: Barcelona ~500 km → outside 200 km radius → NO match
+payload='{"id": "urn:ngsi-ld:Near:out", "type": "Near", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [2.17,41.39]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+
+# Donut: ~50 km from Madrid → inside the 100 km hole → NO match
+payload='{"id": "urn:ngsi-ld:Donut:hole", "type": "Donut", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-3.2,40.7]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+# Donut: ~200 km from Madrid → in the 100..300 km annulus → MATCH
+payload='{"id": "urn:ngsi-ld:Donut:ring", "type": "Donut", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-1.13,38.99]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "06. Entity with the geometry on a custom geoproperty 'area' → MATCH"
+echo "==================================================================="
+payload='{"id": "urn:ngsi-ld:CustomGeoprop:1", "type": "CustomGeoprop", "area": {"type": "GeoProperty", "value": {"type": "Polygon", "coordinates": [[[-4,39],[0,39],[0,43],[-4,43],[-4,39]]]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "07. LineString + MultiPoint entities crossing the reference polygon → MATCH both"
+echo "================================================================================="
+payload='{"id": "urn:ngsi-ld:Shapes:line", "type": "Shapes", "location": {"type": "GeoProperty", "value": {"type": "LineString", "coordinates": [[-8,40],[0,40]]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+payload='{"id": "urn:ngsi-ld:Shapes:mp", "type": "Shapes", "location": {"type": "GeoProperty", "value": {"type": "MultiPoint", "coordinates": [[-9,35],[-4,40]]}}}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "08. Dump ftClient — matching entity ids and their subscriptions"
+echo "==============================================================="
+ftClientDump | grep -E "subscriptionId|\"id\": \"urn:ngsi-ld:[A-Z]" | grep -v Notification | sort
+echo
+
+
+--EXPECT--
+01. near;maxDistance — radius 200 km around Madrid (geoproperty=location)
+=========================================================================
+HTTP/1.1 201 Created
+
+02. near;minDistance + maxDistance — donut 100..300 km around Madrid
+====================================================================
+HTTP/1.1 201 Created
+
+03. intersects on a custom geoproperty 'area' (not location)
+============================================================
+HTTP/1.1 201 Created
+
+04. intersects against LineString and MultiPoint entity geometries
+==================================================================
+HTTP/1.1 201 Created
+
+
+05. Entities — one matching + one NON-matching per near/donut subscription
+==========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+06. Entity with the geometry on a custom geoproperty 'area' → MATCH
+===================================================================
+HTTP/1.1 201 Created
+
+
+07. LineString + MultiPoint entities crossing the reference polygon → MATCH both
+=================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+08. Dump ftClient — matching entity ids and their subscriptions
+===============================================================
+          "id": "urn:ngsi-ld:CustomGeoprop:1",
+          "id": "urn:ngsi-ld:Donut:ring",
+          "id": "urn:ngsi-ld:Near:in",
+          "id": "urn:ngsi-ld:Shapes:line",
+          "id": "urn:ngsi-ld:Shapes:mp",
+      "subscriptionId": "urn:ngsi-ld:Subscription:CustomGeoprop",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Donut",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Near",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Shapes",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Shapes",
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
