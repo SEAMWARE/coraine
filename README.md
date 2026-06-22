@@ -2,9 +2,10 @@
 
 A lightweight **NGSI-LD Context Broker** written in C, targeting **ETSI GS CIM 009
 v1.9.1**. swBroker is small, fast, and — most importantly — **plugin-driven**:
-storage backends, temporal history, and extra API surfaces are all `.so` plugins
-loaded at startup. The core broker speaks NGSI-LD; the plugins decide *where data
-lives* and *what extra endpoints exist*.
+storage backends, temporal history, extra API surfaces and (soon) the wire
+protocol itself are all `.so` plugins loaded at startup. The core broker speaks
+NGSI-LD; the plugins decide *where data lives*, *what extra endpoints exist* and
+*how the broker talks to the world*.
 
 - **Product version:** 0.3
 - **Spec target:** ETSI GS CIM 009 v1.9.1 (NGSI-LD)
@@ -34,16 +35,35 @@ For a feature-by-feature breakdown of what's implemented, see
 > non-NGSI-LD admin/ops endpoints — are dynamically loaded shared objects. You
 > choose them at startup; you can write your own without touching the core.
 
-### The three plugin categories
+### The four plugin categories
 
-| Category | Purpose | Loaded via | Resolves to | Register symbol | Driver struct |
-|----------|---------|------------|-------------|-----------------|---------------|
-| **Current-state DB** | Where entities/subscriptions/registrations live | `--database` / `-db` | `<base>/db/currentState/<name>.so` | `dbRegister` | `DbDriver` (`db`) |
-| **Temporal (TRoE)** | History of entity evolution | `--troe` / `-troe` | `<base>/troe/temporal/<name>.so` | `troeRegister` | `TroeDriver` (`troe`) |
-| **API** | Extra HTTP endpoints (ops/admin/etc.) | `--apiPlugins` / `-api` | `<base>/api/<name>.so` | `apiRegister` | `ApiPlugin[]` |
+There are **four** kinds of plugin:
 
-Exactly **one** DB plugin and **one** TRoE plugin are active at a time; **any
-number** of API plugins (comma-separated, up to `API_PLUGINS_MAX = 16`).
+- **Current-state DB** — where entities, subscriptions and registrations live.
+  Loaded via `--database` / `-db`; resolves to `<base>/db/currentState/<name>.so`;
+  register symbol `dbRegister`; fills the `DbDriver` struct (`db`). **One active at
+  a time.** Bundled: `mongoc` (default), `swRamDB`.
+
+- **History DB** — the temporal evolution of entities (TRoE — Temporal
+  Representation of Entities). Loaded via `--troe` / `-troe`; resolves to
+  `<base>/troe/temporal/<name>.so`; register symbol `troeRegister`; fills the
+  `TroeDriver` struct (`troe`). **One active at a time** (`none` disables history).
+  Bundled: `none` (default), `ramdb`, `timescale`.
+
+- **API services** — extra HTTP endpoints beyond the NGSI-LD core (ops, admin,
+  health, …). Loaded via `--apiPlugins` / `-api`; resolves to `<base>/api/<name>.so`;
+  register symbol `apiRegister`; fills an `ApiPlugin` entry. **Any number** active
+  (comma-separated, up to `API_PLUGINS_MAX = 16`). Bundled: `admin`.
+
+- **Communication protocols** — the transport over which the broker speaks to
+  clients and to other brokers. The default is **REST/HTTP**, which is what ships
+  today. A pluggable transport layer that lets an **ad-hoc binary protocol** be
+  swapped in alongside (or instead of) REST is **planned, not yet implemented** —
+  the architecture is designed around it, but there is no `protocol` register
+  symbol or driver struct yet.
+
+So today three of the four are live; the communication-protocol category is the
+next plugin axis to land.
 
 ### Where plugins are loaded from
 
