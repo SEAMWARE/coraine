@@ -811,11 +811,16 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     BSON_APPEND_INT64(&opts, "skip", filterP->offset);
 
   //
-  // Sort by createdAt (ascending) for deterministic ordering
+  // Sort by createdAt (ascending), with _id as a unique tiebreak. createdAt
+  // alone is NOT unique — entities created in one batch share it — and Mongo's
+  // sort is unstable for equal keys, so paginating (skip/limit) across separate
+  // queries would overlap and skip rows. _id (the entity id) is unique, making
+  // the order total and pagination deterministic.
   //
   bson_t sort;
   bson_init(&sort);
-  BSON_APPEND_INT32(&sort, mongocEscapeDotsInKey(LD_VOCAB_CREATED_AT), 1);
+  BSON_APPEND_INT32(&sort, "createdAt", 1);
+  BSON_APPEND_INT32(&sort, "_id", 1);
   BSON_APPEND_DOCUMENT(&opts, "sort", &sort);
   bson_destroy(&sort);
 

@@ -1,0 +1,89 @@
+#
+# FILE            query_pagination_tiebreak.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.5.9 — paginating (limit/offset) over a set of entities must be consistent:
+# successive pages neither overlap nor skip. The result order needs a TOTAL,
+# stable key. Sorting by createdAt alone is not enough — a batch-created set
+# shares one createdAt, and the DB sort is unstable for equal keys, so pages
+# would double-count and drop rows. The entity id (_id) is the unique tiebreak.
+#
+# Populated with a batch create (easiest way to get many same-createdAt entities,
+# which is exactly the condition that exposes an unstable sort).
+#
+--NAME--
+Pagination is consistent over a same-createdAt (batch-created) set — _id tiebreak
+
+--TAGS--
+query pagination batch
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+payload=$(python3 -c 'import json; print(json.dumps([{"id": f"urn:ngsi-ld:B:{i:02d}", "type": "BP"} for i in range(22)]))')
+
+echo "01. Batch-create 22 entities (urn:ngsi-ld:B:00 .. B:21), all same createdAt"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | grep -c "urn:ngsi-ld:B:"
+echo
+echo
+
+
+echo "02. GET limit=11 offset=0 — first page, ids B:00 .. B:10 in order"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=BP&limit=11&offset=0' | grep '"id"'
+echo
+echo
+
+
+echo "03. GET limit=11 offset=11 — second page, ids B:11 .. B:21, no overlap/skip"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=BP&limit=11&offset=11' | grep '"id"'
+echo
+echo
+
+
+--EXPECT--
+01. Batch-create 22 entities (urn:ngsi-ld:B:00 .. B:21), all same createdAt
+===========================================================================
+22
+
+
+02. GET limit=11 offset=0 — first page, ids B:00 .. B:10 in order
+================================================================
+    "id": "urn:ngsi-ld:B:00",
+    "id": "urn:ngsi-ld:B:01",
+    "id": "urn:ngsi-ld:B:02",
+    "id": "urn:ngsi-ld:B:03",
+    "id": "urn:ngsi-ld:B:04",
+    "id": "urn:ngsi-ld:B:05",
+    "id": "urn:ngsi-ld:B:06",
+    "id": "urn:ngsi-ld:B:07",
+    "id": "urn:ngsi-ld:B:08",
+    "id": "urn:ngsi-ld:B:09",
+    "id": "urn:ngsi-ld:B:10",
+
+
+03. GET limit=11 offset=11 — second page, ids B:11 .. B:21, no overlap/skip
+===========================================================================
+    "id": "urn:ngsi-ld:B:11",
+    "id": "urn:ngsi-ld:B:12",
+    "id": "urn:ngsi-ld:B:13",
+    "id": "urn:ngsi-ld:B:14",
+    "id": "urn:ngsi-ld:B:15",
+    "id": "urn:ngsi-ld:B:16",
+    "id": "urn:ngsi-ld:B:17",
+    "id": "urn:ngsi-ld:B:18",
+    "id": "urn:ngsi-ld:B:19",
+    "id": "urn:ngsi-ld:B:20",
+    "id": "urn:ngsi-ld:B:21",
+
+
+--TEARDOWN--
+swBrokerStop
