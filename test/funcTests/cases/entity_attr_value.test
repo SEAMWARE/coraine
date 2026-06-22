@@ -1,0 +1,262 @@
+#
+# FILE            entity_attr_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-176 § 7.6 — entities/{id}/attrs/{attr}/value:
+#   GET (§ 10.4.4 Retrieve Attribute Value) returns the "value only" fragment:
+#       the bare value (JSON Primitive/Object/Array), application/json, no @context.
+#   PUT (§ 10.2.6 Set Attribute Value) sets the value from a bare-JSON body; the
+#       attribute must already exist and its type is preserved, sub-attrs kept.
+#
+--NAME--
+Attribute value sub-resource — GET/PUT value-only (Property, GeoProperty, Relationship)
+
+--TAGS--
+entity attr value
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 (Property+unitCode, GeoProperty, Relationship)"
+echo "============================================================"
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "temperature": {"type": "Property", "value": 21, "unitCode": "CEL"},
+  "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [1, 2]}},
+  "refDevice": {"type": "Relationship", "object": "urn:ngsi-ld:Device:A"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET temperature/value — bare 21 (application/json)"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value
+echo
+echo
+
+
+echo "03. PUT temperature/value = 45 — 204"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -X PUT --payload '45'
+echo
+echo
+
+
+echo "04. GET temperature/value — now 45"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value
+echo
+echo
+
+
+echo "05. GET full temperature — type Property + unitCode preserved, value 45"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature
+echo
+echo
+
+
+echo "06. GET location/value — bare GeoJSON geometry"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value
+echo
+echo
+
+
+echo "07. PUT location/value = new Point — 204, then GET shows it"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value -X PUT --payload '{"type": "Point", "coordinates": [10, 20]}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value
+echo
+echo
+
+
+echo "08. GET refDevice/value — bare object URI"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value
+echo
+echo
+
+
+echo "09. PUT refDevice/value = new URI — 204, then GET shows it"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value -X PUT --payload '"urn:ngsi-ld:Device:B"'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value
+echo
+echo
+
+
+echo "10. PUT value on a non-existent attribute — 404 (value-only cannot create)"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/nope/value -X PUT --payload '1'
+echo
+echo
+
+
+echo "11. PUT value with Content-Type application/ld+json — 400 (value-only is plain JSON)"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -X PUT --payload '9' -H "Content-Type: application/ld+json"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (Property+unitCode, GeoProperty, Relationship)
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. GET temperature/value — bare 21 (application/json)
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 2
+
+21
+
+
+03. PUT temperature/value = 45 — 204
+====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. GET temperature/value — now 45
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 2
+
+45
+
+
+05. GET full temperature — type Property + unitCode preserved, value 45
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "type": "Property",
+  "unitCode": "CEL",
+  "value": 45
+}
+
+
+
+06. GET location/value — bare GeoJSON geometry
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 36
+
+{
+  "coordinates": [
+    1,
+    2
+  ],
+  "type": "Point"
+}
+
+
+
+07. PUT location/value = new Point — 204, then GET shows it
+===========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 38
+
+{
+  "coordinates": [
+    10,
+    20
+  ],
+  "type": "Point"
+}
+
+
+
+08. GET refDevice/value — bare object URI
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 22
+
+"urn:ngsi-ld:Device:A"
+
+
+09. PUT refDevice/value = new URI — 204, then GET shows it
+==========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 22
+
+"urn:ngsi-ld:Device:B"
+
+
+10. PUT value on a non-existent attribute — 404 (value-only cannot create)
+==========================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 179
+
+{
+  "detail": "attribute 'nope' not found in entity 'urn:ngsi-ld:E1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. PUT value with Content-Type application/ld+json — 400 (value-only is plain JSON)
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 210
+
+{
+  "detail": "a value-only body is plain JSON (no @context); use Content-Type application/json",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

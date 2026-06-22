@@ -19,8 +19,10 @@ SET(SOURCES
   cloneSnapshot.c
   purgeSnapshots.c
   getEntityAttr.c
+  getEntityAttrValue.c
   patchEntityAttr.c
   putEntityAttr.c
+  putEntityAttrValue.c
   deleteEntityAttr.c
   postEntityBatchCreate.c
   postEntityBatchUpdate.c

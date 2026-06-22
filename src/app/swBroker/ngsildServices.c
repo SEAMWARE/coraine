@@ -31,6 +31,8 @@
 #include "serviceRoutines/purgeSnapshots.h"      // purgeSnapshots
 #include "serviceRoutines/getEntityAttr.h"       // getEntityAttr
 #include "serviceRoutines/patchEntityAttr.h"     // patchEntityAttr
+#include "serviceRoutines/getEntityAttrValue.h"  // getEntityAttrValue
+#include "serviceRoutines/putEntityAttrValue.h"  // putEntityAttrValue
 #include "serviceRoutines/putEntityAttr.h"       // putEntityAttr
 #include "serviceRoutines/deleteEntityAttr.h"    // deleteEntityAttr
 #include "serviceRoutines/getTypes.h"            // getTypes
@@ -100,6 +102,10 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY, LdOpReplaceEntity },
   { SwVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS,  LdOpAppendAttrs },
   { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS, LdOpUpdateAttrs },
+  // value-only sub-resource (TS 104-176 § 7.6) — MUST precede /attrs/* so the
+  // trailing-literal route wins over the single-attribute route.
+  { SwVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*/value", getEntityAttrValue, LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
+  { SwVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*/value", putEntityAttrValue, LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
   { SwVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
   { SwVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
   { SwVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR,    LdOpReplaceAttr    },
