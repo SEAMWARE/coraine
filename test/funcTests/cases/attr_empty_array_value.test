@@ -1,0 +1,174 @@
+#
+# FILE            attr_empty_array_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An empty array as an attribute value depends on the attribute type:
+#   - Property (and the other JSON-LD-processed types): the value is subject to
+#     JSON-LD pre-processing, where an empty array is equivalent to null and the
+#     member is dropped — leaving the attribute with no value. sw rejects this
+#     up front as an empty structure → 400 BadRequestData.
+#   - JsonProperty: the "json" member is OPAQUE (kept verbatim, not JSON-LD
+#     processed), so an empty array is a perfectly valid value and round-trips.
+#
+--NAME--
+Empty-array value — rejected for a Property, opaque (kept) for a JsonProperty
+
+--TAGS--
+entity attr json-property validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create J1 with a JsonProperty json:[] — accepted (opaque empty array)"
+echo "========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:J1", "type": "T", "jp": {"type": "JsonProperty", "json": []}}'
+echo
+echo
+
+
+echo "02. GET J1 — json:[] preserved"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J1
+echo
+echo
+
+
+echo "03. Create J2 (json:{a:1}), then PATCH its JsonProperty to json:[] — 204"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:J2", "type": "T", "jp": {"type": "JsonProperty", "json": {"a": 1}}}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J2/attrs/jp -X PATCH --payload '{"type": "JsonProperty", "json": []}'
+echo
+echo
+
+
+echo "04. GET J2 — json:[] after the PATCH"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J2
+echo
+echo
+
+
+echo "05. Create with a Property value:[] — 400 (empty array is not a valid value)"
+echo "============================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:P9", "type": "T", "P1": {"type": "Property", "value": []}}'
+echo
+echo
+
+
+echo "06. PATCH an existing Property to value:[] — 400"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:P8", "type": "T", "P1": {"type": "Property", "value": 5}}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:P8/attrs/P1 -X PATCH --payload '{"value": []}'
+echo
+echo
+
+
+--EXPECT--
+01. Create J1 with a JsonProperty json:[] — accepted (opaque empty array)
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:J1
+Content-Length: 0
+
+
+
+
+02. GET J1 — json:[] preserved
+==============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 102
+
+{
+  "id": "urn:ngsi-ld:J1",
+  "jp": {
+    "json": [],
+    "type": "JsonProperty"
+  },
+  "type": "T"
+}
+
+
+
+03. Create J2 (json:{a:1}), then PATCH its JsonProperty to json:[] — 204
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:J2
+Content-Length: 0
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. GET J2 — json:[] after the PATCH
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 102
+
+{
+  "id": "urn:ngsi-ld:J2",
+  "jp": {
+    "json": [],
+    "type": "JsonProperty"
+  },
+  "type": "T"
+}
+
+
+
+05. Create with a Property value:[] — 400 (empty array is not a valid value)
+============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PATCH an existing Property to value:[] — 400
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:P8
+Content-Length: 0
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
