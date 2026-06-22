@@ -1,0 +1,157 @@
+#
+# FILE            merge_patch_subattr_null_sentinel.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.6.2 / § 4.5.5 — the urn:ngsi-ld:null delete-sentinel works one level deeper
+# than the top-level attribute: a sub-attribute set to the sentinel is deleted,
+# and deleting a NON-existing sub-attribute is a silent no-op (not an error). A
+# sibling invalid sub-attribute (bad observedAt) in the same fragment still
+# fails the whole merge with 400, leaving the entity untouched.
+#
+--NAME--
+Merge PATCH — urn:ngsi-ld:null on a (non-existing) sub-attribute is a no-op
+
+--TAGS--
+entity patch merge sub-attributes
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 with a Relationship controlledAsset"
+echo "================================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "controlledAsset": {"type": "Relationship", "object": "urn:ngsi-ld:Asset:1"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH — invalid observedAt sub-attr + valid=null → 400 (whole merge fails)"
+echo "=============================================================================="
+payload='{
+  "controlledAsset": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:Asset:1",
+    "observedAt": "not-a-date",
+    "valid": "urn:ngsi-ld:null"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 — unaffected by the failed PATCH (no observedAt)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "04. PATCH — valid observedAt sub-attr + valid=null (delete non-existing sub-attr) → 204"
+echo "======================================================================================"
+payload='{
+  "controlledAsset": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:Asset:1",
+    "observedAt": "2026-01-01T00:00:00Z",
+    "valid": "urn:ngsi-ld:null"
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "05. GET E1 — observedAt applied, 'valid' never created (no-op delete)"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with a Relationship controlledAsset
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. PATCH — invalid observedAt sub-attr + valid=null → 400 (whole merge fails)
+==============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 266
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/controlledAsset': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET E1 — unaffected by the failed PATCH (no observedAt)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 136
+
+{
+  "controlledAsset": {
+    "object": "urn:ngsi-ld:Asset:1",
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+04. PATCH — valid observedAt sub-attr + valid=null (delete non-existing sub-attr) → 204
+======================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET E1 — observedAt applied, 'valid' never created (no-op delete)
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 178
+
+{
+  "controlledAsset": {
+    "object": "urn:ngsi-ld:Asset:1",
+    "observedAt": "2026-01-01T00:00:00Z",
+    "type": "Relationship"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
