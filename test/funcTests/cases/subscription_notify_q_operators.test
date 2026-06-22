@@ -1,0 +1,175 @@
+#
+# FILE            subscription_notify_q_operators.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A subscription's `q` gates its notifications (§ 5.8). subscription_notify_q
+# already covers EQ / OR / AND / exists / not-exists; this adds the relational
+# operators and non-value targets at notification time, all sharing the same q
+# engine as the query path:
+#   - value comparisons on a Property: >= > <= < != , range (a..b), comma-list
+#   - observedAt comparisons (>= > <= <) on a Property's reserved timestamp
+#   - a comparison on a user-defined sub-attribute
+# Each operator has its own entity type so its subscription cannot match another
+# section's entities; per operator one MATCHING entity (urn:ngsi-ld:E:<op>) and
+# one NON-matching entity (urn:ngsi-ld:N:<op>) are created — only the matching
+# one may produce a notification.
+#
+--NAME--
+Subscription q gates notifications — relational / range / comma-list / observedAt / sub-attr
+
+--TAGS--
+subscription notification q
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
+
+mksub() {  # $1=type  $2=q
+  swCurl --url /ngsi-ld/v1/subscriptions \
+    --payload '{"id":"urn:ngsi-ld:Sub:'$1'","type":"Subscription","entities":[{"type":"'$1'"}],"q":"'"$2"'","notification":{"endpoint":'"$EP"'}}' | grep HTTP
+}
+
+# $1=type  $2=match-id-suffix  $3=P value (number)
+mkP() {
+  swCurl --url /ngsi-ld/v1/entities \
+    --payload '{"id":"urn:ngsi-ld:'$2':'$1'","type":"'$1'","P":{"type":"Property","value":'$3'}}' | grep HTTP
+}
+
+# $1=type  $2=id-prefix  $3=observedAt
+mkObs() {
+  swCurl --url /ngsi-ld/v1/entities \
+    --payload '{"id":"urn:ngsi-ld:'$2':'$1'","type":"'$1'","temperature":{"type":"Property","value":1,"observedAt":"'$3'"}}' | grep HTTP
+}
+
+# $1=type  $2=id-prefix  $3=accuracy sub-attr value
+mkSub() {
+  swCurl --url /ngsi-ld/v1/entities \
+    --payload '{"id":"urn:ngsi-ld:'$2':'$1'","type":"'$1'","temperature":{"type":"Property","value":1,"accuracy":{"type":"Property","value":'$3'}}}' | grep HTTP
+}
+
+echo "01. Create one subscription per operator"
+echo "========================================"
+mksub GE   "P>=20"
+mksub GT   "P>20"
+mksub LE   "P<=20"
+mksub LT   "P<20"
+mksub NE   "P!=20"
+mksub RANGE "P==10..20"
+mksub LIST "P==10,20,30"
+mksub OAGE "temperature.observedAt>=2020-01-01T00:00:00Z"
+mksub OAGT "temperature.observedAt>2020-01-01T00:00:00Z"
+mksub OALE "temperature.observedAt<=2020-01-01T00:00:00Z"
+mksub OALT "temperature.observedAt<2020-01-01T00:00:00Z"
+mksub SA   "temperature.accuracy>0.5"
+echo
+echo
+
+
+echo "02. Create matching (E:) + non-matching (N:) entity per operator"
+echo "================================================================"
+mkP GE    E 20 ; mkP GE    N 19          # >=20 : 20 matches, 19 not
+mkP GT    E 21 ; mkP GT    N 20          # >20  : 21 matches, 20 not
+mkP LE    E 20 ; mkP LE    N 21          # <=20 : 20 matches, 21 not
+mkP LT    E 19 ; mkP LT    N 20          # <20  : 19 matches, 20 not
+mkP NE    E 21 ; mkP NE    N 20          # !=20 : 21 matches, 20 not
+mkP RANGE E 15 ; mkP RANGE N 25          # 10..20 : 15 matches, 25 not
+mkP LIST  E 30 ; mkP LIST  N 15          # 10,20,30 : 30 matches, 15 not
+mkObs OAGE E 2025-01-01T00:00:00Z ; mkObs OAGE N 2019-01-01T00:00:00Z
+mkObs OAGT E 2025-01-01T00:00:00Z ; mkObs OAGT N 2019-01-01T00:00:00Z
+mkObs OALE E 2019-01-01T00:00:00Z ; mkObs OALE N 2025-01-01T00:00:00Z
+mkObs OALT E 2019-01-01T00:00:00Z ; mkObs OALT N 2025-01-01T00:00:00Z
+mkSub SA   E 0.9 ; mkSub SA   N 0.1      # accuracy>0.5 : 0.9 matches, 0.1 not
+echo
+echo
+
+
+echo "03. Dump ftClient — one notification per operator (matching E: entities only)"
+echo "============================================================================="
+sleep 1
+ftClientDump | grep -E "subscriptionId|\"id\": \"urn:ngsi-ld:[EN]:" | sort
+echo
+
+
+--EXPECT--
+01. Create one subscription per operator
+========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Create matching (E:) + non-matching (N:) entity per operator
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. Dump ftClient — one notification per operator (matching E: entities only)
+=============================================================================
+          "id": "urn:ngsi-ld:E:GE",
+          "id": "urn:ngsi-ld:E:GT",
+          "id": "urn:ngsi-ld:E:LE",
+          "id": "urn:ngsi-ld:E:LIST",
+          "id": "urn:ngsi-ld:E:LT",
+          "id": "urn:ngsi-ld:E:NE",
+          "id": "urn:ngsi-ld:E:OAGE",
+          "id": "urn:ngsi-ld:E:OAGT",
+          "id": "urn:ngsi-ld:E:OALE",
+          "id": "urn:ngsi-ld:E:OALT",
+          "id": "urn:ngsi-ld:E:RANGE",
+          "id": "urn:ngsi-ld:E:SA",
+      "subscriptionId": "urn:ngsi-ld:Sub:GE",
+      "subscriptionId": "urn:ngsi-ld:Sub:GT",
+      "subscriptionId": "urn:ngsi-ld:Sub:LE",
+      "subscriptionId": "urn:ngsi-ld:Sub:LIST",
+      "subscriptionId": "urn:ngsi-ld:Sub:LT",
+      "subscriptionId": "urn:ngsi-ld:Sub:NE",
+      "subscriptionId": "urn:ngsi-ld:Sub:OAGE",
+      "subscriptionId": "urn:ngsi-ld:Sub:OAGT",
+      "subscriptionId": "urn:ngsi-ld:Sub:OALE",
+      "subscriptionId": "urn:ngsi-ld:Sub:OALT",
+      "subscriptionId": "urn:ngsi-ld:Sub:RANGE",
+      "subscriptionId": "urn:ngsi-ld:Sub:SA",
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
