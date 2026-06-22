@@ -38,8 +38,8 @@
 //
 // Thread-safe: writes to itemP->tree use NULL allocator (malloc-backed
 // persistent memory), so the function is safe to call from the request
-// thread OR a background worker. db calls use the per-thread swRest /
-// fwHttp arena for transient buffers.
+// thread OR a background worker. db calls use the per-thread swRest
+// arena for transient buffers.
 //
 // Returns true on completion (failures are recorded as per-query
 // "failure" details, not propagated as a routine-level error).

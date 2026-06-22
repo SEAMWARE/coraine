@@ -158,7 +158,7 @@ typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 // notifications without an extra retrieve.
 //
 // mongoc impl does one $in fetch + one bulk_write of delete_one ops
-// (2 round-trips total). fwRamDB just loops.
+// (2 round-trips total). swRamDB just loops.
 //
 typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
                                        int* resultsV, KjNode** snapshotsV);
@@ -201,7 +201,7 @@ typedef int  (*DbEntityAttrsSetFunc)(Tenant* tenantP, const char* entityId,
 // attrTypes and entityCount are only populated when details is true —
 // the simple list case short-circuits the heavier per-type scan.
 //
-// Nodes are allocated via swRest.kjsonP (sw) / &fwHttp.alloc (fw).
+// Nodes are allocated via swRest.kjsonP.
 //
 typedef int  (*DbTypeListFunc)(Tenant* tenantP, bool details, KjNode** arrayPP);
 
