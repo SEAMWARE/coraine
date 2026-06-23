@@ -1,0 +1,177 @@
+#
+# FILE            distop_query_multitype_split_loss.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Multi-type entity split across sources registered under DIFFERENT types.
+# A single entity E1 is typed ["Building", "Sensor"]; its attributes live in
+# two different context sources, each registered for only one of the two types:
+#   CP1 registered as type=Building  holds  E1.floors
+#   CP2 registered as type=Sensor    holds  E1.temperature
+#
+# Since the distributed-query fan-out is pruned to type-matching registrations
+# (TS 104-175 §5.7.2.4 — a GET /entities must carry the type), a query for ONE
+# of the two types reaches only that type's source and therefore returns only
+# that source's slice of the entity:
+#   GET ?type=Building  -> floors only      (temperature from the Sensor source is LOST)
+#   GET ?type=Sensor    -> temperature only (floors from the Building source is LOST)
+# To retrieve the whole multi-type entity the consumer must query with BOTH
+# types (?type=Building,Sensor), which fans out to both sources and assembles
+# the full entity.
+#
+# IMPORTANT — this result MAY CHANGE IN THE FUTURE. The single-type partial
+# result is an ACCEPTED LIMITATION pending an ETSI clarification of §5.7.2.4.
+# Two possible directions:
+#   (a) "type-scoped views" — ?type=Building deliberately returns only the
+#       Building-registered attributes; this test then documents the FINAL
+#       behavior and stays as-is.
+#   (b) "full-entity completion" — the broker performs a second id-list query
+#       against the type-complement registrations and merges, so ?type=Building
+#       would then ALSO return temperature; this test's step 03/04 expectations
+#       would change to include the other source's attribute.
+# Until that is resolved the broker follows the spec "to the point": prune by
+# the supplied type, accept the partial result.
+#
+--NAME--
+DistOps query — multi-type entity split across differing-typed sources returns a partial result
+
+--TAGS--
+distops registration
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart
+swBrokerStart -role CP1
+swBrokerStart -role CP2
+
+--RUN--
+
+CB="http://localhost:${CB_PORT}"
+CP1="http://localhost:${CP1_PORT}"
+CP2="http://localhost:${CP2_PORT}"
+
+
+echo "01. Seed E1 split across CP1 (Building part: floors) and CP2 (Sensor part: temperature)"
+echo "======================================================================================="
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":["Building","Sensor"],"floors":{"type":"Property","value":5}}' | grep HTTP
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":["Building","Sensor"],"temperature":{"type":"Property","value":22}}' | grep HTTP
+echo
+echo
+
+
+echo "02. Register CB -> CP1 (type=Building) and CB -> CP2 (type=Sensor)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:Building","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Building"}]}]}' | grep HTTP
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:Sensor","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}' | grep HTTP
+echo
+echo
+
+
+echo "03. GET ?type=Building -> floors only (temperature from the Sensor source is LOST)"
+echo "=================================================================================="
+echo "    (ACCEPTED LIMITATION pending ETSI §5.7.2.4 — this result may change in the future)"
+swCurl --url "/ngsi-ld/v1/entities?type=Building&options=keyValues"
+echo
+echo
+
+
+echo "04. GET ?type=Sensor -> temperature only (floors from the Building source is LOST)"
+echo "==================================================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
+echo
+echo
+
+
+echo "05. GET ?type=Building,Sensor -> both sources reached, full entity assembled"
+echo "============================================================================="
+swCurl --url "/ngsi-ld/v1/entities?type=Building,Sensor&options=keyValues"
+echo
+echo
+
+
+--EXPECT--
+01. Seed E1 split across CP1 (Building part: floors) and CP2 (Sensor part: temperature)
+=======================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Register CB -> CP1 (type=Building) and CB -> CP2 (type=Sensor)
+==================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. GET ?type=Building -> floors only (temperature from the Sensor source is LOST)
+==================================================================================
+    (ACCEPTED LIMITATION pending ETSI §5.7.2.4 — this result may change in the future)
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 110
+
+[
+  {
+    "floors": 5,
+    "id": "urn:ngsi-ld:E1",
+    "type": [
+      "Building",
+      "Sensor"
+    ]
+  }
+]
+
+
+
+04. GET ?type=Sensor -> temperature only (floors from the Building source is LOST)
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 116
+
+[
+  {
+    "id": "urn:ngsi-ld:E1",
+    "temperature": 22,
+    "type": [
+      "Building",
+      "Sensor"
+    ]
+  }
+]
+
+
+
+05. GET ?type=Building,Sensor -> both sources reached, full entity assembled
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 133
+
+[
+  {
+    "floors": 5,
+    "id": "urn:ngsi-ld:E1",
+    "temperature": 22,
+    "type": [
+      "Building",
+      "Sensor"
+    ]
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
