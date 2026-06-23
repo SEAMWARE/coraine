@@ -1,0 +1,167 @@
+#
+# FILE            context_cache_protocol_agnostic.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A JSON-LD @context referenced over http:// and over https:// is the SAME
+# context — the broker's context cache keys it without regard to the scheme, so
+# only ONE copy is ever stored (the first-seen URL is retained). After caching
+# the context via its http:// URL, a request that names the https:// variant
+# reuses the cached entry: no second download, no duplicate cache row.
+#
+--NAME--
+Context cache treats http:// and https:// of the same context as one entry
+
+--TAGS--
+context jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Fresh cache — only the core context is present.
+# 02. Create an entity whose @context is the http:// URL of ctxA → 201;
+#     ctxA is downloaded and cached under its http:// URL.
+# 03. Cache now holds exactly two: core + http://.../ctxA.
+# 04. GET /entities naming the https:// variant of the very same context →
+#     200 (reuses the cached http:// entry; https:// is never downloaded).
+# 05. Cache still holds exactly two — the http:// entry was reused, no
+#     https:// duplicate was added.
+#
+
+echo "01. Fresh cache — only the core context"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "02. Create entity with the http:// context URL"
+echo "==============================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 5},
+  "@context": "http://localhost:7080/jsonldContexts/ctxA"
+}'
+swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "03. Cache holds two: core + http://.../ctxA"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "04. GET /entities naming the https:// variant — reuses the cached entry"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Link: <https://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. Cache still holds two — no https:// duplicate"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+--EXPECT--
+01. Fresh cache — only the core context
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 73
+
+[
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+02. Create entity with the http:// context URL
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+03. Cache holds two: core + http://.../ctxA
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+[
+  "http://localhost:7080/jsonldContexts/ctxA",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+04. GET /entities naming the https:// variant — reuses the cached entry
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+[
+  {
+    "id": "urn:E1",
+    "spd": {
+      "type": "Property",
+      "value": 5
+    },
+    "type": "T"
+  }
+]
+
+
+
+05. Cache still holds two — no https:// duplicate
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+[
+  "http://localhost:7080/jsonldContexts/ctxA",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop
+swDbDrop -db swBroker
