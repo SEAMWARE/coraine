@@ -93,7 +93,7 @@ bool postCsourceSubscriptions(void)
   {
     char* generatedId = csrSubIdGenerate(&swRest.kalloc);
 
-    idP = kjString(NULL, "id", generatedId);
+    idP = kjString(swRest.kjsonP, "id", generatedId);
     kjChildAdd(subP, idP);
   }
   else if (idP->type != KjString)
@@ -139,7 +139,7 @@ bool postCsourceSubscriptions(void)
   KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
-  KjNode* statusP = kjString(NULL, LD_VOCAB_STATUS, isActive ? "active" : "paused");
+  KjNode* statusP = kjString(swRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
 
   //
@@ -170,7 +170,7 @@ bool postCsourceSubscriptions(void)
 
     if (jcUrl != NULL)
     {
-      KjNode* jcP = kjString(NULL, "_jcResolved", jcUrl);
+      KjNode* jcP = kjString(swRest.kjsonP, "_jcResolved", jcUrl);
       kjChildAdd(subP, jcP);
     }
   }
@@ -179,7 +179,7 @@ bool postCsourceSubscriptions(void)
   // Internal marker: distinguishes CSR-subs from entity-subs in the
   // shared mongo collection. Stripped from GET responses.
   //
-  kjChildAdd(subP, kjString(NULL, "_subKind", "csr"));
+  kjChildAdd(subP, kjString(swRest.kjsonP, "_subKind", "csr"));
 
   //
   // Persist (same collection as entity subs). If no DB plugin is

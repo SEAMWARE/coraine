@@ -116,7 +116,7 @@ bool postSubscriptions(void)
   {
     char* generatedId = subIdGenerate(&swRest.kalloc);
 
-    idP = kjString(NULL, "id", generatedId);
+    idP = kjString(swRest.kjsonP, "id", generatedId);
     kjChildAdd(subP, idP);
   }
   else if (idP->type != KjString)
@@ -197,7 +197,7 @@ bool postSubscriptions(void)
     }
   }
 
-  KjNode* statusP = kjString(NULL, LD_VOCAB_STATUS, isActive ? "active" : "paused");
+  KjNode* statusP = kjString(swRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
 
   //
@@ -327,7 +327,7 @@ bool postSubscriptions(void)
     if (jcUrl != NULL)
     {
       const char* fieldName = isImplicit ? "jsonldContext" : "_jcResolved";
-      kjChildAdd(subP, kjString(NULL, fieldName, (char*) jcUrl));
+      kjChildAdd(subP, kjString(swRest.kjsonP, fieldName, (char*) jcUrl));
     }
   }
 
