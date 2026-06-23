@@ -409,6 +409,7 @@ static KjNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryS
   swRestClientRequestTimeout(&req, 5000, 10000);
 
   int rc = swRestClientSend(&req, &resp);
+  swRestClientResponseCleanup(&resp);   // free the grown response header vector
   if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300) return NULL;
   if (resp.body == NULL || resp.bodyLen == 0)                     return NULL;
 

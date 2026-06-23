@@ -149,6 +149,7 @@ bool postExNotification(void)
   swRestClientRequestTimeout(&req, 5000, 10000);
 
   swRestClientSend(&req, &resp);
+  swRestClientResponseCleanup(&resp);   // free the grown response header vector
 
   //
   // Update the parent sub's notification counters — same accounting as

@@ -113,6 +113,7 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
     strncpy(resp->errorDetail, cResp.errorDetail[0] != 0 ? cResp.errorDetail : "http forwarding failed",
             sizeof(resp->errorDetail) - 1);
     resp->errorDetail[sizeof(resp->errorDetail) - 1] = 0;
+    swRestClientResponseCleanup(&cResp);
     return resp->error;
   }
 
@@ -139,6 +140,7 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
     resp->headerV = NULL;
   }
 
+  swRestClientResponseCleanup(&cResp);   // upstream headers copied above; free the client response's vector
   return 0;
 }
 
