@@ -528,7 +528,7 @@ static void apiAttrToStorageWrap(KjNode* entityP)
       continue;
     }
 
-    KjNode* wrapperP = kjObject(NULL, curP->name);
+    KjNode* wrapperP = kjObject(swRest.kjsonP, curP->name);
     kjChildReplace(entityP, curP, wrapperP);
     curP->name = (char*) "@none";
     curP->next = NULL;
@@ -1350,7 +1350,7 @@ static bool entityMapPaginate(void)
     return true;
 
   // Build result array from map entries at [offset..offset+limit]
-  KjNode* arrayP = kjArray(NULL, NULL);
+  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
   int offset = swNgsild.offset;
   int limit  = (swNgsild.limit > 0) ? swNgsild.limit : 20;
   int ix     = 0;
