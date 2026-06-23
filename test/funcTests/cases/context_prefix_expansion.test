@@ -1,0 +1,103 @@
+#
+# FILE            context_prefix_expansion.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.5.7 / JSON-LD term & prefix expansion. A term in an @context may be a
+# compact IRI ("prefix:suffix") and the @context may define the prefix. Both a
+# term mapped to a compact IRI ("Sensor": "ex:Sensor") and a compact IRI used
+# directly as an attribute name ("ex:speed") must expand to the full IRI using
+# the prefix definition. Verified end-to-end: stored/served as the expanded IRI
+# (a GET with no @context shows the long names — the create-vs-retrieve context
+# mismatch), and the entity is found when queried by the expanded type IRI.
+#
+--NAME--
+@context compact-IRI prefix expansion (term-as-prefix and direct prefix:suffix attribute)
+
+--TAGS--
+context
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create with an inline @context defining the 'ex' prefix; type + attr use it"
+echo "=============================================================================="
+payload='{
+  "@context": [
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    {
+      "ex": "https://example.org/ns#",
+      "Sensor": "ex:Sensor",
+      "reading": "ex:reading"
+    }
+  ],
+  "id": "urn:ngsi-ld:S:1",
+  "type": "Sensor",
+  "reading": {"type": "Property", "value": 42},
+  "ex:speed": {"type": "Property", "value": 99}
+}'
+swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
+echo
+echo
+
+
+echo "02. GET with NO @context — type and both attrs render as the expanded IRIs"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:S:1
+echo
+echo
+
+
+echo "03. Query by the EXPANDED type IRI (no @context) — finds S:1"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=https%3A%2F%2Fexample.org%2Fns%23Sensor' | grep -oE '"id": "urn:ngsi-ld:S:1"'
+echo
+echo
+
+
+--EXPECT--
+01. Create with an inline @context defining the 'ex' prefix; type + attr use it
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:S:1
+Content-Length: 0
+
+
+
+
+02. GET with NO @context — type and both attrs render as the expanded IRIs
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 237
+
+{
+  "https://example.org/ns#reading": {
+    "type": "Property",
+    "value": 42
+  },
+  "https://example.org/ns#speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "id": "urn:ngsi-ld:S:1",
+  "type": "https://example.org/ns#Sensor"
+}
+
+
+
+03. Query by the EXPANDED type IRI (no @context) — finds S:1
+============================================================
+"id": "urn:ngsi-ld:S:1"
+
+
+--TEARDOWN--
+swBrokerStop
