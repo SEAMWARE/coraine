@@ -1,0 +1,87 @@
+#
+# FILE            geoproperty_decimal_precision.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GeoProperty coordinates given with more than 9 decimal places are rendered
+# rounded to 9 decimals on retrieval (~0.1 mm at the equator — well beyond any
+# real positioning need). The high-precision input is accepted; the response is
+# the 9-decimal form.
+#
+--NAME--
+GeoProperty coordinates render rounded to 9 decimals
+
+--TAGS--
+entity geoQ
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 with a Point GeoProperty carrying 12 decimals"
+echo "==========================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "geoLoc": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [ 10.123456789012, 11.098765432109 ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1 - coordinates rounded to 9 decimals"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with a Point GeoProperty carrying 12 decimals
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. GET E1 - coordinates rounded to 9 decimals
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 200
+
+{
+  "geoLoc": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        10.123456789,
+        11.098765432
+      ],
+      "type": "Point"
+    }
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

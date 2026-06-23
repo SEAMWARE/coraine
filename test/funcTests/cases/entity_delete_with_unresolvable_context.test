@@ -1,0 +1,87 @@
+#
+# FILE            entity_delete_with_unresolvable_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Deleting an entity carries no body and needs no @context to resolve the
+# target — the entity id is already a full URI. So a DELETE that names a
+# @context (via Link header) whose URL cannot be downloaded must still
+# succeed: the unresolvable context is irrelevant to the operation.
+#
+--NAME--
+DELETE entity with an unresolvable @context Link still succeeds (204)
+
+--TAGS--
+entity context
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity E1"
+echo "===================="
+payload='{
+  "id": "urn:ngsi-ld:entities:E1",
+  "type": "A",
+  "name": { "type": "Property", "value": "1" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. DELETE E1 with a Link @context that cannot be downloaded -> 204"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1 -X DELETE -H 'Link: <https://fiware.github.io/NGSI-LD_TestSuite/error/noContext.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET E1 -> 404 (it is gone)"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create entity E1
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+Content-Length: 0
+
+
+
+
+02. DELETE E1 with a Link @context that cannot be downloaded -> 204
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET E1 -> 404 (it is gone)
+==============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "entity 'urn:ngsi-ld:entities:E1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
