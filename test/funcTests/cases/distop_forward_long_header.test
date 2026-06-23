@@ -1,0 +1,45 @@
+#
+# Issue 1525 — a very long HTTP header value survives distop forwarding intact. A
+# registration declares (via contextSourceInfo) that X-Long be taken from the
+# request (urn:ngsi-ld:request); a 2000-char value passes through unchanged.
+#
+--NAME--
+DistOps forward — long header value survives intact
+--TAGS--
+distops registration
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+--RUN--
+LONG=$(printf 'X%.0s' {1..2000})
+echo "01. Register CSR (X-Long = urn:ngsi-ld:request)"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"contextSourceInfo":[{"key":"X-Long","value":"urn:ngsi-ld:request"}],"information":[{"entities":[{"type":"LongT"}]}]}' | grep HTTP
+echo
+echo
+echo "02. GET ?type=LongT with a 2000-char X-Long header — forward carries it intact"
+echo "=============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=LongT' -H "X-Long: $LONG" > /dev/null
+sleep 0.5
+ftClientDump --port 7711 | python3 -c "
+import sys,json
+for e in json.load(sys.stdin):
+    print('X-Long length:', len(e['headers'].get('X-Long','')))
+"
+echo
+echo
+--EXPECT--
+01. Register CSR (X-Long = urn:ngsi-ld:request)
+===============================================
+HTTP/1.1 201 Created
+
+
+02. GET ?type=LongT with a 2000-char X-Long header — forward carries it intact
+==============================================================================
+X-Long length: 2000
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
