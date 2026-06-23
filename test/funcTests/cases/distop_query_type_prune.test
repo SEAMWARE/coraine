@@ -1,0 +1,85 @@
+#
+# FILE            distop_query_type_prune.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7 — a distributed query forwards only to registrations whose declared
+# entity type matches the query's type, in split mode as well as no-split. Two
+# sources register different types; ?type=X reaches only the source registered
+# for X — not every registration on the tenant.
+#
+# (Regression: split mode used to skip the type prune, fanning every typed query
+# out to all registrations — wasteful, and it leaked the query/filters to sources
+# that don't serve the type. ACCEPTED LIMITATION pending an ETSI clarification: a
+# multi-type entity whose attributes are split across sources under divergent
+# type declarations loses the other-typed source's attributes — the spec-clean
+# completion (a second id-list query) is deferred until the spec direction lands.)
+#
+--NAME--
+DistOps query — type prune limits the fan-out to type-matching registrations
+
+--TAGS--
+distops registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+ftClientStart --port 7712 --status 200
+
+--RUN--
+
+echo "01. Register A (type T2) -> 7711, B (type T3) -> 7712"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:A","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"T2"}]}]}' | grep HTTP
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:B","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","operations":["retrieveOps"],"information":[{"entities":[{"type":"T3"}]}]}' | grep HTTP
+echo
+echo
+
+
+echo "02. GET ?type=T3 — forwards ONLY to B(7712); A(7711) gets nothing"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T3' > /dev/null
+sleep 0.5
+echo -n "A(7711) requests: "; ftClientDump --port 7711 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
+echo -n "B(7712) requests: "; ftClientDump --port 7712 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
+ftClientReset --port 7711; ftClientReset --port 7712
+echo
+echo
+
+
+echo "03. GET ?type=T2 — forwards ONLY to A(7711); B(7712) gets nothing"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T2' > /dev/null
+sleep 0.5
+echo -n "A(7711) requests: "; ftClientDump --port 7711 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
+echo -n "B(7712) requests: "; ftClientDump --port 7712 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
+echo
+echo
+
+
+--EXPECT--
+01. Register A (type T2) -> 7711, B (type T3) -> 7712
+=====================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET ?type=T3 — forwards ONLY to B(7712); A(7711) gets nothing
+================================================================
+A(7711) requests: 0
+B(7712) requests: 1
+
+
+03. GET ?type=T2 — forwards ONLY to A(7711); B(7712) gets nothing
+================================================================
+A(7711) requests: 1
+B(7712) requests: 0
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop --port 7711
+ftClientStop --port 7712

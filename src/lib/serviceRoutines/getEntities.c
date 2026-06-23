@@ -1702,15 +1702,29 @@ bool getEntities(void)
       int              totalMatch     = 0;
       for (int m = 0; m < 4; m++)
       {
-        // Entity identity (id / idPattern) is never split across sources, so
-        // the query's id selectors narrow the fan-out in BOTH split modes;
-        // the type filter stays no-split-only. Pinned-id registrations that
-        // cannot provide any queried id are excluded; regs constrained only
-        // by idPattern always match a query ?idPattern= (regex-vs-regex is
-        // not computable — ETSI agreement).
+        // Prune the fan-out by the query's selectors: id/idPattern (never split
+        // across sources) AND the entity type — for every mode except auxiliary
+        // (gap-filler, queried broadly). Same as the temporal query path. This
+        // is the spec-compliant behavior: a query must carry type/q/etc
+        // (§ 5.7.2.4), so we honour the type and forward only to type-matching
+        // sources. Pinned-id registrations that cannot provide any queried id
+        // are excluded; regs constrained only by idPattern always match a query
+        // ?idPattern= (regex-vs-regex is not computable — ETSI agreement).
+        //
+        // ACCEPTED LIMITATION (pending an ETSI clarification KZ is driving): a
+        // MULTI-TYPE entity whose attributes are split across sources that each
+        // register only a SUBSET of its types loses the other-typed source's
+        // attributes (a {type:A} source holding an attr of an A+B entity is not
+        // reached by a ?type=B query). The only spec-clean completion is a
+        // second id-list query to the type-complement sources — deferred until
+        // the spec direction is settled (it may instead become type-scoped
+        // views, making completion unnecessary). Earlier this skipped the type
+        // prune entirely in split mode to avoid the loss, but that over-forwarded
+        // every typed query to all tenant registrations (waste + leaking the
+        // query/filters to sources that don't serve the type).
         modeMatchN[m] = ldRegCacheMatchForQuery((LdRegCache*) tP->regCacheP,
                                                 swNgsild.idV, swNgsild.idPattern,
-                                                splitModeSetting ? NULL : swNgsild.typeV,
+                                                (modes[m] == LdRegModeAuxiliary) ? NULL : swNgsild.typeV,
                                                 modes[m], &modeMatchV[m]);
         totalMatch += modeMatchN[m];
       }
