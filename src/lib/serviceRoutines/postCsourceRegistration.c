@@ -398,7 +398,7 @@ bool postCsourceRegistration(void)
   {
     char* generatedId = regIdGenerate(&swRest.kalloc);
 
-    idP = kjString(NULL, "id", generatedId);
+    idP = kjString(swRest.kjsonP, "id", generatedId);
     kjChildAdd(regP, idP);
   }
   else if (idP->type != KjString)
