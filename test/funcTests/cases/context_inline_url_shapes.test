@@ -1,0 +1,220 @@
+#
+# FILE            context_inline_url_shapes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The @context of an entity can be supplied in several URL-reference shapes,
+# all of which must be accepted and must expand the entity's terms:
+#   1. an array with a single non-core URL                  ["ctxKv"]
+#   2. an array with two non-core URLs                      ["ctxKv", "ctxOther"]
+#   3. a bare string whose download is itself an array      "ctxArr" -> [ctxKv, core]
+#   4. a bare string whose download is a key-value object   "ctxKv"
+# Each entity is created (201) and read back through the SAME context — the
+# short attribute names round-trip, proving the referenced context did the
+# expanding.
+#
+--NAME--
+Inline @context URL-reference shapes (array-of-1, array-of-2, string->array, string->object)
+
+--TAGS--
+context entity jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxKv '{
+  "@context": {
+    "T": "https://example.org/types/T",
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxOther '{
+  "@context": {
+    "col": "https://example.org/veh/color"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxArr '{
+  "@context": [
+    "http://localhost:7080/jsonldContexts/ctxKv",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+  ]
+}'
+
+--RUN--
+
+echo "01. Array with one non-core URL -> 201"
+echo "======================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "spd": {"type": "Property", "value": 1},
+  "@context": [ "http://localhost:7080/jsonldContexts/ctxKv" ]
+}'
+swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1 via ctxKv -> spd round-trips"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 -H 'Link: <http://localhost:7080/jsonldContexts/ctxKv>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. Array with two non-core URLs -> 201"
+echo "======================================="
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "spd": {"type": "Property", "value": 2},
+  "col": {"type": "Property", "value": "red"},
+  "@context": [
+    "http://localhost:7080/jsonldContexts/ctxKv",
+    "http://localhost:7080/jsonldContexts/ctxOther"
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "04. String referencing a remote array -> 201"
+echo "============================================="
+payload='{
+  "id": "urn:E3",
+  "type": "T",
+  "spd": {"type": "Property", "value": 3},
+  "@context": "http://localhost:7080/jsonldContexts/ctxArr"
+}'
+swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "05. String referencing a key-value object -> 201"
+echo "================================================="
+payload='{
+  "id": "urn:E4",
+  "type": "T",
+  "spd": {"type": "Property", "value": 4},
+  "@context": "http://localhost:7080/jsonldContexts/ctxKv"
+}'
+swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+echo
+echo
+
+
+echo "06. GET all via core context — short names are EXPANDED IRIs, proving each context worked"
+echo "=========================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=https://example.org/types/T&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Array with one non-core URL -> 201
+======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. GET E1 via ctxKv -> spd round-trips
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxKv>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 91
+
+{
+  "id": "urn:E1",
+  "spd": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+03. Array with two non-core URLs -> 201
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+
+04. String referencing a remote array -> 201
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E3
+Content-Length: 0
+
+
+
+
+05. String referencing a key-value object -> 201
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E4
+Content-Length: 0
+
+
+
+
+06. GET all via core context — short names are EXPANDED IRIs, proving each context worked
+==========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 491
+
+[
+  {
+    "https://example.org/veh/speed": 1,
+    "id": "urn:E1",
+    "type": "https://example.org/types/T"
+  },
+  {
+    "https://example.org/veh/color": "red",
+    "https://example.org/veh/speed": 2,
+    "id": "urn:E2",
+    "type": "https://example.org/types/T"
+  },
+  {
+    "https://example.org/veh/speed": 3,
+    "id": "urn:E3",
+    "type": "https://example.org/types/T"
+  },
+  {
+    "https://example.org/veh/speed": 4,
+    "id": "urn:E4",
+    "type": "https://example.org/types/T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop
+swDbDrop -db swBroker
