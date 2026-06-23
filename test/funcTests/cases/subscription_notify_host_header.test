@@ -1,0 +1,79 @@
+#
+# FILE            subscription_notify_host_header.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The notification request's Host header carries the endpoint port for a
+# non-default port (e.g. Host: localhost:7701); it is omitted only for the
+# scheme default (80/443). receiverInfo entries are emitted as request headers
+# on the notification.
+#
+--NAME--
+Notification request — Host header carries the (non-default) port + receiverInfo headers
+
+--TAGS--
+subscription notification
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+echo "01. Subscribe — endpoint on non-default port 7701, receiverInfo fiware-service"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:S1",
+  "type": "Subscription",
+  "entities": [{"type": "FillingLevelSensor"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify",
+      "accept": "application/json",
+      "receiverInfo": [{"key": "fiware-service", "value": "openiot"}]
+    }
+  }
+}' | grep HTTP
+echo
+echo
+
+
+echo "02. Trigger a notification"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Device:f1","type":"FillingLevelSensor","filling":{"type":"Property","value":0.96}}' | grep HTTP
+echo
+echo
+
+
+echo "03. Notification carries Host: localhost:7701 (port present) + receiverInfo header"
+echo "=================================================================================="
+sleep 0.5
+ftClientDump | grep -E '"Host"|"fiware-service"|"subscriptionId"'
+echo
+echo
+
+
+--EXPECT--
+01. Subscribe — endpoint on non-default port 7701, receiverInfo fiware-service
+==============================================================================
+HTTP/1.1 201 Created
+
+
+02. Trigger a notification
+==========================
+HTTP/1.1 201 Created
+
+
+03. Notification carries Host: localhost:7701 (port present) + receiverInfo header
+==================================================================================
+      "subscriptionId": "urn:ngsi-ld:S1",
+      "Host": "localhost:7701",
+      "fiware-service": "openiot"
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
