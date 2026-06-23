@@ -1,0 +1,59 @@
+#
+# FILE            troe_temporal_get_no_timerel.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.18.3 — timerel/timeAt are OPTIONAL on GET /temporal/entities/{id}. With no
+# temporal filter the broker returns the entity's full history: every instance of
+# every attribute. Here an attribute is written three times; the temporal GET
+# without timerel returns all three values.
+#
+--NAME--
+GET /temporal/entities/{id} with no timerel — returns all instances
+
+--TAGS--
+troe temporal timescale
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Create E1 (n=1), then PATCH to n=2 and n=3"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:1","type":"T","n":{"type":"Property","value":1}}' | grep HTTP
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E:1/attrs --payload '{"n":{"type":"Property","value":2}}' | grep HTTP
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E:1/attrs --payload '{"n":{"type":"Property","value":3}}' | grep HTTP
+echo
+echo
+
+
+echo "02. GET /temporal/entities/E1 with NO timerel — 200 + all three instances (1,2,3)"
+echo "================================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E:1 | grep -E 'HTTP|"value"'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (n=1), then PATCH to n=2 and n=3
+==============================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. GET /temporal/entities/E1 with NO timerel — 200 + all three instances (1,2,3)
+=================================================================================
+HTTP/1.1 200 OK
+      "value": 3
+      "value": 2
+      "value": 1
+
+
+--TEARDOWN--
+swBrokerStop

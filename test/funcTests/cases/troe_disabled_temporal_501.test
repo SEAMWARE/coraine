@@ -1,0 +1,49 @@
+#
+# FILE            troe_disabled_temporal_501.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.18 — a broker started without TRoE support has no temporal storage; a
+# temporal-entity retrieve must be refused with 501 (Operation Not Supported),
+# not attempted. The broker here runs with the default TRoE (none).
+#
+--NAME--
+GET /temporal/entities with TRoE disabled → 501 Operation Not Supported
+
+--TAGS--
+troe temporal
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. GET /temporal/entities/{id} — 501 (no TRoE backend)"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:T:1
+echo
+echo
+
+
+--EXPECT--
+01. GET /temporal/entities/{id} — 501 (no TRoE backend)
+=======================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "broker started without TRoE support; 'temporal-entity retrieve' requires a TRoE plugin",
+  "status": 501,
+  "title": "TRoE Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
