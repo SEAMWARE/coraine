@@ -1,0 +1,94 @@
+#
+# § 5.8.4 — Update Subscription. A PATCH may set every change-triggered field at
+# once; each is applied. timeInterval and watchedAttributes are mutually
+# exclusive (periodic vs change-triggered) → 400.
+#
+--NAME--
+PATCH Subscription — all individual fields; timeInterval+watchedAttributes → 400
+--TAGS--
+subscription
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. Create a minimal subscription"
+echo "================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S:1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | grep HTTP
+echo
+echo
+echo "02. PATCH every change-triggered field at once → 204"
+echo "===================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1 --payload '{"description":"d","entities":[{"type":"T2"}],"watchedAttributes":["a","b"],"q":"a>1","throttling":5,"notification":{"endpoint":{"uri":"http://localhost:8888/x"},"attributes":["a"],"format":"keyValues"},"expiresAt":"2030-01-01T00:00:00Z"}' | grep HTTP
+echo
+echo
+echo "03. GET — every field reflects the PATCH"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1
+echo
+echo
+echo "04. timeInterval + watchedAttributes together → 400 (mutually exclusive)"
+echo "========================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1 --payload '{"timeInterval":10,"watchedAttributes":["a"]}' | grep -E 'HTTP|title'
+echo
+echo
+--EXPECT--
+01. Create a minimal subscription
+=================================
+HTTP/1.1 201 Created
+
+
+02. PATCH every change-triggered field at once → 204
+====================================================
+HTTP/1.1 204 No Content
+
+
+03. GET — every field reflects the PATCH
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 502
+
+{
+  "description": "d",
+  "entities": [
+    {
+      "type": "T2"
+    }
+  ],
+  "expiresAt": "2030-01-01T00:00:00Z",
+  "id": "urn:ngsi-ld:S:1",
+  "notification": {
+    "attributes": [
+      "a"
+    ],
+    "endpoint": {
+      "uri": "http://localhost:8888/x"
+    },
+    "format": "keyValues"
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "q": "a>1",
+  "status": "active",
+  "throttling": 5,
+  "type": "Subscription",
+  "watchedAttributes": [
+    "a",
+    "b"
+  ]
+}
+
+
+
+04. timeInterval + watchedAttributes together → 400 (mutually exclusive)
+========================================================================
+HTTP/1.1 400 Bad Request
+  "title": "Incompatible Fields",
+
+
+--TEARDOWN--
+swBrokerStop

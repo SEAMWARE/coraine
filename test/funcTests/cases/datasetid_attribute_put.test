@@ -1,0 +1,60 @@
+#
+# § 5.6.6 — PUT /entities/{id}/attrs/{attr} addressing a specific instance by
+# datasetId replaces that instance's representation.
+#
+--NAME--
+PUT /attrs/{attr} with datasetId replaces that instance
+--TAGS--
+datasetid
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. Create temp (value 1, datasetId urn:ds:A)"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:DS:1","type":"T","temp":{"type":"Property","value":1,"datasetId":"urn:ds:A"}}' | grep HTTP
+echo
+echo
+echo "02. PUT temp (value 99, datasetId urn:ds:A)"
+echo "==========================================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:DS:1/attrs/temp --payload '{"type":"Property","value":99,"datasetId":"urn:ds:A"}' | grep HTTP
+echo
+echo
+echo "03. GET — that instance now reads 99"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:DS:1
+echo
+echo
+--EXPECT--
+01. Create temp (value 1, datasetId urn:ds:A)
+=============================================
+HTTP/1.1 201 Created
+
+
+02. PUT temp (value 99, datasetId urn:ds:A)
+===========================================
+HTTP/1.1 204 No Content
+
+
+03. GET — that instance now reads 99
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+{
+  "id": "urn:ngsi-ld:DS:1",
+  "temp": {
+    "datasetId": "urn:ds:A",
+    "type": "Property",
+    "value": 99
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

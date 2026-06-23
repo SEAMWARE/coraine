@@ -1,0 +1,70 @@
+#
+# § 5.9.4 — Update ContextSourceRegistration. A PATCH may set every field at once
+# (description, endpoint, mode, operations, information); each is applied.
+#
+--NAME--
+PATCH ContextSourceRegistration — all individual fields
+--TAGS--
+registration
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. Create a minimal registration"
+echo "================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:9001","information":[{"entities":[{"type":"T"}]}]}' | grep HTTP
+echo
+echo
+echo "02. PATCH description + endpoint + mode + operations + information → 204"
+echo "======================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"description":"rd","endpoint":"http://localhost:9002","mode":"inclusive","operations":["retrieveOps"],"information":[{"entities":[{"type":"T2"}]}]}' | grep HTTP
+echo
+echo
+echo "03. GET — every field reflects the PATCH"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1
+echo
+echo
+--EXPECT--
+01. Create a minimal registration
+=================================
+HTTP/1.1 201 Created
+
+
+02. PATCH description + endpoint + mode + operations + information → 204
+=======================================================================
+HTTP/1.1 204 No Content
+
+
+03. GET — every field reflects the PATCH
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 304
+
+{
+  "description": "rd",
+  "endpoint": "http://localhost:9002",
+  "id": "urn:ngsi-ld:CSR:1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "T2"
+        }
+      ]
+    }
+  ],
+  "mode": "inclusive",
+  "operations": [
+    "retrieveOps"
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
