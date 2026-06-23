@@ -125,7 +125,12 @@ swBrokerStart() {
   local awaitSecs=10
   if [ "$SW_VALGRIND" == "1" ] && [ "$role" == "CB" ]; then
     local vgLog="${SW_VALGRIND_LOG:-/tmp/swValgrind}"
-    local vg="valgrind --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=definite,indirect --track-origins=yes --num-callers=40 --child-silent-after-fork=yes"
+    # errors-for-leak-kinds=none: leaks must NOT inflate "ERROR SUMMARY", so that
+    # line stays a pure memory-error count (Invalid read/write, uninitialised, …).
+    # The engine fails on leaks by reading the LEAK SUMMARY lost-byte counts
+    # directly, so leaks don't need to count as "errors" to be caught — and this
+    # keeps the engine's E (errors) and L (leaks) tallies cleanly separated.
+    local vg="valgrind --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=none --track-origins=yes --num-callers=40 --child-silent-after-fork=yes"
     if [ -f "test/funcTests/valgrind.supp" ]; then
       vg="$vg --suppressions=test/funcTests/valgrind.supp"
     fi
@@ -417,7 +422,27 @@ ftClientStop() {
 
 # ftClientDump [--port P] - retrieve accumulated notifications
 #
+# -----------------------------------------------------------------------------
+#
+# swValgrindSleep <seconds> - sleep ONLY when running under valgrind (--vt)
+#
+# Under valgrind the broker runs ~4-5x slower, so an async result (notably a
+# notification delivered to ftClient) may not have arrived by the time a test
+# reads for it. This adds a settle delay on the valgrind path only; a normal run
+# is unaffected and stays fast. Always returns 0.
+#
+swValgrindSleep() {
+  [ "$SW_VALGRIND" == "1" ] && sleep "$1"
+  return 0
+}
+
+
 ftClientDump() {
+  # Let any in-flight notification land before reading (valgrind path only).
+  # Also makes negative checks ("should NOT notify") robust: a late notification
+  # would have arrived during the settle, so an empty dump is trustworthy.
+  swValgrindSleep "${SW_VALGRIND_DUMP_SETTLE:-1.5}"
+
   local port=$FT_CLIENT_PORT
   while [ $# -gt 0 ]; do
     if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
