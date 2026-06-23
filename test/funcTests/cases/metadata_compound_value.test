@@ -1,0 +1,59 @@
+#
+# § 4.5.4 — a sub-attribute (metadata) value may itself be a compound JSON object
+# (and may contain arrays). It round-trips verbatim on GET.
+#
+--NAME--
+Sub-attribute (metadata) with a compound value round-trips
+--TAGS--
+sub-attributes
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. Create with temp.meta = compound {a:1, b:[2,3]}"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M:1","type":"T","temp":{"type":"Property","value":5,"meta":{"type":"Property","value":{"a":1,"b":[2,3]}}}}' | grep HTTP
+echo
+echo
+echo "02. GET — the compound metadata value is preserved"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:M:1
+echo
+echo
+--EXPECT--
+01. Create with temp.meta = compound {a:1, b:[2,3]}
+===================================================
+HTTP/1.1 201 Created
+
+
+02. GET — the compound metadata value is preserved
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 239
+
+{
+  "id": "urn:ngsi-ld:M:1",
+  "temp": {
+    "meta": {
+      "type": "Property",
+      "value": {
+        "a": 1,
+        "b": [
+          2,
+          3
+        ]
+      }
+    },
+    "type": "Property",
+    "value": 5
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

@@ -1,0 +1,37 @@
+#
+# Issue 914 — an application/ld+json body must carry at most ONE @context. A
+# POST /entities/{id}/attrs body with two @context members is rejected (400).
+#
+--NAME--
+POST /attrs with two @context members → 400
+--TAGS--
+context
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. Seed entity"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:D:1","type":"T"}' | grep HTTP
+echo
+echo
+echo "02. POST /attrs ld+json with TWO @context → 400"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:D:1/attrs -H 'Content-Type: application/ld+json' --payload '{"@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld","@context":"https://example.org/x.jsonld","a":{"type":"Property","value":1}}' | grep -E 'HTTP|title|status'
+echo
+echo
+--EXPECT--
+01. Seed entity
+===============
+HTTP/1.1 201 Created
+
+
+02. POST /attrs ld+json with TWO @context → 400
+===============================================
+HTTP/1.1 400 Bad Request
+  "status": 400,
+  "title": "Duplicate Member",
+
+
+--TEARDOWN--
+swBrokerStop

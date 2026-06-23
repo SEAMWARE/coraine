@@ -1,0 +1,56 @@
+#
+# An attribute named "location" is the reserved GeoProperty; a non-GeoProperty
+# value for it is rejected (400). As a GeoProperty it is a normal attribute that
+# the attrs= projection selects/omits like any other.
+#
+--NAME--
+Attribute named 'location' — GeoProperty only, selectable via attrs=
+--TAGS--
+query
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. 'location' as a non-GeoProperty Property → 400"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L:0","type":"T","location":{"type":"Property","value":"deskA"}}' | grep HTTP
+echo
+echo
+echo "02. Create with location (GeoProperty) + other"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L:1","type":"T","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}},"other":{"type":"Property","value":9}}' | grep HTTP
+echo
+echo
+echo "03. GET ?attrs=location → only location"
+echo "======================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:L:1?attrs=location' | grep -oE '"location"|"other"'
+echo
+echo
+echo "04. GET ?attrs=other → only other"
+echo "================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:L:1?attrs=other' | grep -oE '"location"|"other"'
+echo
+echo
+--EXPECT--
+01. 'location' as a non-GeoProperty Property → 400
+==================================================
+HTTP/1.1 400 Bad Request
+
+
+02. Create with location (GeoProperty) + other
+==============================================
+HTTP/1.1 201 Created
+
+
+03. GET ?attrs=location → only location
+=======================================
+"location"
+
+
+04. GET ?attrs=other → only other
+=================================
+"other"
+
+
+--TEARDOWN--
+swBrokerStop

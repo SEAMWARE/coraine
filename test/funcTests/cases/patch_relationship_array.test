@@ -1,0 +1,63 @@
+#
+# § 5.6.4 — PATCH /attrs merges; replacing a Relationship whose object is an array
+# of URIs swaps the whole object array.
+#
+--NAME--
+PATCH /attrs replaces a Relationship-array object
+--TAGS--
+entity-patch
+--INIT--
+swDbDrop
+swBrokerStart
+--RUN--
+echo "01. Create rel = Relationship object [urn:a, urn:b]"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:R:1","type":"T","rel":{"type":"Relationship","object":["urn:a","urn:b"]}}' | grep HTTP
+echo
+echo
+echo "02. PATCH rel object -> [urn:c, urn:d, urn:e]"
+echo "============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:R:1/attrs --payload '{"rel":{"type":"Relationship","object":["urn:c","urn:d","urn:e"]}}' | grep HTTP
+echo
+echo
+echo "03. GET — object is now [urn:c, urn:d, urn:e]"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:R:1
+echo
+echo
+--EXPECT--
+01. Create rel = Relationship object [urn:a, urn:b]
+===================================================
+HTTP/1.1 201 Created
+
+
+02. PATCH rel object -> [urn:c, urn:d, urn:e]
+=============================================
+HTTP/1.1 204 No Content
+
+
+03. GET — object is now [urn:c, urn:d, urn:e]
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 155
+
+{
+  "id": "urn:ngsi-ld:R:1",
+  "rel": {
+    "object": [
+      "urn:c",
+      "urn:d",
+      "urn:e"
+    ],
+    "type": "Relationship"
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
