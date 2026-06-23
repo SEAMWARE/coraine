@@ -23,6 +23,7 @@
 #include "kjson/KjNode.h"                            // KjNode, KjNull
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjChildAdd, kjChildRemove, kjString
+#include "kjson/kjFree.h"                            // kjFree
 #include "kjson/kjClone.h"                           // kjClone
 
 #include "swNgsild/swNgsild.h"                       // ldError, swNgsild
@@ -107,12 +108,22 @@ bool patchCsourceSubscription(void)
     if (fieldP->type == KjNull)
     {
       if (existingP != NULL)
+      {
+        // Unlink AND free — the cache subTree is a malloc-backed clone
+        // (kjClone), so a bare kjChildRemove would orphan the old field.
         kjChildRemove(subTree, existingP);
+        kjFree(existingP);
+      }
     }
     else
     {
       if (existingP != NULL)
+      {
+        // Unlink AND free — the cache subTree is a malloc-backed clone
+        // (kjClone), so a bare kjChildRemove would orphan the old field.
         kjChildRemove(subTree, existingP);
+        kjFree(existingP);
+      }
 
       KjNode* cloneP = kjClone(NULL, fieldP);
       kjChildAdd(subTree, cloneP);
@@ -159,6 +170,7 @@ bool patchCsourceSubscription(void)
   KjNode* newTree = kjClone(NULL, subTree);
   ldSubCacheItemRemove(cacheP, subId);
   LdSubCacheItem* newItemP = ldSubCacheItemAdd(cacheP, newTree, NULL);
+  kjFree(newTree);   // ItemAdd deep-clones its input; the intermediate is ours to free
 
   // Pin the rebuilt item and drop the wrlock before the reg-touching notify.
   if (newItemP != NULL)
