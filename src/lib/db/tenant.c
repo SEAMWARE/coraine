@@ -75,6 +75,27 @@ void tenantInit(const char* prefix)
 
 // -----------------------------------------------------------------------------
 //
+// tenantDbPrefixSet - point the default tenant at the configured DB name
+//
+// main runs tenantInit() before any DB plugin starts, creating tenant0 and its
+// caches with a placeholder prefix. The DB plugin's init then calls this with
+// the real database name — binding the default tenant and the multi-tenant
+// db-name prefix WITHOUT re-creating the caches (re-running tenantInit would
+// orphan them: a startup leak).
+//
+void tenantDbPrefixSet(const char* prefix)
+{
+  strncpy(dbPrefix, prefix, sizeof(dbPrefix) - 1);
+  dbPrefix[sizeof(dbPrefix) - 1] = 0;
+
+  strncpy(tenant0.dbName, prefix, sizeof(tenant0.dbName) - 1);
+  tenant0.dbName[sizeof(tenant0.dbName) - 1] = 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // tenantLookup - find a tenant by name
 //
 Tenant* tenantLookup(const char* name)

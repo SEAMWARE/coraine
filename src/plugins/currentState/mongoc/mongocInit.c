@@ -131,9 +131,12 @@ int mongocInit(void)
   mongocServerVersionGet();
 
   //
-  // Initialize default tenant and set up its indexes
+  // Bind the default tenant to the configured database and set up its indexes.
+  // tenant0 and its caches were already created by main's tenantInit() before
+  // DB start; here we only point them at the real db name (re-running
+  // tenantInit would orphan those caches — a startup leak).
   //
-  tenantInit(mongocDbName);
+  tenantDbPrefixSet(mongocDbName);
   mongocTenantSetup(&tenant0);
 
   //

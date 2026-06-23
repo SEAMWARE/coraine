@@ -52,6 +52,18 @@ extern void    tenantInit(const char* dbPrefix);
 
 // -----------------------------------------------------------------------------
 //
+// tenantDbPrefixSet - point the default tenant at the configured DB name
+//
+// Called by the DB plugin's init (which knows the real database name) AFTER
+// main has already run tenantInit. Sets the db-name prefix without re-creating
+// the caches (which would orphan the ones main allocated).
+//
+extern void    tenantDbPrefixSet(const char* dbPrefix);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // tenantLookup - find a tenant by name (NULL/empty => default)
 //
 extern Tenant* tenantLookup(const char* name);
