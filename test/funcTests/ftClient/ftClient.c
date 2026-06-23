@@ -82,6 +82,9 @@ unsigned short ftPostStatus = 200;     // status returned for accumulate POSTs; 
 unsigned int   ftDelayMs    = 0;       // sleep before responding — for timeout tests
 unsigned short ftMqttPort   = 0;       // 0 = no MQTT subscription
 char*          ftMqttTopic  = (char*) "#"; // default: catch every topic
+char*          ftMqttUser   = NULL;    // MQTT username (for an auth-required broker)
+char*          ftMqttPass   = NULL;    // MQTT password
+bool           ftMqttTls    = false;   // subscribe over TLS (mqtts), insecure
 char*          ftHttpsKey   = NULL;    // path to a PEM private key  (enables TLS when both set)
 char*          ftHttpsCert  = NULL;    // path to a PEM certificate  (enables TLS when both set)
 
@@ -93,6 +96,9 @@ static KArg ftArgV[] =
   { "--delay",           NULL,  KaUInt,   _vp &ftDelayMs,    KaOpt, _vp 0,     _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
   { "--mqttPort",        NULL,  KaUShort, _vp &ftMqttPort,   KaOpt, _vp 0,     _vp 0, _vp 65535, "MQTT broker port to subscribe to (0 = disabled)" },
   { "--mqttTopic",       NULL,  KaString, _vp &ftMqttTopic,  KaOpt, _vp "#",   NULL,  NULL,      "MQTT topic to subscribe (default '#')" },
+  { "--mqttUser",        NULL,  KaString, _vp &ftMqttUser,   KaOpt, NULL,      NULL,  NULL,      "MQTT username (auth-required broker)" },
+  { "--mqttPassword",    NULL,  KaString, _vp &ftMqttPass,   KaOpt, NULL,      NULL,  NULL,      "MQTT password" },
+  { "--mqttTls",         NULL,  KaBool,   _vp &ftMqttTls,    KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "subscribe over TLS (mqtts), accept self-signed" },
   { "--httpsKey",        "-k",  KaString, _vp &ftHttpsKey,   KaOpt, NULL,      NULL,  NULL,      "PEM private key file (serve HTTPS; needs --httpsCertificate)" },
   { "--httpsCertificate","-c",  KaString, _vp &ftHttpsCert,  KaOpt, NULL,      NULL,  NULL,      "PEM certificate file (serve HTTPS; needs --httpsKey)" },
   KARGS_END
@@ -497,6 +503,18 @@ static void* mqttListenerThread(void* arg)
 
   struct mosquitto* mosq = mosquitto_new(NULL, true, NULL);
   if (mosq == NULL) return NULL;
+
+  if (ftMqttUser != NULL)
+    mosquitto_username_pw_set(mosq, ftMqttUser, ftMqttPass);
+
+  // --mqttTls: subscribe over TLS, accepting a self-signed broker cert
+  // (test rig only — same insecure posture as the broker's --insecureNotif).
+  if (ftMqttTls)
+  {
+    mosquitto_tls_set(mosq, NULL, "/etc/ssl/certs", NULL, NULL, NULL);
+    mosquitto_tls_opts_set(mosq, 0 /* SSL_VERIFY_NONE */, NULL, NULL);
+    mosquitto_tls_insecure_set(mosq, true);
+  }
 
   mosquitto_connect_callback_set(mosq, mqttOnConnect);
   mosquitto_message_callback_set(mosq, mqttOnMessage);

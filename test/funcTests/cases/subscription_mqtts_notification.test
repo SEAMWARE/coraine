@@ -1,0 +1,89 @@
+#
+# FILE            subscription_mqtts_notification.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7 — MQTT-over-TLS (mqtts://) notification delivery. The broker connects to
+# the MQTT broker over TLS and publishes the notification. Started with
+# --insecureNotif it accepts the endpoint's self-signed certificate (an mqtts
+# endpoint inside a trusted network), mirroring HTTPS-notification behaviour.
+#
+# Test rig: a private mosquitto with a TLS listener on 11887 (self-signed cert);
+# ftClient subscribes over TLS (--mqttTls) and records the publish.
+#
+--NAME--
+Subscription notification over MQTTS (MQTT-over-TLS, self-signed endpoint) (§ 7)
+
+--TAGS--
+subscription notification mqtt
+
+--INIT--
+swDbDrop
+swHttpsCertGen /tmp/mqtts-test.key /tmp/mqtts-test.crt
+echo "listener 11887
+allow_anonymous true
+certfile /tmp/mqtts-test.crt
+keyfile /tmp/mqtts-test.key
+require_certificate false" > /tmp/mqtts-test.conf
+mosquitto -d -c /tmp/mqtts-test.conf
+sleep 0.4
+ftClientStart --mqttPort 11887 --mqttTopic ngsild/notif --mqttTls
+swBrokerStart --insecureNotif
+
+--RUN--
+
+echo "01. Subscribe with an mqtts:// endpoint"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:mqtts",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "notification": {"endpoint": {"uri": "mqtts://localhost:11887/ngsild/notif"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "02. POST a Vehicle — broker publishes over TLS"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}' | grep HTTP
+echo
+echo
+
+
+echo "03. ftClient received one MQTTS notification"
+echo "============================================"
+sleep 0.8
+ftClientDump | grep -cE '"verb": "MQTT"'
+ftClientDump | grep -cE 'subscriptionId.*mqtts'
+ftClientDump | grep -cE 'urn:V1.*type.*Vehicle'
+echo
+echo
+
+
+--EXPECT--
+01. Subscribe with an mqtts:// endpoint
+=======================================
+HTTP/1.1 201 Created
+
+
+02. POST a Vehicle — broker publishes over TLS
+==============================================
+HTTP/1.1 201 Created
+
+
+03. ftClient received one MQTTS notification
+============================================
+1
+1
+1
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+pkill -f "mosquitto -d -c /tmp/mqtts-test.conf" 2>/dev/null
+\rm -f /tmp/mqtts-test.conf /tmp/mqtts-test.key /tmp/mqtts-test.crt

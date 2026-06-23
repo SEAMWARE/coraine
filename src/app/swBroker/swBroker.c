@@ -46,6 +46,7 @@
 #include "swNgsild/ldContextHost.h"               // ldContextHostReaperStart
 #include "swNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister, ldCsrSubDispatchPending
 #include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
+#include "swNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
 
@@ -683,7 +684,10 @@ int main(int argC, char* argV[])
   // --insecureNotif → notifications/forwards to TLS endpoints accept self-signed
   // certificates (set before the first TLS handshake, i.e. before swRestClientTlsInit)
   if (insecureNotif)
+  {
     swRestClientTlsInsecureSet(true);
+    ldMqttTlsInsecureSet(true);   // same for mqtts:// notification endpoints
+  }
 
   static KAlloc  contextAlloc;
   static char    contextBuffer[64 * 1024];
