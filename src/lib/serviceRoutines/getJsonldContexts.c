@@ -109,7 +109,7 @@ bool getJsonldContexts(void)
   //
   // Build response array — honouring offset/limit over the filtered view.
   //
-  KjNode* arrayP = kjArray(NULL, NULL);
+  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
   int     skipN  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
   int     limit  = (swNgsild.limit > 0) ? swNgsild.limit : totalCount;
   int     taken  = 0;
@@ -164,16 +164,16 @@ bool getJsonldContexts(void)
 
     if (!swNgsild.details)
     {
-      kjChildAdd(arrayP, kjString(NULL, NULL, (char*) urlOut));
+      kjChildAdd(arrayP, kjString(swRest.kjsonP, NULL, (char*) urlOut));
     }
     else
     {
       // § 5.13.3.5 metadata field names (NB. spec uses URL/localId, not
       // url/id; kind is one of Hosted/Cached/ImplicitlyCreated).
-      KjNode* obj = kjObject(NULL, NULL);
-      kjChildAdd(obj, kjString(NULL, "URL",       (char*) urlOut));
-      kjChildAdd(obj, kjString(NULL, "localId",   contextId));
-      kjChildAdd(obj, kjString(NULL, "kind",      kindString(c->kind)));
+      KjNode* obj = kjObject(swRest.kjsonP, NULL);
+      kjChildAdd(obj, kjString(swRest.kjsonP, "URL",       (char*) urlOut));
+      kjChildAdd(obj, kjString(swRest.kjsonP, "localId",   contextId));
+      kjChildAdd(obj, kjString(swRest.kjsonP, "kind",      kindString(c->kind)));
       // § 5.13.3.5: DateTime strings, not Unix timestamps.
       {
         time_t  secs;
@@ -184,7 +184,7 @@ bool getJsonldContexts(void)
         snprintf(ca, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
-        kjChildAdd(obj, kjString(NULL, "createdAt", ca));
+        kjChildAdd(obj, kjString(swRest.kjsonP, "createdAt", ca));
 
         char* lu = (char*) kaAlloc(&swRest.kalloc, 80);
         secs = (time_t) c->usedAt;
@@ -192,7 +192,7 @@ bool getJsonldContexts(void)
         snprintf(lu, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
-        kjChildAdd(obj, kjString(NULL, "lastUsage", lu));
+        kjChildAdd(obj, kjString(swRest.kjsonP, "lastUsage", lu));
       }
       kjChildAdd(arrayP, obj);
     }
