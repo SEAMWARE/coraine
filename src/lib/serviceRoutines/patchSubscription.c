@@ -252,6 +252,10 @@ bool patchSubscription(void)
     // Reattach the subordinate mapping that survived the cache rebuild.
     if (newItemP != NULL && savedSubordinateP != NULL)
     {
+      // ldSubCacheItemAdd may have parsed a subordinate list from the persisted
+      // mergedSubP; the live (saved) mapping is authoritative, so free the
+      // freshly-parsed one before overwriting — else it is orphaned (leak).
+      ldSubCacheSubordinatesFree(newItemP->subordinateP);
       newItemP->subordinateP     = savedSubordinateP;
       newItemP->subordinateRunNo = savedSubordinateRunNo;
       savedSubordinateP          = NULL;   // ownership transferred
