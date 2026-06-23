@@ -45,6 +45,7 @@
 #include "swNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
 #include "swNgsild/ldContextHost.h"               // ldContextHostReaperStart
 #include "swNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister, ldCsrSubDispatchPending
+#include "swNgsild/ldCheckSubscription.h"         // ldSubEntityTypeExprsRelease
 #include "swNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "swNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
@@ -511,6 +512,7 @@ static void brokerPostResponseHook(void)
   ldCsrSubDispatchPending();
   troeDispatchPending();
   ldRegCacheProbePending();
+  ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch
 }
 
 
