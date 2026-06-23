@@ -1,0 +1,76 @@
+#
+# FILE            metrics_prometheus_default_path.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Prometheus scrapes its default metrics_path of /metrics. The broker serves the
+# same Prometheus exposition at /metrics as at /admin/metrics, so a scrape config
+# works out of the box with no metrics_path override.
+#
+--NAME--
+Prometheus metrics also served at the default /metrics path
+
+--TAGS--
+admin metrics
+
+--INIT--
+swDbDrop
+swBrokerStart --apiPlugins admin
+
+--RUN--
+
+echo "01. GET /metrics — 200 + Prometheus exposition content-type"
+echo "==========================================================="
+curl -sS -o /dev/null -w "status=%{http_code} content-type=%{content_type}\n" "http://$SW_BROKER_HOST:$SW_BROKER_PORT/metrics"
+echo
+echo
+
+
+echo "02. GET /admin/metrics — same status + content-type"
+echo "===================================================="
+curl -sS -o /dev/null -w "status=%{http_code} content-type=%{content_type}\n" "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/metrics"
+echo
+echo
+
+
+echo "03. /metrics and /admin/metrics expose the same metric set"
+echo "=========================================================="
+a=$(curl -sS "http://$SW_BROKER_HOST:$SW_BROKER_PORT/metrics"       | grep -aoE "^ngsild_[a-z_]+" | sort -u)
+b=$(curl -sS "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/metrics" | grep -aoE "^ngsild_[a-z_]+" | sort -u)
+[ "$a" = "$b" ] && echo "same metric set" || echo "DIFFERENT metric set"
+echo
+echo
+
+
+echo "04. A known counter line is present at /metrics"
+echo "==============================================="
+curl -sS "http://$SW_BROKER_HOST:$SW_BROKER_PORT/metrics" | grep -aE "^ngsild_entity_create_total "
+echo
+echo
+
+
+--EXPECT--
+01. GET /metrics — 200 + Prometheus exposition content-type
+===========================================================
+status=200 content-type=text/plain; version=0.0.4
+
+
+02. GET /admin/metrics — same status + content-type
+====================================================
+status=200 content-type=text/plain; version=0.0.4
+
+
+03. /metrics and /admin/metrics expose the same metric set
+==========================================================
+same metric set
+
+
+04. A known counter line is present at /metrics
+===============================================
+ngsild_entity_create_total 0
+
+
+--TEARDOWN--
+swBrokerStop

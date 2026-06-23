@@ -64,6 +64,7 @@ static SwRestServiceSimplified adminServices[] =
   { SwVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
   { SwVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
   { SwVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
+  { SwVerbGet,    "/metrics",       adminGetMetrics, 0,                0 },  // Prometheus default scrape path (metrics_path)
   { SwVerbGet,    "/admin/troe/dump", adminGetTroeDump, 0,             0 },
   // PUT
   { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
