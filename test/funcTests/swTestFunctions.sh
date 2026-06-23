@@ -115,9 +115,28 @@ swBrokerStart() {
     cmd="$cmd ${extraParams[*]}"
   fi
 
+  # Valgrind (--vt): only the main broker (CB) runs under valgrind — wrapping
+  # every broker in a multi-broker test would interleave their reports and
+  # destroy the CB result (and triple the wall-clock). Scope errors to
+  # definite+indirect leaks: "possibly lost" (interior-pointer-only) and "still
+  # reachable" (process-lifetime globals) are excluded, so we don't need an
+  # atexit teardown to get a clean run. onSignal()->exit(0) already lets
+  # valgrind emit its report on the graceful stop below.
+  local awaitSecs=10
+  if [ "$SW_VALGRIND" == "1" ] && [ "$role" == "CB" ]; then
+    local vgLog="${SW_VALGRIND_LOG:-/tmp/swValgrind}"
+    local vg="valgrind --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=definite,indirect --track-origins=yes --num-callers=40 --child-silent-after-fork=yes"
+    if [ -f "test/funcTests/valgrind.supp" ]; then
+      vg="$vg --suppressions=test/funcTests/valgrind.supp"
+    fi
+    vg="$vg --log-file=${vgLog}.%p.vg"
+    cmd="$vg $cmd"
+    awaitSecs=90   # valgrind makes startup ~20x slower
+  fi
+
   $cmd > "/tmp/swBroker.${role}.log" 2>&1 &
   echo $! > "$SW_ROLE_PID_FILE"
-  swAwaitPort $SW_ROLE_PORT 10
+  swAwaitPort $SW_ROLE_PORT $awaitSecs
 }
 
 
@@ -131,6 +150,22 @@ swBrokerStop() {
   if [ "$1" == "-role" ]; then role="$2"; fi
 
   swRoleLookup "$role" || return 1
+
+  # Under valgrind (--vt), the CB must be stopped GRACEFULLY: SIGTERM lets
+  # onSignal()->exit(0) run, which is what makes valgrind write its leak
+  # report. A quick SIGKILL would truncate it. Wait (bounded) for the valgrind
+  # process to actually exit before returning.
+  if [ "$SW_VALGRIND" == "1" ] && [ "$role" == "CB" ] && [ -f "$SW_ROLE_PID_FILE" ]; then
+    local pid; pid=$(cat "$SW_ROLE_PID_FILE")
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null
+      local n=0
+      while kill -0 "$pid" 2>/dev/null && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
+      kill -9 "$pid" 2>/dev/null   # backstop only if the wait timed out
+    fi
+    \rm -f "$SW_ROLE_PID_FILE"
+    return
+  fi
 
   # Port-based kill so orphans from aborted prior runs (with no live pid
   # file) are still caught. Matches any swBroker whose cmdline carries
