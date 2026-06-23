@@ -90,21 +90,23 @@ static char* contextDownload(const char* url, int* statusCodeP)
   if (r != SWC_OK || resp.statusCode != 200)
   {
     *statusCodeP = (resp.statusCode > 0) ? resp.statusCode : 500;
+    swRestClientResponseCleanup(&resp);
     return NULL;
   }
 
   *statusCodeP = 200;
 
   // Return a malloc'd copy of the body (swJsonld will free it)
+  char* copy = NULL;
   if (resp.body != NULL && resp.bodyLen > 0)
   {
-    char* copy = (char*) malloc(resp.bodyLen + 1);
+    copy = (char*) malloc(resp.bodyLen + 1);
     memcpy(copy, resp.body, resp.bodyLen);
     copy[resp.bodyLen] = 0;
-    return copy;
   }
 
-  return NULL;
+  swRestClientResponseCleanup(&resp);
+  return copy;
 }
 
 

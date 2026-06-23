@@ -46,7 +46,7 @@ int mongocRegistrationQuery(Tenant* tenantP, int limit, int offset, KjNode** arr
 
   mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, &opts, NULL);
 
-  KjNode* resultArray = kjArray(NULL, NULL);
+  KjNode* resultArray = kjArray(swRest.kjsonP, NULL);
 
   const bson_t* doc;
   while (mongoc_cursor_next(cursorP, &doc))

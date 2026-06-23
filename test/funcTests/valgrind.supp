@@ -7,4 +7,17 @@
 #
 # Generate candidates with:  valgrind ... --gen-suppressions=all
 #
-# (Start empty — entries are added from real runs as they prove necessary.)
+# glibc per-thread resolver state (resolv_conf) cached during a DNS lookup in
+# the mongo C driver's background server-monitor thread. That thread is torn
+# down at process exit before glibc frees its thread-local resolver config, so
+# valgrind reports the cached config as lost. Entirely inside glibc/mongoc — not
+# reachable from broker allocations.
+{
+   mongoc-server-monitor-getaddrinfo-resolv
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect
+   ...
+   fun:getaddrinfo
+   ...
+   fun:_server_monitor_thread
+}
