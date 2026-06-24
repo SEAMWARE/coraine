@@ -88,7 +88,7 @@ bool patchEntityMap(void)
     return true;
   }
 
-  if (ldCheckDateTime(expiresAtP->value.s) < 0)
+  if (!ldCheckDateTime(expiresAtP->value.s, NULL))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
             "expiresAt is not a valid ISO 8601 DateTime: '%s'", expiresAtP->value.s);

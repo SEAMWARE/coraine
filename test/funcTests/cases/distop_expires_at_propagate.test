@@ -45,6 +45,11 @@ swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
     "type": "Property",
     "value": 7,
     "expiresAt": "2050-01-01T00:00:00Z"
+  },
+  "prehistoric": {
+    "type": "Property",
+    "value": 5,
+    "expiresAt": "1968-01-01T00:00:00Z"
   }
 }' | head -1
 echo
@@ -67,9 +72,12 @@ echo
 
 echo "03. GET urn:V1 on CB → distop fetch + propagation"
 echo "================================================="
-echo "  speed:    no attr-expiresAt → set to entity-level 2099-01-01"
-echo "  later:    attr expiresAt 2150 (further) → shortened to 2099-01-01"
-echo "  earlier:  attr expiresAt 2050 (earlier) → kept as 2050-01-01"
+echo "  speed:       no attr-expiresAt → set to entity-level 2099-01-01"
+echo "  later:       attr expiresAt 2150 (further) → shortened to 2099-01-01"
+echo "  earlier:     attr expiresAt 2050 (earlier) → kept as 2050-01-01"
+echo "  prehistoric: attr expiresAt 1968 (pre-1970, earlier) → kept as 1968-01-01"
+echo "               (signed int64 ns: 1968 < 2099; an unsigned compare would"
+echo "                mis-rank 1968 as huge and wrongly shorten it to 2099)"
 echo
 swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=sysAttrs'
 echo
@@ -89,9 +97,12 @@ HTTP/1.1 201 Created
 
 03. GET urn:V1 on CB → distop fetch + propagation
 =================================================
-  speed:    no attr-expiresAt → set to entity-level 2099-01-01
-  later:    attr expiresAt 2150 (further) → shortened to 2099-01-01
-  earlier:  attr expiresAt 2050 (earlier) → kept as 2050-01-01
+  speed:       no attr-expiresAt → set to entity-level 2099-01-01
+  later:       attr expiresAt 2150 (further) → shortened to 2099-01-01
+  earlier:     attr expiresAt 2050 (earlier) → kept as 2050-01-01
+  prehistoric: attr expiresAt 1968 (pre-1970, earlier) → kept as 1968-01-01
+               (signed int64 ns: 1968 < 2099; an unsigned compare would
+                mis-rank 1968 as huge and wrongly shorten it to 2099)
 
 HTTP/1.1 200 OK
 Date: REGEX(.*)
@@ -118,6 +129,13 @@ Content-Length: REGEX(\d+)
     "value": 99
   },
   "modifiedAt": "REGEX(.*)",
+  "prehistoric": {
+    "createdAt": "REGEX(.*)",
+    "expiresAt": "1968-01-01T00:00:00Z",
+    "modifiedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 5
+  },
   "speed": {
     "createdAt": "REGEX(.*)",
     "expiresAt": "2099-01-01T00:00:00Z",

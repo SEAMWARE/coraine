@@ -1,0 +1,169 @@
+#
+# FILE            datetime_int64_range_signedness.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Epoch-nanoseconds is a signed int64, representable from 1677-09-21 to
+# 2262-04-11. Two consequences this test pins:
+#   * pre-1970 DateTimes are valid, stored, round-tripped AND ordered as
+#     genuinely-earlier instants (not wrapped to a huge positive),
+#   * DateTimes outside the int64-ns window are rejected with 400 (they would
+#     otherwise overflow the seconds->nanoseconds multiply).
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+DateTime epoch-ns is signed int64: pre-1970 ordering + out-of-range 400
+
+--TAGS--
+datetime validation observedAt expiresAt
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. observedAt in year 3000 is out of int64-ns range -> 400"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:1",
+  "type": "T",
+  "a": { "type": "Property", "value": 1, "observedAt": "3000-01-01T00:00:00Z" }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "02. observedAt in year 1000 is out of int64-ns range -> 400"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:2",
+  "type": "T",
+  "a": { "type": "Property", "value": 1, "observedAt": "1000-01-01T00:00:00Z" }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "03. observedAt 1968 (pre-1970, in range) -> 201"
+echo "==============================================="
+payload='{
+  "id": "urn:ngsi-ld:T:3",
+  "type": "T",
+  "a": { "type": "Property", "value": 1, "observedAt": "1968-12-31T23:50:59Z" }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:ngsi-ld:T:3 - the 1968 observedAt round-trips intact"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:3?options=sysAttrs'
+echo
+echo
+
+
+echo "05. Subscription with a pre-1970 expiresAt is in the past -> 400 at create"
+echo "========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:T1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "expiresAt": "1968-01-01T00:00:00Z",
+  "notification": { "endpoint": { "uri": "http://localhost:9999/n" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+--EXPECT--
+01. observedAt in year 3000 is out of int64-ns range -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '3000-01-01T00:00:00Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. observedAt in year 1000 is out of int64-ns range -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '1000-01-01T00:00:00Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. observedAt 1968 (pre-1970, in range) -> 201
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:3
+Content-Length: 0
+
+
+
+
+04. GET urn:ngsi-ld:T:3 - the 1968 observedAt round-trips intact
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "observedAt": "1968-12-31T23:50:59Z",
+    "type": "Property",
+    "value": 1
+  },
+  "createdAt": "REGEX(.*)",
+  "id": "urn:ngsi-ld:T:3",
+  "modifiedAt": "REGEX(.*)",
+  "type": "T"
+}
+
+
+
+05. Subscription with a pre-1970 expiresAt is in the past -> 400 at create
+=========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "'expiresAt' must be in the future",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
