@@ -19,6 +19,7 @@
 #include "swRest/SwRestState.h"                          // swRest
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
+#include "kalloc/kaStrdup.h"                             // kaStrdup
 #include "kjson/KjNode.h"                                // KjNode
 
 #include "kjson/kjLookup.h"                              // kjLookup
@@ -217,8 +218,11 @@ bool purgeSnapshots(void)
   for (LdSnapshotCacheItem* p = cacheP->head; p != NULL; p = p->next)
   {
     bool match = (qP == NULL) ? true : matchSnapshot(p->tree, qP);
+    // p->id points INTO p->tree, which ldSnapshotCacheItemDelete frees below —
+    // copy it into the request arena so it stays valid across the delete loop
+    // (db.snapshotDelete still needs the id after the item is gone).
     if (match && n < cap)
-      victims[n++] = p->id;
+      victims[n++] = kaStrdup(&swRest.kalloc, p->id);
   }
 
   for (int i = 0; i < n; i++)

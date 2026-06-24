@@ -16,6 +16,7 @@
 #include "kjson/KjNode.h"                                // KjNode
 #include "kjson/kjLookup.h"                              // kjLookup
 #include "kjson/kjBuilder.h"                             // kjArray, kjObject, kjString, kjChildAdd, kjChildRemove
+#include "kjson/kjFree.h"                                // kjFree
 
 #include "swJsonld/swldExpand.h"                         // swldExpand, swldAlreadyExpanded
 
@@ -269,7 +270,12 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
 
   // Append snapshotTemporalQueriesDetails to itemP->tree.
   KjNode* existing = kjLookup(itemP->tree, "snapshotTemporalQueriesDetails");
-  if (existing != NULL) kjChildRemove(itemP->tree, existing);
+  if (existing != NULL)
+  {
+    // all-malloc clone — kjChildRemove only unlinks, so free the old details.
+    kjChildRemove(itemP->tree, existing);
+    kjFree(existing);
+  }
   kjChildAdd(itemP->tree, detailsP);
 
   // Re-derive snapshotStatus from BOTH detail lists.

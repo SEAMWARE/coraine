@@ -56,8 +56,8 @@ bool deleteSnapshot(void)
   }
 
   // Capture the snap-tenant pointer before the cache item is reclaimed —
-  // ldSnapshotCacheItemDelete unlinks but doesn't free the cache-allocator
-  // memory, so reading after delete would still work but is fragile.
+  // ldSnapshotCacheItemDelete frees the item (and its tree) below, so itemP
+  // must not be dereferenced afterwards.
   Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
 
   // § 5.16.6 — fire deletion notification (expiresAt forced to past)

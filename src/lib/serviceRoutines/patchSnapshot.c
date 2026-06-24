@@ -30,6 +30,7 @@
 #include "kjson/kjBuilder.h"                             // kjString, kjInteger, kjChildAdd, kjChildReplace
 #include "kjson/kjChildReplace.h"                        // kjChildReplace
 #include "kjson/kjClone.h"                               // kjClone
+#include "kjson/kjFree.h"                                // kjFree
 
 #include "swNgsild/swNgsild.h"                           // ldError, swNgsild
 #include "swNgsild/LdProblem.h"                          // LD_ERROR_*
@@ -164,7 +165,12 @@ bool patchSnapshot(void)
     KjNode* dest = kjLookup(itemP->tree, fP->name);
     KjNode* clone = kjClone(NULL, fP);                  // long-lived clone
     if (dest != NULL)
+    {
+      // itemP->tree is an all-malloc clone — kjChildReplace only swaps the
+      // pointer, so free the replaced node to avoid orphaning it.
       kjChildReplace(itemP->tree, dest, clone);
+      kjFree(dest);
+    }
     else
       kjChildAdd(itemP->tree, clone);
   }
@@ -189,7 +195,11 @@ bool patchSnapshot(void)
     char*   expIso = nsToIso(itemP->expiresAt);
     KjNode* dest   = kjLookup(itemP->tree, "expiresAt");
     if (dest != NULL)
+    {
+      // all-malloc clone — kjChildRemove only unlinks, so free the old node.
       kjChildRemove(itemP->tree, dest);
+      kjFree(dest);
+    }
     kjChildAdd(itemP->tree, kjString(NULL, "expiresAt", expIso));
     kjChildAdd(fragP, kjString(swRest.kjsonP, "expiresAt", expIso));
   }

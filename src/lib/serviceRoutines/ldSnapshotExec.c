@@ -36,6 +36,7 @@
 #include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
 #include "kjson/kjClone.h"                               // kjClone
+#include "kjson/kjFree.h"                                // kjFree
 #include "kjson/kjChildReplace.h"                        // kjChildReplace
 
 #include "db/DbDriver.h"                                 // db, DB_OK, DB_ALREADY_EXISTS
@@ -837,9 +838,16 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
   {
     KjNode* existing = kjLookup(itemP->tree, "snapshotQueriesDetails");
     if (existing != NULL)
+    {
+      // itemP->tree is an all-malloc clone — kjChildRemove only unlinks, so
+      // free the previous details to avoid orphaning it on a re-run.
       kjChildRemove(itemP->tree, existing);
+      kjFree(existing);
+    }
     kjChildAdd(itemP->tree, detailsP);
   }
+  else
+    kjFree(detailsP);   // empty (no queries ran) — never grafted, so free it
 
   const char* status = pickStatus(nSuccess, nEmpty, nFailure);
 
