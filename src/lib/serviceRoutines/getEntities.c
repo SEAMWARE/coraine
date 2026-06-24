@@ -799,7 +799,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
 
   // § 4.5.5.2 — entity-level expiresAt cascades to each Attribute, with
   // attr-level values further in the future shortened to entity-level.
-  ldExpiresAtPropagate(treeP);
+  ldExpiresAtPropagate(treeP, swRest.kjsonP);
   return treeP;
 }
 

@@ -673,7 +673,7 @@ static KjNode* shapeUpstreamBody(KjNode* treeP, const char* respCtxUrl, const ch
   swldExpandTree(treeP, respCtxP, &swRest.kalloc);
   ldStripAtContext(treeP);
   apiAttrToStorageWrap(treeP, swRest.kjsonP);
-  ldExpiresAtPropagate(treeP);
+  ldExpiresAtPropagate(treeP, swRest.kjsonP);
   return treeP;
 }
 
@@ -901,7 +901,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
       swldExpandTree(upP, respCtxP, &swRest.kalloc);
       ldStripAtContext(upP);
       apiAttrToStorageWrap(upP, swRest.kjsonP);
-      ldExpiresAtPropagate(upP);
+      ldExpiresAtPropagate(upP, swRest.kjsonP);
       ensureEntityId(upP, entityId);
 
       if (destP == NULL)
