@@ -1,5 +1,5 @@
 #
-# FILE            crashguard_patch_invalid_observedat_providedby.test
+# FILE            patch_attr_observedat_providedby_validation.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -10,7 +10,7 @@
 # dropped here as non-hermetic; the crash guard is steps 01-07.
 #
 --NAME--
-PATCH adding an attribute with invalid observedAt / providedBy errors cleanly (no crash)
+PATCH attribute observedAt / providedBy validation
 
 --TAGS--
 error attr patch
@@ -23,11 +23,11 @@ swBrokerStart
 
 #
 # 01. Create entity TemperatureSensor:001
-# 02. PATCH adding batteryLevel with invalid observedAt AND invalid providedBy object -> error, no crash
+# 02. PATCH adding batteryLevel with invalid observedAt AND invalid providedBy object -> error
 # 03. GET — entity as created in step 01
-# 04. PATCH adding batteryLevel with invalid providedBy object -> error, no crash
+# 04. PATCH adding batteryLevel with invalid providedBy object -> error
 # 05. GET — entity as created in step 01
-# 06. PATCH adding batteryLevel with invalid observedAt -> error, no crash
+# 06. PATCH adding batteryLevel with invalid observedAt -> error
 # 07. GET — entity as created in step 01, broker alive
 #
 
@@ -93,7 +93,7 @@ echo "=============================================="
 payload='{
   "batteryLevel": {
     "value": 6,
-    "observedAt": "1968-12-31T23:50:59.000Z"
+    "observedAt": "not-a-valid-datetime"
   }
 }'
 swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
@@ -204,10 +204,10 @@ Content-Length: 233
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 277
+Content-Length: 273
 
 {
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/batteryLevel': 'observedAt' is not a valid ISO 8601 DateTime: '1968-12-31T23:50:59.000Z'",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/batteryLevel': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-valid-datetime'",
   "status": 400,
   "title": "Invalid observedAt",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

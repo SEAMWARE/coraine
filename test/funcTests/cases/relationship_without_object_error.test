@@ -1,12 +1,12 @@
 #
-# FILE            crashguard_patch_relationship_without_object.test
+# FILE            relationship_without_object_error.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
 --NAME--
-PATCH /attrs with a Relationship missing 'object' errors cleanly (no crash)
+PATCH /attrs with a Relationship missing 'object' errors cleanly
 
 --TAGS--
 error attr patch

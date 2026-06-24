@@ -1,12 +1,12 @@
 #
-# FILE            crashguard_empty_geo_coords_param.test
+# FILE            empty_geo_coords_param_error.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
 --NAME--
-Empty / missing geo coordinates URI param errors cleanly (no crash)
+Empty / missing geo coordinates URI param errors cleanly
 
 --TAGS--
 error geo query

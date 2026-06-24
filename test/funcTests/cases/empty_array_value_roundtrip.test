@@ -1,12 +1,12 @@
 #
-# FILE            crashguard_empty_array_value.test
+# FILE            empty_array_value_roundtrip.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
 --NAME--
-Empty array as a Property value is accepted and round-trips (no crash)
+Empty array as a Property value is accepted and round-trips
 
 --TAGS--
 attr create

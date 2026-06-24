@@ -1,5 +1,5 @@
 #
-# FILE            notify_rapid_patches_crashguard.test
+# FILE            notify_rapid_patches.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -15,7 +15,7 @@
 # checked instead to prove the path fires.
 #
 --NAME--
-100 rapid PATCH /attrs updates do not crash the broker (all applied)
+100 rapid PATCH /attrs updates are all applied
 
 --TAGS--
 notification subscription patch attr

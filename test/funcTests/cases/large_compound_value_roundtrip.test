@@ -1,5 +1,5 @@
 #
-# FILE            large_compound_value_crashguard.test
+# FILE            large_compound_value_roundtrip.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -11,7 +11,7 @@
 # every element. Responses are filtered to status + element count to keep EXPECT small.
 #
 --NAME--
-Very large compound attribute value is accepted, round-trips, no crash
+Very large compound attribute value is accepted, round-trips
 
 --TAGS--
 attr value-type entity
