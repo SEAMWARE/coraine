@@ -71,6 +71,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                  [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
+                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
 
                  Plugins are loaded from /opt/seamware/plugins
 
@@ -103,6 +104,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                  [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
+                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
 
                  Database (mongoc) plugin options:
                  [--dbHost/-dbHost <database server host>]
@@ -146,6 +148,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                  [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
+                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
 
                  Plugins are loaded from /opt/seamware/plugins
 
