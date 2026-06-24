@@ -390,7 +390,10 @@ static void tenantRegCacheLoad(Tenant* tP)
   int count = 0;
   for (KjNode* regP = arrayP->value.firstChildP; regP != NULL; regP = regP->next)
   {
-    ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP);
+    // swRest.kalloc is the startup buffer here (swBroker main reset it right
+    // after the cache reloads) — fine as the transient arena for resolving a
+    // CSR's forwarding @context.
+    ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP, &swRest.kalloc);
     count++;
   }
 

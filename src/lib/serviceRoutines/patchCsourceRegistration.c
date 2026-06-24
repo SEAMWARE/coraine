@@ -112,7 +112,7 @@ bool patchCsourceRegistration(void)
   if (regCacheP != NULL)
   {
     ldRegCacheItemRemove(regCacheP, regId);
-    newItemP = ldRegCacheItemAdd(regCacheP, mergedRegP);
+    newItemP = ldRegCacheItemAdd(regCacheP, mergedRegP, &swRest.kalloc);
   }
 
   //

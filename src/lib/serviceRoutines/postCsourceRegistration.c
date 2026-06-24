@@ -457,7 +457,7 @@ bool postCsourceRegistration(void)
   ldRegCacheWrLock(regCacheP);
 
   if (regCacheP != NULL)
-    regItemP = ldRegCacheItemAdd(regCacheP, regP);
+    regItemP = ldRegCacheItemAdd(regCacheP, regP, &swRest.kalloc);
 
   // § 5.11.7 — fan out "newlyMatching" CsourceNotifications to any CSR-
   // sub whose filter matches this new registration.
