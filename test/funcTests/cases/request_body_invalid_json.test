@@ -1,0 +1,120 @@
+#
+# FILE            request_body_invalid_json.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 8.2.3 — a syntactically invalid JSON request body is rejected with
+# 400 InvalidRequest (distinct from a well-formed JSON document carrying
+# invalid content, which is 400 BadRequestData). Exercised across several
+# operations that accept a body, since they share the parse layer.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Syntactically invalid JSON body -> 400 InvalidRequest (parse layer)
+
+--TAGS--
+entity error validation create batch
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. POST /entities with an unclosed brace -> 400 InvalidRequest"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T"'
+echo
+echo
+
+
+echo "02. POST /entities with a trailing comma -> 400 InvalidRequest"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T",}'
+echo
+echo
+
+
+echo "03. PATCH /entities/{id}/attrs with broken JSON -> 400 InvalidRequest"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:9/attrs' -X PATCH --header 'Content-Type: application/json' --payload '{"speed": {"type":"Property","value":}}'
+echo
+echo
+
+
+echo "04. POST /entityOperations/create with broken JSON array -> 400 InvalidRequest"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create -X POST --header 'Content-Type: application/json' --payload '[{"id":"urn:ngsi-ld:T:3","type":"T"]'
+echo
+echo
+
+--EXPECT--
+01. POST /entities with an unclosed brace -> 400 InvalidRequest
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+02. POST /entities with a trailing comma -> 400 InvalidRequest
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+03. PATCH /entities/{id}/attrs with broken JSON -> 400 InvalidRequest
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+04. POST /entityOperations/create with broken JSON array -> 400 InvalidRequest
+=============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
