@@ -18,6 +18,8 @@
 #include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                           // kjLookup
 
+#include "kjson/kjFree.h"                             // kjFree
+#include "kjson/kjChildReplace.h"                     // kjChildReplace
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbSubscriptions
 #include "currentState/swRamDB/ramdbSubscriptionReplace.h"  // Own interface
@@ -45,8 +47,8 @@ int ramdbSubscriptionReplace(Tenant* tenantP, const char* subId, KjNode* subP)
         return DB_ERR;
       }
 
-      kjChildRemove(subscriptions, sP);
-      kjChildAdd(subscriptions, cloneP);
+      kjChildReplace(subscriptions, sP, cloneP);
+      kjFree(sP);
       return DB_OK;
     }
   }

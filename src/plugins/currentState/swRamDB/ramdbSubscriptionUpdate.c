@@ -12,6 +12,7 @@
 #include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                           // kjLookup
 
+#include "kjson/kjFree.h"                             // kjFree
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbSubscriptions
 #include "currentState/swRamDB/ramdbSubscriptionUpdate.h"  // Own interface
@@ -64,13 +65,19 @@ int ramdbSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragment
     {
       // Remove the field if it exists
       if (existingP != NULL)
+      {
         kjChildRemove(subP, existingP);
+        kjFree(existingP);
+      }
     }
     else
     {
       // Replace or add
       if (existingP != NULL)
+      {
         kjChildRemove(subP, existingP);
+        kjFree(existingP);
+      }
 
       KjNode* cloneP = kjClone(NULL, fieldP);
       kjChildAdd(subP, cloneP);

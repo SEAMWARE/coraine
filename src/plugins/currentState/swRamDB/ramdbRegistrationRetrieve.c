@@ -11,6 +11,7 @@
 #include "kjson/kjClone.h"                            // kjClone
 #include "kjson/kjLookup.h"                           // kjLookup
 
+#include "swRest/SwRestState.h"                       // swRest
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbRegistrations
 #include "currentState/swRamDB/ramdbRegistrationRetrieve.h"  // Own interface
@@ -31,7 +32,7 @@ int ramdbRegistrationRetrieve(Tenant* tenantP, const char* regId, KjNode** regPP
 
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, regId) == 0)
     {
-      *regPP = kjClone(NULL, rP);
+      *regPP = kjClone(swRest.kjsonP, rP);
       return DB_OK;
     }
   }

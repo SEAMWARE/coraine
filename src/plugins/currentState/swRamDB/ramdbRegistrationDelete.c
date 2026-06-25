@@ -11,6 +11,7 @@
 #include "kjson/kjBuilder.h"                          // kjChildRemove
 #include "kjson/kjLookup.h"                           // kjLookup
 
+#include "kjson/kjFree.h"                             // kjFree
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbRegistrations
 #include "currentState/swRamDB/ramdbRegistrationDelete.h"  // Own interface
@@ -32,6 +33,7 @@ int ramdbRegistrationDelete(Tenant* tenantP, const char* regId)
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, regId) == 0)
     {
       kjChildRemove(registrations, rP);
+      kjFree(rP);
       return DB_OK;
     }
   }

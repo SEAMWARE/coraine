@@ -18,6 +18,8 @@
 #include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                           // kjLookup
 
+#include "kjson/kjFree.h"                             // kjFree
+#include "kjson/kjChildReplace.h"                     // kjChildReplace
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbRegistrations
 #include "currentState/swRamDB/ramdbRegistrationUpdate.h"  // Own interface
@@ -45,8 +47,8 @@ int ramdbRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* regP)
         return DB_ERR;
       }
 
-      kjChildRemove(registrations, rP);
-      kjChildAdd(registrations, cloneP);
+      kjChildReplace(registrations, rP, cloneP);
+      kjFree(rP);
       return DB_OK;
     }
   }

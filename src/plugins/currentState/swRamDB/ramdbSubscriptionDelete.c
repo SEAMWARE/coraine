@@ -11,6 +11,7 @@
 #include "kjson/kjBuilder.h"                          // kjChildRemove
 #include "kjson/kjLookup.h"                           // kjLookup
 
+#include "kjson/kjFree.h"                             // kjFree
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbSubscriptions
 #include "currentState/swRamDB/ramdbSubscriptionDelete.h"  // Own interface
@@ -32,6 +33,7 @@ int ramdbSubscriptionDelete(Tenant* tenantP, const char* subId)
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, subId) == 0)
     {
       kjChildRemove(subscriptions, sP);
+      kjFree(sP);
       return DB_OK;
     }
   }
