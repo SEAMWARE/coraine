@@ -1,0 +1,162 @@
+#
+# FILE            entity_order_stable_after_write.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Replace Entity, batch Update or batch Upsert must not change an entity's
+# position in a subsequent GET /entities (no orderBy). Replace/Update preserve
+# createdAt (§ 4.8), so the entity keeps its creation-order slot; only a freshly
+# created entity is appended. Regression: the in-memory store used to re-append
+# the replacement, moving the entity to the end — exposed via batch Upsert
+# (update one + create one) by langprop_batch.
+#
+--NAME--
+GET /entities order stays stable across Replace / batch Update / Upsert
+
+--TAGS--
+entity update replace upsert order
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Batch-create O:1 O:2 O:3"
+echo "==========================="
+payload='[
+  { "id": "urn:ngsi-ld:O:1", "type": "OT", "a": { "type": "Property", "value": 1 } },
+  { "id": "urn:ngsi-ld:O:2", "type": "OT", "a": { "type": "Property", "value": 2 } },
+  { "id": "urn:ngsi-ld:O:3", "type": "OT", "a": { "type": "Property", "value": 3 } }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+echo
+echo
+
+
+echo "02. GET baseline order — O:1 O:2 O:3"
+echo "===================================="
+swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+echo
+echo
+
+
+echo "03. PUT replace O:2 (single Replace Entity)"
+echo "==========================================="
+payload='{ "id": "urn:ngsi-ld:O:2", "type": "OT", "a": { "type": "Property", "value": 20 } }'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:O:2 -X PUT --payload "$payload"
+echo
+echo
+
+
+echo "04. GET — O:2 keeps its slot, order still O:1 O:2 O:3"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+echo
+echo
+
+
+echo "05. Batch update O:1"
+echo "===================="
+payload='[ { "id": "urn:ngsi-ld:O:1", "type": "OT", "a": { "type": "Property", "value": 10 } } ]'
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+echo
+echo
+
+
+echo "06. GET — order still O:1 O:2 O:3"
+echo "================================"
+swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+echo
+echo
+
+
+echo "07. Batch upsert — update O:3 + create O:4"
+echo "========================================="
+payload='[
+  { "id": "urn:ngsi-ld:O:3", "type": "OT", "a": { "type": "Property", "value": 30 } },
+  { "id": "urn:ngsi-ld:O:4", "type": "OT", "a": { "type": "Property", "value": 4 } }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
+echo
+echo
+
+
+echo "08. GET — updated O:3 stays put, O:4 appended: O:1 O:2 O:3 O:4"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+
+--EXPECT--
+01. Batch-create O:1 O:2 O:3
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 66
+
+[
+  "urn:ngsi-ld:O:1",
+  "urn:ngsi-ld:O:2",
+  "urn:ngsi-ld:O:3"
+]
+
+
+
+02. GET baseline order — O:1 O:2 O:3
+====================================
+    "id": "urn:ngsi-ld:O:1",
+    "id": "urn:ngsi-ld:O:2",
+    "id": "urn:ngsi-ld:O:3",
+
+
+03. PUT replace O:2 (single Replace Entity)
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. GET — O:2 keeps its slot, order still O:1 O:2 O:3
+====================================================
+    "id": "urn:ngsi-ld:O:1",
+    "id": "urn:ngsi-ld:O:2",
+    "id": "urn:ngsi-ld:O:3",
+
+
+05. Batch update O:1
+====================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. GET — order still O:1 O:2 O:3
+================================
+    "id": "urn:ngsi-ld:O:1",
+    "id": "urn:ngsi-ld:O:2",
+    "id": "urn:ngsi-ld:O:3",
+
+
+07. Batch upsert — update O:3 + create O:4
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 24
+
+[
+  "urn:ngsi-ld:O:4"
+]
+
+
+
+08. GET — updated O:3 stays put, O:4 appended: O:1 O:2 O:3 O:4
+=============================================================
+    "id": "urn:ngsi-ld:O:1",
+    "id": "urn:ngsi-ld:O:2",
+    "id": "urn:ngsi-ld:O:3",
+    "id": "urn:ngsi-ld:O:4",
