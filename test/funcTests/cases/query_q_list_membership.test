@@ -102,3 +102,5 @@ Content-Length: 0
 06. q=bl==false — boolean present in valueList, matches
 ======================================================
     "id": "urn:ngsi-ld:LM:E1",
+--TEARDOWN--
+swBrokerStop

@@ -160,3 +160,5 @@ Content-Length: 24
     "id": "urn:ngsi-ld:O:2",
     "id": "urn:ngsi-ld:O:3",
     "id": "urn:ngsi-ld:O:4",
+--TEARDOWN--
+swBrokerStop

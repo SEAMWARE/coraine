@@ -97,3 +97,5 @@ swCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
 05. plain GET (no georel) — no geoDistance member
 =================================================
 0
+--TEARDOWN--
+swBrokerStop
