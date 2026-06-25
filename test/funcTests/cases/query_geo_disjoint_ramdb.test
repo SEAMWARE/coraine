@@ -1,5 +1,5 @@
 #
-# FILE            query_geo_disjoint.test
+# FILE            query_geo_disjoint_ramdb.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -9,17 +9,16 @@
 # probed with Point / LineString / Polygon query geometries inside, outside, on the
 # border, and partially overlapping the rectangle.
 #
-# Note on the border semantics: a Point ON the border intersects the Polygon, so it
-# does NOT match disjoint (step 04); a LineString lying along the border is treated
-# as disjoint and DOES match (step 07). The latter is a mongo/S2 boundary quirk —
-# the in-memory GEOS engine is OGC-consistent (boundary contact = not disjoint), so
-# this test is mongoc-only; the GEOS behaviour is covered by
-# query_geo_disjoint_ramdb.test.
+# In-memory (GEOS) variant of query_geo_disjoint. GEOS is OGC-consistent on the
+# boundary: any geometry sharing the Polygon boundary intersects it, so it is NOT
+# disjoint. Hence both a Point ON the border (step 04) and a LineString lying ALONG
+# the border (step 07) match nothing. mongo/S2 treats the boundary LineString as
+# disjoint — that quirk is covered by the mongoc-only query_geo_disjoint.test.
 #
-# REQUIRE_DB: mongoc
+# REQUIRE_DB: ramdb
 #
 --NAME--
-Entity geo-query — georel=disjoint (Point / LineString / Polygon vs a rectangle)
+Entity geo-query — georel=disjoint, GEOS/in-memory (boundary contact = not disjoint)
 
 --TAGS--
 geo query georel
@@ -82,7 +81,7 @@ echo
 echo
 
 
-echo "07. Disjoint for a LineString touching the border: 0,0 -> 0,1 - see E1"
+echo "07. Disjoint for a LineString along the border: 0,0 -> 0,1 - see nothing (GEOS)"
 echo "====================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=Geo&geometry=LineString&coordinates=%5B%5B0,0%5D,%5B0,1%5D%5D&georel=disjoint'
 echo
@@ -257,50 +256,15 @@ Content-Length: 3
 
 
 
-07. Disjoint for a LineString touching the border: 0,0 -> 0,1 - see E1
+07. Disjoint for a LineString along the border: 0,0 -> 0,1 - see nothing (GEOS)
 =====================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 536
+Content-Length: 3
 
-[
-  {
-    "id": "urn:ngsi-ld:geo:E1",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "coordinates": [
-          [
-            [
-              0,
-              0
-            ],
-            [
-              4,
-              0
-            ],
-            [
-              4,
-              4
-            ],
-            [
-              0,
-              4
-            ],
-            [
-              0,
-              0
-            ]
-          ]
-        ],
-        "type": "Polygon"
-      }
-    },
-    "type": "Geo"
-  }
-]
+[]
 
 
 
