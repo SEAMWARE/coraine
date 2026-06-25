@@ -10,6 +10,7 @@
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjClone.h"                            // kjClone
 #include "kjson/kjLookup.h"                           // kjLookup
+#include "swRest/SwRestState.h"                       // swRest
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbEntities
@@ -31,7 +32,10 @@ int ramdbEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityPP
 
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
     {
-      *entityPP = kjClone(NULL, eP);
+      // Clone into the request arena (freed at request end), matching mongoc's
+      // retrieve. A NULL (malloc) clone would leak — no caller frees the result;
+      // they all consume it within the request (render / merge / replace-copy).
+      *entityPP = kjClone(swRest.kjsonP, eP);
       return DB_OK;
     }
   }
