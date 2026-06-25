@@ -43,7 +43,7 @@ int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
     {
       // NULL allocator == malloc heap == tenant store lifetime
-      ldEntityMerge(eP, fragmentDb, reportP, ts, NULL);
+      ldEntityFragmentApply(eP, fragmentDb, reportP, ts, NULL);
       return DB_OK;
     }
   }

@@ -92,7 +92,7 @@ int mongocEntityMergeBuildUpdate(KjNode*              target,
   // 1. Apply merge in memory. target and fragment are in the request arena
   //    (swRest.kjsonP) — grafted nodes need matching lifetime.
   //
-  if (ldEntityMerge(target, fragmentDb, reportP, ts, swRest.kjsonP) == false)
+  if (ldEntityFragmentApply(target, fragmentDb, reportP, ts, swRest.kjsonP) == false)
     return DB_OK;  // ldError already set; service routine sees problemType
 
   //
