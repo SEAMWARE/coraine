@@ -1,0 +1,152 @@
+#
+# FILE            lang_keyvalues_concise_and_attr.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The `lang` query parameter (TS 104-175 § 4.5.5) reduces a LanguageProperty
+# to a Property holding the single selected language string. retrieve_entity_
+# lang.test covers this for the normalized single-entity GET; this test pins
+# down the combinations it does not:
+#
+#   - lang + options=keyValues : the simplified value is the selected string
+#   - lang + options=concise   : concise rendering of the reduced Property
+#   - GET /entities/{id}/attrs/{attr}?lang= : single-attribute retrieval also
+#     honours lang (and its fallback when the requested language is absent)
+#
+# A non-LanguageProperty attribute (speed) is unaffected by lang in every form.
+#
+--NAME--
+lang query param with options=keyValues / concise and single-attribute GET
+
+--TAGS--
+lang languageMap keyValues concise get-attribute
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity with LanguageProperty name + Property speed"
+echo "============================================================"
+payload='{
+  "id": "urn:ngsi-ld:lang:KV1",
+  "type": "Car",
+  "name": {
+    "type": "LanguageProperty",
+    "languageMap": { "en": "Blue Car", "fr": "Voiture Bleue", "@none": "Default Car" }
+  },
+  "speed": { "type": "Property", "value": 80 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET ?lang=fr&options=keyValues → name is the plain string 'Voiture Bleue', speed=80"
+echo "======================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1?lang=fr&options=keyValues'
+echo
+echo
+
+
+echo "03. GET ?lang=en&options=concise → name reduced to Property (lang+value), speed concise"
+echo "======================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1?lang=en&options=concise'
+echo
+echo
+
+
+echo "04. GET /attrs/name?lang=fr → single LanguageProperty attr reduced to Property"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1/attrs/name?lang=fr'
+echo
+echo
+
+
+echo "05. GET /attrs/name?lang=de → no 'de'; falls back to @none (Default Car)"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1/attrs/name?lang=de'
+
+--EXPECT--
+01. Create entity with LanguageProperty name + Property speed
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1
+Content-Length: 0
+
+
+
+
+02. GET ?lang=fr&options=keyValues → name is the plain string 'Voiture Bleue', speed=80
+=======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 94
+
+{
+  "id": "urn:ngsi-ld:lang:KV1",
+  "name": "Voiture Bleue",
+  "speed": 80,
+  "type": "Car"
+}
+
+
+
+03. GET ?lang=en&options=concise → name reduced to Property (lang+value), speed concise
+=======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 126
+
+{
+  "id": "urn:ngsi-ld:lang:KV1",
+  "name": {
+    "lang": "en",
+    "value": "Blue Car"
+  },
+  "speed": 80,
+  "type": "Car"
+}
+
+
+
+04. GET /attrs/name?lang=fr → single LanguageProperty attr reduced to Property
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 69
+
+{
+  "lang": "fr",
+  "type": "Property",
+  "value": "Voiture Bleue"
+}
+
+
+
+05. GET /attrs/name?lang=de → no 'de'; falls back to @none (Default Car)
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 70
+
+{
+  "lang": "@none",
+  "type": "Property",
+  "value": "Default Car"
+}
+
+--TEARDOWN--
+swBrokerStop

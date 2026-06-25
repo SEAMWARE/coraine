@@ -30,6 +30,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
 #include "swNgsild/ldEntityToApi.h"                  // ldEntityToApi
 #include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldLangReduce.h"                   // ldLangReduce
 #include "swNgsild/ldRender.h"                       // ldToConcise, ldToSimplified
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
@@ -135,6 +136,12 @@ bool getEntityAttr(void)
   //
   if (swNgsild.sysAttrs == false)
     ldStripSysAttrs(wrap);
+
+  // lang reduction must run BEFORE format simplification (§ 4.5.5): the
+  // simplification strips the LanguageProperty wrapper, leaving the bare
+  // languageMap with nothing left to reduce. Same order as the renderHook.
+  if (swNgsild.lang != NULL)
+    ldLangReduce(wrap, swNgsild.lang, &swRest.kalloc);
 
   if (swNgsild.format == LdFormatConcise)
     ldToConcise(wrap, &swRest.kalloc);
