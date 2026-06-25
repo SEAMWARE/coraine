@@ -1,0 +1,106 @@
+#
+# FILE            entity_null_sentinel_misuse.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 8.2 / § 4.5.6 — the "urn:ngsi-ld:null" delete-marker is only meaningful in
+# Update/Merge contexts (to remove a member). In a CREATE or REPLACE it has no
+# delete target, so a Property value / Relationship object set to the literal
+# "urn:ngsi-ld:null" is invalid content -> 400 BadRequestData.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+urn:ngsi-ld:null delete-marker misused on create/replace -> 400 BadRequestData
+
+--TAGS--
+entity error validation create replace
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. CREATE: Property value = urn:ngsi-ld:null"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "02. CREATE: Relationship object = urn:ngsi-ld:null"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T","rel":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "03. Setup urn:ngsi-ld:T:3 then REPLACE with a null-sentinel Property value"
+echo "========================================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","speed":{"type":"Property","value":1}}'
+echo
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:3' -X PUT --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+--EXPECT--
+01. CREATE: Property value = urn:ngsi-ld:null
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 247
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value/object of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. CREATE: Relationship object = urn:ngsi-ld:null
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value/object of attribute 'https://uri.etsi.org/ngsi-ld/default-context/rel'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Setup urn:ngsi-ld:T:3 then REPLACE with a null-sentinel Property value
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:3
+Content-Length: 0
+
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 247
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value/object of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
