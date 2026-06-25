@@ -16,7 +16,8 @@
 #include "ktrace/kTrace.h"                               // KT_E
 #include "kjson/KjNode.h"                                // KjNode
 #include "kjson/kjClone.h"                               // kjClone
-#include "kjson/kjBuilder.h"                             // kjChildAdd, kjChildRemove
+#include "kjson/kjFree.h"                                // kjFree
+#include "kjson/kjChildReplace.h"                        // kjChildReplace
 #include "kjson/kjLookup.h"                              // kjLookup
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
@@ -74,8 +75,11 @@ int ramdbEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
       continue;
     }
 
-    kjChildRemove(entities, existing);
-    kjChildAdd(entities, cloneP);
+    // Replace in place so the entity keeps its store (creation-order) position
+    // — a GET without orderBy stays stable and matches mongoc, which preserves
+    // createdAt on update. kjChildReplace does not free the old node.
+    kjChildReplace(entities, existing, cloneP);
+    kjFree(existing);
     resultsV[ix] = DB_OK;
     anyOk        = true;
   }

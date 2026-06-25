@@ -11,7 +11,8 @@
 #include "kjson/KjNode.h"                              // KjNode
 #include "kjson/kjClone.h"                             // kjClone
 #include "kjson/kjLookup.h"                            // kjLookup
-#include "kjson/kjBuilder.h"                           // kjChildRemove, kjChildAdd
+#include "kjson/kjFree.h"                              // kjFree
+#include "kjson/kjChildReplace.h"                      // kjChildReplace
 
 #include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/swRamDB/ramdbStore.h"           // ramdbEntities
@@ -40,11 +41,18 @@ int ramdbEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntityP
         return DB_ERR;
       }
 
-      kjChildRemove(entities, eP);
-      kjChildAdd(entities, cloneP);
+      // Replace in place so the entity keeps its store (creation-order)
+      // position — a GET without orderBy stays stable and matches mongoc,
+      // which preserves createdAt on Replace.
+      kjChildReplace(entities, eP, cloneP);
 
       if (oldEntityPP != NULL)
+      {
+        eP->next     = NULL;   // detach: caller owns the pre-replace entity
         *oldEntityPP = eP;
+      }
+      else
+        kjFree(eP);
 
       return DB_OK;
     }
