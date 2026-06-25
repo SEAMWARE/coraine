@@ -116,33 +116,34 @@ typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, KjNode* entitiesArr, int
 typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
 
 //
-// DbEntityBulkMergeFunc - batch merge (§ 5.6.10) of N fragments against
-// pre-existing entities. Each fragment has already had multi-instance
-// collapse applied by the service routine, so there is one effective
-// fragment per unique id. Surgical semantics: only attributes mentioned
-// in the fragment are touched (plus entity modifiedAt). Null-valued
-// sub-elements remove the target; other values overwrite.
+// Batch Merge (§ 5.6.10) is done in two driver calls bracketing the merge,
+// which the broker performs itself (ldEntityMerge) — so the merge engine lives
+// in one place and a new DB plugin only implements these two storage primitives:
 //
-// fragmentsArr is a KjArray of DB-format fragments. Each child object
-// carries its entity id under "_id" (or "id"); other fields are the
-// attr wrappers to merge.
+// DbEntityBulkRetrieveFunc - fetch the current DB-form trees for a batch of
+// fragments in one round-trip where the driver supports it (mongoc: one $in).
+// targetsV is a caller-allocated, zeroed KjNode*[N] parallel to fragmentsArr;
+// each slot receives the request-arena tree of the current entity, or stays
+// NULL when the id does not exist. Fragments that share an id share ONE target
+// tree so the broker's sequential merges accumulate (array-order semantics).
 //
-// resultsV is a caller-allocated int[N] populated per-entity with one
-// of: DB_OK, DB_NOT_FOUND (entity doesn't exist — batch merge requires
-// pre-existence), DB_ERR. N must equal fragmentsArr length.
+typedef int  (*DbEntityBulkRetrieveFunc)(Tenant* tenantP, KjNode* fragmentsArr,
+                                         KjNode** targetsV);
+
 //
-// reportsV is a caller-allocated LdMergeReport[N] populated per-entity
-// with the per-attribute change record the driver produced. The service
-// routine uses reportsV for subscription-notification matching.
+// DbEntityBulkChangesApplyFunc - persist a batch of already-merged entities.
+// The broker has run ldEntityMerge over each targetsV tree, producing
+// reportsV[i] (the per-fragment change record, also used for subscription
+// notification matching). This stages one surgical update per changed entity
+// (mongoc: a single bulk_write) and executes it.
 //
-// snapshotsV is a caller-allocated KjNode*[N] populated per-entity with
-// the post-merge full DB-form entity, in request-arena lifetime so the
-// service can feed it to ldNotifyDefer without an extra retrieve.
+// resultsV is a caller-allocated int[N]: DB_OK for slots the broker merged
+// (others are skipped here); staged slots may be demoted to DB_ERR on failure.
+// mergedTargetsV are the post-merge trees (= targetsV from the retrieve).
 //
-typedef int  (*DbEntityBulkMergeFunc)(Tenant* tenantP, KjNode* fragmentsArr,
-                                       uint64_t ts, int* resultsV,
-                                       LdMergeReport* reportsV,
-                                       KjNode** snapshotsV);
+typedef int  (*DbEntityBulkChangesApplyFunc)(Tenant* tenantP, KjNode* fragmentsArr,
+                                             KjNode** mergedTargetsV,
+                                             LdMergeReport* reportsV, int* resultsV);
 
 typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
 typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
@@ -162,10 +163,16 @@ typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 //
 typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
                                        int* resultsV, KjNode** snapshotsV);
-// deepMerge true  → true Merge Entity (§ 10.2.9): RFC 7396 surgical value merge.
-// deepMerge false → replace/append (e.g. Partial Attribute Update): value replaced wholesale.
-typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode* fragmentDb,
-                                  uint64_t ts, LdMergeReport* reportP, bool deepMerge);
+//
+// DbEntityChangesApplyFunc - persist a merged single entity (Merge Entity §
+// 10.2.9 / Partial Attribute Update § 10.2.5). The broker has already merged
+// `mergedEntity` in memory (ldEntityMerge / ldEntityFragmentApply, against the
+// tree from db.entityRetrieve) and produced `reportP` describing which
+// top-level attributes were created/modified/deleted. The driver translates the
+// report into a surgical write (mongoc: $set/$unset) — no merge logic here.
+//
+typedef int  (*DbEntityChangesApplyFunc)(Tenant* tenantP, const char* entityId,
+                                         KjNode* mergedEntity, LdMergeReport* reportP);
 typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
                                     KjNode* newEntityP, KjNode** oldEntityPP);
 //
@@ -285,12 +292,13 @@ typedef struct DbDriver
   DbEntityCreateFunc      entityCreate;
   DbEntityBulkCreateFunc  entityBulkCreate;
   DbEntityBulkUpdateFunc  entityBulkUpdate;
-  DbEntityBulkMergeFunc   entityBulkMerge;
+  DbEntityBulkRetrieveFunc     entityBulkRetrieve;
+  DbEntityBulkChangesApplyFunc entityBulkChangesApply;
   DbEntityBulkDeleteFunc  entityBulkDelete;
   DbEntityRetrieveFunc    entityRetrieve;
   DbEntityQueryFunc       entityQuery;
   DbEntityDeleteFunc      entityDelete;
-  DbEntityMergeFunc       entityMerge;
+  DbEntityChangesApplyFunc entityChangesApply;
   DbEntityReplaceFunc     entityReplace;
   DbEntityAttrsSetFunc    entityAttrsSet;
   DbTypeListFunc          typeList;        // Discovery § 5.7.5 / § 5.7.6 / § 5.7.7

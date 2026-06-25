@@ -8,8 +8,6 @@
 //
 // Copyright 2026 Seamware
 //
-#include <stdint.h>                                   // uint64_t
-
 #include "kjson/KjNode.h"                             // KjNode
 #include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
@@ -19,29 +17,22 @@
 
 // -----------------------------------------------------------------------------
 //
-// ramdbEntityMergeOne - apply Merge Entity to a single stored entity.
+// ramdbApplyReportToLive - apply a merge report to a live stored entity,
+// copying changed attributes (and refreshed modifiedAt/type/scope) from the
+// already-merged `merged` tree. Shared by the single-entity and batch paths.
 //
-// entitiesP:  the tenant's "entities" KjArray (as returned by ramdbEntities())
-// entityId:   id of the entity to merge into
-// fragmentDb: the patch fragment in DB-model, expanded form
-// ts:         modifiedAt timestamp (epoch nanoseconds)
-// reportP:    out-param for per-attribute change records
-//
-// Returns DB_OK, DB_NOT_FOUND, or DB_ERR. Mutates the live stored tree
-// directly — no clone, no replace.
-//
-extern int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
-                               KjNode* fragmentDb, uint64_t ts,
-                               LdMergeReport* reportP, bool deepMerge);
+extern void ramdbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP);
 
 
 
 // -----------------------------------------------------------------------------
 //
-// ramdbEntityMerge - DB driver entry point (single entity)
+// ramdbEntityChangesApply - persist a merged single entity (DB driver entry).
 //
-extern int ramdbEntityMerge(Tenant* tenantP, const char* entityId,
-                            KjNode* fragmentDb, uint64_t ts,
-                            LdMergeReport* reportP, bool deepMerge);
+// The broker has already merged `mergedEntity` (a request-arena clone) and
+// produced `reportP`; this applies the change report to the live stored tree.
+//
+extern int ramdbEntityChangesApply(Tenant* tenantP, const char* entityId,
+                                   KjNode* mergedEntity, LdMergeReport* reportP);
 
 #endif  // SWRAMDB_RAMDBENTITYMERGE_H_

@@ -12,7 +12,7 @@
 
 #include <stdbool.h>                                  // bool
 
-#include <mongoc/mongoc.h>                            // mongoc_collection_t
+#include <mongoc/mongoc.h>                            // bson_t
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
@@ -23,64 +23,28 @@
 
 // -----------------------------------------------------------------------------
 //
-// mongocEntityMergeBuildUpdate - merge fragmentDb into an already-fetched
-// target tree and build a $set/$unset bson body (without executing it).
+// mongocBuildSurgicalUpdate - translate a merge report into a $set/$unset body.
 //
-// Used by the batch-merge path, which wants to stage many updates into a
-// single bulk operation — it has already fetched N current docs via one
-// $in query, so it doesn't want this helper to fetch again.
+// `mergedEntity` is the already-merged in-memory tree (the broker ran the merge
+// engine); `reportP` lists which top-level attributes changed. Appends into the
+// caller-initialised `updateDocOut`. *noChangesOut is set true when there is
+// nothing to write. Shared by the single-entity and batch persist paths.
 //
-// On DB_OK, *updateDocOut is initialised with the update body.
-// *noChangesOut is set true when ldEntityMerge succeeded but produced no
-// writes (caller should skip the bulk op for this entity). Caller owns
-// bson_destroy(updateDocOut).
-//
-extern int mongocEntityMergeBuildUpdate(KjNode*              target,
-                                        KjNode*              fragmentDb,
-                                        uint64_t             ts,
-                                        LdMergeReport*       reportP,
-                                        bson_t*              updateDocOut,
-                                        bool*                noChangesOut,
-                                        bool                 deepMerge);
+extern void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
+                                      LdMergeReport* reportP,
+                                      bson_t*        updateDocOut,
+                                      bool*          noChangesOut);
 
 
 
 // -----------------------------------------------------------------------------
 //
-// mongocEntityMergeOne - apply Merge Entity on an already-opened collection.
+// mongocEntityChangesApply - persist a merged single entity (DB driver entry).
 //
-// Reusable core for both the single-entity PATCH and the future Batch Merge
-// (POST /entityOperations/merge). The caller owns the collection handle.
+// The broker has already merged `mergedEntity` and produced `reportP`; this
+// builds the surgical update and runs one update_one.
 //
-// Current implementation: fetch → ldEntityMerge → replace_one. This will be
-// upgraded to walk the fragment and emit $set / $unset at specific dotted
-// paths so the wire write is per-changed-attribute rather than the whole
-// document. Until then, a PATCH that touches one attribute on a large entity
-// still transfers the full entity.
-//
-// targetPP (optional, may be NULL) is populated on DB_OK with the
-// post-merge target tree (request-arena lifetime via swRest.kalloc) —
-// used by Batch Merge to skip the extra retrieve for notifications.
-//
-extern int mongocEntityMergeOne(mongoc_collection_t* collP,
-                                const char*          entityId,
-                                KjNode*              fragmentDb,
-                                uint64_t             ts,
-                                LdMergeReport*       reportP,
-                                KjNode**             targetPP,
-                                bool                 deepMerge);
-
-
-
-// -----------------------------------------------------------------------------
-//
-// mongocEntityMerge - DB driver entry point (single entity)
-//
-extern int mongocEntityMerge(Tenant*        tenantP,
-                             const char*    entityId,
-                             KjNode*        fragmentDb,
-                             uint64_t       ts,
-                             LdMergeReport* reportP,
-                             bool           deepMerge);
+extern int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
+                                    KjNode* mergedEntity, LdMergeReport* reportP);
 
 #endif  // MONGOC_MONGOCENTITYMERGE_H_

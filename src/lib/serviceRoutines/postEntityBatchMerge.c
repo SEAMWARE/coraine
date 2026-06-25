@@ -23,9 +23,9 @@
 //   Pass 2 — per fragment: distops chop + accumulate non-empty local
 //            fragments into localFragsArr.
 //   Pass 3 — synchronous distops forward per CSR.
-//   Pass 4 — db.entityBulkMerge(localFragsArr) — plugin loops per
-//            fragment doing surgical merge; returns report + snapshot
-//            per fragment.
+//   Pass 4 — db.entityBulkRetrieve fetches all current docs, the broker
+//            ldEntityMerge's each fragment into its target (array order),
+//            then db.entityBulkChangesApply persists the surgical change-sets.
 //   Pass 5 — defer-notify per successful fragment (in array order).
 //   Pass 6 — response: BatchOperationResult § 5.2.17. Dedup success[]
 //            by id.
@@ -734,7 +734,7 @@ bool postEntityBatchMerge(void)
   //
   if (localN > 0)
   {
-    if (db.entityBulkMerge == NULL)
+    if (db.entityBulkRetrieve == NULL || db.entityBulkChangesApply == NULL)
     {
       ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Merge not supported by this DB plugin");
@@ -744,15 +744,40 @@ bool postEntityBatchMerge(void)
     int*            resultsV    = (int*)            kaAlloc(&swRest.kalloc, sizeof(int)             * localN);
     LdMergeReport*  reportsV    = (LdMergeReport*)  kaAlloc(&swRest.kalloc, sizeof(LdMergeReport)   * localN);
     KjNode**        snapshotsV  = (KjNode**)        kaAlloc(&swRest.kalloc, sizeof(KjNode*)         * localN);
+    KjNode**        targetsV    = (KjNode**)        kaAlloc(&swRest.kalloc, sizeof(KjNode*)         * localN);
 
     for (int k = 0; k < localN; k++)
     {
       reportsV[k].changes = NULL;
       snapshotsV[k]       = NULL;
+      targetsV[k]         = NULL;
+      resultsV[k]         = DB_NOT_FOUND;
     }
 
-    db.entityBulkMerge(tenantP, localFragsArr, swRest.requestStartTime,
-                       resultsV, reportsV, snapshotsV);
+    //
+    // Phase 1 — fetch every current doc (one $in for mongoc). Then merge each
+    // fragment into its fetched target HERE in the broker, in array order so
+    // same-id fragments accumulate. Phase 2/3 — persist the change-sets.
+    // The merge engine lives in the broker; the driver only fetches and writes.
+    //
+    db.entityBulkRetrieve(tenantP, localFragsArr, targetsV);
+
+    int fi = 0;
+    for (KjNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fi++)
+    {
+      if (targetsV[fi] == NULL)
+      {
+        resultsV[fi] = DB_NOT_FOUND;
+        continue;
+      }
+
+      // Batch Merge = true RFC 7396 deep-merge (§ 5.6.10 → § 10.2.9).
+      ldEntityMerge(targetsV[fi], fragP, &reportsV[fi], swRest.requestStartTime, swRest.kjsonP);
+      snapshotsV[fi] = targetsV[fi];
+      resultsV[fi]   = DB_OK;
+    }
+
+    db.entityBulkChangesApply(tenantP, localFragsArr, targetsV, reportsV, resultsV);
 
     //
     // Pass 5 — per-fragment notify + per-unique-id success tracking.

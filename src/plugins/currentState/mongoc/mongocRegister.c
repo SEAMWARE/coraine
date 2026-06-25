@@ -97,12 +97,13 @@ void dbRegister(DbDriver* driverP)
   driverP->entityCreate     = mongocEntityCreate;
   driverP->entityBulkCreate = mongocEntityBulkCreate;
   driverP->entityBulkUpdate = mongocEntityBulkUpdate;
-  driverP->entityBulkMerge  = mongocEntityBulkMerge;
+  driverP->entityBulkRetrieve     = mongocEntityBulkRetrieve;
+  driverP->entityBulkChangesApply = mongocEntityBulkChangesApply;
   driverP->entityBulkDelete = mongocEntityBulkDelete;
   driverP->entityRetrieve  = mongocEntityRetrieve;
   driverP->entityQuery     = mongocEntityQuery;
   driverP->entityDelete    = mongocEntityDelete;
-  driverP->entityMerge     = mongocEntityMerge;
+  driverP->entityChangesApply = mongocEntityChangesApply;
   driverP->entityReplace   = mongocEntityReplace;
   driverP->entityAttrsSet  = mongocEntityAttrsSet;
   driverP->typeList        = mongocTypeList;

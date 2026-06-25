@@ -5,22 +5,30 @@
 //
 // Copyright 2026 Seamware
 //
-// swRamDB entityMerge: locate the live entity node and let ldEntityMerge mutate
-// the stored tree in place. No cloning, no wholesale replacement — a PATCH that
-// touches one attribute on a 2000-attribute entity only walks the attributes the
-// fragment actually names.
+// swRamDB change-set persistence for Merge Entity / Partial Attribute Update.
 //
-// The tenant store uses a malloc-backed allocator (NULL Kjson*), so any node
-// grafted into target must also be on the malloc heap. We pass NULL as
-// targetAllocP to ldEntityMerge.
+// The NGSI-LD merge itself is done by the broker against the request-arena tree
+// returned by db.entityRetrieve; this file applies the resulting change report
+// to the LIVE stored entity. Only the attributes the report names are touched —
+// a PATCH on one attribute of a 2000-attribute entity does not re-clone the
+// whole entity.
+//
+// The tenant store uses a malloc-backed allocator, so any node grafted into the
+// live tree is cloned with the NULL (malloc) allocator; replaced/removed nodes
+// are kjFree'd.
 //
 
 #include <string.h>                                   // strcmp
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
+#include "kjson/kjClone.h"                            // kjClone
+#include "kjson/kjFree.h"                             // kjFree
+#include "kjson/kjBuilder.h"                          // kjChildRemove, kjChildAdd
+#include "kjson/kjChildReplace.h"                     // kjChildReplace
 
-#include "swNgsild/ldEntityMerge.h"                   // ldEntityMerge, LdMergeReport
+#include "swNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_SCOPE
+#include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbEntities
@@ -30,40 +38,99 @@
 
 // -----------------------------------------------------------------------------
 //
-// ramdbEntityMergeOne -
+// replaceOrAdd - graft a malloc-clone of `srcNode` into `live` under `name`,
+// replacing (and freeing) any existing same-named child.
 //
-int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
-                        KjNode* fragmentDb, uint64_t ts,
-                        LdMergeReport* reportP, bool deepMerge)
+static void replaceOrAdd(KjNode* live, const char* name, KjNode* srcNode)
 {
-  for (KjNode* eP = entitiesP->value.firstChildP; eP != NULL; eP = eP->next)
+  if (srcNode == NULL)
+    return;
+
+  KjNode* clone = kjClone(NULL, srcNode);  // NULL allocator == malloc == store lifetime
+  KjNode* old   = kjLookup(live, name);
+
+  if (old != NULL)
   {
-    KjNode* idP = kjLookup(eP, "id");
-
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
-    {
-      // NULL allocator == malloc heap == tenant store lifetime.
-      // deepMerge: true Merge Entity surgically deep-merges values (RFC 7396);
-      // replace/append ops replace the value wholesale.
-      if (deepMerge) ldEntityMerge(eP, fragmentDb, reportP, ts, NULL);
-      else           ldEntityFragmentApply(eP, fragmentDb, reportP, ts, NULL);
-      return DB_OK;
-    }
+    kjChildReplace(live, old, clone);
+    kjFree(old);
   }
-
-  return DB_NOT_FOUND;
+  else
+    kjChildAdd(live, clone);
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// ramdbEntityMerge -
+// ramdbApplyReportToLive - apply a merge report to a live stored entity.
 //
-int ramdbEntityMerge(Tenant* tenantP, const char* entityId,
-                     KjNode* fragmentDb, uint64_t ts,
-                     LdMergeReport* reportP, bool deepMerge)
+// `merged` is the already-merged request-arena tree the report was produced
+// against; the new attribute wrappers (and refreshed modifiedAt/type/scope) are
+// copied from it into `live`. Shared by the single-entity and batch paths.
+//
+void ramdbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP)
+{
+  bool anyChange = false;
+
+  if (reportP != NULL && reportP->changes != NULL)
+  {
+    for (KjNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
+    {
+      KjNode* attrNameP = kjLookup(change, "attr");
+      KjNode* reasonP   = kjLookup(change, "reason");
+
+      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != KjString || reasonP->type != KjString)
+        continue;
+
+      const char* attrName = attrNameP->value.s;
+      const char* reason   = reasonP->value.s;
+
+      if (strcmp(reason, "attributeDeleted") == 0)
+      {
+        KjNode* old = kjLookup(live, attrName);
+        if (old != NULL)
+        {
+          kjChildRemove(live, old);
+          kjFree(old);
+          anyChange = true;
+        }
+      }
+      else
+      {
+        replaceOrAdd(live, attrName, kjLookup(merged, attrName));
+        anyChange = true;
+      }
+    }
+  }
+
+  if (anyChange)
+  {
+    replaceOrAdd(live, LD_VOCAB_MODIFIED_AT, kjLookup(merged, LD_VOCAB_MODIFIED_AT));
+    replaceOrAdd(live, "type",               kjLookup(merged, "type"));
+    replaceOrAdd(live, LD_VOCAB_SCOPE,        kjLookup(merged, LD_VOCAB_SCOPE));
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ramdbEntityChangesApply - persist a merged single entity (DB driver entry)
+//
+int ramdbEntityChangesApply(Tenant* tenantP, const char* entityId,
+                            KjNode* mergedEntity, LdMergeReport* reportP)
 {
   KjNode* entities = ramdbEntities(tenantP);
-  return ramdbEntityMergeOne(entities, entityId, fragmentDb, ts, reportP, deepMerge);
+
+  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  {
+    KjNode* idP = kjLookup(eP, "id");
+    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
+    {
+      ramdbApplyReportToLive(eP, mergedEntity, reportP);
+      return DB_OK;
+    }
+  }
+
+  return DB_NOT_FOUND;
 }

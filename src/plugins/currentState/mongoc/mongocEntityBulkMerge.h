@@ -8,8 +8,6 @@
 //
 // Copyright 2026 Seamware
 //
-#include <stdint.h>                                   // uint64_t
-
 #include "kjson/KjNode.h"                             // KjNode
 #include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
@@ -19,21 +17,24 @@
 
 // -----------------------------------------------------------------------------
 //
-// mongocEntityBulkMerge - Batch Merge (§ 5.6.10) for mongoc.
+// mongocEntityBulkRetrieve - Batch Merge Phase 1: one $in fetch of all current
+// docs into the request arena. `targetsV` is a caller-allocated, zeroed array
+// parallel to the fragments; same-id fragments share one target tree.
 //
-// Two round-trips for the whole batch:
-//   1. one find({_id:{$in:[...]}}) fetches every current document;
-//   2. one mongoc_bulk_operation_execute runs all surgical $set/$unset
-//      updates computed in memory from the merge reports.
+extern int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr,
+                                    KjNode** targetsV);
+
+
+
+// -----------------------------------------------------------------------------
 //
-// resultsV[i] is one of DB_OK / DB_NOT_FOUND / DB_ERR.
-// reportsV[i] receives the per-fragment merge report (ldEntityMerge).
-// snapshotsV[i] is populated with the post-merge target tree on DB_OK,
-// NULL otherwise.
+// mongocEntityBulkChangesApply - Batch Merge Phase 2/3: stage one surgical
+// update per already-merged target (from its report) into a single bulk
+// operation and execute it. resultsV[i] is DB_OK for slots the broker merged;
+// staged slots are demoted to DB_ERR on bulk-execute failure.
 //
-extern int mongocEntityBulkMerge(Tenant* tenantP, KjNode* fragmentsArr,
-                                 uint64_t ts, int* resultsV,
-                                 LdMergeReport* reportsV,
-                                 KjNode** snapshotsV);
+extern int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
+                                        KjNode** mergedTargetsV, LdMergeReport* reportsV,
+                                        int* resultsV);
 
 #endif  // MONGOC_MONGOCENTITYBULKMERGE_H_

@@ -341,40 +341,44 @@ bool patchEntity(void)
   {
     ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);
 
-    LdMergeReport report = { NULL };
-    // Merge Entity (§ 10.2.9) — true RFC 7396 surgical merge (deepMerge=true).
-    localR = db.entityMerge(tenantP, entityId, fragment, swRest.requestStartTime, &report, true);
-
     //
-    // ldEntityMerge may have called ldError mid-merge (simplified
-    // LanguageProperty without ?lang=, unsupported attribute type for a
-    // simplified scalar, ...). That takes precedence over the driver's
-    // return code.
+    // Merge in the broker: fetch the current entity, deep-merge the fragment
+    // into it (§ 10.2.9, true RFC 7396), then ask the driver to persist the
+    // resulting change report. The merge engine lives here, not in the plugin.
     //
-    if (swRest.out.problemType != NULL)
-      return true;
+    KjNode* mergedEntity = NULL;
+    localR = db.entityRetrieve(tenantP, entityId, &mergedEntity);
 
     if (localR == DB_OK)
     {
+      LdMergeReport report = { NULL };
+
+      //
+      // ldEntityMerge may call ldError mid-merge (simplified LanguageProperty
+      // without ?lang=, unsupported attribute type for a simplified scalar,
+      // attribute type change attempt, ...) and return false.
+      //
+      if (ldEntityMerge(mergedEntity, fragment, &report, swRest.requestStartTime, swRest.kjsonP) == false)
+        return true;
+
+      if (db.entityChangesApply(tenantP, entityId, mergedEntity, &report) != DB_OK)
+      {
+        ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                "database error merging entity '%s'", entityId);
+        return true;
+      }
+
       anySucceeded = true;
 
-      KjNode* mergedEntity = NULL;
+      // mergedEntity is the post-merge tree — feed notifications + TRoE directly.
       if (tenantP->subCacheP != NULL)
-        db.entityRetrieve(tenantP, entityId, &mergedEntity);
-
-      if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
 
       // TRoE: defer one attr event per top-level attr in the merge report.
-      if (mergedEntity == NULL)
-        db.entityRetrieve(tenantP, entityId, &mergedEntity);
       {
         const char* etype = NULL;
-        if (mergedEntity != NULL)
-        {
-          KjNode* tn = kjLookup(mergedEntity, "type");
-          if (tn != NULL && tn->type == KjString) etype = tn->value.s;
-        }
+        KjNode* tn = kjLookup(mergedEntity, "type");
+        if (tn != NULL && tn->type == KjString) etype = tn->value.s;
         troeDeferAttrEventsFromMerge(tenantP, entityId, etype, mergedEntity, &report,
                                      swRest.requestStartTime);
       }

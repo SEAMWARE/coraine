@@ -286,7 +286,8 @@ bool patchEntityAttr(void)
   }
 
   //
-  // Local apply — Partial Attribute Update: db.entityMerge with deepMerge=false (replace/append, not RFC 7396 deep merge).
+  // Local apply — Partial Attribute Update: broker-side ldEntityFragmentApply
+  // (replace/append, not RFC 7396 deep merge) + db.entityChangesApply to persist.
   //
   if (localApply)
   {
@@ -368,13 +369,18 @@ bool patchEntityAttr(void)
 
         ldApiEntityToDbModel(entityFrag, &swRest.kalloc, 0);
 
-        LdMergeReport report = { NULL };
+        //
         // Partial Attribute Update (§ 10.2.5) — replace/append semantics, the
-        // value is replaced wholesale, not deep-merged (deepMerge=false).
-        int r = db.entityMerge(tenantP, entityId, entityFrag,
-                                swRest.requestStartTime, &report, false);
+        // value is replaced wholesale, not deep-merged. Apply the fragment to
+        // the already-retrieved targetEntity here in the broker, then persist
+        // the resulting change report via the driver.
+        //
+        LdMergeReport report = { NULL };
+        if (ldEntityFragmentApply(targetEntity, entityFrag, &report,
+                                  swRest.requestStartTime, swRest.kjsonP) == false)
+          return true;  // ldError already set
 
-        if (r != DB_OK && r != DB_NOT_FOUND)
+        if (db.entityChangesApply(tenantP, entityId, targetEntity, &report) != DB_OK)
         {
           ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
                   "database error updating attribute '%s' on entity '%s'",
@@ -382,31 +388,20 @@ bool patchEntityAttr(void)
           return true;
         }
 
-        if (r == DB_OK)
+        anySucceeded = true;
+
+        // targetEntity is the post-merge tree — feed notifications + TRoE directly.
+        if (tenantP->subCacheP != NULL)
+          ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
+                        LdNotifyEntityUpdate, &report);
+
+        // TRoE: defer one attr event per top-level attr in the merge report.
         {
-          anySucceeded = true;
-
-          KjNode* merged = NULL;
-          if (tenantP->subCacheP != NULL)
-            db.entityRetrieve(tenantP, entityId, &merged);
-
-          if (tenantP->subCacheP != NULL && merged != NULL)
-            ldNotifyDefer((LdSubCache*) tenantP->subCacheP, merged,
-                          LdNotifyEntityUpdate, &report);
-
-          // TRoE: defer one attr event per top-level attr in the merge report.
-          if (merged == NULL)
-            db.entityRetrieve(tenantP, entityId, &merged);
-          {
-            const char* etype = NULL;
-            if (merged != NULL)
-            {
-              KjNode* tn = kjLookup(merged, "type");
-              if (tn != NULL && tn->type == KjString) etype = tn->value.s;
-            }
-            troeDeferAttrEventsFromMerge(tenantP, entityId, etype, merged, &report,
-                                         swRest.requestStartTime);
-          }
+          const char* etype = NULL;
+          KjNode* tn = kjLookup(targetEntity, "type");
+          if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+          troeDeferAttrEventsFromMerge(tenantP, entityId, etype, targetEntity, &report,
+                                       swRest.requestStartTime);
         }
       }
     }

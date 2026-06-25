@@ -5,24 +5,22 @@
 //
 // Copyright 2026 Seamware
 //
-// mongoc entityMerge: fetch the current document, apply ldEntityMerge in
-// memory, then write only the attributes that actually changed using a
-// surgical $set / $unset update. A PATCH that modifies one attribute on a
-// 2000-attribute entity transfers only that attribute plus the entity-level
-// modifiedAt, not the whole document.
+// mongoc change-set persistence for Merge Entity / Partial Attribute Update.
 //
-// Factored so that mongocEntityMergeOne() can be reused by Batch Merge
-// (POST /entityOperations/merge) — batch will open the collection once, loop
-// over this helper, and collect results into a bulk write.
+// The NGSI-LD merge itself (RFC 7396 / replace-append) is done by the broker
+// against an in-memory tree fetched via db.entityRetrieve; the broker hands us
+// the already-merged entity plus an LdMergeReport describing which top-level
+// attributes were created/modified/deleted. This file only translates that
+// report into a surgical $set/$unset and writes it.
 //
-// Granularity is the top-level attribute (what the merge report tracks).
 // "attributeCreated" and "attributeModified" become $set with the whole
-// attribute wrapper as the value; "attributeDeleted" becomes $unset. This is
-// already a big win over replacing the entire document, and it keeps the
-// stored shape in sync with the in-memory target, which is what subsequent
-// reads expect. A finer-grained diff at sub-attribute path level could be
-// added later as an optimization; at that point the merge helper would need
-// to emit path-level change records as well.
+// (merged) attribute wrapper as the value; "attributeDeleted" becomes $unset.
+// A PATCH that touches one attribute on a 2000-attribute entity transfers only
+// that attribute plus the entity-level modifiedAt, not the whole document.
+//
+// mongocBuildSurgicalUpdate() is shared with the batch path
+// (mongocEntityBulkChangesApply), which stages many of these updates into a
+// single bulk operation.
 //
 
 #include <string.h>                                   // strcmp, strlen
@@ -32,13 +30,11 @@
 #include "ktrace/kTrace.h"                            // KT_E
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
-#include "swRest/SwRestState.h"                       // swRest
 
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_CREATED_AT
-#include "swNgsild/ldEntityMerge.h"                   // ldEntityMerge, LdMergeReport
+#include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocBsonToKjTree.h"   // mongocBsonToKjTree
 #include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"      // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocEntityMerge.h"    // Own interface
@@ -55,57 +51,22 @@ extern mongoc_client_pool_t*  poolP;
 
 // -----------------------------------------------------------------------------
 //
-// mongocEntityMergeOne -
+// mongocBuildSurgicalUpdate - translate a merge report into a $set/$unset body.
 //
-// -----------------------------------------------------------------------------
+// `mergedEntity` is the already-merged in-memory tree (the broker ran the merge
+// engine); `reportP` lists which top-level attributes changed. The new attribute
+// wrappers are read from `mergedEntity`. Appends into the caller-initialised
+// `updateDocOut` ({ $set:{...}, $unset:{...} }). *noChangesOut is set true when
+// the report produced nothing to write (caller should skip the DB write).
 //
-// mongocEntityMergeBuildUpdate - merge the fragment into `target` in memory
-// and translate the merge report into a $set/$unset bson body.
+// No merge logic here — that lives in the broker (ldEntityMerge /
+// ldEntityFragmentApply).
 //
-// `target` must be the in-memory tree of the CURRENT document (the caller
-// has done the fetch — either a single find_one or a $in batch fetch).
-// Returns DB_OK if the update-doc was produced (even if empty — the merge
-// legitimately touched nothing and the caller should skip the bulk op).
-// Returns DB_OK with *noChangesP = true when there is nothing to write.
-//
-// On success: *updateDocOut is populated with { $set:..., $unset:... }.
-// Caller is responsible for bson_destroy(updateDocOut).
-//
-int mongocEntityMergeBuildUpdate(KjNode*              target,
-                                 KjNode*              fragmentDb,
-                                 uint64_t             ts,
-                                 LdMergeReport*       reportP,
-                                 bson_t*              updateDocOut,
-                                 bool*                noChangesOut,
-                                 bool                 deepMerge)
+void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
+                               LdMergeReport* reportP,
+                               bson_t*        updateDocOut,
+                               bool*          noChangesOut)
 {
-  if (target == NULL || fragmentDb == NULL || updateDocOut == NULL)
-    return DB_ERR;
-
-  // Initialise updateDocOut up-front so the caller can always bson_destroy
-  // it, even on early returns.
-  bson_init(updateDocOut);
-
-  if (noChangesOut != NULL)
-    *noChangesOut = true;
-
-  //
-  // 1. Apply the fragment in memory. target and fragment are in the request
-  //    arena (swRest.kjsonP) — grafted nodes need matching lifetime.
-  //    deepMerge selects the value semantics: true Merge Entity surgically
-  //    deep-merges values (RFC 7396), replace/append ops replace wholesale.
-  //
-  bool applied = deepMerge ? ldEntityMerge(target, fragmentDb, reportP, ts, swRest.kjsonP)
-                           : ldEntityFragmentApply(target, fragmentDb, reportP, ts, swRest.kjsonP);
-  if (applied == false)
-    return DB_OK;  // ldError already set; service routine sees problemType
-
-  //
-  // 2. Build a surgical update document from the merge report.
-  //
-  //    { $set:   { attrA: <wrapper>, ... modifiedAt, type, scope },
-  //      $unset: { attrC: 1, attrD: 1 } }
-  //
   bson_t setDoc;
   bson_t unsetDoc;
   bson_init(&setDoc);
@@ -135,7 +96,7 @@ int mongocEntityMergeBuildUpdate(KjNode*              target,
       }
       else
       {
-        KjNode* attrWrapper = kjLookup(target, attrName);
+        KjNode* attrWrapper = kjLookup(mergedEntity, attrName);
         if (attrWrapper == NULL)
           continue;
 
@@ -150,21 +111,21 @@ int mongocEntityMergeBuildUpdate(KjNode*              target,
   //
   if (hasSet || hasUnset)
   {
-    KjNode* modAtP = kjLookup(target, LD_VOCAB_MODIFIED_AT);
+    KjNode* modAtP = kjLookup(mergedEntity, LD_VOCAB_MODIFIED_AT);
     if (modAtP != NULL && modAtP->type == KjInt)
     {
       mongocKjNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
       hasSet = true;
     }
 
-    KjNode* typeP = kjLookup(target, "type");
+    KjNode* typeP = kjLookup(mergedEntity, "type");
     if (typeP != NULL)
     {
       mongocKjNodeAppend(&setDoc, "type", typeP);
       hasSet = true;
     }
 
-    KjNode* scopeP = kjLookup(target, LD_VOCAB_SCOPE);
+    KjNode* scopeP = kjLookup(mergedEntity, LD_VOCAB_SCOPE);
     if (scopeP != NULL)
     {
       mongocKjNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
@@ -182,113 +143,51 @@ int mongocEntityMergeBuildUpdate(KjNode*              target,
 
   if (noChangesOut != NULL)
     *noChangesOut = !(hasSet || hasUnset);
-
-  return DB_OK;
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// mongocEntityMergeOne -
+// mongocEntityChangesApply - persist a merged single entity (DB driver entry)
 //
-int mongocEntityMergeOne(mongoc_collection_t* collP,
-                         const char*          entityId,
-                         KjNode*              fragmentDb,
-                         uint64_t             ts,
-                         LdMergeReport*       reportP,
-                         KjNode**             targetPP,
-                         bool                 deepMerge)
+// The broker has already merged `mergedEntity` in memory and produced
+// `reportP`. Build the surgical update and run one update_one. An empty report
+// (the merge produced no net change) writes nothing and returns DB_OK.
+//
+int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
+                             KjNode* mergedEntity, LdMergeReport* reportP)
 {
-  //
-  // 1. Fetch current document by _id
-  //
-  bson_t filter;
-  bson_init(&filter);
-  BSON_APPEND_UTF8(&filter, "_id", entityId);
-
-  mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, NULL, NULL);
-
-  const bson_t* doc    = NULL;
-  KjNode*       target = NULL;
-
-  if (mongoc_cursor_next(cursorP, &doc))
-  {
-    target = mongocBsonToKjTree(&swRest.kalloc, doc);
-  }
-  else
-  {
-    bson_error_t cursorError;
-    if (mongoc_cursor_error(cursorP, &cursorError))
-    {
-      KT_E("mongoc: entityMerge fetch failed: %s", cursorError.message);
-      mongoc_cursor_destroy(cursorP);
-      bson_destroy(&filter);
-      return DB_ERR;
-    }
-
-    mongoc_cursor_destroy(cursorP);
-    bson_destroy(&filter);
-    return DB_NOT_FOUND;
-  }
-
-  mongoc_cursor_destroy(cursorP);
-
-  //
-  // 2. Apply merge + build surgical update (shared with batch-merge).
-  //
   bson_t update;
-  bool   noChanges = true;
-  int    rc = mongocEntityMergeBuildUpdate(target, fragmentDb, ts, reportP, &update, &noChanges, deepMerge);
-  if (rc != DB_OK)
-  {
-    bson_destroy(&filter);
-    return rc;
-  }
+  bson_init(&update);
+
+  bool noChanges = true;
+  mongocBuildSurgicalUpdate(mergedEntity, reportP, &update, &noChanges);
 
   int result = DB_OK;
 
   if (!noChanges)
   {
-    bson_error_t err;
-    bool ok = mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err);
+    mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
+    mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
 
-    if (!ok)
+    bson_t filter;
+    bson_init(&filter);
+    BSON_APPEND_UTF8(&filter, "_id", entityId);
+
+    bson_error_t err;
+    if (!mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err))
     {
-      KT_E("mongoc: entityMerge update_one failed: %s", err.message);
+      KT_E("mongoc: entityChangesApply update_one failed: %s", err.message);
       result = DB_ERR;
     }
+
+    bson_destroy(&filter);
+    mongoc_collection_destroy(collP);
+    mongoc_client_pool_push(poolP, clientP);
   }
 
   bson_destroy(&update);
-  bson_destroy(&filter);
-
-  if (targetPP != NULL && result == DB_OK)
-    *targetPP = target;
-
-  return result;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// mongocEntityMerge -
-//
-int mongocEntityMerge(Tenant*        tenantP,
-                      const char*    entityId,
-                      KjNode*        fragmentDb,
-                      uint64_t       ts,
-                      LdMergeReport* reportP,
-                      bool           deepMerge)
-{
-  mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
-  mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
-
-  int result = mongocEntityMergeOne(collP, entityId, fragmentDb, ts, reportP, NULL, deepMerge);
-
-  mongoc_collection_destroy(collP);
-  mongoc_client_pool_push(poolP, clientP);
 
   return result;
 }

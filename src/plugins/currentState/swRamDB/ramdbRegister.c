@@ -103,12 +103,13 @@ void dbRegister(DbDriver* driverP)
   driverP->entityCreate     = ramdbEntityCreate;
   driverP->entityBulkCreate = ramdbEntityBulkCreate;
   driverP->entityBulkUpdate = ramdbEntityBulkUpdate;
-  driverP->entityBulkMerge  = ramdbEntityBulkMerge;
+  driverP->entityBulkRetrieve     = ramdbEntityBulkRetrieve;
+  driverP->entityBulkChangesApply = ramdbEntityBulkChangesApply;
   driverP->entityBulkDelete = ramdbEntityBulkDelete;
   driverP->entityRetrieve  = ramdbEntityRetrieve;
   driverP->entityQuery     = ramdbEntityQuery;
   driverP->entityDelete    = ramdbEntityDelete;
-  driverP->entityMerge     = ramdbEntityMerge;
+  driverP->entityChangesApply = ramdbEntityChangesApply;
   driverP->entityReplace   = ramdbEntityReplace;
   driverP->entityAttrsSet  = ramdbEntityAttrsSet;
   driverP->typeList        = ramdbTypeList;

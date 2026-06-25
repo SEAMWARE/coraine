@@ -8,8 +8,6 @@
 //
 // Copyright 2026 Seamware
 //
-#include <stdint.h>                                     // uint64_t
-
 #include "kjson/KjNode.h"                               // KjNode
 #include "swNgsild/ldEntityMerge.h"                     // LdMergeReport
 
@@ -19,14 +17,22 @@
 
 // -----------------------------------------------------------------------------
 //
-// ramdbEntityBulkMerge - Batch Merge (§ 5.6.10) for swRamDB.
+// ramdbEntityBulkRetrieve - Batch Merge Phase 1: clone current stored entities
+// into the request arena. `targetsV` is a caller-allocated, zeroed array
+// parallel to the fragments; same-id fragments share one clone.
 //
-// Loops ramdbEntityMergeOne. resultsV and reportsV are parallel arrays
-// of length = number of fragments; each carries the per-entity outcome.
+extern int ramdbEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr,
+                                   KjNode** targetsV);
+
+
+
+// -----------------------------------------------------------------------------
 //
-extern int ramdbEntityBulkMerge(Tenant* tenantP, KjNode* fragmentsArr,
-                                uint64_t ts, int* resultsV,
-                                LdMergeReport* reportsV,
-                                KjNode** snapshotsV);
+// ramdbEntityBulkChangesApply - Batch Merge Phase 2: apply each fragment's
+// change report to its live stored entity.
+//
+extern int ramdbEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
+                                       KjNode** mergedTargetsV, LdMergeReport* reportsV,
+                                       int* resultsV);
 
 #endif  // SWRAMDB_RAMDBENTITYBULKMERGE_H_
