@@ -1,0 +1,104 @@
+#
+# FILE            query_q_list_membership.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# q over a ListProperty valueList matches by containment for every element type:
+# a term matches when ANY element equals it (==) / no element equals it (!=).
+# Integer and string element containment is covered by query_q_attr_types; this
+# adds float and boolean elements (the in-memory matcher's numeric branch used
+# to ignore arrays, and the boolean branch had no array path at all).
+#
+--NAME--
+q over a ListProperty valueList — float and boolean element containment
+
+--TAGS--
+q query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E with a float-list and a boolean-list ListProperty"
+echo "============================================================="
+payload='{
+  "id": "urn:ngsi-ld:LM:E1",
+  "type": "LM",
+  "fl": { "type": "ListProperty", "valueList": [1.5, 2.5, 3.5] },
+  "bl": { "type": "ListProperty", "valueList": [true, false] }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. q=fl==2.5 — float present in valueList, matches"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl==2.5' | grep '"id"'
+echo
+echo
+
+
+echo "03. q=fl==9.9 — float absent, no match"
+echo "======================================"
+swCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl==9.9' | grep -c '"id"' || true
+echo
+echo
+
+
+echo "04. q=fl!=9.9 — no element equals 9.9, matches"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl!=9.9' | grep '"id"'
+echo
+echo
+
+
+echo "05. q=bl==true — boolean present in valueList, matches"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=LM&q=bl==true' | grep '"id"'
+echo
+echo
+
+
+echo "06. q=bl==false — boolean present in valueList, matches"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=LM&q=bl==false' | grep '"id"'
+
+--EXPECT--
+01. Create E with a float-list and a boolean-list ListProperty
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:LM:E1
+Content-Length: 0
+
+
+
+
+02. q=fl==2.5 — float present in valueList, matches
+==================================================
+    "id": "urn:ngsi-ld:LM:E1",
+
+
+03. q=fl==9.9 — float absent, no match
+======================================
+0
+
+
+04. q=fl!=9.9 — no element equals 9.9, matches
+=============================================
+    "id": "urn:ngsi-ld:LM:E1",
+
+
+05. q=bl==true — boolean present in valueList, matches
+=====================================================
+    "id": "urn:ngsi-ld:LM:E1",
+
+
+06. q=bl==false — boolean present in valueList, matches
+======================================================
+    "id": "urn:ngsi-ld:LM:E1",
