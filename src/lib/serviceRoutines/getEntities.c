@@ -1532,6 +1532,53 @@ static bool entityMapPaginate(void)
 
 // -----------------------------------------------------------------------------
 //
+// geoJsonGeomProtectSetup - for a geo+json response, mark the selected geometry
+// GeoProperty (geometryProperty, default "location", as an expanded IRI) so the
+// pick/omit/attrs projection keeps it — ldToGeoJson needs it to build the
+// "geometry" field even when the projection would otherwise drop it
+// (§ 5.3.3.2: geometry is selected from the stored entity, independent of the
+// member projection). geoJsonGeomForced records whether the user's projection
+// would have dropped it, so ldToGeoJson prunes it from "properties".
+//
+static void geoJsonGeomProtectSetup(void)
+{
+  if (ldAcceptParse(swRest.in.accept) != LdAcceptGeoJson)
+    return;
+
+  SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+  const char*  gmName = (swNgsild.geometryProperty != NULL) ? swNgsild.geometryProperty : "location";
+  char*        gmIri  = swldExpand(ctxP, gmName, &swRest.kalloc, NULL, NULL);
+  if (gmIri == NULL)
+    gmIri = (char*) gmName;
+
+  swNgsild.geometryPropertyExpanded = gmIri;
+
+  bool wanted = true;
+  if (swNgsild.pickV != NULL)
+  {
+    wanted = false;
+    for (int i = 0; swNgsild.pickV[i] != NULL; i++)
+      if (strcmp(swNgsild.pickV[i], gmIri) == 0) { wanted = true; break; }
+  }
+  else if (swNgsild.omitV != NULL)
+  {
+    for (int i = 0; swNgsild.omitV[i] != NULL; i++)
+      if (strcmp(swNgsild.omitV[i], gmIri) == 0) { wanted = false; break; }
+  }
+  else if (swNgsild.attrsV != NULL)
+  {
+    wanted = false;
+    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
+      if (strcmp(swNgsild.attrsV[i], gmIri) == 0) { wanted = true; break; }
+  }
+
+  swNgsild.geoJsonGeomForced = !wanted;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getEntities -
 //
 bool getEntities(void)
@@ -1542,6 +1589,9 @@ bool getEntities(void)
   //
   if (ldParamsValidate())
     return true;
+
+  // geo+json: protect the geometry GeoProperty through the member projection.
+  geoJsonGeomProtectSetup();
 
   //
   // § 6.3.22 / § 5.5.15 — snapshot-aware read. NGSILD-Snapshot header

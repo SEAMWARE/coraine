@@ -1,0 +1,239 @@
+#
+# FILE            geojson_geometry_survives_projection.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The GeoJSON "geometry" field is selected from the stored entity's GeoProperty
+# (geometryProperty, default "location") INDEPENDENTLY of the attribute
+# projection (TS 104-175 § 5.3.3.2 vs § 5.3.3.3.1: "geometry" is selected from
+# the entity, while "properties" carries one member per Attribute as per the
+# projection rules). So a pick / attrs / omit that drops the GeoProperty must
+# still yield a populated "geometry" — the GeoProperty is simply absent from
+# "properties" unless the projection keeps it.
+#
+# (swBroker's call pending ETSI TC DATA resolution — see spec-doubts-2.md
+# "GeoJSON output (§5.3.3) — geometry vs the attribute projection".)
+#
+--NAME--
+GeoJSON geometry survives a pick/attrs/omit that drops the GeoProperty
+
+--TAGS--
+entity query geojson pick attrs omit geometryProperty
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create City with location + name + population"
+echo "================================================="
+payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } }, "name": { "type": "Property", "value": "Berlin" }, "population": { "type": "Property", "value": 3600000 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. attrs=name → geometry still Point [13.4,52.5]; properties only name"
+echo "======================================================================"
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'attrs=name'
+echo
+echo
+
+
+echo "03. pick=name → geometry still populated; properties only type+name"
+echo "=================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'pick=name'
+echo
+echo
+
+
+echo "04. geometryProperty=location&pick=name → explicit geom source survives pick"
+echo "==========================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'geometryProperty=location&pick=name'
+echo
+echo
+
+
+echo "05. omit=location → geometry still populated; location absent from properties"
+echo "============================================================================"
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'omit=location'
+echo
+echo
+
+
+echo "06. Control: pick=name,location → geometry populated AND location in properties"
+echo "=============================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'pick=name,location'
+
+--EXPECT--
+01. Create City with location + name + population
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:1
+Content-Length: 0
+
+
+
+
+02. attrs=name → geometry still Point [13.4,52.5]; properties only name
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 341
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+
+
+03. pick=name → geometry still populated; properties only type+name
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 291
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "properties": {
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    }
+  },
+  "type": "Feature"
+}
+
+
+
+04. geometryProperty=location&pick=name → explicit geom source survives pick
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 291
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "properties": {
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    }
+  },
+  "type": "Feature"
+}
+
+
+
+05. omit=location → geometry still populated; location absent from properties
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 417
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    },
+    "population": {
+      "type": "Property",
+      "value": 3600000
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+
+
+06. Control: pick=name,location → geometry populated AND location in properties
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 461
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "properties": {
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    },
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    }
+  },
+  "type": "Feature"
+}
+
+--TEARDOWN--
+swBrokerStop

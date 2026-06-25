@@ -26,11 +26,13 @@
 
 #include "swRest/SwRestState.h"                      // swRest
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
+#include "swJsonld/swldExpand.h"                     // swldExpand
 #include "swJsonld/swldCompact.h"                    // swldCompact
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 #include "swJsonld/swldDownload.h"                   // swldContextFromUrl
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
+#include "swNgsild/ldAcceptParse.h"                  // ldAcceptParse, LdAcceptGeoJson
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
@@ -927,12 +929,60 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
 //
 // getEntity -
 //
+// -----------------------------------------------------------------------------
+//
+// geoJsonGeomProtectSetup - see getEntities.c. For a geo+json response, mark
+// the selected geometry GeoProperty (expanded IRI) so the pick/omit/attrs
+// projection keeps it (ldToGeoJson needs it for "geometry", § 5.3.3.2);
+// geoJsonGeomForced records whether the user's projection would have dropped
+// it, so ldToGeoJson prunes it from "properties".
+//
+static void geoJsonGeomProtectSetup(void)
+{
+  if (ldAcceptParse(swRest.in.accept) != LdAcceptGeoJson)
+    return;
+
+  SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+  const char*  gmName = (swNgsild.geometryProperty != NULL) ? swNgsild.geometryProperty : "location";
+  char*        gmIri  = swldExpand(ctxP, gmName, &swRest.kalloc, NULL, NULL);
+  if (gmIri == NULL)
+    gmIri = (char*) gmName;
+
+  swNgsild.geometryPropertyExpanded = gmIri;
+
+  bool wanted = true;
+  if (swNgsild.pickV != NULL)
+  {
+    wanted = false;
+    for (int i = 0; swNgsild.pickV[i] != NULL; i++)
+      if (strcmp(swNgsild.pickV[i], gmIri) == 0) { wanted = true; break; }
+  }
+  else if (swNgsild.omitV != NULL)
+  {
+    for (int i = 0; swNgsild.omitV[i] != NULL; i++)
+      if (strcmp(swNgsild.omitV[i], gmIri) == 0) { wanted = false; break; }
+  }
+  else if (swNgsild.attrsV != NULL)
+  {
+    wanted = false;
+    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
+      if (strcmp(swNgsild.attrsV[i], gmIri) == 0) { wanted = true; break; }
+  }
+
+  swNgsild.geoJsonGeomForced = !wanted;
+}
+
+
+
 bool getEntity(void)
 {
   // § 4.21 / § 6.4.3 — cross-parameter projection validation
   // (pick ∩ omit, pick + attrs, omit + attrs, etc).
   if (ldParamsValidate())
     return true;
+
+  // geo+json: protect the geometry GeoProperty through the member projection.
+  geoJsonGeomProtectSetup();
 
   const char* entityId = swRest.in.wildcard[0];
 
