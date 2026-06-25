@@ -59,8 +59,8 @@ echo
 echo
 
 
-echo "06. MERGE valid array onto E1.greeting -> 204"
-echo "============================================="
+echo "06. MERGE valid array onto E1.greeting (en) -> 204 (surgical: keeps es)"
+echo "======================================================================="
 swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload '{"greeting":{"type":"LanguageProperty","languageMap":{"en":["hey","yo"]}}}'
 echo
 echo
@@ -73,8 +73,9 @@ echo
 echo
 
 
-echo "08. GET E1 - greeting = en[hey,yo] (step06 applied; step07 rejected, no corruption)"
-echo "==================================================================================="
+echo "08. GET E1 - greeting = en[hey,yo] + es[hola,buenas]"
+echo "    (step06 merge surgically updated en, KEEPING es per RFC 7396; step07 rejected, no corruption)"
+echo "================================================================================================="
 swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
@@ -163,8 +164,8 @@ Content-Length: 171
 
 
 
-06. MERGE valid array onto E1.greeting -> 204
-=============================================
+06. MERGE valid array onto E1.greeting (en) -> 204 (surgical: keeps es)
+=======================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 
@@ -187,13 +188,14 @@ Content-Length: 205
 
 
 
-08. GET E1 - greeting = en[hey,yo] (step06 applied; step07 rejected, no corruption)
-===================================================================================
+08. GET E1 - greeting = en[hey,yo] + es[hola,buenas]
+    (step06 merge surgically updated en, KEEPING es per RFC 7396; step07 rejected, no corruption)
+=================================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 174
+Content-Length: 230
 
 {
   "greeting": {
@@ -201,6 +203,10 @@ Content-Length: 174
       "en": [
         "hey",
         "yo"
+      ],
+      "es": [
+        "hola",
+        "buenas"
       ]
     },
     "type": "LanguageProperty"
