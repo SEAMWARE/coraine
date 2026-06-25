@@ -1,0 +1,130 @@
+#
+# FILE            geojson_geometryproperty_requires_accept.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The geometryProperty parameter names the GeoProperty whose value becomes the
+# GeoJSON "geometry" field, so it is only meaningful for a GeoJSON response.
+# TS 104-175 § 10.4.2.4 (Retrieve Entity) and § 10.4.3.4 (Query Entities):
+# "If geometryProperty parameter is present and the Accept Header is not set to
+# application/geo+json, then an error of type BadRequestData shall be raised."
+#
+--NAME--
+geometryProperty without Accept: application/geo+json → 400 BadRequestData
+
+--TAGS--
+entity query geojson geometryProperty error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed a City with location"
+echo "============================="
+payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Retrieve with geometryProperty but default Accept (json) → 400"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1?geometryProperty=location'
+echo
+echo
+
+
+echo "03. Query with geometryProperty but Accept: application/ld+json → 400"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=City&geometryProperty=location' -H 'Accept: application/ld+json'
+echo
+echo
+
+
+echo "04. Control: same retrieve WITH Accept: application/geo+json → 200 Feature"
+echo "========================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1?geometryProperty=location'
+
+--EXPECT--
+01. Seed a City with location
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:1
+Content-Length: 0
+
+
+
+
+02. Retrieve with geometryProperty but default Accept (json) → 400
+=================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "geometryProperty is only valid with Accept: application/geo+json",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Query with geometryProperty but Accept: application/ld+json → 400
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "geometryProperty is only valid with Accept: application/geo+json",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Control: same retrieve WITH Accept: application/geo+json → 200 Feature
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 440
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+--TEARDOWN--
+swBrokerStop
