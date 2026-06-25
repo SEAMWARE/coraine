@@ -1,0 +1,98 @@
+#
+# FILE            geoproperty_near_geodistance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A georel=near query annotates every matched entity with geoDistance — the
+# distance in metres from the query point to the entity's geoproperty. It is a
+# NON-REIFIED member, a plain JSON number ("geoDistance": 104.123456), not a
+# reified Property. Not (yet) in TS 104-175; broker extension. It appears ONLY
+# on near queries, and survives the keyValues representation.
+#
+# Placed at entity top level for now. That loses the indication of WHICH
+# geoproperty drove the match (a sub-attribute of the matched geoproperty would
+# carry it) — to be settled when ETSI standardises the field; top-level is fine
+# until then.
+#
+# Note: result ordering by distance is DB-specific (mongoc $geoNear sorts;
+# the in-memory store returns insertion order) so this test asserts presence,
+# shape and absence — not order.
+#
+--NAME--
+georel=near annotates matches with a non-reified geoDistance number (metres)
+
+--TAGS--
+geo geoQ georel query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed three GeoProperty entities at increasing distance from [0,0]"
+echo "===================================================================="
+payload='[
+  { "id": "urn:ngsi-ld:GD:1", "type": "GD", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 0.05] } } },
+  { "id": "urn:ngsi-ld:GD:2", "type": "GD", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 0.5] } } },
+  { "id": "urn:ngsi-ld:GD:3", "type": "GD", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 2.0] } } }
+]'
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | grep -c "urn:ngsi-ld:GD:"
+echo
+echo
+
+
+echo "02. near [0,0] maxDistance=20km — only GD:1; geoDistance is a plain number"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D20000&geometry=Point&coordinates=\[0,0\]' | grep -E '"id"|"geoDistance"'
+echo
+echo
+
+
+echo "03. near [0,0] maxDistance=300km — all three carry geoDistance"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]' | grep -c '"geoDistance"'
+echo
+echo
+
+
+echo "04. same near query, options=keyValues — geoDistance still a plain number"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]&options=keyValues' | grep '"geoDistance"' | head -1
+swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]&options=keyValues' | grep -c '"geoDistance"'
+echo
+echo
+
+
+echo "05. plain GET (no georel) — no geoDistance member"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
+
+--EXPECT--
+01. Seed three GeoProperty entities at increasing distance from [0,0]
+====================================================================
+3
+
+
+02. near [0,0] maxDistance=20km — only GD:1; geoDistance is a plain number
+=========================================================================
+    "geoDistance": REGEX([0-9.]+),
+    "id": "urn:ngsi-ld:GD:1",
+
+
+03. near [0,0] maxDistance=300km — all three carry geoDistance
+=============================================================
+3
+
+
+04. same near query, options=keyValues — geoDistance still a plain number
+=========================================================================
+    "geoDistance": REGEX([0-9.]+),
+3
+
+
+05. plain GET (no georel) — no geoDistance member
+=================================================
+0
