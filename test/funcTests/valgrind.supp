@@ -21,3 +21,19 @@
    ...
    fun:_server_monitor_thread
 }
+
+# Same glibc per-thread resolver state (resolv_conf), but cached during a DNS
+# lookup the broker itself makes when downloading a remote @context
+# (swldContextFromUrl -> connCreate -> getaddrinfo) on a REST worker thread.
+# Worker threads are not joined at exit, so glibc never frees their thread-local
+# resolver config. The lost block is glibc's resolv_conf, not a broker
+# allocation.
+{
+   broker-context-download-getaddrinfo-resolv
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect
+   ...
+   fun:getaddrinfo
+   ...
+   fun:swRestWorkerMain
+}

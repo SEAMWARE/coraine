@@ -16,6 +16,7 @@
 #include "kjson/KjNode.h"                                 // KjNode
 #include "kjson/kjBuilder.h"                              // kjChildRemove
 #include "kjson/kjClone.h"                                // kjClone
+#include "kjson/kjFree.h"                                 // kjFree
 #include "kjson/kjLookup.h"                               // kjLookup
 
 #include "swRest/SwRestState.h"                           // swRest (kjsonP arena)
@@ -57,8 +58,9 @@ int ramdbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
       continue;
     }
 
-    snapshotsV[i] = kjClone(swRest.kjsonP, match);
+    snapshotsV[i] = kjClone(swRest.kjsonP, match);   // arena snapshot for notify
     kjChildRemove(entities, match);
+    kjFree(match);                                    // free the malloc store node
     resultsV[i] = DB_OK;
     anyOk       = true;
   }

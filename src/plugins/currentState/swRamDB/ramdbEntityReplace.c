@@ -13,6 +13,7 @@
 #include "kjson/kjLookup.h"                            // kjLookup
 #include "kjson/kjFree.h"                              // kjFree
 #include "kjson/kjChildReplace.h"                      // kjChildReplace
+#include "swRest/SwRestState.h"                        // swRest
 
 #include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/swRamDB/ramdbStore.h"           // ramdbEntities
@@ -46,13 +47,12 @@ int ramdbEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntityP
       // which preserves createdAt on Replace.
       kjChildReplace(entities, eP, cloneP);
 
+      // Hand the caller a request-arena copy of the pre-replace entity (freed at
+      // request end, matching mongoc's oldEntityPP), then free the malloc store
+      // node — returning the raw malloc node would leak (no caller frees it).
       if (oldEntityPP != NULL)
-      {
-        eP->next     = NULL;   // detach: caller owns the pre-replace entity
-        *oldEntityPP = eP;
-      }
-      else
-        kjFree(eP);
+        *oldEntityPP = kjClone(swRest.kjsonP, eP);
+      kjFree(eP);
 
       return DB_OK;
     }
