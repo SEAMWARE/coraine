@@ -12,6 +12,7 @@
 
 #include "ktrace/kTrace.h"                               // KT_I
 
+#include "shared/geoMatch.h"                             // geoMatchClose
 #include "currentState/mongoc/mongocClose.h"                      // Own interface
 
 
@@ -35,6 +36,8 @@ void mongocClose(void)
     mongoc_client_pool_destroy(poolP);
     poolP = NULL;
   }
+
+  geoMatchClose();   // shared GEOS ctx (geoMatchInit at startup) — sub-notify / CSR geo-match
 
   mongoc_cleanup();
 

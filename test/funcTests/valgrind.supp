@@ -37,3 +37,19 @@
    ...
    fun:swRestWorkerMain
 }
+
+# libmongoc / libbson / OpenSSL one-time library initialisation, run lazily via
+# pthread_once during the first DB operation (mongoc_init / SSL ctx / etc.) under
+# dbStart. These are process-lifetime globals the driver never frees; valgrind
+# reports them lost at exit. Entirely inside the driver/SSL libraries — not
+# reachable from broker allocations.
+{
+   db-driver-onetime-init-pthread-once
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect
+   ...
+   fun:*pthread_once*
+   ...
+   fun:dbStart
+   fun:main
+}
