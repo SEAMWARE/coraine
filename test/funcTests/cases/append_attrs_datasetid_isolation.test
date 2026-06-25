@@ -1,0 +1,190 @@
+#
+# FILE            append_attrs_datasetid_isolation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 10.2.4 Append Attributes (POST /entities/{id}/attrs) datasetId semantics:
+#   - appending an instance with a NEW datasetId leaves the other instances
+#     (default + other datasetIds) untouched;
+#   - appending an instance whose datasetId already exists overwrites only that
+#     instance (default overwrite), or is rejected per-instance under noOverwrite.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Append Attributes datasetId isolation (new appends, existing overwrite/noOverwrite)
+
+--TAGS--
+attr append datasetid create
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 speed: default(0) + D1(1)"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "speed": [
+    { "type": "Property", "value": 0 },
+    { "type": "Property", "value": 1, "datasetId": "urn:ds:1" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "02. Append speed datasetId D2 (new) -> default + D1 untouched, D2 added"
+echo "======================================================================"
+payload='{ "speed": { "type": "Property", "value": 2, "datasetId": "urn:ds:2" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 - default(0), D1(1), D2(2)"
+echo "===================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+
+echo "04. Append speed D1 again, value 11 (overwrite) -> D1 becomes 11, others intact"
+echo "=============================================================================="
+payload='{ "speed": { "type": "Property", "value": 11, "datasetId": "urn:ds:1" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "05. Append speed D2 value 222 with options=noOverwrite -> 207 (D2 exists)"
+echo "========================================================================"
+payload='{ "speed": { "type": "Property", "value": 222, "datasetId": "urn:ds:2" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs?options=noOverwrite' -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "06. GET E1 - default(0), D1(11 overwritten), D2(2 kept by noOverwrite)"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+--EXPECT--
+01. Create E1 speed: default(0) + D1(1)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. Append speed datasetId D2 (new) -> default + D1 untouched, D2 added
+======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET E1 - default(0), D1(1), D2(2)
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 291
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 0
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "type": "T"
+}
+
+
+
+04. Append speed D1 again, value 11 (overwrite) -> D1 becomes 11, others intact
+==============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. Append speed D2 value 222 with options=noOverwrite -> 207 (D2 exists)
+========================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 130
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "speed",
+      "reason": "Attribute already exists"
+    }
+  ],
+  "updated": []
+}
+
+
+
+06. GET E1 - default(0), D1(11 overwritten), D2(2 kept by noOverwrite)
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 292
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 0
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 2
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 11
+    }
+  ],
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
