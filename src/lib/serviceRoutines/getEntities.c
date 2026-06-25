@@ -262,9 +262,15 @@ static char** computeWantedAttrs(KAlloc* kaP)
     WANT_ADD(gp);
   }
 
-  if (acceptGeoJson && swNgsild.geometryProperty != NULL)
+  if (acceptGeoJson)
   {
-    char* gmp = swldExpand(swNgsild.contextP, swNgsild.geometryProperty, kaP, NULL, NULL);
+    // The GeoJSON "geometry" comes from the geometryProperty, defaulting to
+    // "location" (§ 5.3.3.2) — same default as the geoQ branch above. Without
+    // an explicit param this was previously skipped, so a geo+json query with
+    // a `pick` that did not list location forwarded a pick lacking it: the
+    // Context Source then omitted location and the rendered geometry was null.
+    const char* gmName = (swNgsild.geometryProperty != NULL) ? swNgsild.geometryProperty : "location";
+    char* gmp = swldExpand(swNgsild.contextP, gmName, kaP, NULL, NULL);
     WANT_ADD(gmp);
   }
 

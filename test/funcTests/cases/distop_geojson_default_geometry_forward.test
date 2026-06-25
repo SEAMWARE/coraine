@@ -1,0 +1,105 @@
+#
+# FILE            distop_geojson_default_geometry_forward.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A distributed Query Entities with Accept: application/geo+json and a `pick`
+# that does NOT list the geometry GeoProperty must still forward that
+# GeoProperty in the per-source `pick`, otherwise the Context Source omits it
+# and the rendered GeoJSON "geometry" is null for every forwarded entity.
+#
+# distop_pick_narrowing_geo covers the EXPLICIT geometryProperty=location case.
+# This pins the DEFAULT (§ 5.3.3.2: geometryProperty defaults to "location"):
+# with no geometryProperty parameter at all, "location" must still be added to
+# the wanted-attrs set the broker forwards.
+#
+--NAME--
+distributed geo+json query forwards the default geometry property (location)
+
+--TAGS--
+entity query geojson distops pick geometryProperty
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Register an inclusive CSR (ftClient) exporting speed + location"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Vehicles",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "inclusive",
+  "operations": ["queryEntity"],
+  "information": [
+    {
+      "entities": [{"type": "Vehicle"}],
+      "propertyNames": ["speed", "location"]
+    }
+  ]
+}'
+echo
+echo
+
+
+echo "02. geo+json query, pick=speed, NO geometryProperty → forwarded pick must include location"
+echo "=========================================================================================="
+echo "    (geometryProperty defaults to 'location'; the geo+json renderer needs it for 'geometry')"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&splitEntities=true' \
+       -H 'Accept: application/geo+json' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    print('  forwarded pick:', pick)
+"
+ftClientReset --port 7711
+echo
+echo
+
+
+echo "03. Control: same query as application/json (not geo+json) → location NOT forced"
+echo "================================================================================"
+echo "    (no geo+json → geometry field not rendered → location not needed in the forward)"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&splitEntities=true' >/dev/null
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d:
+    p = e.get('params', {})
+    pick = sorted(p['pick'].split(',')) if 'pick' in p else None
+    print('  forwarded pick:', pick)
+"
+ftClientReset --port 7711
+
+--EXPECT--
+01. Register an inclusive CSR (ftClient) exporting speed + location
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicles
+Content-Length: 0
+
+
+
+
+02. geo+json query, pick=speed, NO geometryProperty → forwarded pick must include location
+==========================================================================================
+    (geometryProperty defaults to 'location'; the geo+json renderer needs it for 'geometry')
+  forwarded pick: ['id', 'location', 'scope', 'speed', 'type']
+
+
+03. Control: same query as application/json (not geo+json) → location NOT forced
+================================================================================
+    (no geo+json → geometry field not rendered → location not needed in the forward)
+  forwarded pick: ['id', 'scope', 'speed', 'type']
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
