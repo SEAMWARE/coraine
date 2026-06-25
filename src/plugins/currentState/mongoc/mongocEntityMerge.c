@@ -76,7 +76,8 @@ int mongocEntityMergeBuildUpdate(KjNode*              target,
                                  uint64_t             ts,
                                  LdMergeReport*       reportP,
                                  bson_t*              updateDocOut,
-                                 bool*                noChangesOut)
+                                 bool*                noChangesOut,
+                                 bool                 deepMerge)
 {
   if (target == NULL || fragmentDb == NULL || updateDocOut == NULL)
     return DB_ERR;
@@ -89,10 +90,14 @@ int mongocEntityMergeBuildUpdate(KjNode*              target,
     *noChangesOut = true;
 
   //
-  // 1. Apply merge in memory. target and fragment are in the request arena
-  //    (swRest.kjsonP) — grafted nodes need matching lifetime.
+  // 1. Apply the fragment in memory. target and fragment are in the request
+  //    arena (swRest.kjsonP) — grafted nodes need matching lifetime.
+  //    deepMerge selects the value semantics: true Merge Entity surgically
+  //    deep-merges values (RFC 7396), replace/append ops replace wholesale.
   //
-  if (ldEntityFragmentApply(target, fragmentDb, reportP, ts, swRest.kjsonP) == false)
+  bool applied = deepMerge ? ldEntityMerge(target, fragmentDb, reportP, ts, swRest.kjsonP)
+                           : ldEntityFragmentApply(target, fragmentDb, reportP, ts, swRest.kjsonP);
+  if (applied == false)
     return DB_OK;  // ldError already set; service routine sees problemType
 
   //
@@ -192,7 +197,8 @@ int mongocEntityMergeOne(mongoc_collection_t* collP,
                          KjNode*              fragmentDb,
                          uint64_t             ts,
                          LdMergeReport*       reportP,
-                         KjNode**             targetPP)
+                         KjNode**             targetPP,
+                         bool                 deepMerge)
 {
   //
   // 1. Fetch current document by _id
@@ -233,7 +239,7 @@ int mongocEntityMergeOne(mongoc_collection_t* collP,
   //
   bson_t update;
   bool   noChanges = true;
-  int    rc = mongocEntityMergeBuildUpdate(target, fragmentDb, ts, reportP, &update, &noChanges);
+  int    rc = mongocEntityMergeBuildUpdate(target, fragmentDb, ts, reportP, &update, &noChanges, deepMerge);
   if (rc != DB_OK)
   {
     bson_destroy(&filter);
@@ -273,12 +279,13 @@ int mongocEntityMerge(Tenant*        tenantP,
                       const char*    entityId,
                       KjNode*        fragmentDb,
                       uint64_t       ts,
-                      LdMergeReport* reportP)
+                      LdMergeReport* reportP,
+                      bool           deepMerge)
 {
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
 
-  int result = mongocEntityMergeOne(collP, entityId, fragmentDb, ts, reportP, NULL);
+  int result = mongocEntityMergeOne(collP, entityId, fragmentDb, ts, reportP, NULL, deepMerge);
 
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);

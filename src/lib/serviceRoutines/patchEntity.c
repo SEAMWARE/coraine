@@ -342,7 +342,8 @@ bool patchEntity(void)
     ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);
 
     LdMergeReport report = { NULL };
-    localR = db.entityMerge(tenantP, entityId, fragment, swRest.requestStartTime, &report);
+    // Merge Entity (§ 10.2.9) — true RFC 7396 surgical merge (deepMerge=true).
+    localR = db.entityMerge(tenantP, entityId, fragment, swRest.requestStartTime, &report, true);
 
     //
     // ldEntityMerge may have called ldError mid-merge (simplified

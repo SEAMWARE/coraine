@@ -53,7 +53,7 @@ int ramdbEntityBulkMerge(Tenant* tenantP, KjNode* fragmentsArr,
       continue;
     }
 
-    int r = ramdbEntityMergeOne(entities, idP->value.s, fragP, ts, &reportsV[ix]);
+    int r = ramdbEntityMergeOne(entities, idP->value.s, fragP, ts, &reportsV[ix], true);
     resultsV[ix] = r;
 
     if (r == DB_OK)

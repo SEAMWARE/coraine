@@ -34,7 +34,7 @@
 //
 int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
                         KjNode* fragmentDb, uint64_t ts,
-                        LdMergeReport* reportP)
+                        LdMergeReport* reportP, bool deepMerge)
 {
   for (KjNode* eP = entitiesP->value.firstChildP; eP != NULL; eP = eP->next)
   {
@@ -42,8 +42,11 @@ int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
 
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
     {
-      // NULL allocator == malloc heap == tenant store lifetime
-      ldEntityFragmentApply(eP, fragmentDb, reportP, ts, NULL);
+      // NULL allocator == malloc heap == tenant store lifetime.
+      // deepMerge: true Merge Entity surgically deep-merges values (RFC 7396);
+      // replace/append ops replace the value wholesale.
+      if (deepMerge) ldEntityMerge(eP, fragmentDb, reportP, ts, NULL);
+      else           ldEntityFragmentApply(eP, fragmentDb, reportP, ts, NULL);
       return DB_OK;
     }
   }
@@ -59,8 +62,8 @@ int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
 //
 int ramdbEntityMerge(Tenant* tenantP, const char* entityId,
                      KjNode* fragmentDb, uint64_t ts,
-                     LdMergeReport* reportP)
+                     LdMergeReport* reportP, bool deepMerge)
 {
   KjNode* entities = ramdbEntities(tenantP);
-  return ramdbEntityMergeOne(entities, entityId, fragmentDb, ts, reportP);
+  return ramdbEntityMergeOne(entities, entityId, fragmentDb, ts, reportP, deepMerge);
 }

@@ -40,7 +40,8 @@ extern int mongocEntityMergeBuildUpdate(KjNode*              target,
                                         uint64_t             ts,
                                         LdMergeReport*       reportP,
                                         bson_t*              updateDocOut,
-                                        bool*                noChangesOut);
+                                        bool*                noChangesOut,
+                                        bool                 deepMerge);
 
 
 
@@ -66,7 +67,8 @@ extern int mongocEntityMergeOne(mongoc_collection_t* collP,
                                 KjNode*              fragmentDb,
                                 uint64_t             ts,
                                 LdMergeReport*       reportP,
-                                KjNode**             targetPP);
+                                KjNode**             targetPP,
+                                bool                 deepMerge);
 
 
 
@@ -78,6 +80,7 @@ extern int mongocEntityMerge(Tenant*        tenantP,
                              const char*    entityId,
                              KjNode*        fragmentDb,
                              uint64_t       ts,
-                             LdMergeReport* reportP);
+                             LdMergeReport* reportP,
+                             bool           deepMerge);
 
 #endif  // MONGOC_MONGOCENTITYMERGE_H_

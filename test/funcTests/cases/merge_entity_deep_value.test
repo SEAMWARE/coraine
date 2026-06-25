@@ -1,0 +1,208 @@
+#
+# FILE            merge_entity_deep_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 10.2.9 Merge Entity is a true RFC 7396 (JSON Merge Patch): it surgically
+# deep-merges object values — a JsonProperty json object keeps unspecified
+# members, a LanguageProperty languageMap updates only the addressed language
+# (keeping the others), and null deletes a member. This is distinct from the
+# replace/append ops (Partial Attribute Update etc.) which replace the value
+# wholesale.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Merge Entity (RFC 7396) surgically deep-merges json/languageMap values
+
+--TAGS--
+merge patch json langprop attr
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1: jdoc json {a:1,b:2}, greeting languageMap {en:hi,es:hola}"
+echo "========================================================================"
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "jdoc": { "type": "JsonProperty", "json": { "a": 1, "b": 2 } },
+  "greeting": { "type": "LanguageProperty", "languageMap": { "en": "hi", "es": "hola" } }
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "02. MERGE E1: jdoc.json {b:20,c:3} + greeting {en:hey} (deep merge)"
+echo "=================================================================="
+payload='{
+  "jdoc": { "type": "JsonProperty", "json": { "b": 20, "c": 3 } },
+  "greeting": { "type": "LanguageProperty", "languageMap": { "en": "hey" } }
+}'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 - jdoc.json {a:1,b:20,c:3} (a KEPT), greeting {en:hey,es:hola} (es KEPT)"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+
+echo "04. PARTIAL ATTRIBUTE UPDATE (NOT merge) PATCH /attrs/jdoc json {x:9} -> REPLACE"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/jdoc' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"JsonProperty","json":{"x":9}}'
+echo
+echo
+
+
+echo "05. GET E1 - jdoc.json {x:9} (replaced wholesale; a,b,c gone)"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+
+echo "06. MERGE E1: greeting {es: urn:ngsi-ld:null} -> deletes only the es language"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload '{"greeting":{"type":"LanguageProperty","languageMap":{"es":"urn:ngsi-ld:null"}}}'
+echo
+echo
+
+
+echo "07. GET E1 - greeting {en:hey} (es deleted, en kept)"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+--EXPECT--
+01. Create E1: jdoc json {a:1,b:2}, greeting languageMap {en:hi,es:hola}
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. MERGE E1: jdoc.json {b:20,c:3} + greeting {en:hey} (deep merge)
+==================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET E1 - jdoc.json {a:1,b:20,c:3} (a KEPT), greeting {en:hey,es:hola} (es KEPT)
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 269
+
+{
+  "greeting": {
+    "languageMap": {
+      "en": "hey",
+      "es": "hola"
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "jdoc": {
+    "json": {
+      "a": 1,
+      "b": 20,
+      "c": 3
+    },
+    "type": "JsonProperty"
+  },
+  "type": "T"
+}
+
+
+
+04. PARTIAL ATTRIBUTE UPDATE (NOT merge) PATCH /attrs/jdoc json {x:9} -> REPLACE
+===============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET E1 - jdoc.json {x:9} (replaced wholesale; a,b,c gone)
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 240
+
+{
+  "greeting": {
+    "languageMap": {
+      "en": "hey",
+      "es": "hola"
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "jdoc": {
+    "json": {
+      "x": 9
+    },
+    "type": "JsonProperty"
+  },
+  "type": "T"
+}
+
+
+
+06. MERGE E1: greeting {es: urn:ngsi-ld:null} -> deletes only the es language
+============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. GET E1 - greeting {en:hey} (es deleted, en kept)
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 220
+
+{
+  "greeting": {
+    "languageMap": {
+      "en": "hey"
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "jdoc": {
+    "json": {
+      "x": 9
+    },
+    "type": "JsonProperty"
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

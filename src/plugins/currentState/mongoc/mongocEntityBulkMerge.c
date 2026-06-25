@@ -190,7 +190,7 @@ int mongocEntityBulkMerge(Tenant* tenantP, KjNode* fragmentsArr,
     bson_t update;
     bool   noChanges = true;
     int    rc = mongocEntityMergeBuildUpdate(targetsV[i], fragP, ts, &reportsV[i],
-                                              &update, &noChanges);
+                                              &update, &noChanges, true);  // batch Merge = true RFC-7396 merge
     if (rc != DB_OK)
     {
       resultsV[i]   = rc;

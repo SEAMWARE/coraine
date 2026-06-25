@@ -286,7 +286,7 @@ bool patchEntityAttr(void)
   }
 
   //
-  // Local apply — db.entityMerge does RFC 7396 (JSON Merge Patch).
+  // Local apply — Partial Attribute Update: db.entityMerge with deepMerge=false (replace/append, not RFC 7396 deep merge).
   //
   if (localApply)
   {
@@ -369,8 +369,10 @@ bool patchEntityAttr(void)
         ldApiEntityToDbModel(entityFrag, &swRest.kalloc, 0);
 
         LdMergeReport report = { NULL };
+        // Partial Attribute Update (§ 10.2.5) — replace/append semantics, the
+        // value is replaced wholesale, not deep-merged (deepMerge=false).
         int r = db.entityMerge(tenantP, entityId, entityFrag,
-                                swRest.requestStartTime, &report);
+                                swRest.requestStartTime, &report, false);
 
         if (r != DB_OK && r != DB_NOT_FOUND)
         {

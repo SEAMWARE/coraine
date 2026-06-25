@@ -32,7 +32,7 @@
 //
 extern int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
                                KjNode* fragmentDb, uint64_t ts,
-                               LdMergeReport* reportP);
+                               LdMergeReport* reportP, bool deepMerge);
 
 
 
@@ -42,6 +42,6 @@ extern int ramdbEntityMergeOne(KjNode* entitiesP, const char* entityId,
 //
 extern int ramdbEntityMerge(Tenant* tenantP, const char* entityId,
                             KjNode* fragmentDb, uint64_t ts,
-                            LdMergeReport* reportP);
+                            LdMergeReport* reportP, bool deepMerge);
 
 #endif  // SWRAMDB_RAMDBENTITYMERGE_H_

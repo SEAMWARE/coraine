@@ -162,8 +162,10 @@ typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 //
 typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
                                        int* resultsV, KjNode** snapshotsV);
+// deepMerge true  → true Merge Entity (§ 10.2.9): RFC 7396 surgical value merge.
+// deepMerge false → replace/append (e.g. Partial Attribute Update): value replaced wholesale.
 typedef int  (*DbEntityMergeFunc)(Tenant* tenantP, const char* entityId, KjNode* fragmentDb,
-                                  uint64_t ts, LdMergeReport* reportP);
+                                  uint64_t ts, LdMergeReport* reportP, bool deepMerge);
 typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
                                     KjNode* newEntityP, KjNode** oldEntityPP);
 //
