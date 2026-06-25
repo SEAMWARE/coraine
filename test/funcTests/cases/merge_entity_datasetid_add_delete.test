@@ -1,0 +1,157 @@
+#
+# FILE            merge_entity_datasetid_add_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 10.2.9 Merge Entity (PATCH /entities/{id}, RFC 7396 at Attribute level):
+#   - a fragment instance with a datasetId matching no existing instance ADDS it;
+#   - a urn:ngsi-ld:null value carrying a datasetId deletes only that instance.
+# (Existing merge coverage is batch / distributed only; single-entity merge
+#  datasetId semantics were untested.)
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Merge Entity: datasetId non-matching adds instance; null+datasetId deletes one
+
+--TAGS--
+merge patch attr datasetid
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 speed: default(0) + D1(1)"
+echo "======================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "speed": [
+    { "type": "Property", "value": 0 },
+    { "type": "Property", "value": 1, "datasetId": "urn:ds:1" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "02. Merge speed datasetId D2 (no match) -> ADDS instance"
+echo "======================================================="
+payload='{ "speed": { "type": "Property", "value": 2, "datasetId": "urn:ds:2" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 - default(0), D1(1), new D2(2)"
+echo "========================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+
+echo "04. Merge: delete speed D1 via urn:ngsi-ld:null + datasetId"
+echo "==========================================================="
+payload='{ "speed": { "type": "Property", "value": "urn:ngsi-ld:null", "datasetId": "urn:ds:1" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "05. GET E1 - D1 gone; default(0) + D2(2) remain"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+--EXPECT--
+01. Create E1 speed: default(0) + D1(1)
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. Merge speed datasetId D2 (no match) -> ADDS instance
+=======================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET E1 - default(0), D1(1), new D2(2)
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 291
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 0
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "type": "T"
+}
+
+
+
+04. Merge: delete speed D1 via urn:ngsi-ld:null + datasetId
+===========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET E1 - D1 gone; default(0) + D2(2) remain
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 204
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 0
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
