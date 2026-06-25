@@ -1,0 +1,215 @@
+#
+# FILE            languagemap_value_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6 — a LanguageProperty languageMap value (per language key) shall be a
+# JSON string OR an array of JSON strings. The broker must accept the valid
+# forms and reject malformed ones with 400 BadRequestData — on create AND on
+# merge (a merge must never corrupt a stored languageMap's structure).
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+languageMap value: string or array-of-strings accepted; malformed -> 400 (create+merge)
+
+--TAGS--
+attr validation error languageprop merge create
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. CREATE valid: en string + es array-of-strings"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:E1","type":"T","greeting":{"type":"LanguageProperty","languageMap":{"en":"hi","es":["hola","buenas"]}}}'
+echo
+echo
+
+
+echo "02. GET E1 - both forms round-trip"
+echo "=================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+
+echo "03. CREATE invalid: en = number -> 400"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:E2","type":"T","g":{"type":"LanguageProperty","languageMap":{"en":123}}}'
+echo
+echo
+
+
+echo "04. CREATE invalid: en = array of numbers -> 400"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:E3","type":"T","g":{"type":"LanguageProperty","languageMap":{"en":[1,2]}}}'
+echo
+echo
+
+
+echo "05. CREATE invalid: en = empty array -> 400"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:E4","type":"T","g":{"type":"LanguageProperty","languageMap":{"en":[]}}}'
+echo
+echo
+
+
+echo "06. MERGE valid array onto E1.greeting -> 204"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload '{"greeting":{"type":"LanguageProperty","languageMap":{"en":["hey","yo"]}}}'
+echo
+echo
+
+
+echo "07. MERGE malformed (number) onto E1.greeting -> 400, stored value intact"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload '{"greeting":{"type":"LanguageProperty","languageMap":{"en":123}}}'
+echo
+echo
+
+
+echo "08. GET E1 - greeting = en[hey,yo] (step06 applied; step07 rejected, no corruption)"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+--EXPECT--
+01. CREATE valid: en string + es array-of-strings
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. GET E1 - both forms round-trip
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 197
+
+{
+  "greeting": {
+    "languageMap": {
+      "en": "hi",
+      "es": [
+        "hola",
+        "buenas"
+      ]
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+03. CREATE invalid: en = number -> 400
+======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 205
+
+{
+  "detail": "languageMap values must be strings or arrays of strings (key 'en')",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. CREATE invalid: en = array of numbers -> 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "languageMap value for 'en' must be a non-empty string",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. CREATE invalid: en = empty array -> 400
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. MERGE valid array onto E1.greeting -> 204
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. MERGE malformed (number) onto E1.greeting -> 400, stored value intact
+=========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 205
+
+{
+  "detail": "languageMap values must be strings or arrays of strings (key 'en')",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET E1 - greeting = en[hey,yo] (step06 applied; step07 rejected, no corruption)
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 174
+
+{
+  "greeting": {
+    "languageMap": {
+      "en": [
+        "hey",
+        "yo"
+      ]
+    },
+    "type": "LanguageProperty"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
