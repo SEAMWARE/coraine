@@ -24,6 +24,14 @@ extern bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
 
 // -----------------------------------------------------------------------------
 //
+// geoEntityValidate - true if every GeoProperty value in the (DB-model) entity
+// is a valid GEOS geometry; false for a degenerate / self-intersecting polygon.
+// Lets an in-memory store reject geometry a 2dsphere index would refuse.
+//
+extern bool geoEntityValidate(KjNode* entityP);
+
+// -----------------------------------------------------------------------------
+//
 // csrGeoMatchOverlap - geoQ ↔ CSR geo-coverage overlap (§ 5.10.2.4)
 //
 // `csrGeoP` is the CSR's stored GeoJSON geometry — `location`,

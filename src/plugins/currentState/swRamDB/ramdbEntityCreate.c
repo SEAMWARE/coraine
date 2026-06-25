@@ -13,7 +13,8 @@
 #include "kjson/kjBuilder.h"                          // kjChildAdd
 #include "kjson/kjLookup.h"                           // kjLookup
 
-#include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
+#include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY, Tenant
+#include "shared/geoMatch.h"                          // geoEntityValidate
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbEntities
 #include "currentState/swRamDB/ramdbEntityCreate.h"   // Own interface
 
@@ -37,6 +38,15 @@ int ramdbEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
     if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
       return DB_ALREADY_EXISTS;
   }
+
+  //
+  // Reject geometry a 2dsphere index would refuse (degenerate / self-
+  // intersecting polygon). mongoc gets this from its geo index on insert;
+  // the in-memory store validates via the shared GEOS engine so the broker
+  // can map it to 400 BadRequestData instead of silently storing it.
+  //
+  if (!geoEntityValidate(entityP))
+    return DB_INVALID_GEOMETRY;
 
   //
   // Deep-clone the entity tree (using malloc, not a buffer allocator)

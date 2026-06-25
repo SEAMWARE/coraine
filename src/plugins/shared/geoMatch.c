@@ -167,6 +167,57 @@ static GEOSGeometry* entityGeoToGeos(KjNode* geojsonP)
 
 // -----------------------------------------------------------------------------
 //
+// geoEntityValidate - true if every GeoProperty value in the entity is a valid
+// GEOS geometry.
+//
+// A degenerate or self-intersecting polygon (zero-area ring of identical points,
+// figure-eight, ...) is rejected — mirroring the rejection a mongo 2dsphere
+// index gives for free on insert, so the in-memory store does not silently
+// accept geometry that cannot be indexed. entityP is in DB-model form
+// (attr -> dataset instance -> { type: GeoProperty, value: GeoJSON }).
+//
+bool geoEntityValidate(KjNode* entityP)
+{
+  if (entityP == NULL || entityP->type != KjObject)
+    return true;
+
+  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if (attrP->type != KjObject)
+      continue;
+
+    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    {
+      if (instP->type != KjObject)
+        continue;
+
+      KjNode* typeP = kjLookup(instP, "type");
+      if (typeP == NULL || typeP->type != KjString || strcmp(typeP->value.s, "GeoProperty") != 0)
+        continue;
+
+      KjNode* geojsonP = kjLookup(instP, "value");
+      if (geojsonP == NULL || geojsonP->type != KjObject)
+        continue;
+
+      GEOSGeometry* geom = entityGeoToGeos(geojsonP);
+      if (geom == NULL)
+        return false;  // unparseable / unbuildable geometry
+
+      char valid = GEOSisValid_r(geosCtx, geom);
+      GEOSGeom_destroy_r(geosCtx, geom);
+
+      if (valid != 1)
+        return false;
+    }
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Haversine distance (meters) between two lon/lat points
 //
 #define EARTH_RADIUS_M  6371000.0
