@@ -1,0 +1,168 @@
+#
+# FILE            patch_attrs_datasetid_add_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 8.4 Partial Attribute update (PATCH /entities/{id}/attrs) datasetId semantics:
+#   - a fragment carrying a datasetId that matches NO existing instance ADDS a
+#     new instance (leaving the others intact);
+#   - a urn:ngsi-ld:null value carrying a datasetId DELETES only that one instance.
+# Existing datasetId patch tests only cover updating an already-present instance.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Partial update datasetId: non-matching adds instance; null+datasetId deletes one
+
+--TAGS--
+patch attr datasetid update delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 with speed: default(0) + D1(1) + D2(2)"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "speed": [
+    { "type": "Property", "value": 0 },
+    { "type": "Property", "value": 1, "datasetId": "urn:ds:1" },
+    { "type": "Property", "value": 2, "datasetId": "urn:ds:2" }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH /attrs with datasetId urn:ds:3 (no match) -> ADDS a 3rd instance"
+echo "========================================================================="
+payload='{ "speed": { "type": "Property", "value": 33, "datasetId": "urn:ds:3" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 - default(0), D1(1), D2(2) intact + new D3(33)"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+
+echo "04. PATCH /attrs with urn:ngsi-ld:null + datasetId urn:ds:1 -> deletes only D1"
+echo "============================================================================="
+payload='{ "speed": { "type": "Property", "value": "urn:ngsi-ld:null", "datasetId": "urn:ds:1" } }'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+echo
+echo
+
+
+echo "05. GET E1 - D1 gone; default(0), D2(2), D3(33) remain"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+echo
+echo
+
+--EXPECT--
+01. Create E1 with speed: default(0) + D1(1) + D2(2)
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. PATCH /attrs with datasetId urn:ds:3 (no match) -> ADDS a 3rd instance
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET E1 - default(0), D1(1), D2(2) intact + new D3(33)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 379
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 0
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 2
+    },
+    {
+      "datasetId": "urn:ds:3",
+      "type": "Property",
+      "value": 33
+    }
+  ],
+  "type": "T"
+}
+
+
+
+04. PATCH /attrs with urn:ngsi-ld:null + datasetId urn:ds:1 -> deletes only D1
+=============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET E1 - D1 gone; default(0), D2(2), D3(33) remain
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 292
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 0
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 2
+    },
+    {
+      "datasetId": "urn:ds:3",
+      "type": "Property",
+      "value": 33
+    }
+  ],
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
