@@ -22,20 +22,21 @@
    fun:_server_monitor_thread
 }
 
-# Same glibc per-thread resolver state (resolv_conf), but cached during a DNS
-# lookup the broker itself makes when downloading a remote @context
-# (swldContextFromUrl -> connCreate -> getaddrinfo) on a REST worker thread.
-# Worker threads are not joined at exit, so glibc never frees their thread-local
-# resolver config. The lost block is glibc's resolv_conf, not a broker
-# allocation.
+# Same glibc per-thread resolver state (resolv_conf), cached by ANY getaddrinfo
+# the broker makes on a worker thread that is not joined at exit — remote
+# @context download (swldContextFromUrl), CSR source-identity probe
+# (ldProbeSourceIdentity), distributed-op / notification forwarding, etc. The
+# lost block is always glibc's __resolv_conf_allocate, never a broker
+# allocation, so key on that frame (any caller) rather than one code path.
 {
-   broker-context-download-getaddrinfo-resolv
+   glibc-getaddrinfo-resolv-conf
    Memcheck:Leak
    match-leak-kinds: definite,indirect
    ...
+   fun:__resolv_conf_allocate
+   ...
    fun:getaddrinfo
    ...
-   fun:swRestWorkerMain
 }
 
 # libmongoc / libbson / OpenSSL one-time library initialisation, run lazily via
