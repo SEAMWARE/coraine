@@ -16,9 +16,8 @@
 # carry it) — to be settled when ETSI standardises the field; top-level is fine
 # until then.
 #
-# Note: result ordering by distance is DB-specific (mongoc $geoNear sorts;
-# the in-memory store returns insertion order) so this test asserts presence,
-# shape and absence — not order.
+# A near query returns matches nearest-first (mongoc $geoNear and the in-memory
+# store both sort by distance), so this test asserts the distance ordering too.
 #
 --NAME--
 georel=near annotates matches with a non-reified geoDistance number (metres)
@@ -51,9 +50,9 @@ echo
 echo
 
 
-echo "03. near [0,0] maxDistance=300km — all three carry geoDistance"
-echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]' | grep -c '"geoDistance"'
+echo "03. near [0,0] maxDistance=300km — all three, nearest first: GD:1, GD:2, GD:3"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]' | grep '"id"'
 echo
 echo
 
@@ -82,9 +81,11 @@ swCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
     "id": "urn:ngsi-ld:GD:1",
 
 
-03. near [0,0] maxDistance=300km — all three carry geoDistance
-=============================================================
-3
+03. near [0,0] maxDistance=300km — all three, nearest first: GD:1, GD:2, GD:3
+============================================================================
+    "id": "urn:ngsi-ld:GD:1",
+    "id": "urn:ngsi-ld:GD:2",
+    "id": "urn:ngsi-ld:GD:3",
 
 
 04. same near query, options=keyValues — geoDistance still a plain number

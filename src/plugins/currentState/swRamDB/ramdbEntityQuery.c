@@ -6,19 +6,19 @@
 // Copyright 2026 Seamware
 //
 #include <regex.h>                                     // regcomp, regexec, regfree
-#include <stdlib.h>                                    // strtod
+#include <stdlib.h>                                    // strtod, qsort
 #include <string.h>                                    // strcmp
 
-#include "kbase/kStringArrayLookup.h"                 // kStringArrayLookup
+#include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjArray
+#include "kjson/kjBuilder.h"                          // kjArray, kjClone, kjFloat, kjChildAdd
 #include "kjson/kjClone.h"                            // kjClone
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "swRest/SwRestState.h"                       // swRest
 #include "swNgsild/LdQ.h"                              // LdQNode
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_SCOPE
 #include "swNgsild/LdScopeExpr.h"                     // LdScopeExpr
-#include "swNgsild/ldScopeMatch.h"                     // ldScopePatternMatch
+#include "swNgsild/LdGeoRel.h"                         // LdGeoRel, LdGeoNear
 #include "swNgsild/ldEntityMatch.h"                    // ldEntityMatchType, ldEntityMatchScope, ldEntityMatchQ
 
 #include "db/DbDriver.h"                              // DB_OK, Tenant
@@ -48,17 +48,50 @@ static bool matchStringV(const char* value, char** strV)
 
 // -----------------------------------------------------------------------------
 //
+// GeoCand - a matched entity plus its geo distance (metres; -1 if not a near
+// query). Collected before pagination so a near query can be sorted by distance.
+//
+typedef struct GeoCand
+{
+  KjNode* eP;
+  double  dist;
+} GeoCand;
+
+
+
+// geoCandCmp - ascending by distance (nearest first), for qsort
+//
+static int geoCandCmp(const void* a, const void* b)
+{
+  double da = ((const GeoCand*) a)->dist;
+  double db = ((const GeoCand*) b)->dist;
+
+  if (da < db) return -1;
+  if (da > db) return  1;
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // ramdbEntityQuery -
 //
 int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
 {
   KjNode* entities = ramdbEntities(tenantP);
   KjNode* arrayP   = kjArray(swRest.kjsonP, NULL);
-  int     matched  = 0;
-  int     skipped  = 0;
-  int     added    = 0;
   int     limit    = (filterP != NULL) ? filterP->limit  : 0;
   int     offset   = (filterP != NULL) ? filterP->offset : 0;
+
+  //
+  // Count the store so the candidate array can be sized up front.
+  //
+  int total = 0;
+  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next) total++;
+
+  GeoCand* cands = (GeoCand*) kaAlloc(&swRest.kalloc, sizeof(GeoCand) * (total > 0 ? total : 1));
+  int      nCand = 0;
 
   for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
   {
@@ -146,7 +179,7 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     }
 
     //
-    // Geo-query filter (GEOS)
+    // Geo-query filter (GEOS) — geoDistance is set for near queries, -1 otherwise
     //
     double geoDistance = -1;
     if (filterP != NULL && filterP->geoRel != NULL)
@@ -155,34 +188,37 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
         continue;
     }
 
-    matched++;
-
-    // Apply offset
-    if (skipped < offset)
-    {
-      skipped++;
-      continue;
-    }
-
-    // Apply limit (0 means no results wanted -- count-only mode)
-    if (limit == 0 || added >= limit)
-      continue;
-
-    KjNode* cloneP = kjClone(swRest.kjsonP, eP);
-
-    // Add geoDistance for near queries
-    if (geoDistance >= 0)
-    {
-      KjNode* distP = kjFloat(swRest.kjsonP, "geoDistance", geoDistance);
-      kjChildAdd(cloneP, distP);
-    }
-
-    kjChildAdd(arrayP, cloneP);
-    added++;
+    cands[nCand].eP   = eP;
+    cands[nCand].dist = geoDistance;
+    nCand++;
   }
 
   if (filterP != NULL && filterP->count)
-    filterP->totalCount = matched;
+    filterP->totalCount = nCand;
+
+  //
+  // A near query returns the matches nearest-first (mongo $geoNear does the
+  // same). Sort by distance before paginating so offset/limit page over the
+  // distance order, not the store order. Other georels keep store order.
+  //
+  if (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear)
+    qsort(cands, nCand, sizeof(GeoCand), geoCandCmp);
+
+  //
+  // Paginate (offset/limit) and render. limit == 0 means count-only.
+  //
+  if (limit > 0)
+  {
+    for (int i = offset; i < nCand && (i - offset) < limit; i++)
+    {
+      KjNode* cloneP = kjClone(swRest.kjsonP, cands[i].eP);
+
+      if (cands[i].dist >= 0)
+        kjChildAdd(cloneP, kjFloat(swRest.kjsonP, "geoDistance", cands[i].dist));
+
+      kjChildAdd(arrayP, cloneP);
+    }
+  }
 
   *arrayPP = arrayP;
   return DB_OK;
