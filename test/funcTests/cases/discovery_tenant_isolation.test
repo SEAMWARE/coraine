@@ -1,0 +1,204 @@
+#
+# FILE            discovery_tenant_isolation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The introspection endpoints are tenant-scoped (TS 104-175 § 4.14
+# Multi-tenancy): GET /types and GET /attributes return only the types and
+# attributes of Entities in the tenant given by the NGSILD-Tenant header.
+# An Entity created in tenant t1 must not leak into t2's (or the default
+# tenant's) type/attribute introspection, and vice versa.
+#
+--NAME--
+GET /types and /attributes are isolated per NGSILD-Tenant
+
+--TAGS--
+types attributes discovery introspection tenant
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create a Vehicle (speed) in tenant t1"
+echo "========================================="
+payload='{ "id": "urn:ngsi-ld:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 50 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "02. Create a Sensor (temp) in tenant t2"
+echo "======================================="
+payload='{ "id": "urn:ngsi-ld:S1", "type": "Sensor", "temp": { "type": "Property", "value": 22 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "03. GET /types (t1) → only Vehicle"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/types -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "04. GET /types (t2) → only Sensor"
+echo "================================="
+swCurl --url /ngsi-ld/v1/types -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "05. GET /types (default tenant) → empty (nothing created there)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "06. GET /attributes (t1) → only speed; GET /attributes (t2) → only temp"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/attributes -H "NGSILD-Tenant: t1"
+echo
+swCurl --url /ngsi-ld/v1/attributes -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "07. GET /attributes/speed (t2) → 404 (speed belongs to t1 only)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/attributes/speed -H "NGSILD-Tenant: t2"
+
+--EXPECT--
+01. Create a Vehicle (speed) in tenant t1
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:V1
+Content-Length: 0
+
+
+
+
+02. Create a Sensor (temp) in tenant t2
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t2
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:S1
+Content-Length: 0
+
+
+
+
+03. GET /types (t1) → only Vehicle
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 110
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle"
+  ]
+}
+
+
+
+04. GET /types (t2) → only Sensor
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 109
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Sensor"
+  ]
+}
+
+
+
+05. GET /types (default tenant) → empty (nothing created there)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": []
+}
+
+
+
+06. GET /attributes (t1) → only speed; GET /attributes (t2) → only temp
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+{
+  "attributeList": [
+    "speed"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 110
+
+{
+  "attributeList": [
+    "temp"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+07. GET /attributes/speed (t2) → 404 (speed belongs to t1 only)
+==============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Content-Length: 153
+
+{
+  "detail": "attribute 'speed' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+--TEARDOWN--
+swBrokerStop

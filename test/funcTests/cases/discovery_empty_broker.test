@@ -1,0 +1,107 @@
+#
+# FILE            discovery_empty_broker.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# On a broker with no entities (and no registrations) the introspection
+# endpoints must still answer 200 with a well-formed, EMPTY container —
+# EntityTypeList with typeList:[] and AttributeList with attributeList:[]
+# (TS 104-175 § 5.2.6.10 / § 5.2.6.6: typeList and attributeList are
+# mandatory [1] members, so an empty broker yields empty arrays, not 404).
+#
+--NAME--
+GET /types and /attributes on an empty broker → 200 with empty lists
+
+--TAGS--
+types attributes discovery introspection
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. GET /types on empty broker → EntityTypeList, typeList:[]"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "02. GET /types?details=true on empty broker → []"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
+echo
+echo
+
+
+echo "03. GET /attributes on empty broker → AttributeList, attributeList:[]"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+echo "04. GET /attributes?details=true on empty broker → []"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/attributes' --urlParams 'details=true'
+
+--EXPECT--
+01. GET /types on empty broker → EntityTypeList, typeList:[]
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": []
+}
+
+
+
+02. GET /types?details=true on empty broker → []
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+03. GET /attributes on empty broker → AttributeList, attributeList:[]
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 96
+
+{
+  "attributeList": [],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+04. GET /attributes?details=true on empty broker → []
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+--TEARDOWN--
+swBrokerStop

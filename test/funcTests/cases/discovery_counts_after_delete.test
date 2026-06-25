@@ -1,0 +1,188 @@
+#
+# FILE            discovery_counts_after_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The instance counts reported by the introspection endpoints must track
+# reality as entities and attributes are removed: EntityTypeInfo.entityCount
+# (TS 104-175 § 5.2.6.5) and Attribute.attributeCount (§ 5.2.6.6) decrease
+# on Delete Entity / Delete Attribute, and a type/attribute that no longer
+# has any instances disappears from the lists (and /types/{type} → 404).
+#
+--NAME--
+entityCount / attributeCount track Delete Entity and Delete Attribute
+
+--TAGS--
+types attributes discovery introspection delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed two Vehicles, each with speed + color"
+echo "=============================================="
+payload='{ "id": "urn:ngsi-ld:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 50 }, "color": { "type": "Property", "value": "red" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{ "id": "urn:ngsi-ld:V2", "type": "Vehicle", "speed": { "type": "Property", "value": 60 }, "color": { "type": "Property", "value": "blue" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Baseline: /types/Vehicle entityCount=2, /attributes/speed attributeCount=2"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/types/Vehicle | grep -E '"entityCount"|"typeName"'
+echo
+swCurl --url /ngsi-ld/v1/attributes/speed | grep -E '"attributeCount"|"attributeName"'
+echo
+echo
+
+
+echo "03. DELETE /entities/urn:ngsi-ld:V1"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V1 -X DELETE
+echo
+echo
+
+
+echo "04. After delete: entityCount=1, speed attributeCount=1"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/types/Vehicle | grep -E '"entityCount"'
+echo
+swCurl --url /ngsi-ld/v1/attributes/speed | grep -E '"attributeCount"'
+echo
+echo
+
+
+echo "05. DELETE /entities/urn:ngsi-ld:V2/attrs/color (drop one attribute)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V2/attrs/color -X DELETE
+echo
+echo
+
+
+echo "06. color now gone from /attributes; speed still attributeCount=1"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/attributes | grep -E '"attributeList"|speed|color|temp'
+echo
+swCurl --url /ngsi-ld/v1/attributes/color
+echo
+echo
+
+
+echo "07. DELETE last Vehicle → type disappears, /types/Vehicle → 404"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V2 -X DELETE
+echo
+swCurl --url /ngsi-ld/v1/types
+echo
+swCurl --url /ngsi-ld/v1/types/Vehicle
+
+--EXPECT--
+01. Seed two Vehicles, each with speed + color
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:V1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:V2
+Content-Length: 0
+
+
+
+
+02. Baseline: /types/Vehicle entityCount=2, /attributes/speed attributeCount=2
+=============================================================================
+  "entityCount": 2,
+  "typeName": "Vehicle"
+
+  "attributeCount": 2,
+  "attributeName": "speed",
+
+
+03. DELETE /entities/urn:ngsi-ld:V1
+===================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. After delete: entityCount=1, speed attributeCount=1
+=======================================================
+  "entityCount": 1,
+
+  "attributeCount": 1,
+
+
+05. DELETE /entities/urn:ngsi-ld:V2/attrs/color (drop one attribute)
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. color now gone from /attributes; speed still attributeCount=1
+=================================================================
+  "attributeList": [
+    "speed"
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "attribute 'color' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. DELETE last Vehicle → type disappears, /types/Vehicle → 404
+==============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": []
+}
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 157
+
+{
+  "detail": "entity type 'Vehicle' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+--TEARDOWN--
+swBrokerStop

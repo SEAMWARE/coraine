@@ -1,0 +1,202 @@
+#
+# FILE            discovery_attribute_type_aggregation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The same Attribute name can appear with different Attribute types in
+# different Entities (e.g. "owner" as a Property in one Entity and a
+# Relationship in another). GET /attributes/{attr} must aggregate ALL the
+# observed attribute types into attributeTypes and ALL the owning entity
+# types into typeNames, and attributeCount must count every instance
+# (TS 104-175 § 5.2.6.6 Attribute: attributeTypes is "the union of the
+# Attribute types", typeNames "the union of Entity type names").
+#
+# Likewise an Entity with multiple Entity types contributes its attributes
+# to BOTH types in GET /types?details=true.
+#
+--NAME--
+GET /attributes/{attr} unions attributeTypes + typeNames across entities
+
+--TAGS--
+attributes types discovery introspection
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed: owner as Property (Building), Relationship (Room), GeoProperty (Plot)"
+echo "=============================================================================="
+payload='{ "id": "urn:ngsi-ld:B1", "type": "Building", "owner": { "type": "Property", "value": "ACME" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{ "id": "urn:ngsi-ld:R1", "type": "Room", "owner": { "type": "Relationship", "object": "urn:ngsi-ld:ACME" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{ "id": "urn:ngsi-ld:P1", "type": "Plot", "owner": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /attributes/owner → attributeTypes=[Property,Relationship,GeoProperty], typeNames=3, count=3"
+echo "===================================================================================================="
+swCurl --url /ngsi-ld/v1/attributes/owner
+echo
+echo
+
+
+echo "03. Seed a multi-type entity (type=[Building,Landmark]) with attr height"
+echo "======================================================================="
+payload='{ "id": "urn:ngsi-ld:B2", "type": ["Building", "Landmark"], "height": { "type": "Property", "value": 30 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /types?details=true → height appears under BOTH Building and Landmark"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
+echo
+echo
+
+
+echo "05. GET /attributes/height → typeNames=[Building,Landmark]"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/attributes/height
+
+--EXPECT--
+01. Seed: owner as Property (Building), Relationship (Room), GeoProperty (Plot)
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:B1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:R1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:P1
+Content-Length: 0
+
+
+
+
+02. GET /attributes/owner → attributeTypes=[Property,Relationship,GeoProperty], typeNames=3, count=3
+====================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 281
+
+{
+  "attributeCount": 3,
+  "attributeName": "owner",
+  "attributeTypes": [
+    "Property",
+    "Relationship",
+    "GeoProperty"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/owner",
+  "type": "Attribute",
+  "typeNames": [
+    "Building",
+    "Room",
+    "Plot"
+  ]
+}
+
+
+
+03. Seed a multi-type entity (type=[Building,Landmark]) with attr height
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:B2
+Content-Length: 0
+
+
+
+
+04. GET /types?details=true → height appears under BOTH Building and Landmark
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 700
+
+[
+  {
+    "attributeNames": [
+      "owner",
+      "height"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Building",
+    "type": "EntityType",
+    "typeName": "Building"
+  },
+  {
+    "attributeNames": [
+      "owner"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Room",
+    "type": "EntityType",
+    "typeName": "Room"
+  },
+  {
+    "attributeNames": [
+      "owner"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Plot",
+    "type": "EntityType",
+    "typeName": "Plot"
+  },
+  {
+    "attributeNames": [
+      "height"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Landmark",
+    "type": "EntityType",
+    "typeName": "Landmark"
+  }
+]
+
+
+
+05. GET /attributes/height → typeNames=[Building,Landmark]
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 236
+
+{
+  "attributeCount": 1,
+  "attributeName": "height",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/height",
+  "type": "Attribute",
+  "typeNames": [
+    "Building",
+    "Landmark"
+  ]
+}
+
+--TEARDOWN--
+swBrokerStop
