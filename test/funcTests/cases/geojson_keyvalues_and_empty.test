@@ -1,0 +1,121 @@
+#
+# FILE            geojson_keyvalues_attrs_empty.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GeoJSON representation (TS 104-175 § 4.5.17) variations not covered by
+# geojson_response.test:
+#
+#   - A query that matches nothing still returns a 200 FeatureCollection
+#     with an empty "features" array (§ 5.2.30), never a 404.
+#   - options=keyValues renders the Feature "properties" in simplified form
+#     (bare values) while "geometry" is still taken from the GeoProperty.
+#
+# (The attrs-projection-vs-geometry interaction — geometry must survive an
+#  attrs/pick that drops the GeoProperty — is tracked separately as a fix.)
+#
+--NAME--
+GeoJSON: empty FeatureCollection and options=keyValues
+
+--TAGS--
+entity query geojson keyValues
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed two Cities with location + name + population"
+echo "====================================================="
+payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } }, "name": { "type": "Property", "value": "Berlin" }, "population": { "type": "Property", "value": 3600000 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{ "id": "urn:ngsi-ld:City:2", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [2.3, 48.9] } }, "name": { "type": "Property", "value": "Paris" }, "population": { "type": "Property", "value": 2100000 } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /entities?type=Nope as GeoJSON → 200 empty FeatureCollection"
+echo "==================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities?type=Nope'
+echo
+echo
+
+
+echo "03. GET /entities/City:1 GeoJSON + options=keyValues → simplified properties, geometry kept"
+echo "==========================================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'options=keyValues'
+
+--EXPECT--
+01. Seed two Cities with location + name + population
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:2
+Content-Length: 0
+
+
+
+
+02. GET /entities?type=Nope as GeoJSON → 200 empty FeatureCollection
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "features": [],
+  "type": "FeatureCollection"
+}
+
+
+
+03. GET /entities/City:1 GeoJSON + options=keyValues → simplified properties, geometry kept
+===========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 425
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "location": {
+      "coordinates": [
+        13.4,
+        52.5
+      ],
+      "type": "Point"
+    },
+    "name": "Berlin",
+    "population": 3600000,
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+--TEARDOWN--
+swBrokerStop
