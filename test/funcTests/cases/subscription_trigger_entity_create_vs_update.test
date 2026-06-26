@@ -1,0 +1,126 @@
+#
+# FILE            subscription_trigger_entity_create_vs_update.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Isolates the two entity-level notificationTriggers (TS 104-175 § 5.2):
+#   entityCreated  — fires ONLY when an Entity is created; NOT when an Attribute
+#                    is later added to an existing Entity, nor on update/delete.
+#   entityUpdated  — equivalent to {attributeCreated, attributeUpdated,
+#                    attributeDeleted}: fires on ANY attribute change to an
+#                    existing Entity (add / modify / remove), but NOT on Entity
+#                    creation nor Entity deletion.
+#
+# The discriminating case is Entity creation: a ["attributeCreated"] sub fires
+# on it (entity-create = all attributes created), yet a ["entityUpdated"] sub
+# does NOT — even though entityUpdated includes attributeCreated. swBroker treats
+# entity-create as an entityCreated event, not an entityUpdated one (the spec is
+# silent on this symmetry; see the triggerMatches comment / ETSI 046_22).
+#
+--NAME--
+notificationTrigger entityCreated vs entityUpdated — isolated, incl. the create asymmetry
+
+--TAGS--
+subscription notificationTrigger entityCreated entityUpdated
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+dump() {
+  ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(len(d), 'notifications')
+for s in sorted(e['body']['subscriptionId'] for e in d):
+    print(' ', s)
+"
+  ftClientReset >/dev/null
+}
+
+echo "01. Create S_EC [entityCreated] and S_EU [entityUpdated] (both on type Vehicle)"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_EC", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notificationTrigger": ["entityCreated"], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' >/dev/null
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_EU", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notificationTrigger": ["entityUpdated"], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' >/dev/null
+echo "done"
+echo
+echo
+
+
+echo "02. Create V1 {speed} → S_EC fires; S_EU does NOT (create != update)"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
+dump
+echo
+echo
+
+
+echo "03. PATCH add attr color → S_EU fires (attributeCreated); S_EC does NOT"
+echo "======================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "color": { "type": "Property", "value": "red" } }' >/dev/null
+dump
+echo
+echo
+
+
+echo "04. PATCH modify speed → S_EU fires (attributeUpdated); S_EC does NOT"
+echo "===================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "speed": { "type": "Property", "value": 200 } }' >/dev/null
+dump
+echo
+echo
+
+
+echo "05. PATCH delete color (urn:ngsi-ld:null) → S_EU fires (attributeDeleted); S_EC does NOT"
+echo "======================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "color": "urn:ngsi-ld:null" }' >/dev/null
+dump
+echo
+echo
+
+
+echo "06. DELETE entity → neither fires (entityUpdated != entityDeleted)"
+echo "================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 >/dev/null
+dump
+
+--EXPECT--
+01. Create S_EC [entityCreated] and S_EU [entityUpdated] (both on type Vehicle)
+===============================================================================
+done
+
+
+02. Create V1 {speed} → S_EC fires; S_EU does NOT (create != update)
+====================================================================
+1 notifications
+  urn:S_EC
+
+
+03. PATCH add attr color → S_EU fires (attributeCreated); S_EC does NOT
+======================================================================
+1 notifications
+  urn:S_EU
+
+
+04. PATCH modify speed → S_EU fires (attributeUpdated); S_EC does NOT
+====================================================================
+1 notifications
+  urn:S_EU
+
+
+05. PATCH delete color (urn:ngsi-ld:null) → S_EU fires (attributeDeleted); S_EC does NOT
+=======================================================================================
+1 notifications
+  urn:S_EU
+
+
+06. DELETE entity → neither fires (entityUpdated != entityDeleted)
+=================================================================
+0 notifications
+--TEARDOWN--
+swBrokerStop
