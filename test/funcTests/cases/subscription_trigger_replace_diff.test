@@ -1,0 +1,109 @@
+#
+# FILE            subscription_trigger_replace_diff.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Replace (PUT /entities/{id}) overwrites the entity, so relative to the
+# stored entity it CREATES new attributes, UPDATES kept ones, and DELETES the
+# ones absent from the new body. Each is a distinct notificationTrigger reason
+# (TS 104-175 § 5.2 notificationTrigger; § 5.6.x Replace). So a PUT that drops
+# attr X, updates attr Y and adds attr Z must fire:
+#   - attributeDeleted subscriptions (X gone),
+#   - attributeUpdated subscriptions (Y changed),
+#   - attributeCreated subscriptions (Z added),
+#   - the default set {attributeCreated, attributeUpdated},
+#   - entityUpdated (= attrCreated + attrUpdated + attrDeleted).
+#
+--NAME--
+notificationTrigger reasons on Replace (PUT) — created / updated / deleted attrs
+
+--TAGS--
+subscription notificationTrigger replace put
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+createSub() {
+  payload='{
+    "id": "'$1'",
+    "type": "Subscription",
+    "entities": [ { "type": "Vehicle" } ],
+    '$2'
+    "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+  }'
+  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" >/dev/null
+}
+
+echo "01. Create subs: S_DEF(default) S_AD(attributeDeleted) S_AU(attributeUpdated) S_AC(attributeCreated) S_EU(entityUpdated)"
+echo "==================================================================================================================="
+createSub urn:S_DEF ''
+createSub urn:S_AD  '"notificationTrigger": ["attributeDeleted"],'
+createSub urn:S_AU  '"notificationTrigger": ["attributeUpdated"],'
+createSub urn:S_AC  '"notificationTrigger": ["attributeCreated"],'
+createSub urn:S_EU  '"notificationTrigger": ["entityUpdated"],'
+echo "done"
+echo
+echo
+
+
+echo "02. Create V1 {speed:100, color:red}, then reset (consume create notifs)"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 }, "color": { "type": "Property", "value": "red" } }' >/dev/null
+ftClientReset
+echo "done"
+echo
+echo
+
+
+echo "03. PUT /entities/urn:V1 {speed:200, size:L} — drops color, updates speed, adds size"
+echo "==================================================================================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1 --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 200 }, "size": { "type": "Property", "value": "L" } }'
+echo
+echo
+
+
+echo "04. Which subs fired? Expect S_DEF, S_AD, S_AU, S_AC, S_EU (all five)"
+echo "===================================================================="
+ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(len(d), 'notifications')
+for s in sorted(e['body']['subscriptionId'] for e in d):
+    print(' ', s)
+"
+
+--EXPECT--
+01. Create subs: S_DEF(default) S_AD(attributeDeleted) S_AU(attributeUpdated) S_AC(attributeCreated) S_EU(entityUpdated)
+===================================================================================================================
+done
+
+
+02. Create V1 {speed:100, color:red}, then reset (consume create notifs)
+========================================================================
+done
+
+
+03. PUT /entities/urn:V1 {speed:200, size:L} — drops color, updates speed, adds size
+===================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. Which subs fired? Expect S_DEF, S_AD, S_AU, S_AC, S_EU (all five)
+====================================================================
+5 notifications
+  urn:S_AC
+  urn:S_AD
+  urn:S_AU
+  urn:S_DEF
+  urn:S_EU
+--TEARDOWN--
+swBrokerStop

@@ -433,7 +433,16 @@ bool replaceEntity(void)
         bodyIdP->name = "id";
 
       if (tenantP->subCacheP != NULL)
-        ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityUpdate, NULL);
+      {
+        // A Replace creates/updates/deletes attributes relative to the stored
+        // entity. Build the per-attribute change-report (oldStored vs entityP,
+        // both DB-model form) so attribute-level and default notificationTrigger
+        // subscriptions fire — not just entityUpdated. § 5.2 notificationTrigger.
+        LdMergeReport replaceReport;
+        replaceReport.changes = NULL;
+        ldEntityReplaceReport(oldStored, entityP, &replaceReport);
+        ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityUpdate, &replaceReport);
+      }
 
       // TRoE: defer 1 entity-level "replaced" marker + N "attrReplaced"
       // events, one per attr in the new body. Attrs that existed in the
