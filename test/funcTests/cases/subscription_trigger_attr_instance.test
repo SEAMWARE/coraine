@@ -1,0 +1,127 @@
+#
+# FILE            subscription_trigger_attr_instance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Trigger reasons for instance-level Attribute operations (TS 104-175 § 5.2
+# notificationTrigger; § 5.6.19 Replace Attribute; § 5.6.16 Delete Attribute):
+#   - PUT /entities/{id}/attrs/{attr} replaces ONE instance (the default, or the
+#     one named by datasetId in the body) — the Attribute still exists, so this
+#     is attributeUpdated (NOT attributeDeleted).
+#   - DELETE /entities/{id}/attrs/{attr}?datasetId=X removes one instance while
+#     other instances of the Attribute remain.
+#   - DELETE /entities/{id}/attrs/{attr} removes the whole Attribute.
+# This pins which of attributeUpdated / attributeDeleted the broker reports for
+# each, via four single-trigger subscriptions.
+#
+--NAME--
+notificationTrigger reasons for PUT-replace-instance and DELETE-instance / DELETE-attr
+
+--TAGS--
+subscription notificationTrigger replace delete datasetId instance
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+createSub() {
+  payload='{
+    "id": "'$1'",
+    "type": "Subscription",
+    "entities": [ { "type": "Vehicle" } ],
+    '$2'
+    "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+  }'
+  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" >/dev/null
+}
+
+dump() {
+  ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(len(d), 'notifications')
+for s in sorted(e['body']['subscriptionId'] for e in d):
+    print(' ', s)
+"
+  ftClientReset >/dev/null
+}
+
+echo "01. Subs: S_DEF(default) S_AU(attributeUpdated) S_AD(attributeDeleted) S_EU(entityUpdated)"
+echo "========================================================================================="
+createSub urn:S_DEF ''
+createSub urn:S_AU  '"notificationTrigger": ["attributeUpdated"],'
+createSub urn:S_AD  '"notificationTrigger": ["attributeDeleted"],'
+createSub urn:S_EU  '"notificationTrigger": ["entityUpdated"],'
+echo "done"
+echo
+echo
+
+
+echo "02. Create V1 speed = [ default 100, datasetId:radar 98 ], then reset"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": [ { "type": "Property", "value": 100 }, { "type": "Property", "value": 98, "datasetId": "urn:ngsi-ld:dataset:radar" } ] }' >/dev/null
+ftClientReset >/dev/null
+echo "done"
+echo
+echo
+
+
+echo "03. PUT /attrs/speed {value:200} → replaces default instance → attributeUpdated"
+echo "==============================================================================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed --payload '{ "type": "Property", "value": 200 }' >/dev/null
+dump
+echo
+echo
+
+
+echo "04. DELETE /attrs/speed?datasetId=urn:ngsi-ld:dataset:radar → radar instance gone, default remains"
+echo "=================================================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ngsi-ld:dataset:radar' >/dev/null
+dump
+echo
+echo
+
+
+echo "05. DELETE /attrs/speed → whole Attribute removed → attributeDeleted"
+echo "==================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed >/dev/null
+dump
+
+--EXPECT--
+01. Subs: S_DEF(default) S_AU(attributeUpdated) S_AD(attributeDeleted) S_EU(entityUpdated)
+=========================================================================================
+done
+
+
+02. Create V1 speed = [ default 100, datasetId:radar 98 ], then reset
+=====================================================================
+done
+
+
+03. PUT /attrs/speed {value:200} → replaces default instance → attributeUpdated
+===============================================================================
+3 notifications
+  urn:S_AU
+  urn:S_DEF
+  urn:S_EU
+
+
+04. DELETE /attrs/speed?datasetId=urn:ngsi-ld:dataset:radar → radar instance gone, default remains
+==================================================================================================
+2 notifications
+  urn:S_AD
+  urn:S_EU
+
+
+05. DELETE /attrs/speed → whole Attribute removed → attributeDeleted
+===================================================================
+2 notifications
+  urn:S_AD
+  urn:S_EU
+--TEARDOWN--
+swBrokerStop
