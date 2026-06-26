@@ -1,0 +1,120 @@
+#
+# FILE            troe_timescale_temporal_attr_method_set.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The temporal Attribute resource /temporal/entities/{entityId}/attrs/{attrId}
+# (TS 104-176 § 8.5) defines a SINGLE method: DELETE ("Delete Attribute from
+# Temporal Evolution of an Entity", § 8.5.3.1). There is no GET on this
+# resource — a single temporal Attribute is retrieved via the entity-level
+# GET /temporal/entities/{id}?attrs=. So GET here is 405 Method Not Allowed,
+# and the 405 ProblemDetails detail must name the full requested resource
+# (the Allow-probe must not truncate the path).
+#
+--NAME--
+TRoE timescale - temporal Attribute resource method set (DELETE only, GET is 405)
+
+--TAGS--
+troe timescale postgres temporal attr methods
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 with speed + color"
+echo "=================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" },
+  "color": { "type": "Property", "value": "red", "observedAt": "2026-04-28T09:00:00Z" }
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /temporal/entities/urn:V1/attrs/speed → 405 (no GET on § 8.5 resource)"
+echo "============================================================================="
+echo "    detail names the FULL resource (/attrs/speed not truncated)"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed'
+echo
+echo
+
+
+echo "03. DELETE /temporal/entities/urn:V1/attrs/color → 204 (the § 8.5.3.1 method)"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/color' -X DELETE
+echo
+echo
+
+
+echo "04. GET /temporal/entities/urn:V1 → color gone, speed remains"
+echo "============================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
+
+--EXPECT--
+01. Seed urn:V1 with speed + color
+==================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. GET /temporal/entities/urn:V1/attrs/speed → 405 (no GET on § 8.5 resource)
+=============================================================================
+    detail names the FULL resource (/attrs/speed not truncated)
+HTTP/1.1 405 Method Not Allowed
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: DELETE, HEAD, OPTIONS
+Content-Length: 232
+
+{
+  "detail": "GET /ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed — supported methods: DELETE, HEAD, OPTIONS",
+  "status": 405,
+  "title": "Method Not Allowed",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/MethodNotAllowed"
+}
+
+
+
+03. DELETE /temporal/entities/urn:V1/attrs/color → 204 (the § 8.5.3.1 method)
+============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. GET /temporal/entities/urn:V1 → color gone, speed remains
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+--TEARDOWN--
+swBrokerStop
