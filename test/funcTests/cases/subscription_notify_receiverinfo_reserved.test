@@ -31,7 +31,7 @@ swBrokerStart
 sub() {
   # $1 = id, $2 = endpoint members (accept + receiverInfo)
   payload='{ "id": "'$1'", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", '$2' } } }'
-  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep -E "HTTP/|title|detail"
+  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 }
 
 echo "01. receiverInfo Content-Length -> 400"
@@ -79,18 +79,8 @@ echo
 echo "08. Trigger notification for S_OK — body=ld+json (single Content-Type), X-Custom, @context in body"
 echo "================================================================================================="
 swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
-ftClientDump | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(len(d), 'notification(s)')
-for e in d:
-    h = e.get('headers', {})
-    print('  Content-Type :', h.get('Content-Type'))
-    print('  X-Custom     :', h.get('X-Custom'))
-    print('  Link present :', 'Link' in h)
-    body = e.get('body')
-    print('  body @context:', isinstance(body, dict) and '@context' in (body.get('data',[{}])[0] if body.get('data') else {}))
-"
+sleep 0.4
+ftClientDump
 ftClientReset >/dev/null
 echo
 echo
@@ -98,79 +88,192 @@ echo
 echo "09. OK: receiverInfo @context Link (accept=json, type Car) -> supplies the single notification Link"
 echo "==================================================================================================="
 payload='{ "id": "urn:S_LINK", "type": "Subscription", "entities": [ { "type": "Car" } ], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", "accept": "application/json", "receiverInfo": [ { "key": "Link", "value": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"" } ] } } }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep -E "HTTP/"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
 echo
 swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Car1", "type": "Car", "speed": { "type": "Property", "value": 9 } }' >/dev/null
-ftClientDump | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(len(d), 'notification(s)')
-for e in d:
-    print('  Link:', e.get('headers', {}).get('Link'))
-"
+sleep 0.4
+ftClientDump
 
 --EXPECT--
 01. receiverInfo Content-Length -> 400
 ======================================
 HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
   "detail": "'notification.endpoint.receiverInfo' must not set the broker-managed header 'Content-Length'",
+  "status": 400,
   "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 02. receiverInfo Date -> 400
 ============================
 HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 217
+
+{
   "detail": "'notification.endpoint.receiverInfo' must not set the broker-managed header 'Date'",
+  "status": 400,
   "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 03. receiverInfo Content-Type with a non-media-type value -> 400
 ================================================================
 HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 254
+
+{
   "detail": "'notification.endpoint.receiverInfo' Content-Type must be application/json, application/ld+json or application/geo+json",
+  "status": 400,
   "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 04. receiverInfo Content-Type conflicts with endpoint.accept -> 400
 ===================================================================
 HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
   "detail": "'notification.endpoint.receiverInfo' Content-Type conflicts with 'notification.endpoint.accept'",
+  "status": 400,
   "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 05. receiverInfo Content-Type = urn:ngsi-ld:request sentinel -> 400
 ==================================================================
 HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 217
+
+{
   "detail": "'notification.endpoint.receiverInfo' Content-Type cannot use 'urn:ngsi-ld:request'",
+  "status": 400,
   "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 06. receiverInfo @context Link with accept=ld+json (no Link expected) -> 400
 ============================================================================
 HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 258
+
+{
   "detail": "'notification.endpoint.receiverInfo' @context Link conflicts with application/ld+json (the @context is carried in the body)",
+  "status": 400,
   "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 07. OK: receiverInfo Content-Type=ld+json (absorbs as accept) + Authorization sentinel + X-Custom
 =================================================================================================
 HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S_OK
+Content-Length: 0
+
+
 
 
 08. Trigger notification for S_OK — body=ld+json (single Content-Type), X-Custom, @context in body
 =================================================================================================
-1 notification(s)
-  Content-Type : application/ld+json
-  X-Custom     : ok
-  Link present : False
-  body @context: True
+[
+  {
+    "body": {
+      "data": [
+        {
+          "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 100
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S_OK",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/ld+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)",
+      "X-Custom": "ok"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
 
 
 09. OK: receiverInfo @context Link (accept=json, type Car) -> supplies the single notification Link
 ===================================================================================================
 HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S_LINK
+Content-Length: 0
 
-1 notification(s)
-  Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:Car1",
+          "speed": {
+            "type": "Property",
+            "value": 9
+          },
+          "type": "Car"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S_LINK",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
 --TEARDOWN--
 swBrokerStop
