@@ -1,0 +1,163 @@
+#
+# FILE            geojson_scope_under_properties.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.3.3.1 — the GeoJSON Feature `properties` object carries, besides
+# `type` (the entity type) and one member per Attribute, the optional
+# non-attribute members `scope` and `expiresAt`. They must therefore land
+# under `properties` (not at the top Feature level, where only id/type/
+# geometry/properties live). `id` must NOT appear under `properties`.
+#
+# The spec is SILENT on where the system timestamps go when options=sysAttrs
+# (§ 5.3.3 never lists createdAt/modifiedAt among the `properties` members);
+# we place the entity-level createdAt/modifiedAt under `properties` too — the
+# same bucket as scope/expiresAt — and the per-Attribute ones stay nested in
+# each Attribute. Spec-doubt #103.
+#
+--NAME--
+GeoJSON Feature — scope and expiresAt under properties (§ 5.3.3.3.1)
+
+--TAGS--
+geojson scope
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create a Vehicle with location, a scope and an expiresAt"
+echo "============================================================"
+payload='{
+  "id":"urn:V1",
+  "type":"Vehicle",
+  "scope":"/Madrid/Gardens",
+  "expiresAt":"2099-12-31T23:59:59Z",
+  "speed":{"type":"Property","value":50},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET it as GeoJSON — scope and expiresAt under properties, no id there"
+echo "========================================================================"
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:V1'
+echo
+echo
+
+
+echo "03. GET it as GeoJSON with options=sysAttrs — entity createdAt/modifiedAt"
+echo "    under properties, per-Attribute ones nested in each Attribute"
+echo "========================================================================"
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=sysAttrs'
+echo
+echo
+
+
+--EXPECT--
+01. Create a Vehicle with location, a scope and an expiresAt
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. GET it as GeoJSON — scope and expiresAt under properties, no id there
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Content-Length: 562
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      10,
+      20
+    ],
+    "type": "Point"
+  },
+  "id": "urn:V1",
+  "properties": {
+    "expiresAt": "2099-12-31T23:59:59Z",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          10,
+          20
+        ],
+        "type": "Point"
+      }
+    },
+    "scope": "/Madrid/Gardens",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "type": "Vehicle"
+  },
+  "type": "Feature"
+}
+
+
+
+03. GET it as GeoJSON with options=sysAttrs — entity createdAt/modifiedAt
+    under properties, per-Attribute ones nested in each Attribute
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Content-Length: REGEX(\d+)
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      10,
+      20
+    ],
+    "type": "Point"
+  },
+  "id": "urn:V1",
+  "properties": {
+    "createdAt": "REGEX(.*)",
+    "expiresAt": "2099-12-31T23:59:59Z",
+    "location": {
+      "createdAt": "REGEX(.*)",
+      "modifiedAt": "REGEX(.*)",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          10,
+          20
+        ],
+        "type": "Point"
+      }
+    },
+    "modifiedAt": "REGEX(.*)",
+    "scope": "/Madrid/Gardens",
+    "speed": {
+      "createdAt": "REGEX(.*)",
+      "modifiedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": 50
+    },
+    "type": "Vehicle"
+  },
+  "type": "Feature"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
