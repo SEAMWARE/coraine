@@ -1,0 +1,151 @@
+#
+# FILE            subscription_notify_geojson_prefer.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# geo+json notification @context placement (TS 104-175 § 5.2.6.9.1 Notification
+# data type; TS 104-176 § 6.5.2). For endpoint.accept=application/geo+json the
+# Notification's `data` is a FeatureCollection. The @context is a SINGLE
+# top-level FeatureCollection member (RFC 7946 § 6.1 foreign member), with NO
+# Link header. A receiverInfo Prefer "body=json" moves it: the FeatureCollection
+# carries no @context and the Link header carries it instead — and the Prefer
+# directive is NOT leaked to the receiver as a header (spec-doubt #101).
+#
+--NAME--
+geo+json notification @context — top-level FeatureCollection member; Prefer body=json -> Link
+
+--TAGS--
+subscription notification geojson prefer context
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. default geo+json -> @context a top-level FeatureCollection member, no Link header"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_GEO", "type": "Subscription", "entities": [ { "type": "City" } ], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", "accept": "application/geo+json" } } }' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } } }' >/dev/null
+sleep 0.4
+ftClientDump
+ftClientReset >/dev/null
+echo
+echo
+
+
+echo "02. geo+json + receiverInfo Prefer body=json -> no @context in body, Link header, no Prefer leak"
+echo "==============================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_CAR", "type": "Subscription", "entities": [ { "type": "Car" } ], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", "accept": "application/geo+json", "receiverInfo": [ { "key": "Prefer", "value": "body=json" } ] } } }' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Car:1", "type": "Car", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [2.3, 48.9] } } }' >/dev/null
+sleep 0.4
+ftClientDump
+
+--EXPECT--
+01. default geo+json -> @context a top-level FeatureCollection member, no Link header
+====================================================================================
+[
+  {
+    "body": {
+      "data": {
+        "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+        "features": [
+          {
+            "geometry": {
+              "coordinates": [
+                13.4,
+                52.5
+              ],
+              "type": "Point"
+            },
+            "id": "urn:ngsi-ld:City:1",
+            "properties": {
+              "location": {
+                "type": "GeoProperty",
+                "value": {
+                  "coordinates": [
+                    13.4,
+                    52.5
+                  ],
+                  "type": "Point"
+                }
+              },
+              "type": "City"
+            },
+            "type": "Feature"
+          }
+        ],
+        "type": "FeatureCollection"
+      },
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S_GEO",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/geo+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+02. geo+json + receiverInfo Prefer body=json -> no @context in body, Link header, no Prefer leak
+===============================================================================================
+[
+  {
+    "body": {
+      "data": {
+        "features": [
+          {
+            "geometry": {
+              "coordinates": [
+                2.3,
+                48.9
+              ],
+              "type": "Point"
+            },
+            "id": "urn:ngsi-ld:Car:1",
+            "properties": {
+              "location": {
+                "type": "GeoProperty",
+                "value": {
+                  "coordinates": [
+                    2.3,
+                    48.9
+                  ],
+                  "type": "Point"
+                }
+              },
+              "type": "Car"
+            },
+            "type": "Feature"
+          }
+        ],
+        "type": "FeatureCollection"
+      },
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S_CAR",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/geo+json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+--TEARDOWN--
+swBrokerStop

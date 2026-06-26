@@ -9,7 +9,10 @@
 # the notification's `data` field is rendered as a GeoJSON
 # FeatureCollection (each entity → Feature with id, geometry from the
 # location GeoProperty, and the rest of the entity as `properties`).
+# When accept = application/ld+json, `data` is an Entity array.
 # The Content-Type header reflects the negotiated MIME type.
+# (One notification per dump, ftClientReset between, so each dump is
+# deterministic and shown raw.)
 #
 --NAME--
 Subscription notification — endpoint.accept rendering (§ 5.2.14)
@@ -41,7 +44,28 @@ echo
 echo
 
 
-echo "02. Subscription with accept = application/ld+json"
+echo "02. POST a Sensor with location → geo+json notification (FeatureCollection)"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:S1",
+  "type":"Sensor",
+  "temp":{"type":"Property","value":22},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}
+}'
+echo
+echo
+
+
+echo "03. ftClient dump — geo+json notification, raw"
+echo "=============================================="
+sleep 0.4
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "04. Subscription with accept = application/ld+json"
 echo "=================================================="
 swCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:ldj",
@@ -58,20 +82,8 @@ echo
 echo
 
 
-echo "03. POST a Sensor with location → triggers geo+json notification"
-echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{
-  "id":"urn:S1",
-  "type":"Sensor",
-  "temp":{"type":"Property","value":22},
-  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}
-}'
-echo
-echo
-
-
-echo "04. POST a Drone (no GeoProperty needed) → triggers ld+json notification"
-echo "========================================================================"
+echo "05. POST a Drone → ld+json notification (Entity array)"
+echo "======================================================"
 swCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:D1",
   "type":"Drone",
@@ -81,33 +93,10 @@ echo
 echo
 
 
-echo "05. ftClient dump — verify Content-Types and FeatureCollection shape"
-echo "===================================================================="
+echo "06. ftClient dump — ld+json notification, raw"
+echo "============================================="
 sleep 0.4
-ftClientDump | python3 -c "
-import sys, json
-data = json.loads(sys.stdin.read())
-data.sort(key=lambda e: e.get('body', {}).get('subscriptionId', ''))
-for e in data:
-    ct   = e.get('headers', {}).get('Content-Type', '')
-    body = e.get('body', {})
-    sub  = body.get('subscriptionId', '')
-    df   = body.get('data')
-    if isinstance(df, dict):
-        kind = 'FeatureCollection' if df.get('type') == 'FeatureCollection' else type(df).__name__
-        if kind == 'FeatureCollection':
-            feats = df.get('features', [])
-            f0 = feats[0] if feats else {}
-            geom = f0.get('geometry') or {}
-            kind += f' n={len(feats)} feat0.id={f0.get(\"id\",\"\")} feat0.geometry.type={geom.get(\"type\",\"\")}'
-    elif isinstance(df, list):
-        kind = f'Entity[] n={len(df)} ids={[x.get(\"id\",\"\") for x in df]}'
-    else:
-        kind = '(missing)'
-    print(f'sub={sub}')
-    print(f'  Content-Type: {ct}')
-    print(f'  data: {kind}')
-"
+ftClientDump
 echo
 echo
 
@@ -123,7 +112,73 @@ Content-Length: 0
 
 
 
-02. Subscription with accept = application/ld+json
+02. POST a Sensor with location → geo+json notification (FeatureCollection)
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:S1
+Content-Length: 0
+
+
+
+
+03. ftClient dump — geo+json notification, raw
+==============================================
+[
+  {
+    "body": {
+      "data": {
+        "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+        "features": [
+          {
+            "geometry": {
+              "coordinates": [
+                10,
+                20
+              ],
+              "type": "Point"
+            },
+            "id": "urn:S1",
+            "properties": {
+              "location": {
+                "type": "GeoProperty",
+                "value": {
+                  "coordinates": [
+                    10,
+                    20
+                  ],
+                  "type": "Point"
+                }
+              },
+              "temp": {
+                "type": "Property",
+                "value": 22
+              },
+              "type": "Sensor"
+            },
+            "type": "Feature"
+          }
+        ],
+        "type": "FeatureCollection"
+      },
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:geo",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/geo+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. Subscription with accept = application/ld+json
 ==================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
@@ -133,18 +188,8 @@ Content-Length: 0
 
 
 
-03. POST a Sensor with location → triggers geo+json notification
-================================================================
-HTTP/1.1 201 Created
-Date: REGEX(.*)
-Location: /ngsi-ld/v1/entities/urn:S1
-Content-Length: 0
-
-
-
-
-04. POST a Drone (no GeoProperty needed) → triggers ld+json notification
-========================================================================
+05. POST a Drone → ld+json notification (Entity array)
+======================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/entities/urn:D1
@@ -153,14 +198,39 @@ Content-Length: 0
 
 
 
-05. ftClient dump — verify Content-Types and FeatureCollection shape
-====================================================================
-sub=urn:ngsi-ld:Subscription:ldj
-  Content-Type: application/ld+json
-  data: Entity[] n=1 ids=['urn:D1']
+06. ftClient dump — ld+json notification, raw
+=============================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+          "altitude": {
+            "type": "Property",
+            "value": 120
+          },
+          "id": "urn:D1",
+          "type": "Drone"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:ldj",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/ld+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
 
 
 --TEARDOWN--
 swBrokerStop
 ftClientStop
-swDbDrop

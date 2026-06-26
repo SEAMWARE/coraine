@@ -1,0 +1,142 @@
+#
+# FILE            subscription_notify_geojson_keyvalues.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# geo+json notification with notification.format = simplified (§ 5.2.14 +
+# § 4.5.5). The entity is simplified BEFORE the FeatureCollection is built,
+# so each Feature's `properties` are flat scalars (GIS-friendly attribute
+# table) — and the geometry must STILL be extracted correctly even though
+# the GeoProperty has collapsed to its bare value. The notification carries
+# Ngsild-Attribute-Format: simplified.
+#
+--NAME--
+Subscription notification — geo+json + format simplified (§ 5.2.14)
+
+--TAGS--
+subscription notification geojson simplified
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Subscription: accept = geo+json, format = simplified"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:geokv",
+  "type":"Subscription",
+  "entities":[{"type":"Sensor"}],
+  "notification":{
+    "format":"simplified",
+    "endpoint":{
+      "uri":"http://localhost:'"$FT_CLIENT_PORT"'/notify",
+      "accept":"application/geo+json"
+    }
+  }
+}'
+echo
+echo
+
+
+echo "02. POST a Sensor with location + scalar props → geo+json keyValues notification"
+echo "================================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:S1",
+  "type":"Sensor",
+  "temp":{"type":"Property","value":22},
+  "status":{"type":"Property","value":"on"},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}
+}'
+echo
+echo
+
+
+echo "03. ftClient dump — geometry intact, properties flattened, raw"
+echo "=============================================================="
+sleep 0.4
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Subscription: accept = geo+json, format = simplified
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:geokv
+Content-Length: 0
+
+
+
+
+02. POST a Sensor with location + scalar props → geo+json keyValues notification
+================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:S1
+Content-Length: 0
+
+
+
+
+03. ftClient dump — geometry intact, properties flattened, raw
+==============================================================
+[
+  {
+    "body": {
+      "data": {
+        "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+        "features": [
+          {
+            "geometry": {
+              "coordinates": [
+                10,
+                20
+              ],
+              "type": "Point"
+            },
+            "id": "urn:S1",
+            "properties": {
+              "location": {
+                "coordinates": [
+                  10,
+                  20
+                ],
+                "type": "Point"
+              },
+              "status": "on",
+              "temp": 22,
+              "type": "Sensor"
+            },
+            "type": "Feature"
+          }
+        ],
+        "type": "FeatureCollection"
+      },
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:geokv",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/geo+json",
+      "Host": "localhost:7701",
+      "Ngsild-Attribute-Format": "simplified",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop

@@ -638,6 +638,10 @@ int main(int argC, char* argV[])
 
   swRestSetPrettySpaces(2);
 
+  // ftClient is a notification RECEIVER — accept geo+json notifications (the
+  // broker's § 6.3.4 415 gate otherwise rejects a geo+json POST body).
+  swRestAcceptGeoJsonInputSet(true);
+
   // --httpsKey + --httpsCertificate → serve notifications over TLS
   if ((ftHttpsKey != NULL) && (ftHttpsCert != NULL))
   {
