@@ -1,0 +1,76 @@
+#
+# FILE            pagination_link_type_matches_accept.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The pagination Link header's "type" Target Attribute (TS 104-176 § 6.4.7.2)
+# "shall be exactly equal to the media type resulting from the original request
+# that triggered the current pagination iteration". So the rel="next"/"prev"
+# link's type= must reflect the request's Accept: application/json,
+# application/ld+json, or application/geo+json — not a fixed value.
+#
+--NAME--
+Pagination Link "type" attribute equals the originally-requested media type
+
+--TAGS--
+entity query pagination link accept
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create 5 entities of type T"
+echo "==============================="
+for n in 1 2 3 4 5; do
+  payload="{ \"id\": \"urn:ngsi-ld:T:$n\", \"type\": \"T\", \"n\": { \"type\": \"Property\", \"value\": $n } }"
+  swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+done
+echo "done"
+echo
+echo
+
+
+echo "02. Accept: application/json → next-link type=\"application/json\""
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/json' | grep -i '^Link:'
+echo
+echo
+
+
+echo "03. Accept: application/ld+json → next-link type=\"application/ld+json\""
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/ld+json' | grep -i '^Link:'
+echo
+echo
+
+
+echo "04. Accept: application/geo+json → next-link type=\"application/geo+json\""
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/geo+json' | grep -i '^Link:'
+
+--EXPECT--
+01. Create 5 entities of type T
+===============================
+done
+
+
+02. Accept: application/json → next-link type="application/json"
+================================================================
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+03. Accept: application/ld+json → next-link type="application/ld+json"
+======================================================================
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>;rel="next";type="application/ld+json"
+
+
+04. Accept: application/geo+json → next-link type="application/geo+json"
+========================================================================
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>;rel="next";type="application/geo+json"
+--TEARDOWN--
+swBrokerStop

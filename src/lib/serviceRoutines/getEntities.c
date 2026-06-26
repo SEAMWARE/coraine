@@ -1438,25 +1438,28 @@ static bool entityMapPaginate(void)
   {
     char* link = (char*) kaAlloc(&swRest.kalloc, 1024);
     int   pos  = 0;
+    // § 6.4.7.2: the Link "type" attribute mirrors the original request's
+    // media type, not a fixed value (same rule as ldPaginationLinkHeader).
+    const char* mt = ldPaginationMediaType();
     if (hasPrev)
     {
       int prevOff = offset - limit;
       if (prevOff < 0) prevOff = 0;
       pos += snprintf(link + pos, 1024 - pos,
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=0&limit=%d>; rel=\"first\"; type=\"application/json\", "
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"prev\"; type=\"application/json\"",
-                      swNgsild.entityMapId, limit,
-                      swNgsild.entityMapId, prevOff, limit);
+                      "</ngsi-ld/v1/entities?entityMap=%s&offset=0&limit=%d>; rel=\"first\"; type=\"%s\", "
+                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"prev\"; type=\"%s\"",
+                      swNgsild.entityMapId, limit, mt,
+                      swNgsild.entityMapId, prevOff, limit, mt);
     }
     if (hasMore)
     {
       if (pos > 0) pos += snprintf(link + pos, 1024 - pos, ", ");
       int lastOff = ((mapP->entryCount - 1) / limit) * limit;
       pos += snprintf(link + pos, 1024 - pos,
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"application/json\", "
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"last\"; type=\"application/json\"",
-                      swNgsild.entityMapId, offset + limit, limit,
-                      swNgsild.entityMapId, lastOff, limit);
+                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"%s\", "
+                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"last\"; type=\"%s\"",
+                      swNgsild.entityMapId, offset + limit, limit, mt,
+                      swNgsild.entityMapId, lastOff, limit, mt);
     }
     swRestOutHeaderAdd("Link", link);
   }
