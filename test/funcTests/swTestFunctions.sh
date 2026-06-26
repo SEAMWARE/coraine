@@ -175,9 +175,18 @@ swBrokerStop() {
   # Port-based kill so orphans from aborted prior runs (with no live pid
   # file) are still caught. Matches any swBroker whose cmdline carries
   # "--port <port>".
-  pkill -f "swBroker.*--port $SW_ROLE_PORT( |\$)" 2>/dev/null
-  sleep 0.1
-  pkill -9 -f "swBroker.*--port $SW_ROLE_PORT( |\$)" 2>/dev/null
+  local pat="swBroker.*--port $SW_ROLE_PORT( |\$)"
+  pkill -f "$pat" 2>/dev/null                    # SIGTERM → onSignal()->dbClose()->exit(0)
+
+  # Wait (bounded) for graceful exit before the SIGKILL backstop. The SIGTERM
+  # shutdown runs dbClose() (frees the store / closes mongo), which can take
+  # longer than a fixed 0.1s — a premature SIGKILL prints "Killed" to the
+  # launching shell's stderr and trips the stderr-empty gate (seen on the
+  # mongoc persist/restart tests). 5s is ample; the backstop still catches a
+  # hung broker.
+  local n=0
+  while pgrep -f "$pat" >/dev/null 2>&1 && [ $n -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
+  pkill -9 -f "$pat" 2>/dev/null                 # backstop only if still alive
 
   \rm -f "$SW_ROLE_PID_FILE"
 }
