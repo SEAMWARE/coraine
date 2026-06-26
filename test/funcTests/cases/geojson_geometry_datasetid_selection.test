@@ -1,0 +1,266 @@
+#
+# FILE            geojson_geometry_datasetid_selection.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Top-level "geometry" field selection for GeoJSON output (TS 104-175 § 5.3.3.2):
+# "If the selected GeoProperty has multiple instances ... either a datasetId
+# shall be specified, in order to define which instance of the value is to be
+# selected, or a default attribute instance exists, which is then selected, if
+# no datasetId was specified."
+# And: "If an entity lacks the GeoProperty as specified or the value does not
+# hold a valid GeoJSON geometry object then the geometry shall be undefined and
+# returned with a value of null - which is syntactically valid GeoJSON."
+#
+--NAME--
+GeoJSON top-level geometry selection over a multi-instance GeoProperty + datasetId
+
+--TAGS--
+entity query geojson geometryProperty datasetId
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create City with location = default Point [13.4,52.5] + datasetId Point [2.3,48.9]"
+echo "===================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:City:1",
+  "type": "City",
+  "location": [
+    {
+      "type": "GeoProperty",
+      "value": { "type": "Point", "coordinates": [13.4, 52.5] }
+    },
+    {
+      "type": "GeoProperty",
+      "datasetId": "urn:ngsi-ld:dataset:radar",
+      "value": { "type": "Point", "coordinates": [2.3, 48.9] }
+    }
+  ],
+  "name": { "type": "Property", "value": "Berlin" }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GeoJSON, no datasetId → geometry from the DEFAULT instance [13.4,52.5]"
+echo "========================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1'
+echo
+echo
+
+
+echo "03. GeoJSON, datasetId=urn:ngsi-ld:dataset:radar → geometry [2.3,48.9]"
+echo "====================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'datasetId=urn:ngsi-ld:dataset:radar'
+echo
+echo
+
+
+echo "04. Create City:2 with NO location at all"
+echo "========================================="
+payload='{ "id": "urn:ngsi-ld:City:2", "type": "City", "name": { "type": "Property", "value": "Nowhere" } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. GeoJSON of City:2 → geometry: null (entity lacks the GeoProperty)"
+echo "===================================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:2'
+echo
+echo
+
+
+echo "06. GeoJSON with geometryProperty=missing → geometry: null"
+echo "=========================================================="
+swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'geometryProperty=missing'
+
+--EXPECT--
+01. Create City with location = default Point [13.4,52.5] + datasetId Point [2.3,48.9]
+====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:1
+Content-Length: 0
+
+
+
+
+02. GeoJSON, no datasetId → geometry from the DEFAULT instance [13.4,52.5]
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 770
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      13.4,
+      52.5
+    ],
+    "type": "Point"
+  },
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "location": [
+      {
+        "type": "GeoProperty",
+        "value": {
+          "coordinates": [
+            13.4,
+            52.5
+          ],
+          "type": "Point"
+        }
+      },
+      {
+        "datasetId": "urn:ngsi-ld:dataset:radar",
+        "type": "GeoProperty",
+        "value": {
+          "coordinates": [
+            2.3,
+            48.9
+          ],
+          "type": "Point"
+        }
+      }
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+
+
+03. GeoJSON, datasetId=urn:ngsi-ld:dataset:radar → geometry [2.3,48.9]
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 486
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": {
+    "coordinates": [
+      2.3,
+      48.9
+    ],
+    "type": "Point"
+  },
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "location": {
+      "datasetId": "urn:ngsi-ld:dataset:radar",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          2.3,
+          48.9
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+
+
+04. Create City:2 with NO location at all
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:2
+Content-Length: 0
+
+
+
+
+05. GeoJSON of City:2 → geometry: null (entity lacks the GeoProperty)
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 270
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": null,
+  "id": "urn:ngsi-ld:City:2",
+  "properties": {
+    "name": {
+      "type": "Property",
+      "value": "Nowhere"
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+
+
+06. GeoJSON with geometryProperty=missing → geometry: null
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/geo+json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 698
+
+{
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "geometry": null,
+  "id": "urn:ngsi-ld:City:1",
+  "properties": {
+    "location": [
+      {
+        "type": "GeoProperty",
+        "value": {
+          "coordinates": [
+            13.4,
+            52.5
+          ],
+          "type": "Point"
+        }
+      },
+      {
+        "datasetId": "urn:ngsi-ld:dataset:radar",
+        "type": "GeoProperty",
+        "value": {
+          "coordinates": [
+            2.3,
+            48.9
+          ],
+          "type": "Point"
+        }
+      }
+    ],
+    "name": {
+      "type": "Property",
+      "value": "Berlin"
+    },
+    "type": "City"
+  },
+  "type": "Feature"
+}
+
+--TEARDOWN--
+swBrokerStop
