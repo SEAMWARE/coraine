@@ -84,7 +84,6 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 341
 
 {
@@ -114,7 +113,6 @@ Content-Length: 341
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 291
 
 {
@@ -142,7 +140,6 @@ Content-Length: 291
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 291
 
 {
@@ -170,7 +167,6 @@ Content-Length: 291
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 417
 
 {
@@ -204,7 +200,6 @@ Content-Length: 417
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/geo+json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 461
 
 {
