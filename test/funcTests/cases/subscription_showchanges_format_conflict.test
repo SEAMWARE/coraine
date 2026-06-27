@@ -1,0 +1,108 @@
+#
+# FILE            subscription_showchanges_format_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6 (NotificationParams, showChanges) — "showChanges cannot be true in
+# case format is keyValues". keyValues is the backward-compat synonym for
+# simplified, so both are rejected. The reason: showChanges adds the
+# previousValue / previousLanguageMap sub-attributes, which the simplified
+# representation strips — the combination is contradictory. With the
+# normalized (default) or concise format, showChanges is fine.
+#
+--NAME--
+Subscription notification — showChanges incompatible with keyValues/simplified (§ 5.2.6)
+
+--TAGS--
+subscription notification showChanges
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+ep='"endpoint": { "uri": "http://localhost:9999/notify" }'
+
+echo "01. showChanges:true + format:keyValues -> 400"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:1", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "keyValues", '"$ep"' } }'
+echo
+echo
+
+echo "02. showChanges:true + format:simplified -> 400"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:2", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "simplified", '"$ep"' } }'
+echo
+echo
+
+echo "03. showChanges:true + format:normalized -> 201 (compatible)"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:3", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "normalized", '"$ep"' } }'
+echo
+echo
+
+echo "04. showChanges:true + format:concise -> 201 (concise keeps sub-attrs)"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:4", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "concise", '"$ep"' } }'
+echo
+echo
+
+
+--EXPECT--
+01. showChanges:true + format:keyValues -> 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 213
+
+{
+  "detail": "'notification.showChanges' cannot be true with the keyValues/simplified format",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. showChanges:true + format:simplified -> 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 213
+
+{
+  "detail": "'notification.showChanges' cannot be true with the keyValues/simplified format",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. showChanges:true + format:normalized -> 201 (compatible)
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:3
+Content-Length: 0
+
+
+
+
+04. showChanges:true + format:concise -> 201 (concise keeps sub-attrs)
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:4
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
