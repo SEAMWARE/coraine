@@ -165,7 +165,7 @@ bool getEntityAttrValue(void)
 
   swRest.out.payload        = buf;
   swRest.out.payloadSize    = strlen(buf);
-  swRest.out.contentType    = (char*) "application/json";
+  swRest.out.contentType    = (char*) swMimeString(SwMimeJson);
   swRest.out.httpStatusCode = 200;
   swNgsild.rawResponse      = true;
   return true;

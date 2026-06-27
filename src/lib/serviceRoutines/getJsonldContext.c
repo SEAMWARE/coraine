@@ -271,7 +271,7 @@ bool getJsonldContext(void)
   // not application/ld+json. The body is a JSON-LD context document
   // syntactically but the spec's response type column is "JSON Object",
   // and the ETSI test fixtures pin application/json.
-  swRest.out.contentType = (char*) "application/json";
+  swRest.out.contentType = (char*) swMimeString(SwMimeJson);
 
   // A volatile context is a broker-internal, ephemeral Link target whose URL
   // can change across a reap + re-host: tell the fetcher not to store it
