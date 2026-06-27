@@ -29,16 +29,6 @@ ftClientStart --port 7711 --status 200
 
 --RUN--
 
-dump() {  # print verb/url + the two headers of interest for each forwarded request
-  ftClientDump --port 7711 | python3 -c "
-import sys,json
-for e in json.load(sys.stdin):
-    print(e['verb'], e['url'])
-    print('  Authorization:', e['headers'].get('Authorization', '<none>'))
-    print('  NGSILD-Tenant:', e['headers'].get('NGSILD-Tenant', '<none>'))
-"
-}
-
 echo "01. Register (default tenant) — contextSourceInfo Authorization = urn:ngsi-ld:request"
 echo "===================================================================================="
 swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
@@ -46,7 +36,7 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "endpoint": "http://localhost:7711", "operations": ["retrieveOps"],
   "contextSourceInfo": [{"key": "Authorization", "value": "urn:ngsi-ld:request"}],
   "information": [{"entities": [{"type": "T"}]}]
-}' | grep HTTP
+}'
 echo
 echo
 
@@ -56,7 +46,7 @@ echo "==========================================================================
 ftClientReset --port 7711
 swCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Authorization: Bearer tok-xyz' > /dev/null
 sleep 0.8
-dump
+ftClientDump --port 7711
 echo
 echo
 
@@ -68,12 +58,13 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: acme' --payload
   "endpoint": "http://localhost:7711", "operations": ["retrieveOps"],
   "contextSourceInfo": [{"key": "Authorization", "value": "urn:ngsi-ld:request"}],
   "information": [{"entities": [{"type": "T2"}]}]
-}' | grep HTTP
+}'
+echo
 ftClientReset --port 7711
 swCurl --url '/ngsi-ld/v1/entities?type=T2' -H 'NGSILD-Tenant: acme' -H 'Authorization: Bearer tok-xyz' > /dev/null
 sleep 0.8
 echo "(forward carries Authorization + NGSILD-Tenant: acme — original tenant)"
-dump
+ftClientDump --port 7711
 echo
 echo
 
@@ -84,12 +75,13 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payload
   "id": "urn:ngsi-ld:CSR:3", "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:7711", "operations": ["retrieveOps"], "tenant": "backend",
   "information": [{"entities": [{"type": "T3"}]}]
-}' | grep HTTP
+}'
+echo
 ftClientReset --port 7711
 swCurl --url '/ngsi-ld/v1/entities?type=T3' -H 'NGSILD-Tenant: beta' > /dev/null
 sleep 0.8
 echo "(forward carries NGSILD-Tenant: backend — registration rewrite)"
-dump
+ftClientDump --port 7711
 echo
 echo
 
@@ -98,31 +90,90 @@ echo
 01. Register (default tenant) — contextSourceInfo Authorization = urn:ngsi-ld:request
 ====================================================================================
 HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1
+Content-Length: 0
+
+
 
 
 02. GET ?type=T with Authorization (default tenant) — forward carries Authorization, no tenant
 =============================================================================================
-GET /ngsi-ld/v1/entities
-  Authorization: Bearer tok-xyz
-  NGSILD-Tenant: <none>
+[
+  {
+    "headers": {
+      "Authorization": "Bearer tok-xyz",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026"
+    },
+    "params": {
+      "type": "T"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  }
+]
 
 
 03. Register on tenant acme (no rewrite) + Authorization; GET ?type=T2 on acme
 ==============================================================================
 HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: acme
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:2
+Content-Length: 0
+
+
+
 (forward carries Authorization + NGSILD-Tenant: acme — original tenant)
-GET /ngsi-ld/v1/entities
-  Authorization: Bearer tok-xyz
-  NGSILD-Tenant: acme
+[
+  {
+    "headers": {
+      "Authorization": "Bearer tok-xyz",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "NGSILD-Tenant": "acme",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026:acme"
+    },
+    "params": {
+      "type": "T2"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  }
+]
 
 
 04. Register on tenant beta WITH tenant rewrite (tenant=backend); GET ?type=T3 on beta
 ======================================================================================
 HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: beta
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:3
+Content-Length: 0
+
+
+
 (forward carries NGSILD-Tenant: backend — registration rewrite)
-GET /ngsi-ld/v1/entities
-  Authorization: <none>
-  NGSILD-Tenant: backend
+[
+  {
+    "headers": {
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "NGSILD-Tenant": "backend",
+      "User-Agent": "swRest/1.0",
+      "Via": "1.1 swBroker:1026:beta"
+    },
+    "params": {
+      "type": "T3"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  }
+]
 
 
 --TEARDOWN--
