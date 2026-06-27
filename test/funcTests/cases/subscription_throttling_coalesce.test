@@ -1,0 +1,171 @@
+#
+# FILE            subscription_throttling_coalesce.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.x throttling — a throttled subscription emits at most one notification
+# per window. Changes landing INSIDE the window are coalesced to the LATEST
+# state and delivered when the window elapses (NOT dropped — the old behaviour
+# tail-lost a burst's final value). So a burst of speed 1 -> 2 -> 3 within the
+# window yields TWO notifications: the first (speed 1), then ONE coalesced
+# notification carrying only the latest (speed 3); the intermediate speed 2 is
+# never delivered on its own.
+#
+--NAME--
+Subscription throttling - coalesce-to-latest, no tail-loss (§ 5.2.x)
+
+--TAGS--
+subscription notification throttling
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+echo "01. Subscription on Vehicle with throttling=2"
+echo "============================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Thr",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "throttling": 2,
+  "notification": {
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"}
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:V1 speed=1 (buffered; flushed as notification #1)"
+echo "==============================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":1}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+sleep 2
+echo
+
+
+echo "03. Two rapid updates within the window: speed=2 then speed=3"
+echo "============================================================"
+payload='{"speed":{"type":"Property","value":2}}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
+payload='{"speed":{"type":"Property","value":3}}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
+echo
+sleep 3
+echo
+
+
+echo "04. Dump ftClient - exactly 2 notifications: speed=1 then coalesced speed=3"
+echo "=========================================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Subscription on Vehicle with throttling=2
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Thr
+Content-Length: 0
+
+
+
+
+02. Create urn:V1 speed=1 (buffered; flushed as notification #1)
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+03. Two rapid updates within the window: speed=2 then speed=3
+============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. Dump ftClient - exactly 2 notifications: speed=1 then coalesced speed=3
+==========================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 1
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Thr",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 3
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:Thr",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop

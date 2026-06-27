@@ -482,6 +482,33 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
 
 // -----------------------------------------------------------------------------
 //
+// throttleRetrieveCallback - § 5.2.x throttling flush: re-query one entity's
+// latest LOCAL state by id. Injected into ldThrottleFlushStart so the lib's
+// coalesce-to-latest flush can materialize the current state at flush time.
+//
+// LOCAL view only: whether a notification must ASSEMBLE a distributed/split
+// entity is the open spec-doubt #105 — until that resolves, the flush sends the
+// triggering broker's local view (a distributed assemble per notification would
+// be unaffordable on the write path; here it would be once-per-window, but the
+// requirement itself is unsettled). Single-tenant (tenant0) for now, like pernot.
+//
+static KjNode* throttleRetrieveCallback(const char* entityId, void* allocP)
+{
+  (void) allocP;
+  if (db.entityRetrieve == NULL)
+    return NULL;
+
+  KjNode* entityP = NULL;
+  if (db.entityRetrieve(&tenant0, entityId, &entityP) != DB_OK)
+    return NULL;
+
+  return entityP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // brokerPreServiceHook - chain the tenant + metrics pre-service work
 //
 // Tenant hook goes first; on its failure we skip the metric bump — a
@@ -773,6 +800,11 @@ int main(int argC, char* argV[])
   // engine. The engine itself is launched once below.
   if (tenant0.pernotCacheP != NULL)
     ldPernotLoopStart((LdPernotCache*) tenant0.pernotCacheP, pernotQueryCallback);
+
+  // § 5.2.x throttling — register the coalesce-to-latest flush (sole sender for
+  // throttled subs; the synchronous path only buffers into the dirty set).
+  if (tenant0.subCacheP != NULL)
+    ldThrottleFlushStart((LdSubCache*) tenant0.subCacheP, throttleRetrieveCallback);
 
   // § 5.11.7 — register the CSR-Sub periodic ticker. Skips items with
   // timeInterval == 0 (change-driven) by design.
