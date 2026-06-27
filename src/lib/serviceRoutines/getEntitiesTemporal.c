@@ -393,6 +393,16 @@ bool getEntitiesTemporal(void)
     return true;
   }
 
+  // § 5.2.6.7.4: aggrMethods cardinality is 1 when aggregatedValues is the
+  // requested representation — i.e. it is mandatory. Without it there is
+  // nothing to aggregate, so the request is malformed.
+  if (swNgsild.format == LdFormatAggregatedValues && swNgsild.aggrMethodsV == NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
+            "'aggrMethods' is required when the requested format is 'aggregatedValues'");
+    return true;
+  }
+
   // § 6.18.3.2: at least one of (id, idPattern, type, attrs, q, georel)
   // must be present. Aligned with /entities (§ 5.7.2.4): local=true is
   // also accepted as a sufficient selector — it scopes the query to the

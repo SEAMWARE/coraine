@@ -1,0 +1,217 @@
+#
+# FILE            troe_timescale_temporal_multi_query.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Multi-entity GET /temporal/entities: lastN applies PER ENTITY, format=
+# temporalValues works on the multi-entity result, omit drops a member,
+# idPattern selects (with a type), a future-only window is empty, and
+# format=aggregatedValues without aggrMethods is rejected (§ 5.2.6.7.4).
+#
+--NAME--
+TRoE timescale - multi-entity temporal query: lastN/temporalValues/omit/idPattern (§ 11.3.3)
+
+--TAGS--
+troe timescale postgres temporal query
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed V1 (speed 10,20,30 @10/11/12:00) and V2 (speed 99 @11:00)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T11:00:00Z"}}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. lastN=2 → V1 keeps its 2 most recent (30,20); V2 keeps its 1 (99)"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=2'
+echo
+echo
+
+
+echo "03. format=temporalValues → simplified [value,timestamp] tuples per entity"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=1&format=temporalValues'
+echo
+echo
+
+
+echo "04. idPattern=urn:V1.* + type → only V1 (idPattern needs a selector, § 5.7.2.4)"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&idPattern=urn:V1&lastN=1'
+echo
+echo
+
+
+echo "05. future-only window → empty result []"
+echo "========================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2099-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "06. format=aggregatedValues WITHOUT aggrMethods → 400 (§ 5.2.6.7.4)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&format=aggregatedValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 (speed 10,20,30 @10/11/12:00) and V2 (speed 99 @11:00)
+==================================================================
+done
+
+
+02. lastN=2 → V1 keeps its 2 most recent (30,20); V2 keeps its 1 (99)
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=2&offsetN=2>;rel="intervalbefore";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": 30
+      },
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": 20
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": 99
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. format=temporalValues → simplified [value,timestamp] tuples per entity
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=1&format=temporalValues&offsetN=1>;rel="intervalbefore";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 387
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          30,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-04-28T11:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. idPattern=urn:V1.* + type → only V1 (idPattern needs a selector, § 5.7.2.4)
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&idPattern=urn:V1&lastN=1&offsetN=1>;rel="intervalbefore";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": 30
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. future-only window → empty result []
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+06. format=aggregatedValues WITHOUT aggrMethods → 400 (§ 5.2.6.7.4)
+==================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 209
+
+{
+  "detail": "'aggrMethods' is required when the requested format is 'aggregatedValues'",
+  "status": 400,
+  "title": "Missing URL Parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

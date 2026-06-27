@@ -315,6 +315,16 @@ bool getEntityTemporal(void)
     }
   }
 
+  // § 5.2.6.7.4: aggrMethods cardinality is 1 when aggregatedValues is the
+  // requested representation — i.e. it is mandatory. Without it there is
+  // nothing to aggregate, so the request is malformed.
+  if (swNgsild.format == LdFormatAggregatedValues && swNgsild.aggrMethodsV == NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
+            "'aggrMethods' is required when the requested format is 'aggregatedValues'");
+    return true;
+  }
+
   if (troe.entityTemporalRetrieve == NULL)
   {
     troeNotAvailable("temporal-entity retrieve");
