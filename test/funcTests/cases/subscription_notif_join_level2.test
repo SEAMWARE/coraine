@@ -1,0 +1,140 @@
+#
+# FILE            subscription_notif_join_level2.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.14 notification.join + joinLevel — linked-entity retrieval to a DEPTH
+# greater than one. A chain Vehicle V1 --parking--> Person P1 --home--> House H1.
+# With join=flat and joinLevel=2 a notification triggered on V1 inlines BOTH the
+# first-level link (P1) and the second-level link (H1) into the flat data[]
+# array. (joinLevel=1 would stop at P1 — see subscription_notif_join.)
+#
+--NAME--
+Subscription notification — notification.join flat with joinLevel=2 (§ 5.2.14)
+
+--TAGS--
+subscription notification join
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed the chain: House H1, Person P1 -home-> H1, Vehicle V1 -parking-> P1"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:H1","type":"House","rooms":{"type":"Property","value":5}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","home":{"type":"Relationship","object":"urn:H1"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:P1"}}' | head -1
+echo
+echo
+
+
+echo "02. Sub on Vehicle with notification.join=flat, joinLevel=2"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:j2",
+  "type":"Subscription",
+  "entities":[{"type":"Vehicle"}],
+  "notification":{
+    "join":"flat",
+    "joinLevel":2,
+    "endpoint":{"uri":"http://localhost:7701/notify"}
+  }
+}'
+echo
+echo
+
+
+echo "03. Trigger — update V1 → notification flat data[] carries V1 + P1 + H1"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs' -X PATCH --payload '{"speed":{"type":"Property","value":60}}'
+echo
+sleep 0.4
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed the chain: House H1, Person P1 -home-> H1, Vehicle V1 -parking-> P1
+===========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Sub on Vehicle with notification.join=flat, joinLevel=2
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:j2
+Content-Length: 0
+
+
+
+
+03. Trigger — update V1 → notification flat data[] carries V1 + P1 + H1
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "parking": {
+            "object": "urn:P1",
+            "type": "Relationship"
+          },
+          "speed": {
+            "type": "Property",
+            "value": 60
+          },
+          "type": "Vehicle"
+        },
+        {
+          "home": {
+            "object": "urn:H1",
+            "type": "Relationship"
+          },
+          "id": "urn:P1",
+          "type": "Person"
+        },
+        {
+          "id": "urn:H1",
+          "rooms": {
+            "type": "Property",
+            "value": 5
+          },
+          "type": "House"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:j2",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
