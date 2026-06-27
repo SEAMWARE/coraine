@@ -1,0 +1,171 @@
+#
+# FILE            subscription_notify_pick_omit_entity_members.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6.7.3: notification.pick / notification.omit accept Entity MEMBERS
+# (id, type, scope) as valid targets — unlike the deprecated `attributes`,
+# which never touches id/type/scope. So pick can EXPLICITLY retain id/type,
+# and omit can DROP an entity member. Per § 6.3.6 pick reduces each entity to
+# only the listed members, so id/type are stripped unless listed.
+#
+--NAME--
+Subscription notification - pick/omit target Entity members id/type (§ 5.2.6.7.3)
+
+--TAGS--
+subscription notification format pick
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart
+
+--RUN--
+
+echo "01. Sub with notification.pick=[id,type,speed] - explicitly keep id+type"
+echo "========================================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:PickIdType",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"},
+    "pick": ["id","type","speed"]
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Sub with notification.omit=[id] - drop the id entity member"
+echo "==============================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:OmitId",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"},
+    "omit": ["id"]
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. Create Vehicle urn:V1 with speed - 2 notifications"
+echo "======================================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type":"Property","value":80}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+sleep 0.4
+echo
+
+
+echo "04. Dump ftClient - PickIdType keeps id+type+speed; OmitId has no id"
+echo "===================================================================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Sub with notification.pick=[id,type,speed] - explicitly keep id+type
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:PickIdType
+Content-Length: 0
+
+
+
+
+02. Sub with notification.omit=[id] - drop the id entity member
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:OmitId
+Content-Length: 0
+
+
+
+
+03. Create Vehicle urn:V1 with speed - 2 notifications
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. Dump ftClient - PickIdType keeps id+type+speed; OmitId has no id
+====================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 80
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:PickIdType",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "speed": {
+            "type": "Property",
+            "value": 80
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:OmitId",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
