@@ -1,0 +1,175 @@
+#
+# FILE            subscription_notify_ldjson_inline_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.6 / § 6.3.5 — for an application/ld+json notification, the @context is
+# carried INLINE in the body (on each entity in data[]) and NO Link header is
+# emitted (the json case puts it in the Link header instead — see
+# notif_context_of_subscription). The @context is the SUBSCRIPTION's (ctxA),
+# regardless of the triggering write's context (ctxB), so the term compacts to
+# "spd" with the ctxA URL inline.
+#
+# The ld+json media type is driven here via a receiverInfo "Content-Type" entry
+# (§ 6.5.2 absorption) rather than endpoint.accept — the broker absorbs it as
+# the effective accept, so the result is identical to accept=application/ld+json.
+#
+--NAME--
+Subscription notification — ld+json carries @context inline in body, no Link (§ 5.8.6)
+
+--TAGS--
+context subscription notification ldjson
+
+--INIT--
+swDbDrop
+contextServerStart
+ftClientStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "spd": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxB '{
+  "@context": {
+    "vel": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+echo "01. Subscription via ctxA, receiverInfo Content-Type = application/ld+json"
+echo "========================================================================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify",
+      "receiverInfo": [ { "key": "Content-Type", "value": "application/ld+json" } ]
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "01b. GET the subscription — receiverInfo comes back AS CREATED (no synthesized accept)"
+echo "====================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:S1
+echo
+echo
+
+
+echo "02. Entity create via ctxB — vel (same IRI as ctxA's spd)"
+echo "========================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "vel": {"type": "Property", "value": 5}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "03. ftClient dump — ld+json: @context inline (ctxA), spd, no Link header"
+echo "======================================================================="
+sleep .3
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Subscription via ctxA, receiverInfo Content-Type = application/ld+json
+=========================================================================
+HTTP/1.1 201 Created
+
+
+01b. GET the subscription — receiverInfo comes back AS CREATED (no synthesized accept)
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 419
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:S1",
+  "notification": {
+    "endpoint": {
+      "receiverInfo": [
+        {
+          "key": "Content-Type",
+          "value": "application/ld+json"
+        }
+      ],
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+02. Entity create via ctxB — vel (same IRI as ctxA's spd)
+=========================================================
+HTTP/1.1 201 Created
+
+
+03. ftClient dump — ld+json: @context inline (ctxA), spd, no Link header
+=======================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "@context": "http://localhost:7080/jsonldContexts/ctxA",
+          "id": "urn:E1",
+          "spd": {
+            "type": "Property",
+            "value": 5
+          },
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/ld+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+contextServerStop
