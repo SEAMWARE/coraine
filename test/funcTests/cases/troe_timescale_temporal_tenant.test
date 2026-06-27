@@ -124,6 +124,16 @@ echo
 echo
 
 
+echo "10. Physical isolation — t1 and t2 own separate TRoE databases"
+echo "=============================================================="
+# Each tenant's temporal data lives in its own "${SW_TROE_DB}_<tenant>"
+# database, not as a tenant-column slice of one shared database.
+psql -h localhost -p 5432 -U postgres -tAc \
+  "SELECT datname FROM pg_database WHERE datname IN ('${SW_TROE_DB}_t1', '${SW_TROE_DB}_t2') ORDER BY datname"
+echo
+echo
+
+
 --EXPECT--
 01. POST urn:V1 (Vehicle, speed=10) in tenant T1
 ================================================
@@ -168,6 +178,12 @@ HTTP/1.1 404 Not Found
 09. GET temporal/urn:V1 in T2 — still there
 ===========================================
   values: [99]
+
+
+10. Physical isolation — t1 and t2 own separate TRoE databases
+==============================================================
+sw_troe_cb_t1
+sw_troe_cb_t2
 
 
 --TEARDOWN--

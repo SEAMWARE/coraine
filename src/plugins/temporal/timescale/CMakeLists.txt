@@ -3,6 +3,7 @@ PKG_CHECK_MODULES(LIBPQ REQUIRED libpq)
 
 SET(TIMESCALE_SOURCES
   timescaleGlobals.c
+  timescalePool.c
   timescaleInit.c
   timescaleMigrate.c
   timescaleEvent.c

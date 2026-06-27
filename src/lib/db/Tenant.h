@@ -22,6 +22,7 @@ typedef struct Tenant
   char            dbName[128];    // "prefix" or "prefix-tenantname"
   bool            initialized;    // true after DB setup (indexes created)
   void*           pluginData;     // opaque, owned by the DB plugin
+  void*           troePoolP;      // opaque TRoE connection pool, owned by the temporal plugin
   void*           subCacheP;      // entity subscription cache (LdSubCache*), owned by broker
   void*           pernotCacheP;   // periodic notification cache (LdPernotCache*), owned by broker
   void*           regCacheP;      // registration cache (LdRegCache*), owned by broker

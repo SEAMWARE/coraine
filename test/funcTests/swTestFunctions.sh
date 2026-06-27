@@ -274,6 +274,16 @@ swTroeInit() {
     shift
   done
   [ -z "$db" ] && db="$(swTroeDbName "$role")"
+
+  # Drop any per-tenant / per-snapshot child databases ("<db>_<suffix>") left
+  # by a previous run before recreating the base — each tenant now owns its own
+  # physical database, so stale children would otherwise leak across runs.
+  psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -tAc \
+    "SELECT datname FROM pg_database WHERE datname LIKE '${db}_%'" 2>/dev/null | \
+    while read -r child; do
+      [ -n "$child" ] && psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
+    done
+
   psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
   psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "CREATE DATABASE $db"          >/dev/null
 }
@@ -288,10 +298,12 @@ swTroeDrop() {
   done
   [ -z "$db" ] && db="$(swTroeDbName "$role")"
 
-  # Drop snapshot-child TRoE DBs first ("<db>_snap_<hex>"), then the base. A
-  # snap child with the base as a prefix would otherwise leak across runs.
+  # Drop per-tenant / per-snapshot child TRoE DBs first ("<db>_<suffix>", e.g.
+  # "<db>_t1" or "<db>_snap_<hex>"), then the base. Each tenant now owns its own
+  # physical database; a child with the base as a prefix would otherwise leak
+  # across runs.
   psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -tAc \
-    "SELECT datname FROM pg_database WHERE datname LIKE '${db}_snap_%'" 2>/dev/null | \
+    "SELECT datname FROM pg_database WHERE datname LIKE '${db}_%'" 2>/dev/null | \
     while read -r child; do
       [ -n "$child" ] && psql -h localhost -p "$SW_TROE_PORT" -U "$SW_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
     done

@@ -7,7 +7,8 @@
 //
 // Write path for the timescale TRoE plugin. Walks the attrSnapshot to
 // extract typed values into the v_text / v_number / v_bool / v_compound
-// columns and the sub_attrs JSONB. Single connection + mutex.
+// columns and the sub_attrs JSONB. Each entry point acquires a connection
+// from the tenant's pool (thread-local timescaleConn).
 //
 
 #include <stddef.h>                                       // NULL
@@ -15,7 +16,6 @@
 #include <stdlib.h>                                       // free
 #include <string.h>                                       // strcmp
 #include <time.h>                                         // gmtime_r, time_t
-#include <pthread.h>                                      // pthread_mutex_lock
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E
@@ -34,7 +34,8 @@
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TroeOp*
 
-#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn, timescaleMutex
+#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
+#include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
 #include "temporal/timescale/timescaleEvent.h"            // Own interface
 
 
@@ -258,7 +259,7 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
 // -----------------------------------------------------------------------------
 //
 // timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
-// Caller must hold timescaleMutex.
+// Operates on the thread-local timescaleConn (set by the entry point).
 //
 int timescaleExecEntityInsertLocked(const TroeEvent* evP)
 {
@@ -297,7 +298,7 @@ int timescaleExecEntityInsertLocked(const TroeEvent* evP)
 // -----------------------------------------------------------------------------
 //
 // timescaleExecAttrInsertLocked - INSERT one row into troe_attrs.
-// Caller must hold timescaleMutex.
+// Operates on the thread-local timescaleConn (set by the entry point).
 //
 int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 {
@@ -434,9 +435,12 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
 //
 int timescaleEntityEvent(const TroeEvent* evP)
 {
-  if (evP == NULL || timescaleConn == NULL) return TROE_ERR;
+  if (evP == NULL) return TROE_ERR;
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(evP->tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
+
   int r = timescaleExecEntityInsertLocked(evP);
 
   // For entity-level create / replace, fan out into per-attr rows so
@@ -444,7 +448,8 @@ int timescaleEntityEvent(const TroeEvent* evP)
   if (r == TROE_OK && (evP->op == TroeOpEntityCreated || evP->op == TroeOpEntityReplaced))
     r = fanOutAttrsFromEntity(evP);
 
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return r;
 }
 
@@ -456,11 +461,16 @@ int timescaleEntityEvent(const TroeEvent* evP)
 //
 int timescaleAttrEvent(const TroeEvent* evP)
 {
-  if (evP == NULL || timescaleConn == NULL) return TROE_ERR;
+  if (evP == NULL) return TROE_ERR;
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(evP->tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
+
   int r = timescaleExecAttrInsertLocked(evP);
-  pthread_mutex_unlock(&timescaleMutex);
+
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return r;
 }
 
@@ -470,19 +480,25 @@ int timescaleAttrEvent(const TroeEvent* evP)
 //
 // timescaleEventList - drain a queue of events as one transaction.
 //
+// The deferred-event queue is built per request (troeDispatchPending drains
+// the per-request queue), so every event in one list shares the request's
+// tenant — a single connection / single transaction covers the whole list.
 int timescaleEventList(const TroeEvent* listHead, int count)
 {
-  if (listHead == NULL || timescaleConn == NULL) return TROE_ERR;
+  if (listHead == NULL) return TROE_ERR;
   (void) count;
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(listHead->tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   PGresult* beginR = PQexec(timescaleConn, "BEGIN");
   if (PQresultStatus(beginR) != PGRES_COMMAND_OK)
   {
     KT_E("timescale: BEGIN failed: %s", PQerrorMessage(timescaleConn));
     PQclear(beginR);
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   PQclear(beginR);
@@ -524,6 +540,7 @@ int timescaleEventList(const TroeEvent* listHead, int count)
     PQclear(rollbackR);
   }
 
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return rc;
 }

@@ -6,69 +6,43 @@
 // Copyright 2026 Seamware
 //
 
-#include <stdio.h>                                        // snprintf
 #include <stddef.h>                                       // NULL
-#include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E, KT_I
 
+#include "db/Tenant.h"                                    // tenant0
+
 #include "troe/TroeDriver.h"                              // TROE_OK, TROE_ERR
 
-#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn, timescaleDb*
-#include "temporal/timescale/timescaleMigrate.h"          // timescaleMigrate
+#include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*
+#include "temporal/timescale/timescalePool.h"             // timescalePoolEnsure, timescalePoolCloseAll
 #include "temporal/timescale/timescaleInit.h"             // Own interface
 
 
 
 // -----------------------------------------------------------------------------
 //
-// timescaleInit - connect + run pending migrations.
+// timescaleInit - build the default tenant's database, migrate it and open
+// its pool.
+//
+// Per-tenant databases are created lazily on first use (timescaleConnGet ->
+// timescalePoolEnsure). The default tenant is built eagerly here so a fresh
+// broker surfaces any Postgres connectivity / permission problem at boot
+// rather than on the first temporal request.
 //
 int timescaleInit(void)
 {
-  char connStr[1024];
-
-  if (timescaleDbPwd != NULL)
+  if (timescalePoolEnsure(&tenant0) != TROE_OK)
   {
-    snprintf(connStr, sizeof(connStr),
-             "host=%s port=%d dbname=%s user=%s password=%s",
-             timescaleDbHost ? timescaleDbHost : "localhost",
-             timescaleDbPort,
-             timescaleDbName ? timescaleDbName : "sw_troe",
-             timescaleDbUser ? timescaleDbUser : "postgres",
-             timescaleDbPwd);
-  }
-  else
-  {
-    snprintf(connStr, sizeof(connStr),
-             "host=%s port=%d dbname=%s user=%s",
-             timescaleDbHost ? timescaleDbHost : "localhost",
-             timescaleDbPort,
-             timescaleDbName ? timescaleDbName : "sw_troe",
-             timescaleDbUser ? timescaleDbUser : "postgres");
-  }
-
-  timescaleConn = PQconnectdb(connStr);
-  if (PQstatus(timescaleConn) != CONNECTION_OK)
-  {
-    KT_E("timescale: postgres connection failed: %s", PQerrorMessage(timescaleConn));
-    PQfinish(timescaleConn);
-    timescaleConn = NULL;
+    KT_E("timescale: failed to initialise the default-tenant database");
     return TROE_ERR;
   }
 
-  KT_I("timescale: connected to %s:%d/%s",
+  KT_I("timescale: ready (%s:%d, base db '%s', pool size %d)",
        timescaleDbHost ? timescaleDbHost : "localhost",
        timescaleDbPort,
-       timescaleDbName ? timescaleDbName : "sw_troe");
-
-  if (timescaleMigrate() != 0)
-  {
-    KT_E("timescale: schema migration failed");
-    PQfinish(timescaleConn);
-    timescaleConn = NULL;
-    return TROE_ERR;
-  }
+       timescaleDbName ? timescaleDbName : "sw_troe",
+       timescalePoolSize);
 
   return TROE_OK;
 }
@@ -77,13 +51,9 @@ int timescaleInit(void)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleClose -
+// timescaleClose - finish every pooled connection across all tenants.
 //
 void timescaleClose(void)
 {
-  if (timescaleConn != NULL)
-  {
-    PQfinish(timescaleConn);
-    timescaleConn = NULL;
-  }
+  timescalePoolCloseAll();
 }

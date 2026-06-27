@@ -9,7 +9,8 @@
 // Copyright 2026 Seamware
 //
 // Write a TroeEvent to postgres. The dispatch layer hands us one event
-// at a time (or a list); each call takes the timescaleMutex.
+// at a time (or a list); each entry point acquires a connection from the
+// tenant's pool and assigns it to the thread-local timescaleConn.
 //
 
 #include "troe/TroeDriver.h"                              // TroeEvent
@@ -20,9 +21,10 @@ extern int timescaleAttrEvent  (const TroeEvent* evP);
 extern int timescaleEventList  (const TroeEvent* listHead, int count);
 
 //
-// Lock-not-held insert primitives — caller must hold timescaleMutex.
-// Used by the temporal-write endpoints to insert direct historical
-// rows (multiple rows per request, all inside one transaction).
+// Row-insert primitives — operate on the thread-local timescaleConn (set by
+// the calling entry point from the tenant's pool). Used by the temporal-write
+// endpoints to insert direct historical rows (multiple rows per request, all
+// inside one transaction).
 //
 extern int timescaleExecEntityInsertLocked(const TroeEvent* evP);
 extern int timescaleExecAttrInsertLocked  (const TroeEvent* evP);

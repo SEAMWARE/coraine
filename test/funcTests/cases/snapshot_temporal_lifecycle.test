@@ -54,9 +54,11 @@ echo
 
 echo "03. Row count per scope after capture"
 echo "====================================="
+# Live rows are in $SW_TROE_DB; each snapshot owns its own "${SW_TROE_DB}_snap_<seq>" database.
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
-  -c "SELECT count(*), CASE WHEN tenant LIKE '%_snap_%' THEN 'snap' ELSE 'live' END FROM troe_attrs GROUP BY 2 ORDER BY 2"
+echo "$(psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
+snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
+echo "$(psql -h localhost -p 5432 -U postgres -d "$snapDb" -tAc "SELECT count(*) FROM troe_attrs")|snap"
 echo
 echo
 
@@ -70,9 +72,10 @@ echo
 
 echo "05. Distinct snap-tenants in TRoE — expect 2 (Src + Dst)"
 echo "========================================================"
+# Each snap-tenant owns its own database, so count the snap databases.
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA \
-  -c "SELECT count(DISTINCT tenant) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
+psql -h localhost -p 5432 -U postgres -tAc \
+  "SELECT count(*) FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%'"
 echo
 echo
 
@@ -93,9 +96,10 @@ echo
 
 echo "08. Distinct snap-tenants left after Src delete — expect 1 (Dst only)"
 echo "====================================================================="
+# Deleting a snapshot drops its whole TRoE database (DROP DATABASE).
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA \
-  -c "SELECT count(DISTINCT tenant) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
+psql -h localhost -p 5432 -U postgres -tAc \
+  "SELECT count(*) FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%'"
 echo
 echo
 
@@ -107,11 +111,12 @@ echo
 echo
 
 
-echo "10. Final snap-tenant TRoE rows — expect 0"
-echo "=========================================="
+echo "10. Final snap-tenant TRoE databases — expect 0"
+echo "==============================================="
+# Both snapshots deleted → both snap databases dropped.
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA \
-  -c "SELECT count(*) FROM troe_attrs WHERE tenant LIKE '%_snap_%'"
+psql -h localhost -p 5432 -U postgres -tAc \
+  "SELECT count(*) FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%'"
 echo
 echo
 
@@ -199,8 +204,8 @@ HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
 
 
-10. Final snap-tenant TRoE rows — expect 0
-==========================================
+10. Final snap-tenant TRoE databases — expect 0
+===============================================
 0
 
 

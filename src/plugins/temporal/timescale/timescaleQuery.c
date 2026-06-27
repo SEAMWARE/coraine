@@ -31,7 +31,6 @@
 #include <stddef.h>                                       // NULL
 #include <string.h>                                       // strcmp
 #include <stdlib.h>                                       // strtol, strtod
-#include <pthread.h>                                      // pthread_mutex_lock
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E
@@ -47,7 +46,8 @@
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
 
-#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn, timescaleMutex
+#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
+#include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
 #include "temporal/timescale/timescaleQuery.h"            // Own interface
 
 
@@ -660,17 +660,21 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
                                     TroeQueryFilter* fP, KjNode** resultPP,
                                     TroeRangeInfo* rangeOut)
 {
-  if (timescaleConn == NULL || entityId == NULL || resultPP == NULL)
+  if (entityId == NULL || resultPP == NULL)
     return TROE_ERR;
 
   *resultPP = NULL;
 
   const char* tenant = (tenantP != NULL) ? tenantP->name : "";
 
-  pthread_mutex_lock(&timescaleMutex);
-  int r = buildEntityTemporalDocLocked(tenant, entityId, NULL, fP, resultPP, rangeOut);
-  pthread_mutex_unlock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
+  int r = buildEntityTemporalDocLocked(tenant, entityId, NULL, fP, resultPP, rangeOut);
+
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return r;
 }
 
@@ -783,12 +787,16 @@ static const char* idPatternClause(const char* idPattern, KAlloc* kaP)
 int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
                                  KjNode** resultPP, TroeRangeInfo* rangeOut)
 {
-  if (timescaleConn == NULL || fP == NULL || resultPP == NULL)
+  if (fP == NULL || resultPP == NULL)
     return TROE_ERR;
 
   *resultPP = NULL;
 
   const char* tenant = (tenantP != NULL) ? tenantP->name : "";
+
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   Kjson*  kjsonP = swRest.kjsonP;
   KjNode* arrP   = kjArray(kjsonP, NULL);
@@ -823,14 +831,13 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   const char* selectorParamV[1] = { tenant };
 
-  pthread_mutex_lock(&timescaleMutex);
-
   PGresult* eRes = PQexecParams(timescaleConn, sql, 1, NULL, selectorParamV, NULL, NULL, 0);
   if (PQresultStatus(eRes) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: entity-selector SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(eRes);
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
 
@@ -852,7 +859,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     if (rc == TROE_ERR)
     {
       PQclear(eRes);
-      pthread_mutex_unlock(&timescaleMutex);
+      timescaleConn = NULL;
+      timescaleConnRelease(cP);
       return TROE_ERR;
     }
     if (rc != TROE_OK || docP == NULL)
@@ -887,7 +895,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   }
 
   PQclear(eRes);
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
 
   *resultPP = arrP;
   return TROE_OK;

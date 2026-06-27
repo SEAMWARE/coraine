@@ -8,13 +8,16 @@
 //
 // Copyright 2026 Seamware
 //
-// Apply pending schema migrations against the connected database.
+// Apply pending schema migrations against the supplied connection's database.
 // Idempotent: each migration is gated on a row in troe_schema_version,
-// the meta-table itself is created CREATE TABLE IF NOT EXISTS.
+// the meta-table itself is created CREATE TABLE IF NOT EXISTS. Run once per
+// tenant database when its pool is first created.
 //
 // Returns 0 on success, -1 on any failure.
 //
 
-extern int timescaleMigrate(void);
+#include <libpq-fe.h>                                     // PGconn
+
+extern int timescaleMigrate(PGconn* conn);
 
 #endif  // TIMESCALE_TIMESCALEMIGRATE_H_

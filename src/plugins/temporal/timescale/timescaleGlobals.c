@@ -6,7 +6,6 @@
 // Copyright 2026 Seamware
 //
 #include <stddef.h>                                       // NULL
-#include <pthread.h>                                      // pthread_mutex_t
 
 #include "kargs/kargs.h"                                  // KARGS_END
 #include "kargs/KArg.h"                                   // KArg
@@ -15,14 +14,20 @@
 
 
 
-PGconn*          timescaleConn   = NULL;
-pthread_mutex_t  timescaleMutex  = PTHREAD_MUTEX_INITIALIZER;
+// timescaleConn - the connection the current thread is operating on. Each
+// entry point acquires a connection from its tenant's pool and assigns it
+// here for the duration of the call; every SQL helper reads it. Thread-local,
+// so concurrent requests (different tenants or different pool slots of the
+// same tenant) never share a connection — which is what makes the old global
+// mutex unnecessary.
+__thread PGconn* timescaleConn   = NULL;
 
 char*            timescaleDbHost      = NULL;
 char*            timescaleDbName      = NULL;
 char*            timescaleDbUser      = NULL;
 char*            timescaleDbPwd       = NULL;
 int              timescaleDbPort      = 5432;
+int              timescalePoolSize    = 10;     // per-tenant connection pool size (--troePoolSize)
 int              timescaleInstanceCap = 1000000;  // § 6.3.10 default temporal-instance cap
                                                   //
                                                   // Effectively a safety upper bound, not a working
@@ -53,6 +58,7 @@ KArg timescaleArgV[] =
   { "--troeUser", "-troeUser", KaString, _vp &timescaleDbUser, KaOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
   { "--troePwd",  "-troePwd",  KaString, _vp &timescaleDbPwd,  KaOpt, _vp NULL,        NULL, NULL, "TRoE postgres password" },
   { "--troePort", "-troePort", KaInt,    _vp &timescaleDbPort, KaOpt, _vp 5432,        _vp 1, _vp 65535, "TRoE postgres port" },
+  { "--troePoolSize", "-troePoolSize", KaInt, _vp &timescalePoolSize, KaOpt, _vp 10,   _vp 1, _vp 256, "TRoE per-tenant postgres connection-pool size" },
   { "--troeInstanceCap", "-troeCap", KaInt, _vp &timescaleInstanceCap, KaOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
   KARGS_END
 };

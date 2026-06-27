@@ -20,7 +20,6 @@
 
 #include "ktrace/kTrace.h"                                // KT_E, KT_I, KT_V
 
-#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescaleMigrate.h"          // Own interface
 
 
@@ -40,13 +39,13 @@
 //
 // execSimple - run an SQL statement, log + return -1 on error.
 //
-static int execSimple(const char* sql)
+static int execSimple(PGconn* conn, const char* sql)
 {
-  PGresult* res = PQexec(timescaleConn, sql);
+  PGresult* res = PQexec(conn, sql);
   ExecStatusType st = PQresultStatus(res);
   if (st != PGRES_COMMAND_OK && st != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: SQL failed: %s — %s", PQerrorMessage(timescaleConn), sql);
+    KT_E("timescale: SQL failed: %s — %s", PQerrorMessage(conn), sql);
     PQclear(res);
     return -1;
   }
@@ -69,7 +68,7 @@ static int execSimple(const char* sql)
 // and so Modify can freely bump modified_at without re-keying.
 // gen_random_uuid() is built-in since PostgreSQL 13 — no extension needed.
 //
-static int troeMig001Initial(void)
+static int troeMig001Initial(PGconn* conn)
 {
   static const char* sqls[] =
   {
@@ -122,7 +121,7 @@ static int troeMig001Initial(void)
   };
 
   for (int i = 0; sqls[i] != NULL; i++)
-    if (execSimple(sqls[i]) != 0)
+    if (execSimple(conn, sqls[i]) != 0)
       return -1;
 
   return 0;
@@ -138,7 +137,7 @@ typedef struct
 {
   int          version;
   const char*  label;
-  int       (* sqlFn)(void);
+  int       (* sqlFn)(PGconn* conn);
 } TroeMigration;
 
 static const TroeMigration migrationsV[] =
@@ -154,9 +153,9 @@ static const TroeMigration migrationsV[] =
 // currentSchemaVersion - read max(version) from troe_schema_version.
 // Returns 0 if the meta-table doesn't exist yet (fresh install).
 //
-static int currentSchemaVersion(void)
+static int currentSchemaVersion(PGconn* conn)
 {
-  PGresult* res = PQexec(timescaleConn,
+  PGresult* res = PQexec(conn,
                          "SELECT COALESCE(max(version), 0) FROM troe_schema_version");
   ExecStatusType st = PQresultStatus(res);
 
@@ -188,14 +187,14 @@ static int currentSchemaVersion(void)
 // TimescaleDB later, the conversion happens automatically on the next
 // boot without a "rerun pending migrations" dance.
 //
-static int ensureHypertable(void)
+static int ensureHypertable(PGconn* conn)
 {
   // 1. Is the TimescaleDB extension installed in this database?
-  PGresult* res = PQexec(timescaleConn,
+  PGresult* res = PQexec(conn,
                          "SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' LIMIT 1");
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: pg_extension lookup failed: %s", PQerrorMessage(timescaleConn));
+    KT_E("timescale: pg_extension lookup failed: %s", PQerrorMessage(conn));
     PQclear(res);
     return -1;
   }
@@ -210,7 +209,7 @@ static int ensureHypertable(void)
   }
 
   // 2. Already a hypertable?
-  res = PQexec(timescaleConn,
+  res = PQexec(conn,
                "SELECT 1 FROM timescaledb_information.hypertables "
                "WHERE hypertable_name = 'troe_attrs' LIMIT 1");
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -219,7 +218,7 @@ static int ensureHypertable(void)
     // log the lookup failure and skip; conversion can be triggered by
     // an admin manually if needed.
     KT_I("timescale: hypertables view query failed (%s) — skipping auto-conversion",
-         PQerrorMessage(timescaleConn));
+         PQerrorMessage(conn));
     PQclear(res);
     return 0;
   }
@@ -236,14 +235,14 @@ static int ensureHypertable(void)
   // so it's the safe time-axis. migrate_data => TRUE handles any rows
   // that were already inserted before this conversion.
   KT_I("timescale: converting troe_attrs to hypertable (chunk_time_interval = 7 days)");
-  res = PQexec(timescaleConn,
+  res = PQexec(conn,
                "SELECT create_hypertable('troe_attrs', 'modified_at', "
                "                         chunk_time_interval => INTERVAL '7 days', "
                "                         if_not_exists => TRUE, "
                "                         migrate_data => TRUE)");
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: create_hypertable failed: %s", PQerrorMessage(timescaleConn));
+    KT_E("timescale: create_hypertable failed: %s", PQerrorMessage(conn));
     PQclear(res);
     return -1;
   }
@@ -259,17 +258,17 @@ static int ensureHypertable(void)
 //
 // timescaleMigrate -
 //
-int timescaleMigrate(void)
+int timescaleMigrate(PGconn* conn)
 {
   // 1. Acquire advisory lock — serialises N brokers booting at once.
   char lockSql[128];
   snprintf(lockSql, sizeof(lockSql), "SELECT pg_advisory_lock(%lld)",
            (long long) TIMESCALE_MIGRATE_ADVISORY_LOCK_ID);
-  if (execSimple(lockSql) != 0)
+  if (execSimple(conn, lockSql) != 0)
     return -1;
 
   // 2. Bootstrap the meta-table if missing.
-  if (execSimple(
+  if (execSimple(conn,
         "CREATE TABLE IF NOT EXISTS troe_schema_version ("
         "  version    INT PRIMARY KEY,"
         "  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()"
@@ -278,7 +277,7 @@ int timescaleMigrate(void)
     return -1;
   }
 
-  int current = currentSchemaVersion();
+  int current = currentSchemaVersion(conn);
   KT_V("timescale: current schema version = %d", current);
 
   // 3. Apply pending migrations.
@@ -289,10 +288,10 @@ int timescaleMigrate(void)
 
     KT_I("timescale: applying migration %d (%s)", migrationsV[i].version, migrationsV[i].label);
 
-    if (execSimple("BEGIN") != 0)                               return -1;
-    if (migrationsV[i].sqlFn() != 0)
+    if (execSimple(conn, "BEGIN") != 0)                         return -1;
+    if (migrationsV[i].sqlFn(conn) != 0)
     {
-      execSimple("ROLLBACK");
+      execSimple(conn, "ROLLBACK");
       return -1;
     }
 
@@ -300,16 +299,16 @@ int timescaleMigrate(void)
     snprintf(insertSql, sizeof(insertSql),
              "INSERT INTO troe_schema_version (version) VALUES (%d) ON CONFLICT DO NOTHING",
              migrationsV[i].version);
-    if (execSimple(insertSql) != 0)
+    if (execSimple(conn, insertSql) != 0)
     {
-      execSimple("ROLLBACK");
+      execSimple(conn, "ROLLBACK");
       return -1;
     }
-    if (execSimple("COMMIT") != 0)                              return -1;
+    if (execSimple(conn, "COMMIT") != 0)                        return -1;
   }
 
   // 4. Hypertable conversion (idempotent, no-op when TS isn't installed).
-  if (ensureHypertable() != 0)
+  if (ensureHypertable(conn) != 0)
   {
     // Don't fail the boot on hypertable issues — the plain-table path
     // still works. The error is logged inside ensureHypertable().
@@ -319,7 +318,7 @@ int timescaleMigrate(void)
   char unlockSql[128];
   snprintf(unlockSql, sizeof(unlockSql), "SELECT pg_advisory_unlock(%lld)",
            (long long) TIMESCALE_MIGRATE_ADVISORY_LOCK_ID);
-  execSimple(unlockSql);  // best-effort
+  execSimple(conn, unlockSql);  // best-effort
 
   return 0;
 }

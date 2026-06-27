@@ -9,7 +9,7 @@
 // § 5.6.12, § 5.6.13, § 5.6.16). Bypass the current-state DB and
 // the event-deferral pipeline — the client is dictating history
 // directly, so we INSERT (or DELETE) into the TRoE tables under
-// one transaction, holding the timescaleMutex throughout.
+// one transaction on a connection from the tenant's pool.
 //
 // The Create / Add-Attrs paths reuse the row-insert primitives in
 // timescaleEvent.c by wrapping each EntityTemporal instance in a
@@ -25,7 +25,6 @@
 #include <stdio.h>                                        // snprintf
 #include <stdlib.h>                                       // strtoll
 #include <string.h>                                       // strcmp, memset
-#include <pthread.h>                                      // pthread_mutex_*
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E
@@ -41,7 +40,8 @@
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TROE_*
 
-#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn, timescaleMutex
+#include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
+#include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease, timescalePoolDrop
 #include "temporal/timescale/timescaleEvent.h"            // timescaleExec*Locked
 #include "temporal/timescale/timescaleHistoryWrite.h"     // Own interface
 
@@ -50,7 +50,7 @@
 // -----------------------------------------------------------------------------
 //
 // entityHasRows - quick existence check against troe_entities.
-// Caller holds timescaleMutex.
+// Operates on the thread-local timescaleConn.
 //
 static bool entityHasRows(const char* tenant, const char* entityId)
 {
@@ -75,7 +75,7 @@ static bool entityHasRows(const char* tenant, const char* entityId)
 // -----------------------------------------------------------------------------
 //
 // attrHasRows - quick existence check against troe_attrs for a given attr.
-// Caller holds timescaleMutex.
+// Operates on the thread-local timescaleConn.
 //
 static bool attrHasRows(const char* tenant, const char* entityId, const char* attrName)
 {
@@ -99,56 +99,20 @@ static bool attrHasRows(const char* tenant, const char* entityId, const char* at
 
 // -----------------------------------------------------------------------------
 //
-// timescaleTenantDrop - drop every temporal row owned by tenantP.
+// timescaleTenantDrop - drop a tenant's entire temporal database.
 //
 // Used by the snapshot lifecycle: when a snapshot is deleted or purged,
 // the broker calls db.tenantDrop on the snap-tenant; this is the TRoE
-// counterpart so the per-snapshot temporal rows don't leak.
+// counterpart so the per-snapshot temporal database doesn't leak.
 //
-// Empty tenant.name → no-op (the default-tenant rows would belong to
-// the live broker, never to a snapshot — never drop those by accident).
+// Each tenant owns its own physical database, so the drop is a single
+// DROP DATABASE — instant and bloat-free, vs the old DELETE-WHERE-tenant.
+// The default tenant is never dropped (timescalePoolDrop guards on the
+// empty name).
 //
 int timescaleTenantDrop(Tenant* tenantP)
 {
-  if (timescaleConn == NULL || tenantP == NULL || tenantP->name[0] == 0)
-    return TROE_OK;
-
-  const char* paramV[1] = { tenantP->name };
-
-  pthread_mutex_lock(&timescaleMutex);
-
-  PGresult* r = PQexec(timescaleConn, "BEGIN");
-  PQclear(r);
-
-  PGresult* aRes = PQexecParams(timescaleConn,
-    "DELETE FROM troe_attrs WHERE tenant = $1",
-    1, NULL, paramV, NULL, NULL, 0);
-  if (PQresultStatus(aRes) != PGRES_COMMAND_OK)
-  {
-    KT_E("timescale: troe_attrs tenant-drop failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(aRes);
-    PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
-    return TROE_ERR;
-  }
-  PQclear(aRes);
-
-  PGresult* eRes = PQexecParams(timescaleConn,
-    "DELETE FROM troe_entities WHERE tenant = $1",
-    1, NULL, paramV, NULL, NULL, 0);
-  if (PQresultStatus(eRes) != PGRES_COMMAND_OK)
-  {
-    KT_E("timescale: troe_entities tenant-drop failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(eRes);
-    PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
-    return TROE_ERR;
-  }
-  PQclear(eRes);
-
-  PQclear(PQexec(timescaleConn, "COMMIT"));
-  pthread_mutex_unlock(&timescaleMutex);
-  return TROE_OK;
+  return timescalePoolDrop(tenantP);
 }
 
 
@@ -159,16 +123,19 @@ int timescaleTenantDrop(Tenant* tenantP)
 //
 int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
 {
-  if (timescaleConn == NULL || entityId == NULL || entityId[0] == 0)
+  if (entityId == NULL || entityId[0] == 0)
     return TROE_ERR;
 
   const char* tenant = (tenantP != NULL) ? tenantP->name : "";
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   if (!entityHasRows(tenant, entityId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
 
@@ -188,7 +155,8 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
     KT_E("timescale: troe_attrs DELETE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(attrsR);
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   PQclear(attrsR);
@@ -201,13 +169,15 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
     KT_E("timescale: troe_entities DELETE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(entR);
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   PQclear(entR);
 
   PQclear(PQexec(timescaleConn, "COMMIT"));
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return TROE_OK;
 }
 
@@ -225,21 +195,25 @@ int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,
                                       const char* attrName,
                                       const char* datasetId, bool deleteAll)
 {
-  if (timescaleConn == NULL || entityId == NULL || attrName == NULL)
+  if (entityId == NULL || attrName == NULL)
     return TROE_ERR;
 
   const char* tenant = (tenantP != NULL) ? tenantP->name : "";
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   if (!entityHasRows(tenant, entityId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
   if (!attrHasRows(tenant, entityId, attrName))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
 
@@ -263,12 +237,14 @@ int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,
   {
     KT_E("timescale: troe_attrs attr-delete failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   PQclear(res);
 
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return TROE_OK;
 }
 
@@ -302,8 +278,8 @@ static KjNode* instanceWrap(KjNode* instanceP)
 // -----------------------------------------------------------------------------
 //
 // insertInstanceRows - walk an EntityTemporal tree and insert one row per
-// (attribute, instance) into troe_attrs. Caller holds timescaleMutex and
-// has begun a transaction.
+// (attribute, instance) into troe_attrs. Operates on the thread-local
+// timescaleConn, within a transaction begun by the caller.
 //
 // modAtNs0 = base modified-at (request start time). Successive instances
 // receive +1 ms offsets so the PK stays unique under shared observedAt.
@@ -399,7 +375,7 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
 //
 int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
 {
-  if (timescaleConn == NULL || rootP == NULL || rootP->type != KjObject)
+  if (rootP == NULL || rootP->type != KjObject)
     return TROE_ERR;
 
   KjNode* idP   = kjLookup(rootP, "id");
@@ -413,7 +389,9 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
   const char* entityType = typeP->value.s;
   const char* tenant     = (tenantP != NULL) ? tenantP->name : "";
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   // § 5.6.11.4: if the temporal evolution already exists, the operation
   // is an update — instances are appended. Pre-check so the service
@@ -449,7 +427,8 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
     if (r != TROE_OK)
     {
       PQclear(PQexec(timescaleConn, "ROLLBACK"));
-      pthread_mutex_unlock(&timescaleMutex);
+      timescaleConn = NULL;
+      timescaleConnRelease(cP);
       return r;
     }
   }
@@ -459,12 +438,14 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
   if (r != TROE_OK)
   {
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return r;
   }
 
   PQclear(PQexec(timescaleConn, "COMMIT"));
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return existed ? TROE_UPDATED : TROE_OK;
 }
 
@@ -557,7 +538,7 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
                                           const char* instanceId,
                                           KjNode* rootP)
 {
-  if (timescaleConn == NULL || entityId == NULL || attrName == NULL ||
+  if (entityId == NULL || attrName == NULL ||
       instanceId == NULL || rootP == NULL)
     return TROE_ERR;
 
@@ -607,16 +588,20 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 
   const char* obsAtIso = (observP != NULL && observP->type == KjString) ? observP->value.s : NULL;
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   if (!entityHasRows(tenant, entityId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
   if (!instanceExists(tenant, entityId, attrName, instanceId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
 
@@ -658,12 +643,14 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
   {
     KT_E("timescale: instance UPDATE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   PQclear(res);
 
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return TROE_OK;
 }
 
@@ -676,21 +663,25 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
                                           const char* attrName, const char* instanceId)
 {
-  if (timescaleConn == NULL || entityId == NULL || attrName == NULL || instanceId == NULL)
+  if (entityId == NULL || attrName == NULL || instanceId == NULL)
     return TROE_ERR;
 
   const char* tenant = (tenantP != NULL) ? tenantP->name : "";
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   if (!entityHasRows(tenant, entityId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
   if (!instanceExists(tenant, entityId, attrName, instanceId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
 
@@ -704,12 +695,14 @@ int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
   {
     KT_E("timescale: instance DELETE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   PQclear(res);
 
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return TROE_OK;
 }
 
@@ -725,16 +718,19 @@ int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
 //
 int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNode* rootP)
 {
-  if (timescaleConn == NULL || entityId == NULL || rootP == NULL || rootP->type != KjObject)
+  if (entityId == NULL || rootP == NULL || rootP->type != KjObject)
     return TROE_ERR;
 
   const char* tenant = (tenantP != NULL) ? tenantP->name : "";
 
-  pthread_mutex_lock(&timescaleMutex);
+  TimescaleConn* cP = timescaleConnGet(tenantP);
+  if (cP == NULL) return TROE_ERR;
+  timescaleConn = cP->conn;
 
   if (!entityHasRows(tenant, entityId))
   {
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_NOT_FOUND;
   }
 
@@ -750,7 +746,8 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
   {
     KT_E("timescale: entity_type lookup failed: %s", PQerrorMessage(timescaleConn));
     PQclear(tRes);
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return TROE_ERR;
   }
   const char* entityType = kaStrdup(&swRest.kalloc, PQgetvalue(tRes, 0, 0));
@@ -763,11 +760,13 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
   if (r != TROE_OK)
   {
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
-    pthread_mutex_unlock(&timescaleMutex);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
     return r;
   }
 
   PQclear(PQexec(timescaleConn, "COMMIT"));
-  pthread_mutex_unlock(&timescaleMutex);
+  timescaleConn = NULL;
+  timescaleConnRelease(cP);
   return TROE_OK;
 }

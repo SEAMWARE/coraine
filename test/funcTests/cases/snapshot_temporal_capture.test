@@ -74,9 +74,13 @@ echo
 
 echo "05. timescale: snap-tenant attr rows match the live-tenant count (3 per entity)"
 echo "================================================================================"
+# Each tenant — including the per-snapshot snap-tenant — owns its own physical
+# TRoE database. Live rows are in $SW_TROE_DB; the snapshot's rows are in its
+# own "${SW_TROE_DB}_snap_<seq>" database.
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
-  -c "SELECT count(*) AS n, CASE WHEN tenant LIKE '%_snap_%' THEN 'snap' ELSE 'live' END AS scope FROM troe_attrs GROUP BY scope ORDER BY scope"
+echo "$(psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
+snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
+echo "$(psql -h localhost -p 5432 -U postgres -d "$snapDb" -tAc "SELECT count(*) FROM troe_attrs")|snap"
 echo
 echo
 
