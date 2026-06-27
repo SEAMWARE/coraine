@@ -253,22 +253,22 @@ static const char* datasetIdsInClause(char** dsV, KAlloc* kaP)
 //
 // runQPreconditionLocked - returns true if the entity matches q, false if not.
 // On DB error sets *errOut to true. NULL qPred → matches.
-// Mutex must be held by the caller.
+// Operates on the thread-local timescaleConn.
 //
 static bool runQPreconditionLocked(const char* qPred, const char* entityId,
-                                   const char* tenant, bool* errOut)
+                                   bool* errOut)
 {
   if (qPred == NULL)
     return true;
 
-  // troeQTreeToSql emits $1 for entity_id and $2 for tenant inside every
-  // EXISTS-subquery, so the caller binds those two params here.
-  const char* idParam[2] = { entityId, tenant };
+  // troeQTreeToSql emits $1 for entity_id inside every EXISTS-subquery, so the
+  // caller binds that one param here (the connection identifies the tenant).
+  const char* idParam[1] = { entityId };
   int   sz  = (int) strlen(qPred) + 32;
   char* sql = (char*) kaAlloc(&swRest.kalloc, sz);
   snprintf(sql, sz, "SELECT %s", qPred);
 
-  PGresult* res = PQexecParams(timescaleConn, sql, 2, NULL, idParam, NULL, NULL, 0);
+  PGresult* res = PQexecParams(timescaleConn, sql, 1, NULL, idParam, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: q precondition SELECT failed: %s", PQerrorMessage(timescaleConn));
@@ -296,7 +296,7 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
 //
 // entityType is optional; when NULL, the helper looks it up via troe_entities.
 //
-static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId,
+static int buildEntityTemporalDocLocked(const char* entityId,
                                         const char* entityTypeIn,
                                         TroeQueryFilter* fP, KjNode** treePP,
                                         TroeRangeInfo* rangeOut)
@@ -329,9 +329,9 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   const char* attrPred      = attrsInClause(attrV, &swRest.kalloc);
   const char* dsPred        = datasetIdsInClause(datasetIdV, &swRest.kalloc);
 
-  // q precondition (tenant-scoped — the q-tree compiler emits AND tenant=$2).
+  // q precondition.
   bool qErr = false;
-  if (!runQPreconditionLocked(qPred, entityId, tenant, &qErr))
+  if (!runQPreconditionLocked(qPred, entityId, &qErr))
     return qErr ? TROE_ERR : TROE_NOT_FOUND;
 
   // Entity type — caller may pass it in (multi-entity case fetches in one
@@ -339,12 +339,12 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   const char* entityType = entityTypeIn;
   if (entityType == NULL)
   {
-    const char* idParam[2] = { entityId, tenant };
+    const char* idParam[1] = { entityId };
     PGresult* eRes = PQexecParams(timescaleConn,
       "SELECT entity_type FROM troe_entities "
-      "WHERE entity_id = $1 AND tenant = $2 "
+      "WHERE entity_id = $1 "
       "ORDER BY modified_at DESC LIMIT 1",
-      2, NULL, idParam, NULL, NULL, 0);
+      1, NULL, idParam, NULL, NULL, 0);
     if (PQresultStatus(eRes) != PGRES_TUPLES_OK)
     {
       KT_E("timescale: troe_entities SELECT failed: %s", PQerrorMessage(timescaleConn));
@@ -357,12 +357,12 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   }
 
   // Attribute query.
-  // $1 = entity_id, $2 = tenant. timeAt/endTimeAt occupy $3 / $4 when set.
+  // $1 = entity_id (the connection identifies the tenant). timeAt/endTimeAt
+  // occupy $2 / $3 when set.
   const char* timePred = "";
-  int         nParams  = 2;
-  const char* paramV[4];
+  int         nParams  = 1;
+  const char* paramV[3];
   paramV[0] = entityId;
-  paramV[1] = tenant;
 
   if (timerel != NULL)
   {
@@ -373,27 +373,27 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     if (strcmp(timerel, "before") == 0)
     {
       char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
-      snprintf(buf, 64, " AND %s < $3::timestamptz", tCol);
+      snprintf(buf, 64, " AND %s < $2::timestamptz", tCol);
       timePred = buf;
-      paramV[2] = timeAt;
-      nParams   = 3;
+      paramV[1] = timeAt;
+      nParams   = 2;
     }
     else if (strcmp(timerel, "after") == 0)
     {
       char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
-      snprintf(buf, 64, " AND %s >= $3::timestamptz", tCol);
+      snprintf(buf, 64, " AND %s >= $2::timestamptz", tCol);
       timePred = buf;
-      paramV[2] = timeAt;
-      nParams   = 3;
+      paramV[1] = timeAt;
+      nParams   = 2;
     }
     else if (strcmp(timerel, "between") == 0)
     {
       char* buf = (char*) kaAlloc(&swRest.kalloc, 96);
-      snprintf(buf, 96, " AND %s >= $3::timestamptz AND %s < $4::timestamptz", tCol, tCol);
+      snprintf(buf, 96, " AND %s >= $2::timestamptz AND %s < $3::timestamptz", tCol, tCol);
       timePred = buf;
-      paramV[2] = timeAt;
-      paramV[3] = endTimeAt;
-      nParams   = 4;
+      paramV[1] = timeAt;
+      paramV[2] = endTimeAt;
+      nParams   = 3;
     }
   }
 
@@ -422,7 +422,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   char groupSql[4096];
   snprintf(groupSql, sizeof(groupSql),
     "SELECT attr_name, dataset_id, COUNT(*)::int "
-    "FROM troe_attrs WHERE entity_id = $1 AND tenant = $2%s%s%s%s "
+    "FROM troe_attrs WHERE entity_id = $1%s%s%s%s "
     "GROUP BY attr_name, dataset_id",
     timePred, opPred, attrPred, dsPred);
 
@@ -461,7 +461,7 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
     "SELECT %s, "
     "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s) AS rn "
     "FROM troe_attrs "
-    "WHERE entity_id = $1 AND tenant = $2%s%s%s%s) sub "
+    "WHERE entity_id = $1%s%s%s%s) sub "
     "WHERE %s "
     "ORDER BY attr_name, dataset_id, %s %s",
     selectCols, tCol, orderDir, timePred, opPred, attrPred, dsPred, rnClip, tCol, orderDir);
@@ -498,13 +498,13 @@ static int buildEntityTemporalDocLocked(const char* tenant, const char* entityId
   // sysAttrs-aware consumers (incl. ldOrderSort orderBy=createdAt /
   // modifiedAt) actually see them.
   {
-    const char* idParam[2] = { entityId, tenant };
+    const char* idParam[1] = { entityId };
     PGresult* tRes = PQexecParams(timescaleConn,
       "SELECT to_char(MIN(modified_at) FILTER (WHERE op = 'created') "
       "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), "
       "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') "
-      "FROM troe_entities WHERE entity_id = $1 AND tenant = $2",
-      2, NULL, idParam, NULL, NULL, 0);
+      "FROM troe_entities WHERE entity_id = $1",
+      1, NULL, idParam, NULL, NULL, 0);
     if (PQresultStatus(tRes) == PGRES_TUPLES_OK && PQntuples(tRes) > 0)
     {
       if (!PQgetisnull(tRes, 0, 0))
@@ -665,13 +665,11 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
 
   *resultPP = NULL;
 
-  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
-
   TimescaleConn* cP = timescaleConnGet(tenantP);
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
 
-  int r = buildEntityTemporalDocLocked(tenant, entityId, NULL, fP, resultPP, rangeOut);
+  int r = buildEntityTemporalDocLocked(entityId, NULL, fP, resultPP, rangeOut);
 
   timescaleConn = NULL;
   timescaleConnRelease(cP);
@@ -792,8 +790,6 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   *resultPP = NULL;
 
-  const char* tenant = (tenantP != NULL) ? tenantP->name : "";
-
   TimescaleConn* cP = timescaleConnGet(tenantP);
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
@@ -817,21 +813,18 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   // DISTINCT ON to collapse the multiple rows per entity (creates +
   // replaces) to the most-recent (entity_id, entity_type) pair.
-  // Tenant-scoped: $1 = tenant.
   int   sqlSize = 4096;
   char* sql     = (char*) kaAlloc(&swRest.kalloc, sqlSize);
   snprintf(sql, sqlSize,
     "SELECT entity_id, entity_type FROM ("
     "SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
-    "FROM troe_entities WHERE tenant = $1 ORDER BY entity_id, modified_at DESC"
+    "FROM troe_entities ORDER BY entity_id, modified_at DESC"
     ") latest "
     "WHERE TRUE%s%s%s "
     "ORDER BY entity_id",
     idClause, typeClause, patternClause);
 
-  const char* selectorParamV[1] = { tenant };
-
-  PGresult* eRes = PQexecParams(timescaleConn, sql, 1, NULL, selectorParamV, NULL, NULL, 0);
+  PGresult* eRes = PQexecParams(timescaleConn, sql, 0, NULL, NULL, NULL, NULL, 0);
   if (PQresultStatus(eRes) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: entity-selector SELECT failed: %s", PQerrorMessage(timescaleConn));
@@ -854,7 +847,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 1));
 
     KjNode* docP = NULL;
-    int rc = buildEntityTemporalDocLocked(tenant, entityId, entityType, fP, &docP, rangeOut);
+    int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut);
 
     if (rc == TROE_ERR)
     {

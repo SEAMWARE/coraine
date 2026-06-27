@@ -86,7 +86,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
     int   sz  = (int) strlen(attrEsc) + 128;
     char* buf = (char*) kaAlloc(allocP, sz);
     snprintf(buf, sz,
-             "%sEXISTS (SELECT 1 FROM troe_attrs WHERE tenant = $2 AND entity_id = $1 AND attr_name = '%s')",
+             "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s')",
              (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
     return buf;
   }
@@ -133,7 +133,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
   int   sz  = (int) strlen(attrEsc) + (int) strlen(vCol) + (int) strlen(lit) + 128;
   char* buf = (char*) kaAlloc(allocP, sz);
   snprintf(buf, sz,
-           "EXISTS (SELECT 1 FROM troe_attrs WHERE tenant = $2 AND entity_id = $1 AND attr_name = '%s' AND %s %s %s)",
+           "EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s' AND %s %s %s)",
            attrEsc, vCol, opSym, lit);
   return buf;
 }
