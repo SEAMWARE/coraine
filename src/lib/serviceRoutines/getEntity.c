@@ -32,7 +32,7 @@
 #include "swJsonld/swldDownload.h"                   // swldContextFromUrl
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
-#include "swNgsild/ldAcceptParse.h"                  // ldAcceptParse, SwMimeGeoJson
+#include "swRest/SwRestIn.h"                  // swAcceptParse, SwMimeGeoJson
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
@@ -939,7 +939,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
 //
 static void geoJsonGeomProtectSetup(void)
 {
-  if (ldAcceptParse(swRest.in.accept) != SwMimeGeoJson)
+  if (swAcceptParse(swRest.in.accept) != SwMimeGeoJson)
     return;
 
   SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
