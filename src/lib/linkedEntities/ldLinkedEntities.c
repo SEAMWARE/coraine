@@ -236,76 +236,33 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
   }
 
   // ---------------------------------------------------------------------------
-  // q-filter evaluation / notification linked-entity inclusion: legacy
-  // fetch-by-id (local first, else the first registration that answers 200).
-  // No § 7.7.1 gate — following the link is required to evaluate the predicate
-  // / include the entity, and the target id alone drives the lookup.
+  // q-filter evaluation / notification linked-entity inclusion: ASSEMBLE the
+  // (possibly split) target by id — the local copy MERGED with every
+  // registration covering the id (§ 4.5.5.3), exactly as a top-level
+  // retrieveEntity does. No § 7.7.1 objectType gate (following the link is
+  // required to evaluate the predicate / include the entity; the id alone
+  // drives the lookup, so type does NOT scope it). This is what lets a
+  // predicate on a split-off REMOTE attribute see it — a local-only fetch
+  // would miss the remote half of a split target.
   // ---------------------------------------------------------------------------
+  if (!ldLocalOnly && tenantP->regCacheP != NULL)
+  {
+    DistRetrieveErr err     = {0};
+    bool            matched = false;
+    KjNode*         merged  = distributedRetrieveOne(entityId, NULL, tenantP, true, &matched, &err);
+    if (matched && merged != NULL)
+    {
+      *entityPP = merged;
+      return 0;
+    }
+    // No registration contributed — fall through to the local part.
+  }
+
   if (db.entityRetrieve != NULL)
   {
     int r = db.entityRetrieve(tenantP, entityId, entityPP);
     if (r == DB_OK && *entityPP != NULL)
       return 0;
-  }
-
-  if (ldLocalOnly || tenantP->regCacheP == NULL)
-    return -1;
-
-  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
-  const char* ownAlias  = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
-
-  static const LdRegMode modes[4] = { LdRegModeExclusive, LdRegModeRedirect,
-                                       LdRegModeInclusive, LdRegModeAuxiliary };
-
-  for (int m = 0; m < 4; m++)
-  {
-    LdRegCacheItem** matchV = NULL;
-    int matchN = ldRegCacheMatchForRetrieve(regCacheP, entityId, objectTypeV, modes[m], &matchV);
-
-    for (int i = 0; i < matchN; i++)
-    {
-      LdRegCacheItem* csr = matchV[i];
-      if (csr->endpoint == NULL)                continue;
-      if (ldDistOpCsrWouldLoop(csr, ownAlias))  continue;
-
-      // Build "<endpoint>/ngsi-ld/v1/entities/<id>"
-      static const char* path = "/ngsi-ld/v1/entities/";
-      int   epLen   = (int) strlen(csr->endpoint);
-      int   pathLen = (int) strlen(path);
-      int   idLen   = (int) strlen(entityId);
-      char* url     = (char*) kaAlloc(&swRest.kalloc, epLen + pathLen + idLen + 1);
-      char* p       = url;
-      memcpy(p, csr->endpoint, epLen);  p += epLen;
-      memcpy(p, path,          pathLen); p += pathLen;
-      memcpy(p, entityId,      idLen + 1);
-
-      const char* errDetail = NULL;
-      char*       respBody  = NULL;
-      int         respLen   = 0;
-
-      int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
-                                       &errDetail, &respBody, &respLen);
-      if (status == 200 && respBody != NULL && respLen > 0)
-      {
-        KjNode* tree = kjParse(swRest.kjsonP, respBody);
-        if (tree != NULL && tree->type == KjObject)
-        {
-          // Remote payload arrives in API shape with short names. Expand
-          // attr names to IRIs (so q-evaluator's IRI lookups hit) and
-          // drop @context, then API → storage so the walker / q-evaluator
-          // reads (datasetId wrappers, "value" instead of "object") line
-          // up with the local-fetched shape.
-          swldExpandTree(tree, swNgsild.contextP, &swRest.kalloc);
-          ldStripAtContext(tree);
-          ldApiEntityToDbModel(tree, &swRest.kalloc, 0);
-          *entityPP = tree;
-          ldRegCacheMatchRelease(matchV, matchN);
-          return 0;
-        }
-      }
-    }
-
-    ldRegCacheMatchRelease(matchV, matchN);
   }
 
   return -1;

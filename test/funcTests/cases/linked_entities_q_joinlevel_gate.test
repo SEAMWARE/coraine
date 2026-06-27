@@ -1,0 +1,114 @@
+#
+# FILE            linked_entities_q_joinlevel_gate.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.23 / § 5.7 — a q sub-query over a Relationship (q=rel{...}) FOLLOWS the
+# link to evaluate the predicate, and that follow-depth must be bounded — the
+# recursion can't be infinite. joinLevel (default 1) is that bound, shared with
+# the `join` parameter. A q whose linked-sub-query nesting is DEEPER than
+# joinLevel cannot be evaluated and is rejected with 400 BadRequestData.
+# (The spec ties joinLevel to `join`; applying it to q is our reading — see
+# spec-doubt #104.)
+#
+--NAME--
+Linked entities — q sub-query nesting bounded by joinLevel, else 400 (§ 4.5.23)
+
+--TAGS--
+query linked-entities join
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. q one level deep (ref{b==5}), default joinLevel 1 → 200 (1 <= 1)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=ref%7Bb%3D%3D5%7D'
+echo
+echo
+
+
+echo "02. q two levels deep (a{b{c==5}}), default joinLevel 1 → 400 (2 > 1)"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%3D%3D5%7D%7D'
+echo
+echo
+
+
+echo "03. q two levels deep + joinLevel=2 → 200 (2 <= 2)"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%3D%3D5%7D%7D&joinLevel=2'
+echo
+echo
+
+
+echo "04. q three levels deep (a{b{c{d==5}}}) + joinLevel=2 → 400 (3 > 2)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%7Bd%3D%3D5%7D%7D%7D&joinLevel=2'
+echo
+echo
+
+
+--EXPECT--
+01. q one level deep (ref{b==5}), default joinLevel 1 → 200 (1 <= 1)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+02. q two levels deep (a{b{c==5}}), default joinLevel 1 → 400 (2 > 1)
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "q linked sub-query nests 2 level(s) deep, exceeding joinLevel 1",
+  "status": 400,
+  "title": "Invalid Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. q two levels deep + joinLevel=2 → 200 (2 <= 2)
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+04. q three levels deep (a{b{c{d==5}}}) + joinLevel=2 → 400 (3 > 2)
+==================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "q linked sub-query nests 3 level(s) deep, exceeding joinLevel 2",
+  "status": 400,
+  "title": "Invalid Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

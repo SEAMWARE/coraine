@@ -1,0 +1,257 @@
+#
+# FILE            linked_entities_q_split_distop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 (q over a Relationship) + § 5.7.1.4 + § 7.7.1 — the BRUTAL case: a
+# query whose `q` filters on a LINKED entity's attribute, where that linked
+# target is SPLIT across two brokers, and `join=inline` then inlines the
+# assembled target.
+#
+# To evaluate q=ref{<attr>==<v>} the broker must follow `ref` by id and
+# RETRIEVE the target exactly like a top-level retrieveEntity — i.e. merge the
+# local copy with every type-matched registration's contribution (§ 4.5.5.3) —
+# then evaluate the predicate on the ASSEMBLED target. So the predicate must
+# match on the REMOTE half of the split target (attr `b`, only on CP1) as well
+# as the LOCAL half (attr `a`, only on CB). The matched primaries are then
+# returned with their link inlined to the same assembled target.
+#
+# Targets:  urn:X = { a:1 (CB), b:5 (CP1) }   urn:Y = { a:2 (CB), b:9 (CP1) }
+# Linkers:  urn:E1 -ref-> urn:X (objectType Tx)   urn:E2 -ref-> urn:Y
+#
+--NAME--
+Linked entities — q over a split-across-brokers target + join inline (§ 4.9 / § 7.7.1)
+
+--TAGS--
+retrieve query linked-entities registration distops
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swBrokerStart
+swBrokerStart -role CP1
+
+--RUN--
+
+echo "01. Seed CP1 with the REMOTE halves: urn:X (b=5), urn:Y (b=9)"
+echo "============================================================"
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:X","type":"Tx","b":{"type":"Property","value":5}}'
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:Y","type":"Tx","b":{"type":"Property","value":9}}'
+echo
+echo
+
+
+echo "02. Register CP1 (inclusive) for type Tx (urn:X, urn:Y)"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id":"urn:CSR:Tx","type":"ContextSourceRegistration",
+  "endpoint":"http://localhost:'$CP1_PORT'","mode":"inclusive",
+  "information":[{"entities":[{"id":"urn:X","type":"Tx"},{"id":"urn:Y","type":"Tx"}]}]
+}'
+echo
+echo
+
+
+echo "03. Seed CB with the LOCAL halves: urn:X (a=1), urn:Y (a=2) — X and Y now split"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:X","type":"Tx","a":{"type":"Property","value":1}}'
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Y","type":"Tx","a":{"type":"Property","value":2}}'
+echo
+echo
+
+
+echo "04. Seed CB linkers: E1 -ref-> X, E2 -ref-> Y (objectType Tx)"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"Linker","ref":{"type":"Relationship","object":"urn:X","objectType":"Tx"}}'
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"Linker","ref":{"type":"Relationship","object":"urn:Y","objectType":"Tx"}}'
+echo
+echo
+
+
+echo "05. Query Linkers q=ref{b==5} (REMOTE attr of split target) + join=inline → E1, ref.entity = X{a,b}"
+echo "================================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Bb%3D%3D5%7D&join=inline'
+echo
+echo
+
+
+echo "06. Query Linkers q=ref{a==2} (LOCAL attr of split target) + join=inline → E2, ref.entity = Y{a,b}"
+echo "================================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Ba%3D%3D2%7D&join=inline'
+echo
+echo
+
+
+echo "07. Query Linkers q=ref{b==9} → E2 (remote-attr match on the other split target)"
+echo "================================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Bb%3D%3D9%7D&join=inline'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CP1 with the REMOTE halves: urn:X (b=5), urn:Y (b=9)
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:X
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:Y
+Content-Length: 0
+
+
+
+
+02. Register CP1 (inclusive) for type Tx (urn:X, urn:Y)
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Tx
+Content-Length: 0
+
+
+
+
+03. Seed CB with the LOCAL halves: urn:X (a=1), urn:Y (a=2) — X and Y now split
+===============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:X
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:Y
+Content-Length: 0
+
+
+
+
+04. Seed CB linkers: E1 -ref-> X, E2 -ref-> Y (objectType Tx)
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+
+05. Query Linkers q=ref{b==5} (REMOTE attr of split target) + join=inline → E1, ref.entity = X{a,b}
+=================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+[
+  {
+    "id": "urn:E1",
+    "ref": {
+      "entity": {
+        "a": {
+          "type": "Property",
+          "value": 1
+        },
+        "b": {
+          "type": "Property",
+          "value": 5
+        },
+        "id": "urn:X",
+        "type": "Tx"
+      },
+      "object": "urn:X",
+      "objectType": "Tx",
+      "type": "Relationship"
+    },
+    "type": "Linker"
+  }
+]
+
+
+
+06. Query Linkers q=ref{a==2} (LOCAL attr of split target) + join=inline → E2, ref.entity = Y{a,b}
+=================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+[
+  {
+    "id": "urn:E2",
+    "ref": {
+      "entity": {
+        "a": {
+          "type": "Property",
+          "value": 2
+        },
+        "b": {
+          "type": "Property",
+          "value": 9
+        },
+        "id": "urn:Y",
+        "type": "Tx"
+      },
+      "object": "urn:Y",
+      "objectType": "Tx",
+      "type": "Relationship"
+    },
+    "type": "Linker"
+  }
+]
+
+
+
+07. Query Linkers q=ref{b==9} → E2 (remote-attr match on the other split target)
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+[
+  {
+    "id": "urn:E2",
+    "ref": {
+      "entity": {
+        "a": {
+          "type": "Property",
+          "value": 2
+        },
+        "b": {
+          "type": "Property",
+          "value": 9
+        },
+        "id": "urn:Y",
+        "type": "Tx"
+      },
+      "object": "urn:Y",
+      "objectType": "Tx",
+      "type": "Relationship"
+    },
+    "type": "Linker"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1

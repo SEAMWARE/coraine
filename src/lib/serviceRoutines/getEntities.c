@@ -45,7 +45,7 @@
 #include "swNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
 #include "swNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
-#include "swNgsild/ldQParse.h"                       // ldQParse
+#include "swNgsild/ldQParse.h"                       // ldQParse, ldQStripLinked
 #include "swNgsild/LdTypeExpr.h"                     // ldTypeExprParse
 #include "swNgsild/LdScopeExpr.h"                    // ldScopeExprParse
 #include "swNgsild/LdGeoRel.h"                       // ldGeoRelParse
@@ -1663,6 +1663,24 @@ bool getEntities(void)
   }
 
   //
+  // § 4.5.23 / § 5.7 — a q sub-query over a Relationship (q=rel{...}) FOLLOWS
+  // the link, and that follow-depth is bounded by joinLevel (default 1). A q
+  // nested deeper than joinLevel cannot be evaluated → BadRequestData. (The
+  // spec ties joinLevel to `join`; applying the same limit to a q sub-query is
+  // our reading — spec-doubt #104.)
+  //
+  {
+    int qDepth = (swNgsild.qExpr != NULL) ? swNgsild.qExpr->linkedDepth : 0;
+    int jLevel = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
+    if (qDepth > jLevel)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Query",
+              "q linked sub-query nests %d level(s) deep, exceeding joinLevel %d", qDepth, jLevel);
+      return true;
+    }
+  }
+
+  //
   // Geo-query inter-parameter validation lives in ldParamsValidate now —
   // hoisted so /csourceRegistrations (and every other query route) shares
   // the identical checks and messages.
@@ -1678,7 +1696,13 @@ bool getEntities(void)
   filter.typeV     = swNgsild.typeV;
   filter.typeExpr  = swNgsild.typeExpr;
   filter.scopeExpr = swNgsild.scopeExpr;
-  filter.qExpr     = swNgsild.qExpr;
+  // The storage layer can only evaluate "layer 0" of the q — a § 4.9 linked
+  // sub-query (q=rel{...}) needs the broker to follow the link (distops). Hand
+  // the DB the linked-stripped tree so it returns an inclusive candidate set;
+  // applyLinkedQPostFilter then resolves the linked layers against swNgsild.qExpr.
+  filter.qExpr     = (swNgsild.qExpr != NULL && swNgsild.qExpr->linkedDepth > 0)
+                     ? ldQStripLinked(swNgsild.qExpr, &swRest.kalloc)
+                     : swNgsild.qExpr;
   filter.geoRel      = swNgsild.geoRel;
   filter.geometry    = swNgsild.geometry;
   filter.coordinates = swNgsild.coordinates;
