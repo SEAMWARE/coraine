@@ -34,7 +34,7 @@
 #include "kjson/kjRenderSize.h"                     // kjFastRenderSize
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
-#include "swNgsild/ldAcceptParse.h"                 // ldAcceptParse, LdAcceptType
+#include "swNgsild/ldAcceptParse.h"                 // ldAcceptParse, SwMimeType
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
 #include "swNgsild/ldQAttrs.h"                       // ldQAttrs
@@ -233,7 +233,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
       qN++;
 
   bool hasGeoQ        = (swNgsild.georel != NULL);
-  bool acceptGeoJson  = (ldAcceptParse(swRest.in.accept) == LdAcceptGeoJson);
+  bool acceptGeoJson  = (ldAcceptParse(swRest.in.accept) == SwMimeGeoJson);
 
   int cap = pickN + qN + 2 + swNgsild.orderByCount;
   char** wanted = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
@@ -1545,7 +1545,7 @@ static bool entityMapPaginate(void)
 //
 static void geoJsonGeomProtectSetup(void)
 {
-  if (ldAcceptParse(swRest.in.accept) != LdAcceptGeoJson)
+  if (ldAcceptParse(swRest.in.accept) != SwMimeGeoJson)
     return;
 
   SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
