@@ -1,0 +1,183 @@
+#
+# FILE            subscription_notify_tenant_header.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-176 § 6.4.8 — "If the HTTP header NGSILD-Tenant is present in the HTTP
+# request, it shall also be present in HTTP response. This also applies to HTTP
+# notifications sent as a result of subscriptions with an NGSILD-Tenant HTTP
+# header." So a notification for a subscription matched under a non-default
+# tenant carries NGSILD-Tenant (otherwise the entity ids in the body are
+# ambiguous). For the default tenant the header is omitted.
+#
+--NAME--
+Subscription notification — NGSILD-Tenant carried on the notification (§ 6.4.8)
+
+--TAGS--
+subscription notification tenant
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Subscription under tenant 'captn' (type T)"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
+  "id":"urn:ngsi-ld:Subscription:t",
+  "type":"Subscription",
+  "entities":[{"type":"T"}],
+  "notification":{"endpoint":{"uri":"http://localhost:7701/notify"}}
+}'
+echo
+echo
+
+
+echo "02. Create a T under 'captn' → notification carries NGSILD-Tenant: captn"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
+  "id":"urn:E1","type":"T","n":{"type":"Property","value":1}
+}'
+echo
+sleep 0.4
+ftClientDump
+ftClientReset
+echo
+echo
+
+
+echo "03. Subscription on the DEFAULT tenant (type U)"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id":"urn:ngsi-ld:Subscription:d",
+  "type":"Subscription",
+  "entities":[{"type":"U"}],
+  "notification":{"endpoint":{"uri":"http://localhost:7701/notify"}}
+}'
+echo
+echo
+
+
+echo "04. Create a U on the default tenant → notification has NO NGSILD-Tenant"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:E2","type":"U","n":{"type":"Property","value":1}
+}'
+echo
+sleep 0.4
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Subscription under tenant 'captn' (type T)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: captn
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:t
+Content-Length: 0
+
+
+
+
+02. Create a T under 'captn' → notification carries NGSILD-Tenant: captn
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: captn
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:E1",
+          "n": {
+            "type": "Property",
+            "value": 1
+          },
+          "type": "T"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:t",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "NGSILD-Tenant": "captn",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+03. Subscription on the DEFAULT tenant (type U)
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:d
+Content-Length: 0
+
+
+
+
+04. Create a U on the default tenant → notification has NO NGSILD-Tenant
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:E2",
+          "n": {
+            "type": "Property",
+            "value": 1
+          },
+          "type": "U"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:d",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
