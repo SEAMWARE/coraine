@@ -1,0 +1,192 @@
+#
+# FILE            troe_timescale_temporal_boundary.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2.6 temporal query boundary semantics at the EXACT timeAt:
+#   before  → EXCLUSIVE bound (an instance exactly at timeAt does NOT match)
+#   after   → INCLUSIVE bound (an instance exactly at timeAt DOES match)
+#   between → lower (timeAt) INCLUSIVE, upper (endTimeAt) EXCLUSIVE
+# Plus: between without endTimeAt → 400; malformed timeAt → 400 (§ 5.2.6.7.4).
+#
+--NAME--
+TRoE timescale - timerel boundary inclusivity at exact timeAt (§ 7.2.6)
+
+--TAGS--
+troe timescale postgres temporal timerel
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 speed: 10@10:00, 20@11:00, 30@12:00"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. before timeAt=11:00 → EXCLUSIVE: only value 10 (11:00 itself excluded)"
+echo "========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=before&timeAt=2026-04-28T11:00:00Z'
+echo
+echo
+
+
+echo "03. after timeAt=11:00 → INCLUSIVE: values 20 and 30 (11:00 itself included)"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T11:00:00Z'
+echo
+echo
+
+
+echo "04. between 10:00..12:00 → lower INCLUSIVE, upper EXCLUSIVE: values 10 and 20"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T12:00:00Z'
+echo
+echo
+
+
+echo "05. between WITHOUT endTimeAt → 400 BadRequestData"
+echo "================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T10:00:00Z'
+echo
+echo
+
+
+echo "06. malformed timeAt (not ISO8601 DateTime) → 400 BadRequestData"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 speed: 10@10:00, 20@11:00, 30@12:00
+===================================================
+done
+
+
+02. before timeAt=11:00 → EXCLUSIVE: only value 10 (11:00 itself excluded)
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": 10
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. after timeAt=11:00 → INCLUSIVE: values 20 and 30 (11:00 itself included)
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": 30
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. between 10:00..12:00 → lower INCLUSIVE, upper EXCLUSIVE: values 10 and 20
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "Property",
+      "value": 20
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. between WITHOUT endTimeAt → 400 BadRequestData
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 200
+
+{
+  "detail": "missing required URL parameter 'endTimeAt' for timerel='between'",
+  "status": 400,
+  "title": "Missing URL Parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. malformed timeAt (not ISO8601 DateTime) → 400 BadRequestData
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "timeAt is not a valid ISO 8601 DateTime: '2026-04-28'",
+  "status": 400,
+  "title": "Invalid temporal query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

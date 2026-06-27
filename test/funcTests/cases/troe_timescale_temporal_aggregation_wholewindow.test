@@ -1,0 +1,163 @@
+#
+# FILE            troe_timescale_temporal_aggregation_wholewindow.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.2.7: aggrPeriodDuration of PT0S/P0D — or ABSENT — is valid and means a
+# SINGLE bucket spanning the whole [timeAt, endTimeAt) window. This also
+# exercises the aggregation methods that the bucketed tests don't:
+# stddev, sumsq, distinctCount, totalCount.
+#
+--NAME--
+TRoE timescale - aggregatedValues over the whole window (PT0S / absent) (§ 5.3.2.7)
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 speed history: 10@10:00, 20@11:00, 30@12:00"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. aggrPeriodDuration=PT0S → ONE bucket 09:00..13:00, all methods"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,sum,min,max,stddev,sumsq,distinctCount,totalCount&aggrPeriodDuration=PT0S'
+echo
+echo
+
+
+echo "03. aggrPeriodDuration ABSENT → same single whole-window bucket (avg,sum)"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,sum'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 speed history: 10@10:00, 20@11:00, 30@12:00
+===========================================================
+done
+
+
+02. aggrPeriodDuration=PT0S → ONE bucket 09:00..13:00, all methods
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1002
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "distinctCount": [
+      [
+        3,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "max": [
+      [
+        30,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "min": [
+      [
+        10,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "stddev": [
+      [
+        8.164965809,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "sum": [
+      [
+        60,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "sumsq": [
+      [
+        1400,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "totalCount": [
+      [
+        3,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+03. aggrPeriodDuration ABSENT → same single whole-window bucket (avg,sum)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 305
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "sum": [
+      [
+        60,
+        "2026-04-28T09:00:00Z",
+        "2026-04-28T13:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
