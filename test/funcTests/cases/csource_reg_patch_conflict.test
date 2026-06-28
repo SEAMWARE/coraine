@@ -1,0 +1,231 @@
+#
+# FILE            csource_reg_patch_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.9.4 / § 12.2.3.4 — Update ContextSourceRegistration (PATCH) re-runs the
+# exclusive/redirect mode-conflict check that Create enforces. A registration
+# that is created as inclusive (no creation-time conflict) and then PATCHed to
+# exclusive or redirect must collide — with an overlapping registration or with
+# a locally-stored entity — exactly as a direct create of that exclusive/
+# redirect registration would have (409). A PATCH must not be able to install a
+# registration that a direct create would reject.
+#
+# (Create-time conflicts are covered by csource-reg-creation-conflicts; this
+# pins the PATCH/update path.)
+#
+--NAME--
+CSourceRegistration PATCH mode-conflict re-check (§ 12.2.3.4)
+
+--TAGS--
+registration error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create a local entity Vehicle:V1 with a 'speed' attribute → 201"
+echo "=================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 10 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "02. Create an INCLUSIVE registration over Vehicle:V1 + speed → 201"
+echo "================================================================="
+echo "    (inclusive has no creation-time conflict, so this is accepted)"
+payload='{
+  "id": "urn:ngsi-ld:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "inclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V1"}], "attributeNames": ["speed"]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "03. PATCH R1 mode=exclusive → 409 (collides with the local Vehicle:V1)"
+echo "======================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 --payload '{"mode": "exclusive"}'
+echo
+echo
+
+
+echo "04. GET R1 — the rejected PATCH left the registration inclusive"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 | grep -E '"mode"'
+echo
+echo
+
+
+echo "05. Create an EXCLUSIVE registration over Vehicle:V2 + speed → 201"
+echo "================================================================="
+echo "    (no local Vehicle:V2 and no overlapping registration yet)"
+payload='{
+  "id": "urn:ngsi-ld:CSR:R2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V2"}], "attributeNames": ["speed"]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "06. Create an INCLUSIVE registration over the same Vehicle:V2 + speed → 201"
+echo "=========================================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:R3",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "inclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V2"}], "attributeNames": ["speed"]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "07. PATCH R3 mode=redirect → 409 (overlaps the existing exclusive R2)"
+echo "====================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R3 --payload '{"mode": "redirect"}'
+echo
+echo
+
+
+echo "08. GET R3 — the rejected PATCH left the registration inclusive"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R3 | grep -E '"mode"'
+echo
+echo
+
+
+echo "09. Create an INCLUSIVE registration over Vehicle:V3 + temperature → 201"
+echo "======================================================================="
+echo "    (no local Vehicle:V3 and nothing else covers it)"
+payload='{
+  "id": "urn:ngsi-ld:CSR:R4",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "inclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V3"}], "attributeNames": ["temperature"]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "10. PATCH R4 mode=exclusive → 204 (no conflict, so the update applies)"
+echo "======================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R4 --payload '{"mode": "exclusive"}' | grep HTTP
+echo
+echo
+
+
+echo "11. GET R4 — the valid PATCH turned it exclusive"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R4 | grep -E '"mode"'
+echo
+echo
+
+
+--EXPECT--
+01. Create a local entity Vehicle:V1 with a 'speed' attribute → 201
+==================================================================
+HTTP/1.1 201 Created
+
+
+02. Create an INCLUSIVE registration over Vehicle:V1 + speed → 201
+=================================================================
+    (inclusive has no creation-time conflict, so this is accepted)
+HTTP/1.1 201 Created
+
+
+03. PATCH R1 mode=exclusive → 409 (collides with the local Vehicle:V1)
+======================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration overlaps with locally-stored entity 'urn:ngsi-ld:Vehicle:V1'",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+04. GET R1 — the rejected PATCH left the registration inclusive
+==============================================================
+  "mode": "inclusive",
+
+
+05. Create an EXCLUSIVE registration over Vehicle:V2 + speed → 201
+=================================================================
+    (no local Vehicle:V2 and no overlapping registration yet)
+HTTP/1.1 201 Created
+
+
+06. Create an INCLUSIVE registration over the same Vehicle:V2 + speed → 201
+==========================================================================
+HTTP/1.1 201 Created
+
+
+07. PATCH R3 mode=redirect → 409 (overlaps the existing exclusive R2)
+=====================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "registration overlaps with existing registration 'urn:ngsi-ld:CSR:R2' on entity 'urn:ngsi-ld:Vehicle:V2'",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+08. GET R3 — the rejected PATCH left the registration inclusive
+==============================================================
+  "mode": "inclusive",
+
+
+09. Create an INCLUSIVE registration over Vehicle:V3 + temperature → 201
+=======================================================================
+    (no local Vehicle:V3 and nothing else covers it)
+HTTP/1.1 201 Created
+
+
+10. PATCH R4 mode=exclusive → 204 (no conflict, so the update applies)
+======================================================================
+HTTP/1.1 204 No Content
+
+
+11. GET R4 — the valid PATCH turned it exclusive
+================================================
+  "mode": "exclusive",
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -22,6 +22,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#include "serviceRoutines/regConflictCheck.h"        // regConflictCheck, regModeOf
 #include "serviceRoutines/patchCsourceRegistration.h" // Own interface
 
 
@@ -95,6 +96,19 @@ bool patchCsourceRegistration(void)
   }
 
   ldRegSubMerge(mergedRegP, fragment, swRest.kjsonP);
+
+  //
+  // § 12.2.3.4 — the merge may have turned the registration exclusive/redirect
+  // or widened its entity/attribute coverage. Re-run the same mode-conflict
+  // check the create path enforces, skipping this registration's own (still
+  // cached, pre-update) entry: a PATCH must not install a registration that a
+  // direct create would have rejected with 409.
+  //
+  if (regConflictCheck(mergedRegP, regModeOf(mergedRegP), regId, &swRest.kalloc))
+  {
+    ldRegCacheUnlock(regCacheP);
+    return true;  // regConflictCheck already raised the 409 ldError
+  }
 
   int r = db.registrationUpdate(tenantP, regId, mergedRegP);
 

@@ -69,6 +69,7 @@ ENDIF()
 
 IF (SW_FEATURE_REGISTRATIONS)
   LIST(APPEND SOURCES
+    regConflictCheck.c
     postCsourceRegistration.c
     getCsourceRegistration.c
     getCsourceRegistrations.c

@@ -1,0 +1,148 @@
+#
+# FILE            csource_reg_patch_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.9.4 / § 5.2.9 / § 12.2.3.4 — Update ContextSourceRegistration (PATCH)
+# re-validates the registration body, exactly as Create does: the
+# `operations` array must be non-empty and contain only known operation /
+# operation-group names, and an auxiliary registration is restricted to
+# retrieve-only operations. A PATCH that would make the registration invalid
+# is rejected with 400 and leaves the stored registration unchanged.
+#
+# (Create-time validation is covered by csource_reg_validation_operations;
+# this pins the PATCH path.)
+#
+--NAME--
+CSourceRegistration PATCH re-validation — operations + auxiliary (§ 5.9.4)
+
+--TAGS--
+registration error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create a valid inclusive registration → 201"
+echo "==============================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "inclusive",
+  "operations": ["createEntity", "retrieveEntity"],
+  "information": [{"entities": [{"type": "T"}]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "02. PATCH operations=[] → 400 (empty array)"
+echo "==========================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": []}'
+echo
+echo
+
+
+echo "03. PATCH operations=[\"frobnicate\"] → 400 (unknown operation)"
+echo "============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": ["frobnicate"]}'
+echo
+echo
+
+
+echo "04. PATCH mode=auxiliary keeping a non-retrieve op → 400 (auxiliary is retrieve-only)"
+echo "===================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"mode": "auxiliary", "operations": ["createEntity"]}'
+echo
+echo
+
+
+echo "05. PATCH a valid change (operations=[retrieveOps]) → 204"
+echo "========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": ["retrieveOps"]}' | grep HTTP
+echo
+echo
+
+
+echo "06. GET — the rejected PATCHes left the reg intact; the valid one applied"
+echo "========================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 | grep -E '"mode"|"operations"|retrieveOps|createEntity'
+echo
+echo
+
+
+--EXPECT--
+01. Create a valid inclusive registration → 201
+===============================================
+HTTP/1.1 201 Created
+
+
+02. PATCH operations=[] → 400 (empty array)
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. PATCH operations=["frobnicate"] → 400 (unknown operation)
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'operations' contains unknown operation or operation-group name 'frobnicate' (see § 4.20)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. PATCH mode=auxiliary keeping a non-retrieve op → 400 (auxiliary is retrieve-only)
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "auxiliary registration 'operations' must be one of: retrieveOps, retrieveEntity, queryEntity (got 'createEntity')",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PATCH a valid change (operations=[retrieveOps]) → 204
+=========================================================
+HTTP/1.1 204 No Content
+
+
+06. GET — the rejected PATCHes left the reg intact; the valid one applied
+=========================================================================
+  "mode": "inclusive",
+  "operations": [
+    "retrieveOps"
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
