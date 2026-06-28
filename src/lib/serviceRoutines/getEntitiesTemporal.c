@@ -473,6 +473,7 @@ bool getEntitiesTemporal(void)
   filter.typeV        = swNgsild.typeV;
   filter.limit        = swNgsild.limit;
   filter.offset       = swNgsild.offset;
+  filter.count        = swNgsild.count;
 
   if (swNgsild.qExpr != NULL)
     filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);
@@ -716,6 +717,17 @@ bool getEntitiesTemporal(void)
   }
 
   swRest.out.responseTree = result;
+
+  // § 6.4.6 / § 6.4.7.2 general pagination — total matching ENTITIES
+  // (NGSILD-Results-Count) and Link rel="next"/"prev". These coexist with
+  // the temporal-interval links below (distinguished by rel, RFC 8288).
+  if (swNgsild.count)
+  {
+    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    snprintf(countStr, 32, "%ld", (rangeInfo.entityCount >= 0) ? rangeInfo.entityCount : 0L);
+    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+  }
+  ldPaginationLinkHeader(rangeInfo.moreEntities);
 
   // § 6.4.7.3: when any entity's instances remain beyond the returned
   // page, emit Link rel="intervalafter"/"intervalbefore" page pointers.

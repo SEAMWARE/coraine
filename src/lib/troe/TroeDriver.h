@@ -135,6 +135,7 @@ typedef struct TroeQueryFilter
   // Pagination (multi-entity query only).
   int          limit;        // 0 = unset (caller defaults)
   int          offset;       // 0 = unset
+  bool         count;        // ?count=true — fill TroeRangeInfo.entityCount (§ 6.4.6)
 
   // Per-entity attribute-instance cap (§ 6.3.10 temporal pagination).
   // Applied when ?lastN is NOT supplied; ignored when lastN > 0.
@@ -154,12 +155,19 @@ typedef struct TroeQueryFilter
 
 // -----------------------------------------------------------------------------
 //
-// TroeRangeInfo - response-level temporal pagination info (§ 6.4.7.3).
+// TroeRangeInfo - response-level temporal pagination info.
 //
-// Out-param populated by the plugin. When `hasMore` is set, instances
-// remain beyond the returned page in the pagination direction and the
-// service routine emits a Link rel="intervalafter"/"intervalbefore"
-// pair. Bounds are formatted ISO (kept for diagnostics).
+// Out-param populated by the plugin. Two independent dimensions coexist
+// (RFC 8288 multiple Link headers):
+//   * § 6.4.7.3 TEMPORAL pagination — `hasMore` set when instances remain
+//     beyond the returned page in the pagination direction; service routine
+//     emits Link rel="intervalafter"/"intervalbefore". Bounds are formatted
+//     ISO (kept for diagnostics).
+//   * § 6.4.7.2 GENERAL pagination — `moreEntities` set when matching
+//     entities remain beyond this entity page; service routine emits Link
+//     rel="next"/"prev". `entityCount` is the total number of matching
+//     ENTITIES (§ 6.4.6, for NGSILD-Results-Count) when ?count was
+//     requested, else -1.
 //
 typedef struct TroeRangeInfo
 {
@@ -167,6 +175,9 @@ typedef struct TroeRangeInfo
   const char*  rangeStartIso;    // earliest timestamp returned (forward) / latest (backward)
   const char*  rangeEndIso;      // latest timestamp returned (forward) / earliest (backward)
   int          size;             // effective per-attribute page limit (firstN/lastN/default cap)
+
+  bool         moreEntities;     // matching entities remain beyond this page (§ 6.4.7.2)
+  long         entityCount;      // total matching entities (§ 6.4.6); -1 when ?count absent
 } TroeRangeInfo;
 
 

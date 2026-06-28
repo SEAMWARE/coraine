@@ -1,0 +1,119 @@
+#
+# FILE            troe_timescale_temporal_count_pagination.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.4.6 + § 6.4.7.2 — GET /temporal/entities returns the total number of
+# matching ENTITIES (NGSILD-Results-Count) when ?count=true, plus general
+# pagination Link rel="next"/"prev". These coexist with the temporal-interval
+# Link (rel="intervalafter"/"intervalbefore", § 6.4.7.3). limit=0 with count
+# returns an empty array plus the count.
+#
+--NAME--
+TRoE timescale - temporal entity count + next/prev pagination
+
+--TAGS--
+troe timescale postgres temporal pagination count
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+# Extract status, NGSILD-Results-Count, the Link rel tokens, and the number
+# of entities in the body — the temporal docs themselves are large and not
+# what this test is about.
+extract() {
+  python3 -c "
+import sys, json, re
+raw = sys.stdin.read()
+head, _, body = raw.partition('\r\n\r\n')
+if not body:
+    head, _, body = raw.partition('\n\n')
+status = head.splitlines()[0].strip() if head else ''
+count = next((l.split(':',1)[1].strip() for l in head.splitlines() if l.lower().startswith('ngsild-results-count')), '-')
+rels = sorted(set(re.findall(r'rel=\"([a-z]+)\"', head)))
+try:
+    arr = json.loads(body)
+    n = len(arr) if isinstance(arr, list) else 1
+except Exception:
+    n = 0
+print(f'  {status}')
+print(f'  count={count} entities={n} rels={rels}')
+"
+}
+
+echo "01. Seed 5 Vehicles (V1..V5), each with speed @ 2026-04-28T10:00:00Z"
+echo "===================================================================="
+for n in 1 2 3 4 5; do
+  swCurl --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:V$n\",\"type\":\"Vehicle\",\"speed\":{\"type\":\"Property\",\"value\":$n,\"observedAt\":\"2026-04-28T10:00:00Z\"}}" >/dev/null
+done
+echo done
+echo
+echo
+
+
+echo "02. page 1 — ?count=true&limit=2&offset=0 → count=5, 2 entities, rel next"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=0' | extract
+echo
+echo
+
+
+echo "03. page 2 — ?count=true&limit=2&offset=2 → count=5, 2 entities, rel next+prev"
+echo "============================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=2' | extract
+echo
+echo
+
+
+echo "04. page 3 — ?count=true&limit=2&offset=4 → count=5, 1 entity, rel prev"
+echo "======================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=4' | extract
+echo
+echo
+
+
+echo "05. count honours q — ?q=speed>3&count=true → count=2 (V4,V5)"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E3&count=true&limit=10' | extract
+echo
+echo
+
+
+--EXPECT--
+01. Seed 5 Vehicles (V1..V5), each with speed @ 2026-04-28T10:00:00Z
+====================================================================
+done
+
+
+02. page 1 — ?count=true&limit=2&offset=0 → count=5, 2 entities, rel next
+========================================================================
+  HTTP/1.1 200 OK
+  count=5 entities=2 rels=['next']
+
+
+03. page 2 — ?count=true&limit=2&offset=2 → count=5, 2 entities, rel next+prev
+============================================================================
+  HTTP/1.1 200 OK
+  count=5 entities=2 rels=['next', 'prev']
+
+
+04. page 3 — ?count=true&limit=2&offset=4 → count=5, 1 entity, rel prev
+======================================================================
+  HTTP/1.1 200 OK
+  count=5 entities=1 rels=['prev']
+
+
+05. count honours q — ?q=speed>3&count=true → count=2 (V4,V5)
+=============================================================
+  HTTP/1.1 200 OK
+  count=2 entities=2 rels=[]
+
+
+--TEARDOWN--
+swBrokerStop

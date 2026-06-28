@@ -775,12 +775,49 @@ static const char* idPatternClause(const char* idPattern, KAlloc* kaP)
 
 // -----------------------------------------------------------------------------
 //
+// correlateQPred - rewrite a compiled q-predicate for use as a correlated
+// subquery in the entity-selector. troeQTreeToSql emits the outer entity_id
+// as the bind parameter $1 (its only parameter — value literals are inlined);
+// for the set query we correlate it to the selector's row instead, i.e.
+// replace every "$1" with "latest.entity_id".
+//
+static const char* correlateQPred(const char* qPred, KAlloc* kaP)
+{
+  int   sz  = (int) strlen(qPred) + 64;   // "latest.entity_id" is longer than "$1"
+  // Each "$1" (2 chars) grows to 16 chars → +14 per occurrence; bound generously.
+  for (const char* s = qPred; *s != 0; s++)
+    if (s[0] == '$' && s[1] == '1')
+      sz += 16;
+
+  char* buf = (char*) kaAlloc(kaP, sz);
+  int   p   = 0;
+  for (const char* s = qPred; *s != 0; )
+  {
+    if (s[0] == '$' && s[1] == '1')
+    {
+      p += snprintf(buf + p, sz - p, "latest.entity_id");
+      s += 2;
+    }
+    else
+      buf[p++] = *s++;
+  }
+  buf[p] = 0;
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleEntityTemporalQuery - § 5.7.4 multi-entity query.
 //
-// Selects candidate entity ids matching the entity-level filters
-// (id / idPattern / type), then builds an EntityTemporal doc per
-// candidate via the shared helper. q (when present) is enforced
-// per-entity inside the helper (N+1 reads — fine for v1).
+// One set query selects exactly the matching entities — entity-level
+// selectors (id / idPattern / type), a correlated EXISTS that the entity
+// has at least one instance inside the time window (timerel / attrs /
+// datasetId / timeproperty), and the correlated q predicate — paginated
+// server-side (ORDER BY entity_id, LIMIT/OFFSET). Only the page's entities
+// have their EntityTemporal doc built. ?count adds a COUNT(*) over the same
+// WHERE for NGSILD-Results-Count.
 //
 int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
                                  KjNode** resultPP, TroeRangeInfo* rangeOut)
@@ -789,6 +826,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     return TROE_ERR;
 
   *resultPP = NULL;
+  rangeOut->entityCount = -1;     // not computed unless ?count
 
   TimescaleConn* cP = timescaleConnGet(tenantP);
   if (cP == NULL) return TROE_ERR;
@@ -797,34 +835,83 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   Kjson*  kjsonP = swRest.kjsonP;
   KjNode* arrP   = kjArray(kjsonP, NULL);
 
-  // Entity-selector predicates.
+  int limit  = (fP->limit > 0) ? fP->limit : 1000;
+  int offset = (fP->offset > 0) ? fP->offset : 0;
+
+  // Entity-level selectors.
   const char* idClause      = idsInClause(fP->idV, &swRest.kalloc);
   const char* typeClause    = typesInClause(fP->typeV, &swRest.kalloc);
   const char* patternClause = idPatternClause(fP->idPattern, &swRest.kalloc);
 
-  // limit/offset — caller guarantees non-negative; default broker-side.
-  // The LIMIT is applied AFTER per-candidate doc construction so we can
-  // skip entities whose doc has no temporal content (post-filter empty),
-  // rather than letting them eat into the limit. SQL still pre-narrows
-  // by the entity-level predicates and keeps the candidate count
-  // bounded — entities with no troe_entities row are already excluded.
-  int limit  = (fP->limit > 0) ? fP->limit : 1000;
-  int offset = (fP->offset > 0) ? fP->offset : 0;
+  // Instance-match predicate (mirrors buildEntityTemporalDocLocked's attr
+  // query): timerel window on the timeproperty column, attrs/datasetId
+  // IN-clauses, and the createdAt/deletedAt op restriction. timeAt/endTimeAt
+  // bind to the selector's $1/$2.
+  const char* timeProp = fP->timeproperty;
+  const char* tCol     = timeColumn(timeProp);
+  const char* opPred   = "";
+  if (timeProp != NULL && strcmp(timeProp, "createdAt") == 0)
+    opPred = " AND op = 'created'";
+  else if (timeProp != NULL && strcmp(timeProp, "deletedAt") == 0)
+    opPred = " AND op = 'deleted'";
+  const char* attrPred = attrsInClause(fP->attrV, &swRest.kalloc);
+  const char* dsPred   = datasetIdsInClause(fP->datasetIdV, &swRest.kalloc);
 
-  // DISTINCT ON to collapse the multiple rows per entity (creates +
-  // replaces) to the most-recent (entity_id, entity_type) pair.
-  int   sqlSize = 4096;
-  char* sql     = (char*) kaAlloc(&swRest.kalloc, sqlSize);
-  snprintf(sql, sqlSize,
-    "SELECT entity_id, entity_type FROM ("
-    "SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
-    "FROM troe_entities ORDER BY entity_id, modified_at DESC"
-    ") latest "
+  const char* timePred = "";
+  int         nParams  = 0;
+  const char* paramV[2];
+  if (fP->timerel != NULL)
+  {
+    if (strcmp(fP->timerel, "before") == 0)
+    {
+      char* b = (char*) kaAlloc(&swRest.kalloc, 64);
+      snprintf(b, 64, " AND %s < $1::timestamptz", tCol);
+      timePred = b; paramV[0] = fP->timeAtIso; nParams = 1;
+    }
+    else if (strcmp(fP->timerel, "after") == 0)
+    {
+      char* b = (char*) kaAlloc(&swRest.kalloc, 64);
+      snprintf(b, 64, " AND %s >= $1::timestamptz", tCol);
+      timePred = b; paramV[0] = fP->timeAtIso; nParams = 1;
+    }
+    else if (strcmp(fP->timerel, "between") == 0)
+    {
+      char* b = (char*) kaAlloc(&swRest.kalloc, 96);
+      snprintf(b, 96, " AND %s >= $1::timestamptz AND %s < $2::timestamptz", tCol, tCol);
+      timePred = b; paramV[0] = fP->timeAtIso; paramV[1] = fP->endTimeAtIso; nParams = 2;
+    }
+  }
+
+  // Correlated q predicate (entity-level precondition).
+  const char* qCorr = "";
+  if (fP->qSqlPredicate != NULL)
+  {
+    const char* c  = correlateQPred(fP->qSqlPredicate, &swRest.kalloc);
+    int         sz = (int) strlen(c) + 8;
+    char*       b  = (char*) kaAlloc(&swRest.kalloc, sz);
+    snprintf(b, sz, " AND %s", c);
+    qCorr = b;
+  }
+
+  // WHERE body shared by the page query and the count query.
+  int   wSize = 8192;
+  char* where = (char*) kaAlloc(&swRest.kalloc, wSize);
+  snprintf(where, wSize,
+    "FROM (SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
+    "FROM troe_entities ORDER BY entity_id, modified_at DESC) latest "
     "WHERE TRUE%s%s%s "
-    "ORDER BY entity_id",
-    idClause, typeClause, patternClause);
+    "AND EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = latest.entity_id%s%s%s%s)%s",
+    idClause, typeClause, patternClause, timePred, opPred, attrPred, dsPred, qCorr);
 
-  PGresult* eRes = PQexecParams(timescaleConn, sql, 0, NULL, NULL, NULL, NULL, 0);
+  // Page query — fetch limit+1 so we can tell whether more entities remain.
+  int   pSize = wSize + 256;
+  char* pageSql = (char*) kaAlloc(&swRest.kalloc, pSize);
+  snprintf(pageSql, pSize,
+    "SELECT entity_id, entity_type %s ORDER BY entity_id LIMIT %d OFFSET %d",
+    where, limit + 1, offset);
+
+  PGresult* eRes = PQexecParams(timescaleConn, pageSql, nParams, NULL,
+                                (nParams > 0) ? paramV : NULL, NULL, NULL, 0);
   if (PQresultStatus(eRes) != PGRES_TUPLES_OK)
   {
     KT_E("timescale: entity-selector SELECT failed: %s", PQerrorMessage(timescaleConn));
@@ -834,14 +921,11 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     return TROE_ERR;
   }
 
-  int candN = PQntuples(eRes);
+  int rowN  = PQntuples(eRes);
+  int pageN = (rowN > limit) ? limit : rowN;     // the extra row only signals "more"
+  rangeOut->moreEntities = (rowN > limit);
 
-  // Track how many filter-passing entities we've seen; offset skips
-  // the first N matches; limit caps the total kept.
-  int matched = 0;
-  int kept    = 0;
-
-  for (int r = 0; r < candN && kept < limit; r++)
+  for (int r = 0; r < pageN; r++)
   {
     const char* entityId   = kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 0));
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 1));
@@ -857,13 +941,11 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
       return TROE_ERR;
     }
     if (rc != TROE_OK || docP == NULL)
-      continue;   // TROE_NOT_FOUND — entity didn't match q/etc
+      continue;
 
-    // Drop entities whose doc has no temporal-attribute content. An
-    // entity that's known to TRoE but has no instances matching the
-    // query (timerel / attrs / datasetId / q) is not part of the result
-    // set per § 5.7.4. Without this, leftover rows in troe_entities
-    // surface as bare {id,type} stubs.
+    // The selector already guarantees matching content; this guards only the
+    // pathological case where a large per-attribute offsetN pages out every
+    // instance, leaving an empty doc.
     bool hasAttrs = false;
     for (KjNode* c = docP->value.firstChildP; c != NULL; c = c->next)
     {
@@ -871,7 +953,6 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
       if (strcmp(c->name, "id")         == 0)      continue;
       if (strcmp(c->name, "type")       == 0)      continue;
       if (strcmp(c->name, "scope")      == 0)      continue;
-      // sysAttrs surfaced for orderBy — not user attributes.
       if (strcmp(c->name, "createdAt")  == 0)      continue;
       if (strcmp(c->name, "modifiedAt") == 0)      continue;
       hasAttrs = true;
@@ -880,14 +961,27 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     if (!hasAttrs)
       continue;
 
-    if (matched++ < offset)
-      continue;
-
     kjChildAdd(arrP, docP);
-    kept++;
   }
 
   PQclear(eRes);
+
+  // § 6.4.6 count — total matching entities over the same WHERE (no LIMIT).
+  if (fP->count)
+  {
+    int   cSize = wSize + 64;
+    char* countSql = (char*) kaAlloc(&swRest.kalloc, cSize);
+    snprintf(countSql, cSize, "SELECT COUNT(*) %s", where);
+
+    PGresult* nRes = PQexecParams(timescaleConn, countSql, nParams, NULL,
+                                  (nParams > 0) ? paramV : NULL, NULL, NULL, 0);
+    if (PQresultStatus(nRes) == PGRES_TUPLES_OK && PQntuples(nRes) > 0)
+      rangeOut->entityCount = strtol(PQgetvalue(nRes, 0, 0), NULL, 10);
+    else
+      KT_E("timescale: entity-count SELECT failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(nRes);
+  }
+
   timescaleConn = NULL;
   timescaleConnRelease(cP);
 
