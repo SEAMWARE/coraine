@@ -1,0 +1,219 @@
+#
+# FILE            troe_timescale_temporal_geoq_relations.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Topological ?georel relations on the multi-entity temporal GET
+# (§ 4.10 / § 6.18.3.2 / § 11.3.3): within / contains / intersects / overlaps /
+# equals / disjoint. Each is resolved in SQL by the timescale plugin (PostGIS),
+# checked against the GeoProperty instances within the temporal interval. The
+# relation directions and the planar 2D semantics match the broker-side GEOS
+# matcher used for current-state queries, so a temporal georel and the same
+# current-state georel agree.
+#
+# Reference geometry: the 10x10 box Polygon [[[0,0],[0,10],[10,10],[10,0],[0,0]]].
+# Six entities (entity_id sort order A..F):
+#   A_in    Point   (5,5)            inside the box
+#   B_out   Point   (20,20)          outside the box
+#   C_equal Polygon == the box       equal / within / contains / intersects
+#   D_big   Polygon containing box   contains / intersects
+#   E_ovlp  Polygon overlapping box  intersects / overlaps
+#   F_disj  Polygon far away         disjoint
+#
+# (?georel=near is covered by troe_timescale_temporal_geoq.)
+#
+--NAME--
+TRoE timescale - temporal geoQ topological relations
+
+--TAGS--
+troe timescale postgres temporal geo geoQ georel
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed six Vehicles (A_in, B_out, C_equal, D_big, E_ovlp, F_disj)"
+echo "==================================================================="
+payload='{
+  "id":"urn:A_in",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[5,5]},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:B_out",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":20,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[20,20]},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:C_equal",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":30,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[0,0],[0,10],[10,10],[10,0],[0,0]]]},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:D_big",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":40,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[-5,-5],[-5,15],[15,15],[15,-5],[-5,-5]]]},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:E_ovlp",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":50,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[5,5],[5,15],[15,15],[15,5],[5,5]]]},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+payload='{
+  "id":"urn:F_disj",
+  "type":"Vehicle",
+  "speed":   {"type":"Property","value":60,"observedAt":"2026-04-28T09:00:00Z"},
+  "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[20,20],[20,30],[30,30],[30,20],[20,20]]]},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+echo done
+echo
+echo
+
+REF='%5B%5B%5B0,0%5D,%5B0,10%5D,%5B10,10%5D,%5B10,0%5D,%5B0,0%5D%5D%5D'
+BASE="/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&attrs=speed&geometry=Polygon&coordinates=$REF"
+
+echo "02. georel=within → A_in, C_equal"
+echo "================================="
+swCurl --url "$BASE&georel=within" | grep '"id"'
+echo
+echo
+
+echo "03. georel=contains → C_equal, D_big"
+echo "===================================="
+swCurl --url "$BASE&georel=contains" | grep '"id"'
+echo
+echo
+
+echo "04. georel=intersects → A_in, C_equal, D_big, E_ovlp"
+echo "===================================================="
+swCurl --url "$BASE&georel=intersects" | grep '"id"'
+echo
+echo
+
+echo "05. georel=overlaps → A_in, C_equal, D_big, E_ovlp (overlaps≡intersects)"
+echo "======================================================================="
+swCurl --url "$BASE&georel=overlaps" | grep '"id"'
+echo
+echo
+
+echo "06. georel=equals → C_equal"
+echo "==========================="
+swCurl --url "$BASE&georel=equals" | grep '"id"'
+echo
+echo
+
+echo "07. georel=disjoint → B_out, F_disj"
+echo "==================================="
+swCurl --url "$BASE&georel=disjoint" | grep '"id"'
+echo
+echo
+
+echo "08. Full body for within (id + type + speed, location filtered in SQL not returned)"
+echo "=================================================================================="
+swCurl --url "$BASE&georel=within"
+echo
+echo
+
+
+--EXPECT--
+01. Seed six Vehicles (A_in, B_out, C_equal, D_big, E_ovlp, F_disj)
+===================================================================
+done
+
+
+02. georel=within → A_in, C_equal
+=================================
+    "id": "urn:A_in",
+    "id": "urn:C_equal",
+
+
+03. georel=contains → C_equal, D_big
+====================================
+    "id": "urn:C_equal",
+    "id": "urn:D_big",
+
+
+04. georel=intersects → A_in, C_equal, D_big, E_ovlp
+====================================================
+    "id": "urn:A_in",
+    "id": "urn:C_equal",
+    "id": "urn:D_big",
+    "id": "urn:E_ovlp",
+
+
+05. georel=overlaps → A_in, C_equal, D_big, E_ovlp (overlaps≡intersects)
+=======================================================================
+    "id": "urn:A_in",
+    "id": "urn:C_equal",
+    "id": "urn:D_big",
+    "id": "urn:E_ovlp",
+
+
+06. georel=equals → C_equal
+===========================
+    "id": "urn:C_equal",
+
+
+07. georel=disjoint → B_out, F_disj
+===================================
+    "id": "urn:B_out",
+    "id": "urn:F_disj",
+
+
+08. Full body for within (id + type + speed, location filtered in SQL not returned)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:A_in",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 10
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:C_equal",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 30
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swTroeDrop

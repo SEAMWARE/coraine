@@ -148,7 +148,19 @@ typedef struct TroeQueryFilter
   // empty-string column). NULL = no datasetId filter.
   char**       datasetIdV;
 
-  // geo, scopeQ — grow as the read path lands
+  // Geo query (§ 4.10 / § 11.3.3). When geoRelType != 0 the plugin pushes
+  // the geospatial restriction down to SQL (PostGIS) — checked against the
+  // GeoProperty instances that fall within the temporal window. geoRelType
+  // carries LdGeoRelType values (0 = none); kept as int so this plugin
+  // interface stays independent of the Ngsild library.
+  int          geoRelType;       // 0 = no geo filter (LdGeoRelType)
+  double       geoMaxDistance;   // near: -1 = unset
+  double       geoMinDistance;   // near: -1 = unset
+  const char*  geoGeometry;      // reference geometry type ("Point", "Polygon", ...)
+  const char*  geoCoordinates;   // reference coordinates (JSON array string)
+  const char*  geoProperty;      // geoproperty attr_name (expanded IRI; default "location")
+
+  // scopeQ — grows as the read path lands
   void*        opaque;
 } TroeQueryFilter;
 

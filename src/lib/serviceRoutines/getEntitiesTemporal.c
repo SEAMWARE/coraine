@@ -42,6 +42,7 @@
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/LdGeoRel.h"                        // LdGeoNear
 #include "swNgsild/ldParams.h"                        // LD_PARAM_LIMIT
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
@@ -448,32 +449,22 @@ bool getEntitiesTemporal(void)
   filter.timeproperty = swNgsild.timeproperty;
   filter.attrV        = swNgsild.attrsV;
 
-  // § 11.3.3: the geoquery is checked against the GeoProperty instances
-  // within the temporal interval — independent of the ?attrs= selection.
-  // When attrs= would exclude the geoproperty, fetch it anyway (the geo
-  // filter below needs its instances) and strip it from the response after.
-  const char* geoprop          = (swNgsild.geoproperty != NULL) ? swNgsild.geoproperty : "location";
-  bool        geopropInjected  = false;
+  // § 11.3.3 geoquery pushdown: every georel is resolved in SQL by the
+  // timescale plugin (PostGIS) — checked against the GeoProperty instances
+  // that fall within the temporal window, independent of ?attrs=. The plugin
+  // restricts the result to matching entities, so the broker neither injects
+  // the geoproperty into ?attrs= nor re-filters afterwards. (Distributed
+  // sources apply the forwarded georel themselves.)
+  const char* geoprop = (swNgsild.geoproperty != NULL) ? swNgsild.geoproperty : "location";
 
-  if (swNgsild.geoRel != NULL && swNgsild.attrsV != NULL)
+  if (swNgsild.geoRel != NULL)
   {
-    int n = 0;
-    while (swNgsild.attrsV[n] != NULL)
-    {
-      if (strcmp(swNgsild.attrsV[n], geoprop) == 0)
-        break;
-      n++;
-    }
-
-    if (swNgsild.attrsV[n] == NULL)  // geoprop not in attrs= — inject it
-    {
-      char** augmented = (char**) kaAlloc(&swRest.kalloc, (n + 2) * sizeof(char*));
-      memcpy(augmented, swNgsild.attrsV, n * sizeof(char*));
-      augmented[n]     = (char*) geoprop;
-      augmented[n + 1] = NULL;
-      filter.attrV     = augmented;
-      geopropInjected  = true;
-    }
+    filter.geoRelType     = swNgsild.geoRel->rel;
+    filter.geoMaxDistance = swNgsild.geoRel->maxDistance;
+    filter.geoMinDistance = swNgsild.geoRel->minDistance;
+    filter.geoGeometry    = swNgsild.geometry;
+    filter.geoCoordinates = swNgsild.coordinates;
+    filter.geoProperty    = geoprop;
   }
 
   filter.lastN        = swNgsild.lastN;
@@ -621,70 +612,9 @@ bool getEntitiesTemporal(void)
     }
   }
 
-  // § 11.3.3 (TS 104-175): the geoquery's restrictions "shall be checked
-  // against the GeoProperty instances that are within the interval defined
-  // by the temporal query" — i.e. against the instances in the temporal
-  // result itself, never against the current state (an entity may exist
-  // only in TRoE). ANY matching instance keeps the entity. Each instance's
-  // geometry is wrapped as a minimal DB-model entity for the plugin's geo
-  // matcher.
-  if (swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
-  {
-    KjNode* ep = result->value.firstChildP;
-    while (ep != NULL)
-    {
-      KjNode* nextEp = ep->next;
-      KjNode* attrP  = kjLookup(ep, geoprop);
-      bool    keep   = false;
-
-      if (attrP != NULL && attrP->type == KjArray)
-      {
-        for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
-        {
-          if (instP->type != KjObject)
-            continue;
-
-          KjNode* valueP = kjLookup(instP, "value");
-          if (valueP == NULL)
-            continue;
-
-          // Minimal DB-model wrapper: { <geoprop>: { "@none": { "value": <geom> } } }
-          KjNode* geomP   = kjClone(swRest.kjsonP, valueP);
-          KjNode* dsInstP = kjObject(swRest.kjsonP, "@none");
-          KjNode* wrapP   = kjObject(swRest.kjsonP, geoprop);
-          KjNode* synthP  = kjObject(swRest.kjsonP, NULL);
-
-          geomP->name = (char*) "value";
-          kjChildAdd(dsInstP, geomP);
-          kjChildAdd(wrapP, dsInstP);
-          kjChildAdd(synthP, wrapP);
-
-          if (db.geoMatchFunc(synthP, swNgsild.geoRel, swNgsild.geometry, swNgsild.coordinates, geoprop))
-          {
-            keep = true;
-            break;
-          }
-        }
-      }
-
-      if (!keep)
-        kjChildRemove(result, ep);
-
-      ep = nextEp;
-    }
-
-    // The geoproperty was fetched only for the geo filter — ?attrs= does
-    // not select it, so strip it from the surviving entities.
-    if (geopropInjected)
-    {
-      for (KjNode* ep2 = result->value.firstChildP; ep2 != NULL; ep2 = ep2->next)
-      {
-        KjNode* gP = kjLookup(ep2, geoprop);
-        if (gP != NULL)
-          kjChildRemove(ep2, gP);
-      }
-    }
-  }
+  // § 11.3.3 geoquery: resolved in SQL by the timescale plugin (PostGIS) for
+  // local results — see filter.geoRelType above. Distributed sources applied
+  // the forwarded georel themselves. No broker-side post-filter is needed.
 
   // § 4.18 / § 6.18.3.2: scopeQ — applied against the entity's CURRENT
   // state (looked up from the current-state DB). Temporal entities that no

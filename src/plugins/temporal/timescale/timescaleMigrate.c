@@ -107,12 +107,25 @@ static int troeMig001Initial(PGconn* conn)
     "  v_datetime  TIMESTAMPTZ,"
     "  v_compound  JSONB,"
     "  sub_attrs   JSONB,"
+    // GeoProperty pushdown (§ 11.3.3): a STORED geography column derived from
+    // the GeoJSON geometry kept verbatim in v_compound. The attr_kind guard
+    // (3 = LdAttrGeoProperty) keeps ST_GeomFromGeoJSON off non-geo rows so it
+    // never errors there; the column is NULL for them. SRID 4326 (WGS84) is
+    // the GeoJSON default and matches the current-state 2dsphere index, so
+    // ST_DWithin/ST_Within distances are spherical metres — the same units a
+    // ?georel near;maxDistance query uses. v_compound stays the source of
+    // truth; the write path is untouched (the column is generated).
+    "  geo         geography GENERATED ALWAYS AS ("
+    "    CASE WHEN attr_kind = 3 AND v_compound IS NOT NULL"
+    "         THEN geography(ST_SetSRID(ST_GeomFromGeoJSON(v_compound::text), 4326))"
+    "    END) STORED,"
     "  PRIMARY KEY (instance_id)"
     ")",
 
     "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_observed   ON troe_attrs (entity_id, attr_name, observed_at DESC)",
     "CREATE INDEX IF NOT EXISTS troe_attrs_id_attr_modified   ON troe_attrs (entity_id, attr_name, modified_at DESC)",
     "CREATE INDEX IF NOT EXISTS troe_attrs_type_attr_observed ON troe_attrs (entity_type, attr_name, observed_at DESC)",
+    "CREATE INDEX IF NOT EXISTS troe_attrs_geo                ON troe_attrs USING GIST (geo)",
 
     NULL
   };
@@ -263,6 +276,13 @@ int timescaleMigrate(PGconn* conn)
            (long long) TIMESCALE_MIGRATE_ADVISORY_LOCK_ID);
   if (execSimple(conn, lockSql) != 0)
     return -1;
+
+  // 1b. PostGIS — needed by the troe_attrs.geo generated column (§ 11.3.3
+  // geoquery pushdown). Idempotent; runs per tenant database. Logged but
+  // not fatal: without PostGIS the CREATE TABLE in migration #1 fails loudly,
+  // which is the correct signal that the deployment lacks the extension.
+  if (execSimple(conn, "CREATE EXTENSION IF NOT EXISTS postgis") != 0)
+    KT_I("timescale: CREATE EXTENSION postgis failed — geoquery pushdown unavailable");
 
   // 2. Bootstrap the meta-table if missing.
   if (execSimple(conn,

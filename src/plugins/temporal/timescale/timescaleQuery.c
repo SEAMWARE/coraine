@@ -42,6 +42,7 @@
 
 #include "swRest/SwRestState.h"                           // swRest
 #include "swNgsild/LdAttrType.h"                          // LdAttr*
+#include "swNgsild/LdGeoRel.h"                            // LdGeoNear, LdGeoRelType
 #include "swNgsild/SwNgsild.h"                            // swNgsild
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
@@ -809,6 +810,145 @@ static const char* correlateQPred(const char* qPred, KAlloc* kaP)
 
 // -----------------------------------------------------------------------------
 //
+// sqlQuote - append `s` to buf as an escaped single-quoted SQL literal body
+// (no surrounding quotes added). Doubles embedded single quotes.
+//
+static int sqlQuote(char* buf, int bufSize, int p, const char* s)
+{
+  for (const char* c = s; *c != 0 && p < bufSize - 2; c++)
+  {
+    if (*c == '\'') { buf[p++] = '\''; buf[p++] = '\''; }
+    else            buf[p++] = *c;
+  }
+  return p;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geoRefGeometry - append the reference geometry SQL expression for the planar
+// (::geometry) relations: ST_SetSRID(ST_GeomFromGeoJSON('{...}'), 4326). The
+// GeoJSON is assembled from geometry-type + the raw coordinates array string,
+// exactly as the generated column is built, so the comparison is like-for-like.
+//
+static int geoRefGeometry(char* buf, int sz, int p, const char* geometry, const char* coords)
+{
+  p += snprintf(buf + p, sz - p, "ST_SetSRID(ST_GeomFromGeoJSON('{\"type\":\"");
+  p  = sqlQuote(buf, sz, p, geometry);
+  p += snprintf(buf + p, sz - p, "\",\"coordinates\":");
+  p  = sqlQuote(buf, sz, p, coords);
+  p += snprintf(buf + p, sz - p, "}'), 4326)");
+  return p;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geoPredicateCorrelated - § 11.3.3 geoquery as a correlated EXISTS.
+//
+// Restricts to entities that have a GeoProperty instance which (a) carries the
+// queried geoproperty name, (b) falls within the temporal window (the same
+// timePred/op restriction the instance-match uses), and (c) satisfies the
+// georel against the reference geometry. ANY in-window instance that matches
+// keeps the entity (§ 11.3.3) — the natural semantics of EXISTS.
+//
+// Relation mapping (parity with the broker-side GEOS matcher, geoMatch.c — the
+// engine the temporal store used before this pushdown; PostGIS uses GEOS for
+// these predicates, so results are identical):
+//   near       → ST_DWithin(geo, ref, metres)         (geography; spherical
+//                metres, matching the current-state 2dsphere store). minDistance
+//                → AND NOT ST_DWithin(...).
+//   within     → ST_Within   (entity within reference)
+//   contains   → ST_Contains (entity contains reference)
+//   intersects → ST_Intersects
+//   overlaps   → ST_Intersects (GEOS overlaps falls back to intersects, and the
+//                current-state store maps overlaps→$geoIntersects too)
+//   equals     → ST_Equals
+//   disjoint   → ST_Disjoint
+// The topological relations run on geo::geometry (planar) — the same plane GEOS
+// works in. 2D only: Z is stored and returned (from v_compound) but ignored in
+// the predicate, exactly as the current-state store does.
+//
+// Returns "" when there is nothing to push down.
+//
+static const char* geoPredicateCorrelated(TroeQueryFilter* fP, const char* tCol,
+                                          const char* timePred, const char* opPred,
+                                          KAlloc* kaP)
+{
+  if (fP->geoRelType == LdGeoNone)
+    return "";
+  if (fP->geoGeometry == NULL || fP->geoCoordinates == NULL)
+    return "";
+
+  const char* geoProp = (fP->geoProperty != NULL) ? fP->geoProperty : "location";
+
+  int   sz  = (int) strlen(geoProp) * 2
+            + (int) strlen(fP->geoGeometry) * 4
+            + (int) strlen(fP->geoCoordinates) * 4
+            + (int) strlen(timePred) + (int) strlen(opPred) + 768;
+  char* buf = (char*) kaAlloc(kaP, sz);
+  int   p   = 0;
+
+  p += snprintf(buf + p, sz - p,
+    " AND EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = latest.entity_id"
+    " AND attr_name = '");
+  p  = sqlQuote(buf, sz, p, geoProp);
+  p += snprintf(buf + p, sz - p, "' AND attr_kind = 3 AND geo IS NOT NULL%s%s", timePred, opPred);
+
+  switch (fP->geoRelType)
+  {
+  case LdGeoNear:
+    // geography column, spherical metres — matches the current-state 2dsphere.
+    p += snprintf(buf + p, sz - p, " AND ST_DWithin(geo, geography(");
+    p  = geoRefGeometry(buf, sz, p, fP->geoGeometry, fP->geoCoordinates);
+    p += snprintf(buf + p, sz - p, "), %f)", fP->geoMaxDistance);
+    if (fP->geoMinDistance >= 0)
+    {
+      p += snprintf(buf + p, sz - p, " AND NOT ST_DWithin(geo, geography(");
+      p  = geoRefGeometry(buf, sz, p, fP->geoGeometry, fP->geoCoordinates);
+      p += snprintf(buf + p, sz - p, "), %f)", fP->geoMinDistance);
+    }
+    break;
+
+  case LdGeoWithin:
+  case LdGeoContains:
+  case LdGeoIntersects:
+  case LdGeoOverlaps:
+  case LdGeoEquals:
+  case LdGeoDisjoint:
+  {
+    const char* fn = "ST_Intersects";
+    switch (fP->geoRelType)
+    {
+      case LdGeoWithin:     fn = "ST_Within";     break;
+      case LdGeoContains:   fn = "ST_Contains";   break;
+      case LdGeoIntersects: fn = "ST_Intersects"; break;
+      case LdGeoOverlaps:   fn = "ST_Intersects"; break;  // GEOS overlaps→intersects
+      case LdGeoEquals:     fn = "ST_Equals";     break;
+      case LdGeoDisjoint:   fn = "ST_Disjoint";   break;
+      default:                                    break;
+    }
+    p += snprintf(buf + p, sz - p, " AND %s(geo::geometry, ", fn);
+    p  = geoRefGeometry(buf, sz, p, fP->geoGeometry, fP->geoCoordinates);
+    p += snprintf(buf + p, sz - p, ")");
+    break;
+  }
+
+  default:
+    break;
+  }
+
+  p += snprintf(buf + p, sz - p, ")");
+  buf[p] = 0;
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleEntityTemporalQuery - § 5.7.4 multi-entity query.
 //
 // One set query selects exactly the matching entities — entity-level
@@ -896,15 +1036,18 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     qCorr = b;
   }
 
+  // Correlated geo predicate (§ 11.3.3) — pushes ?georel near into SQL.
+  const char* geoPred = geoPredicateCorrelated(fP, tCol, timePred, opPred, &swRest.kalloc);
+
   // WHERE body shared by the page query and the count query.
-  int   wSize = 8192;
+  int   wSize = 16384;
   char* where = (char*) kaAlloc(&swRest.kalloc, wSize);
   snprintf(where, wSize,
     "FROM (SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
     "FROM troe_entities ORDER BY entity_id, modified_at DESC) latest "
     "WHERE TRUE%s%s%s "
-    "AND EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = latest.entity_id%s%s%s%s)%s",
-    idClause, typeClause, patternClause, timePred, opPred, attrPred, dsPred, qCorr);
+    "AND EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = latest.entity_id%s%s%s%s)%s%s",
+    idClause, typeClause, patternClause, timePred, opPred, attrPred, dsPred, qCorr, geoPred);
 
   // Page query — fetch limit+1 so we can tell whether more entities remain.
   int   pSize = wSize + 256;
