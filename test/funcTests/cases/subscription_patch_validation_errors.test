@@ -1,0 +1,490 @@
+#
+# FILE            subscription_patch_validation_errors.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.3 / § 5.2.12 — Update Subscription (PATCH) re-validates the body. A
+# fragment with a malformed member is rejected with 400 and the stored
+# subscription is left untouched. Beyond per-member checks, the MERGED result
+# must still be a structurally valid Subscription: a PATCH may not delete the
+# entity/attribute selector (leaving the subscription with nothing to match),
+# and the read-only 'id' may not appear in the body at all.
+#
+--NAME--
+Subscription PATCH body validation errors (§ 5.8.3)
+
+--TAGS--
+subscription error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create a valid subscription → 201"
+echo "====================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [{"type": "Building"}],
+  "watchedAttributes": ["temperature"],
+  "notification": {"endpoint": {"uri": "http://localhost:9999/n"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "02. PATCH 'type' that is not 'Subscription' → 400"
+echo "================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Building"}'
+echo
+echo
+
+
+echo "03. PATCH 'entities' that is not an array → 400"
+echo "==============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": "x"}'
+echo
+echo
+
+
+echo "04. PATCH 'entities' as an empty array → 400"
+echo "============================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": []}'
+echo
+echo
+
+
+echo "05. PATCH 'watchedAttributes' that is not an array → 400"
+echo "======================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"watchedAttributes": "x"}'
+echo
+echo
+
+
+echo "06. PATCH 'q' that is not a string → 400"
+echo "========================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"q": 5}'
+echo
+echo
+
+
+echo "07. PATCH 'geoQ' that is not a JSON object → 400"
+echo "================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ": "x"}'
+echo
+echo
+
+
+echo "08. PATCH 'geoQ:geometry' with an invalid value → 400"
+echo "====================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ": {"geometry": "Banana", "coordinates": [1,2]}}'
+echo
+echo
+
+
+echo "09. PATCH 'notification' that is not an object → 400"
+echo "===================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": "x"}'
+echo
+echo
+
+
+echo "10. PATCH 'notification' as an empty object → 400"
+echo "================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {}}'
+echo
+echo
+
+
+echo "11. PATCH 'notification:endpoint' that is not an object → 400"
+echo "============================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"endpoint": "x"}}'
+echo
+echo
+
+
+echo "12. PATCH 'notification:endpoint:uri' that is not a URI → 400"
+echo "============================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"endpoint": {"uri": "not a uri"}}}'
+echo
+echo
+
+
+echo "13. PATCH 'notification:format' with an unsupported value → 400"
+echo "=============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "banana"}}'
+echo
+echo
+
+
+echo "14. PATCH 'expiresAt' that is not a valid DateTime → 400"
+echo "======================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"expiresAt": "banana"}'
+echo
+echo
+
+
+echo "15. PATCH 'expiresAt' that is in the past → 400"
+echo "==============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"expiresAt": "2000-01-01T00:00:00Z"}'
+echo
+echo
+
+
+echo "16. PATCH 'throttling' that is negative → 400"
+echo "============================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"throttling": -3}'
+echo
+echo
+
+
+echo "17. PATCH deleting BOTH 'entities' and 'watchedAttributes' → 400 (no selector left)"
+echo "==================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": "urn:ngsi-ld:null", "watchedAttributes": "urn:ngsi-ld:null"}'
+echo
+echo
+
+
+echo "18. PATCH carrying the read-only 'id' alongside a real field → 400"
+echo "=================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"id": "urn:ngsi-ld:null", "description": "d"}'
+echo
+echo
+
+
+echo "19. PATCH whose only member is the read-only 'type' → 400"
+echo "========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Subscription"}'
+echo
+echo
+
+
+echo "20. A valid PATCH (and a 'type' echo alongside it) → 204"
+echo "========================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Subscription", "description": "updated"}' | grep HTTP
+echo
+echo
+
+
+echo "21. GET — the rejected PATCHes left the subscription intact; the valid one applied"
+echo "=================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 | grep -E '"description"|"uri"|"watchedAttributes"|temperature'
+echo
+echo
+
+
+--EXPECT--
+01. Create a valid subscription → 201
+=====================================
+HTTP/1.1 201 Created
+
+
+02. PATCH 'type' that is not 'Subscription' → 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Subscription 'type' must be 'Subscription'",
+  "status": 400,
+  "title": "Invalid Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. PATCH 'entities' that is not an array → 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'entities' must be a JSON array",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. PATCH 'entities' as an empty array → 400
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PATCH 'watchedAttributes' that is not an array → 400
+=======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'watchedAttributes' must be an array",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. PATCH 'q' that is not a string → 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'q' must be a string",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. PATCH 'geoQ' that is not a JSON object → 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'geoQ' must be a JSON object",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. PATCH 'geoQ:geometry' with an invalid value → 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'geoQ.geometry' has invalid value 'Banana'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. PATCH 'notification' that is not an object → 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification' must be a JSON object",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. PATCH 'notification' as an empty object → 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "an empty object is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. PATCH 'notification:endpoint' that is not an object → 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification.endpoint' must be a JSON object",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. PATCH 'notification:endpoint:uri' that is not a URI → 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Not a valid URI: 'not a uri'",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. PATCH 'notification:format' with an unsupported value → 400
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'notification.endpoint' is mandatory",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. PATCH 'expiresAt' that is not a valid DateTime → 400
+=======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'expiresAt' is not a valid ISO 8601 DateTime",
+  "status": 400,
+  "title": "Invalid DateTime",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. PATCH 'expiresAt' that is in the past → 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'expiresAt' must be a DateTime in the future",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. PATCH 'throttling' that is negative → 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'throttling' must be >= 0",
+  "status": 400,
+  "title": "Negative Number",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+17. PATCH deleting BOTH 'entities' and 'watchedAttributes' → 400 (no selector left)
+===================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Subscription must have 'entities' or 'watchedAttributes'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. PATCH carrying the read-only 'id' alongside a real field → 400
+==================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'id' cannot be modified",
+  "status": 400,
+  "title": "Read-Only Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. PATCH whose only member is the read-only 'type' → 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'type' cannot be modified",
+  "status": 400,
+  "title": "Read-Only Field",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+20. A valid PATCH (and a 'type' echo alongside it) → 204
+========================================================
+HTTP/1.1 204 No Content
+
+
+21. GET — the rejected PATCHes left the subscription intact; the valid one applied
+==================================================================================
+  "description": "updated",
+      "uri": "http://localhost:9999/n"
+  "watchedAttributes": [
+    "temperature"
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

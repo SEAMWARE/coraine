@@ -55,6 +55,42 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 
 // -----------------------------------------------------------------------------
 //
+// mandatoryAfterMerge - § 5.8.3 / § 5.2.12: the merge must not strip the
+// subscription below its mandatory shape. The fragment validator already
+// rejects a direct delete of 'notification' or 'notification.endpoint' (a
+// urn:ngsi-ld:null there fails the object check), but deleting
+// 'notification.endpoint.uri' or deleting the whole entity/attribute selector
+// only becomes visible in the MERGED result. A valid Subscription always has a
+// 'notification.endpoint.uri' and at least one of 'entities' /
+// 'watchedAttributes' — a PATCH must not be able to persist one that lacks them.
+//
+static bool mandatoryAfterMerge(KjNode* subP)
+{
+  KjNode* notifP = kjLookup(subP, LD_VOCAB_NOTIFICATION);
+  KjNode* epP    = (notifP != NULL) ? kjLookup(notifP, LD_VOCAB_ENDPOINT) : NULL;
+  KjNode* uriP   = (epP    != NULL) ? kjLookup(epP, LD_VOCAB_URI)         : NULL;
+
+  if (uriP == NULL || uriP->type != KjString || uriP->value.s[0] == 0)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+            "'notification.endpoint.uri' is mandatory and cannot be deleted");
+    return false;
+  }
+
+  if (kjLookup(subP, LD_VOCAB_ENTITIES) == NULL && kjLookup(subP, LD_VOCAB_WATCHED_ATTRS) == NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+            "Subscription must have 'entities' or 'watchedAttributes'");
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // patchSubscription -
 //
 bool patchSubscription(void)
@@ -80,14 +116,23 @@ bool patchSubscription(void)
       if (strcmp(c->name, "type") == 0)  { sawType = true; continue; }
       if (strcmp(c->name, "id")   == 0)  { sawId   = true; continue; }
       hasUpdatable = true;
-      break;
+    }
+    //
+    // 'id' is immutable: present in a PATCH at all — even alongside updatable
+    // fields, even as a urn:ngsi-ld:null delete — is a 400, not a silently
+    // ignored member. (Don't early-break the scan above, or an updatable field
+    // following 'id' would mask it.)
+    //
+    if (sawId)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Read-Only Field", "'id' cannot be modified");
+      return true;
     }
     if (!hasUpdatable)
     {
-      const char* readOnly = sawType ? "type" : (sawId ? "id" : NULL);
-      if (readOnly != NULL)
+      if (sawType)
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Read-Only Field",
-                "'%s' cannot be modified", readOnly);
+                "'type' cannot be modified");
       else
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
                 "PATCH body must contain at least one updatable field");
@@ -198,6 +243,18 @@ bool patchSubscription(void)
   }
 
   ldRegSubMerge(mergedSubP, fragment, swRest.kjsonP);
+
+  //
+  // § 5.8.3 — re-validate the mandatory shape of the merged result before
+  // persisting: a PATCH that deletes endpoint.uri or the whole entity/attribute
+  // selector would otherwise store an unusable subscription (the fragment
+  // validator can't see those holes — they only exist post-merge).
+  //
+  if (mandatoryAfterMerge(mergedSubP) == false)
+  {
+    ldSubCacheUnlock(subCacheP);
+    return true;  // mandatoryAfterMerge already raised the 400
+  }
 
   //
   // Recompute status (§ 5.8.2.4) from the merged isActive + expiresAt, into the
