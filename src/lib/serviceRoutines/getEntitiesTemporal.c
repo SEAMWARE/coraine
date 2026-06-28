@@ -42,6 +42,7 @@
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
+#include "swNgsild/ldParams.h"                        // LD_PARAM_LIMIT
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldOrderSort.h"                    // ldOrderSort
@@ -416,6 +417,17 @@ bool getEntitiesTemporal(void)
     return true;
   }
 
+  // § 6.4.6: an explicit limit=0 is permitted ONLY together with ?count (a
+  // count-only request). The present-params bitmask distinguishes an explicit
+  // 0 from an absent limit (absent → broker default page size).
+  bool limitGiven = (swRest.in.uriParamMask & LD_PARAM_LIMIT) != 0;
+  if (limitGiven && swNgsild.limit == 0 && swNgsild.count == false)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URL Parameter",
+            "'limit' of 0 is only allowed together with 'count'");
+    return true;
+  }
+
   // § 5.7.4.4 / § 4.23 — orderBy on multi-entity temporal queries can
   // address any entity member: id, type, scope, an attribute name, an
   // attribute sub-property like "name.createdAt", etc. No restriction
@@ -474,6 +486,7 @@ bool getEntitiesTemporal(void)
   filter.limit        = swNgsild.limit;
   filter.offset       = swNgsild.offset;
   filter.count        = swNgsild.count;
+  filter.limitGiven   = limitGiven;
 
   if (swNgsild.qExpr != NULL)
     filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);

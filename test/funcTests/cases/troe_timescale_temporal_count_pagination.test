@@ -85,6 +85,20 @@ echo
 echo
 
 
+echo "06. count-only — ?count=true&limit=0 → count=5, 0 entities (§ 6.4.6)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=0' | extract
+echo
+echo
+
+
+echo "07. limit=0 without count → 400 (§ 6.4.6)"
+echo "========================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=0' | extract
+echo
+echo
+
+
 --EXPECT--
 01. Seed 5 Vehicles (V1..V5), each with speed @ 2026-04-28T10:00:00Z
 ====================================================================
@@ -113,6 +127,18 @@ done
 =============================================================
   HTTP/1.1 200 OK
   count=2 entities=2 rels=[]
+
+
+06. count-only — ?count=true&limit=0 → count=5, 0 entities (§ 6.4.6)
+===================================================================
+  HTTP/1.1 200 OK
+  count=5 entities=0 rels=['next']
+
+
+07. limit=0 without count → 400 (§ 6.4.6)
+=========================================
+  HTTP/1.1 400 Bad Request
+  count=- entities=1 rels=[]
 
 
 --TEARDOWN--

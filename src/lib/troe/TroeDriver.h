@@ -133,9 +133,10 @@ typedef struct TroeQueryFilter
   char**       typeV;        // NULL-terminated list of expanded type IRIs
 
   // Pagination (multi-entity query only).
-  int          limit;        // 0 = unset (caller defaults)
+  int          limit;        // 0 = unset (caller defaults) OR explicit 0 — see limitGiven
   int          offset;       // 0 = unset
   bool         count;        // ?count=true — fill TroeRangeInfo.entityCount (§ 6.4.6)
+  bool         limitGiven;   // limit URL param was present → limit==0 is an explicit count-only page
 
   // Per-entity attribute-instance cap (§ 6.3.10 temporal pagination).
   // Applied when ?lastN is NOT supplied; ignored when lastN > 0.

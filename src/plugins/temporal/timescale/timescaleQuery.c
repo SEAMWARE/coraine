@@ -835,7 +835,10 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   Kjson*  kjsonP = swRest.kjsonP;
   KjNode* arrP   = kjArray(kjsonP, NULL);
 
-  int limit  = (fP->limit > 0) ? fP->limit : 1000;
+  // limitGiven distinguishes an explicit limit=0 (count-only page) from an
+  // absent limit (broker default). limit=0 → fetch LIMIT 1 (to set
+  // moreEntities) but build 0 docs; the COUNT(*) still runs under ?count.
+  int limit  = fP->limitGiven ? fP->limit : 1000;
   int offset = (fP->offset > 0) ? fP->offset : 0;
 
   // Entity-level selectors.
