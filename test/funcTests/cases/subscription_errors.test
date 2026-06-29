@@ -427,12 +427,12 @@ Content-Length: 185
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 186
+Content-Length: 164
 
 {
-  "detail": "Subscription 'notification' is mandatory for create",
+  "detail": "Subscription::notification",
   "status": 400,
-  "title": "Missing Notification",
+  "title": "Mandatory field missing",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

@@ -178,6 +178,34 @@ echo
 echo
 
 
+echo "22. PATCH a partial 'notification' (only 'format') → 204 (a fragment need not re-send the endpoint)"
+echo "=================================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "concise"}}' | grep HTTP
+echo
+echo
+
+
+echo "23. Create a periodic subscription (timeInterval) → 201"
+echo "======================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S2",
+  "type": "Subscription",
+  "entities": [{"type": "Building"}],
+  "timeInterval": 30,
+  "notification": {"endpoint": {"uri": "http://localhost:9999/n"}}
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "24. PATCH deleting 'timeInterval' from the periodic subscription → 400 (would un-periodic it)"
+echo "============================================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"timeInterval": "urn:ngsi-ld:null"}'
+echo
+echo
+
+
 --EXPECT--
 01. Create a valid subscription → 201
 =====================================
@@ -368,7 +396,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "'notification.endpoint' is mandatory",
+  "detail": "'notification.format' must be one of normalized, concise, simplified, keyValues",
   "status": 400,
   "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -434,7 +462,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "Subscription must have 'entities' or 'watchedAttributes'",
   "status": 400,
-  "title": "Invalid Subscription",
+  "title": "Missing Filter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -483,6 +511,32 @@ HTTP/1.1 204 No Content
       "uri": "http://localhost:9999/n"
   "watchedAttributes": [
     "temperature"
+
+
+22. PATCH a partial 'notification' (only 'format') → 204 (a fragment need not re-send the endpoint)
+==================================================================================================
+HTTP/1.1 204 No Content
+
+
+23. Create a periodic subscription (timeInterval) → 201
+=======================================================
+HTTP/1.1 201 Created
+
+
+24. PATCH deleting 'timeInterval' from the periodic subscription → 400 (would un-periodic it)
+============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'timeInterval' cannot be deleted from a periodic subscription",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 --TEARDOWN--

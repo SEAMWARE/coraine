@@ -102,9 +102,11 @@ bool postSubscriptions(void)
   // Must have a JSON payload
   //
   //
-  // Validate the subscription
+  // Validate the subscription. The notification format is parsed here and
+  // carried to ldSubCacheItemAdd below, so the string is matched only once.
   //
-  if (ldCheckSubscription(subP, LdOpCreateSubscription, &swRest.kalloc) == false)
+  LdFormat notifFormat = LdFormatNone;
+  if (ldCheckSubscription(subP, LdOpCreateSubscription, /*merged*/false, &notifFormat, &swRest.kalloc) == false)
     return true;
 
   //
@@ -382,7 +384,7 @@ bool postSubscriptions(void)
     ldSubCacheWrLock(subCacheP);
     if (subCacheP != NULL)
     {
-      cachedP = ldSubCacheItemAdd(subCacheP, subP, qExprForCache);
+      cachedP = ldSubCacheItemAdd(subCacheP, subP, qExprForCache, notifFormat);
       if (cachedP != NULL)
         ldSubCacheItemPin(cachedP);
     }

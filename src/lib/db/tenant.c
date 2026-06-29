@@ -329,7 +329,7 @@ static void tenantSubCacheLoad(Tenant* tP)
 
     if (isCsr && tP->regSubCacheP != NULL)
     {
-      ldSubCacheItemAdd((LdSubCache*) tP->regSubCacheP, subP, NULL);
+      ldSubCacheItemAdd((LdSubCache*) tP->regSubCacheP, subP, NULL, LdFormatUnset);
       csrCount++;
       continue;
     }
@@ -344,7 +344,7 @@ static void tenantSubCacheLoad(Tenant* tP)
     }
     else if (!isPernot && tP->subCacheP != NULL)
     {
-      ldSubCacheItemAdd((LdSubCache*) tP->subCacheP, subP, NULL);
+      ldSubCacheItemAdd((LdSubCache*) tP->subCacheP, subP, NULL, LdFormatUnset);
       normalCount++;
     }
   }

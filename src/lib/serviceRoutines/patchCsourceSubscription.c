@@ -48,7 +48,11 @@ bool patchCsourceSubscription(void)
   const char* subId    = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 
-  if (ldCheckSubscription(fragment, LdOpUpdateCsourceSubscription, &swRest.kalloc) == false)
+  // Fragment validation only. The post-merge re-validation (and single-parse
+  // format capture) for the csource-sub PATCH path is part of the deferred
+  // registration/csource validation work — for now the format is re-derived
+  // from the tree at cache time (LdFormatUnset below).
+  if (ldCheckSubscription(fragment, LdOpUpdateCsourceSubscription, /*merged*/false, NULL, &swRest.kalloc) == false)
     return true;
 
   // expiresAt-past check
@@ -169,7 +173,7 @@ bool patchCsourceSubscription(void)
   //
   KjNode* newTree = kjClone(NULL, subTree);
   ldSubCacheItemRemove(cacheP, subId);
-  LdSubCacheItem* newItemP = ldSubCacheItemAdd(cacheP, newTree, NULL);
+  LdSubCacheItem* newItemP = ldSubCacheItemAdd(cacheP, newTree, NULL, LdFormatUnset);
   kjFree(newTree);   // ItemAdd deep-clones its input; the intermediate is ours to free
 
   // Pin the rebuilt item and drop the wrlock before the reg-touching notify.

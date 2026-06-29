@@ -62,7 +62,8 @@ bool postCsourceSubscriptions(void)
 {
   KjNode* subP = swRest.in.requestTree;
 
-  if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, &swRest.kalloc) == false)
+  LdFormat notifFormat = LdFormatNone;
+  if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, /*merged*/false, &notifFormat, &swRest.kalloc) == false)
     return true;
 
   // § 5.11.7 — timeInterval drives periodic CsourceNotifications.
@@ -218,7 +219,7 @@ bool postCsourceSubscriptions(void)
   ldSubCacheWrLock(regSubCacheP);
   if (regSubCacheP != NULL)
   {
-    cacheItem = ldSubCacheItemAdd(regSubCacheP, subP, NULL);
+    cacheItem = ldSubCacheItemAdd(regSubCacheP, subP, NULL, notifFormat);
     if (cacheItem != NULL)
     {
       cacheItem->timeInterval = timeIntervalSec;

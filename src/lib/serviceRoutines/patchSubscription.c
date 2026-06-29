@@ -55,42 +55,6 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 
 // -----------------------------------------------------------------------------
 //
-// mandatoryAfterMerge - § 5.8.3 / § 5.2.12: the merge must not strip the
-// subscription below its mandatory shape. The fragment validator already
-// rejects a direct delete of 'notification' or 'notification.endpoint' (a
-// urn:ngsi-ld:null there fails the object check), but deleting
-// 'notification.endpoint.uri' or deleting the whole entity/attribute selector
-// only becomes visible in the MERGED result. A valid Subscription always has a
-// 'notification.endpoint.uri' and at least one of 'entities' /
-// 'watchedAttributes' — a PATCH must not be able to persist one that lacks them.
-//
-static bool mandatoryAfterMerge(KjNode* subP)
-{
-  KjNode* notifP = kjLookup(subP, LD_VOCAB_NOTIFICATION);
-  KjNode* epP    = (notifP != NULL) ? kjLookup(notifP, LD_VOCAB_ENDPOINT) : NULL;
-  KjNode* uriP   = (epP    != NULL) ? kjLookup(epP, LD_VOCAB_URI)         : NULL;
-
-  if (uriP == NULL || uriP->type != KjString || uriP->value.s[0] == 0)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
-            "'notification.endpoint.uri' is mandatory and cannot be deleted");
-    return false;
-  }
-
-  if (kjLookup(subP, LD_VOCAB_ENTITIES) == NULL && kjLookup(subP, LD_VOCAB_WATCHED_ATTRS) == NULL)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
-            "Subscription must have 'entities' or 'watchedAttributes'");
-    return false;
-  }
-
-  return true;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // patchSubscription -
 //
 bool patchSubscription(void)
@@ -143,7 +107,10 @@ bool patchSubscription(void)
   //
   // Validate the subscription fragment
   //
-  if (ldCheckSubscription(fragment, LdOpUpdateSubscription, &swRest.kalloc) == false)
+  // Fragment validation only (well-formedness). The format value isn't parsed
+  // here — it's validated and captured from the merged result below, so the
+  // string is matched once. NULL: nothing to capture from the fragment.
+  if (ldCheckSubscription(fragment, LdOpUpdateSubscription, /*merged*/false, NULL, &swRest.kalloc) == false)
     return true;
 
   //
@@ -245,15 +212,33 @@ bool patchSubscription(void)
   ldRegSubMerge(mergedSubP, fragment, swRest.kjsonP);
 
   //
-  // § 5.8.3 — re-validate the mandatory shape of the merged result before
-  // persisting: a PATCH that deletes endpoint.uri or the whole entity/attribute
-  // selector would otherwise store an unusable subscription (the fragment
-  // validator can't see those holes — they only exist post-merge).
+  // § 5.8.3 — re-validate the COMPLETE merged result before persisting. The
+  // fragment validator only sees the members the PATCH carried; invariants that
+  // span the whole document (a deleted endpoint.uri, a deleted entity/attribute
+  // selector, a deleted notification) only become visible post-merge. Running
+  // the Create-grade validator in 'merged' mode enforces the full mandatory /
+  // consistency shape while tolerating the server-owned fields (status, …) the
+  // stored document legitimately carries.
   //
-  if (mandatoryAfterMerge(mergedSubP) == false)
+  LdFormat notifFormat = LdFormatNone;
+  if (ldCheckSubscription(mergedSubP, LdOpCreateSubscription, /*merged*/true, &notifFormat, &swRest.kalloc) == false)
   {
     ldSubCacheUnlock(subCacheP);
-    return true;  // mandatoryAfterMerge already raised the 400
+    return true;  // ldCheckSubscription already raised the 400
+  }
+
+  //
+  // A periodic subscription must keep its 'timeInterval'. The Create-grade
+  // validator doesn't require one (a normal subscription has none), so a PATCH
+  // that deletes timeInterval from a periodic sub would otherwise slip through
+  // and leave it neither periodic nor watch-driven — guard it explicitly.
+  //
+  if (existingIsPernot && kjLookup(mergedSubP, "timeInterval") == NULL)
+  {
+    ldSubCacheUnlock(subCacheP);
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+            "'timeInterval' cannot be deleted from a periodic subscription");
+    return true;
   }
 
   //
@@ -304,7 +289,7 @@ bool patchSubscription(void)
 
     ldSubCacheItemRemove(subCacheP, subId);
 
-    newItemP = ldSubCacheItemAdd(subCacheP, mergedSubP, NULL);
+    newItemP = ldSubCacheItemAdd(subCacheP, mergedSubP, NULL, notifFormat);
 
     // Reattach the subordinate mapping that survived the cache rebuild.
     if (newItemP != NULL && savedSubordinateP != NULL)
