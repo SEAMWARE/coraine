@@ -1,0 +1,189 @@
+#
+# FILE            entity_patch_geoproperty_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A PATCH that leaves a GeoProperty holding an invalid GeoJSON geometry must be
+# rejected with 400 — not persisted, and not surfaced as a 500. A merge/update
+# fragment that omits the attribute type is validated as a plain Property, so a
+# wholesale-replaced GeoProperty value such as {"type":"Polygon"} (no
+# coordinates) used to reach the storage layer (a 500 from the geo index, or a
+# silently broken document). The merged GeoProperty is now re-validated before
+# it is persisted (§ 5.2.6.4.5 — a GeoProperty value shall be a GeoJSON
+# Geometry), on every PATCH path: Merge Entity, Partial Attribute Update, and
+# Update Attributes.
+#
+--NAME--
+PATCH leaving an invalid GeoProperty geometry is rejected (400, not persisted)
+
+--TAGS--
+entity validation geo
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. Seed an entity with a valid Point GeoProperty -> 201"
+echo "======================================================="
+payload='{
+  "id": "urn:ngsi-ld:GE1",
+  "type": "T",
+  "myGeo": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "02. Merge Entity: geometry -> Polygon with no coordinates -> 400"
+echo "==============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1 --payload '{"myGeo":{"value":{"type":"Polygon"}}}'
+echo
+echo
+
+
+echo "03. Partial Attribute Update: value -> Polygon with no coordinates -> 400"
+echo "========================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs/myGeo --payload '{"value":{"type":"Polygon"}}'
+echo
+echo
+
+
+echo "04. Update Attributes (explicit GeoProperty): bad geometry -> 400"
+echo "================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs --payload '{"myGeo":{"type":"GeoProperty","value":{"type":"Polygon"}}}'
+echo
+echo
+
+
+echo "05. The stored GeoProperty is untouched by the rejected PATCHes"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1?options=keyValues
+echo
+echo
+
+
+echo "06. A valid GeoProperty PATCH still succeeds -> 204"
+echo "==================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs/myGeo --payload '{"value":{"type":"Point","coordinates":[5,6]}}' | grep HTTP
+echo
+echo
+
+
+echo "07. GET confirms the valid update persisted"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1?options=keyValues
+echo
+echo
+
+
+--EXPECT--
+01. Seed an entity with a valid Point GeoProperty -> 201
+=======================================================
+HTTP/1.1 201 Created
+
+
+02. Merge Entity: geometry -> Polygon with no coordinates -> 400
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 278
+
+{
+  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/myGeo' type from 'GeoProperty' to 'Property' in a Merge Entity operation",
+  "status": 400,
+  "title": "Attribute Type Change",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Partial Attribute Update: value -> Polygon with no coordinates -> 400
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Update Attributes (explicit GeoProperty): bad geometry -> 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. The stored GeoProperty is untouched by the rejected PATCHes
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 128
+
+{
+  "id": "urn:ngsi-ld:GE1",
+  "myGeo": {
+    "coordinates": [
+      1,
+      2
+    ],
+    "type": "Point"
+  },
+  "type": "T"
+}
+
+
+
+06. A valid GeoProperty PATCH still succeeds -> 204
+===================================================
+HTTP/1.1 204 No Content
+
+
+07. GET confirms the valid update persisted
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 128
+
+{
+  "id": "urn:ngsi-ld:GE1",
+  "myGeo": {
+    "coordinates": [
+      5,
+      6
+    ],
+    "type": "Point"
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+
+swBrokerStop

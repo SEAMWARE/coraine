@@ -34,7 +34,7 @@
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_CREATED_AT
 #include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
-#include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR
+#include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"      // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocEntityMerge.h"    // Own interface
@@ -178,8 +178,20 @@ int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
     bson_error_t err;
     if (!mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err))
     {
-      KT_E("mongoc: entityChangesApply update_one failed: %s", err.message);
-      result = DB_ERR;
+      // "Can't extract geo keys" — a merged GeoProperty value is well-formed
+      // JSON but not a valid geometry (e.g. a wholesale-replaced value with no
+      // coordinates). Surface as a client error so the caller maps it to 400
+      // rather than a misleading 500. Mirrors mongocEntityCreate.
+      if (strstr(err.message, "Can't extract geo keys") != NULL)
+      {
+        KT_E("mongoc: entityChangesApply rejected by 2dsphere: %s", err.message);
+        result = DB_INVALID_GEOMETRY;
+      }
+      else
+      {
+        KT_E("mongoc: entityChangesApply update_one failed: %s", err.message);
+        result = DB_ERR;
+      }
     }
 
     bson_destroy(&filter);

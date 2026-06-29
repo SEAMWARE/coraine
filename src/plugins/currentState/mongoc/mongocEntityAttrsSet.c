@@ -25,7 +25,7 @@
 #include "swNgsild/LdVocab.h"                          // LD_VOCAB_MODIFIED_AT
 #include "swNgsild/ldEntityAttrsSet.h"                 // ldEntityAttrsSet
 
-#include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR
+#include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocBsonToKjTree.h"    // mongocBsonToKjTree
 #include "currentState/mongoc/mongocKjTreeToBson.h"    // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"       // mongocEscapeDotsInKey
@@ -185,8 +185,19 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
 
     if (!ok)
     {
-      KT_E("mongoc: entityAttrsSet update_one failed: %s", err.message);
-      result = DB_ERR;
+      // "Can't extract geo keys" — a set GeoProperty value is well-formed JSON
+      // but not a valid geometry. Surface as a client error (→ 400) rather than
+      // a misleading 500. Mirrors mongocEntityCreate.
+      if (strstr(err.message, "Can't extract geo keys") != NULL)
+      {
+        KT_E("mongoc: entityAttrsSet rejected by 2dsphere: %s", err.message);
+        result = DB_INVALID_GEOMETRY;
+      }
+      else
+      {
+        KT_E("mongoc: entityAttrsSet update_one failed: %s", err.message);
+        result = DB_ERR;
+      }
     }
   }
 

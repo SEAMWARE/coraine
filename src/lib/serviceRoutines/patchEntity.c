@@ -361,7 +361,14 @@ bool patchEntity(void)
       if (ldEntityMerge(mergedEntity, fragment, &report, swRest.requestStartTime, swRest.kjsonP) == false)
         return true;
 
-      if (db.entityChangesApply(tenantP, entityId, mergedEntity, &report) != DB_OK)
+      int car = db.entityChangesApply(tenantP, entityId, mergedEntity, &report);
+      if (car == DB_INVALID_GEOMETRY)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",
+                "the merged entity carries an invalid GeoProperty geometry");
+        return true;
+      }
+      if (car != DB_OK)
       {
         ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
                 "database error merging entity '%s'", entityId);

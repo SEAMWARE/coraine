@@ -38,6 +38,8 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdOp.h"                           // LdOpMergeEntity
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
+#include "swNgsild/ldCheckAttribute.h"               // ldCheckAttribute
+#include "swNgsild/ldAttrTypeDetect.h"               // ldAttrTypeDetect
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
@@ -367,6 +369,29 @@ bool patchEntityAttr(void)
           }
         }
 
+        // The attribute already exists, so its type is fixed by the stored
+        // entity (a Partial Attribute Update must not change it, § 5.6.4.4). A
+        // bare value-only fragment carries no type, so the earlier ldCheckEntity
+        // validated it as a plain Property and skipped the type-specific value
+        // check (e.g. ldCheckGeo for a GeoProperty). Resolve the type from the
+        // DB and validate the value against it here — so a malformed geometry is
+        // a 400 in the broker, before it ever reaches the storage layer.
+        {
+          // Only when the fragment actually carries a value (ldAttrTypeDetect
+          // != None) — a sub-attribute-only update (e.g. just observedAt) has
+          // no value to validate and must not be forced through the type's
+          // value checks.
+          KjNode* dbInstP = (existingAttr->type == KjObject) ? existingAttr->value.firstChildP : NULL;
+          KjNode* dbTypeP = (dbInstP != NULL) ? kjLookup(dbInstP, "type") : NULL;
+          if (dbTypeP != NULL && dbTypeP->type == KjString &&
+              kjLookup(bodyP, "type") == NULL && ldAttrTypeDetect(bodyP) != LdAttrNone)
+          {
+            kjChildAdd(bodyP, kjString(swRest.kjsonP, "type", dbTypeP->value.s));
+            if (ldCheckAttribute(bodyP, LdOpMergeEntity, LdAttrNone, &swRest.kalloc) == false)
+              return true;
+          }
+        }
+
         ldApiEntityToDbModel(entityFrag, &swRest.kalloc, 0);
 
         //
@@ -380,7 +405,14 @@ bool patchEntityAttr(void)
                                   swRest.requestStartTime, swRest.kjsonP) == false)
           return true;  // ldError already set
 
-        if (db.entityChangesApply(tenantP, entityId, targetEntity, &report) != DB_OK)
+        int car = db.entityChangesApply(tenantP, entityId, targetEntity, &report);
+        if (car == DB_INVALID_GEOMETRY)
+        {
+          ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",
+                  "the updated attribute '%s' carries an invalid GeoProperty geometry", attrWild);
+          return true;
+        }
+        if (car != DB_OK)
         {
           ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
                   "database error updating attribute '%s' on entity '%s'",

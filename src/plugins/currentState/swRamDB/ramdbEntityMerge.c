@@ -30,7 +30,8 @@
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_SCOPE
 #include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
 
-#include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
+#include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_INVALID_GEOMETRY, Tenant
+#include "shared/geoMatch.h"                          // geoEntityValidate
 #include "currentState/swRamDB/ramdbStore.h"          // ramdbEntities
 #include "currentState/swRamDB/ramdbEntityMerge.h"    // Own interface
 
@@ -120,6 +121,15 @@ void ramdbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP
 int ramdbEntityChangesApply(Tenant* tenantP, const char* entityId,
                             KjNode* mergedEntity, LdMergeReport* reportP)
 {
+  // Re-validate the GeoProperty values of the COMPLETE merged entity before it
+  // touches the store. A PATCH/merge fragment that omits the attribute type is
+  // validated as a plain Property (geo check skipped), so a wholesale-replaced
+  // GeoProperty value such as {"type":"Polygon"} (no coordinates) would slip
+  // through and persist as broken geometry. Same DB_INVALID_GEOMETRY → 400
+  // contract as create.
+  if (!geoEntityValidate(mergedEntity))
+    return DB_INVALID_GEOMETRY;
+
   KjNode* entities = ramdbEntities(tenantP);
 
   for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
