@@ -1,0 +1,165 @@
+#
+# FILE            registration_free_property_typed_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Registration free (non-spec) property - typed value-object validation + round-trip (JSON-LD @type coercion)
+
+--TAGS--
+registration validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. Create a registration carrying a free DateTime value-object property -> 201"
+echo "=============================================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:FP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "ts": { "@type": "DateTime", "@value": "2030-01-01T00:00:00Z" }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. GET it back -> the free value-object round-trips verbatim (no lossy transform)"
+echo "================================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:FP1
+echo
+echo
+
+
+echo "03. Create with an INVALID free DateTime value-object -> 400"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:FP2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "ts": { "@type": "DateTime", "@value": "banana" }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. Create with a valid free xsd:integer value-object -> 201"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:FP3",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "weight": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. Create with an INVALID free xsd:integer value-object -> 400"
+echo "=============================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:FP4",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "weight": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": "not-a-number" }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create a registration carrying a free DateTime value-object property -> 201
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:FP1
+Content-Length: 0
+
+
+
+
+02. GET it back -> the free value-object round-trips verbatim (no lossy transform)
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 301
+
+{
+  "endpoint": "http://example.org/cs",
+  "id": "urn:ngsi-ld:CSR:FP1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "ts": {
+    "@type": "DateTime",
+    "@value": "2030-01-01T00:00:00Z"
+  },
+  "type": "ContextSourceRegistration"
+}
+
+
+
+03. Create with an INVALID free DateTime value-object -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "detail": "'https://uri.etsi.org/ngsi-ld/default-context/ts' is bound to @type:xsd:dateTime but value is not a valid ISO 8601 dateTime",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Create with a valid free xsd:integer value-object -> 201
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:FP3
+Content-Length: 0
+
+
+
+
+05. Create with an INVALID free xsd:integer value-object -> 400
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 273
+
+{
+  "detail": "'https://uri.etsi.org/ngsi-ld/default-context/weight' is bound to @type:http://www.w3.org/2001/XMLSchema#integer but value is not a valid integer",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
