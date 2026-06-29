@@ -93,6 +93,27 @@ echo
 echo
 
 
+echo "08. PATCH only endAt (valid against the stored startAt) -> 204 (partial TimeInterval fragment)"
+echo "============================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2030-03-01T00:00:00Z"}}' | grep HTTP
+echo
+echo
+
+
+echo "09. GET the reg -> the stored startAt survives the partial merge, endAt updated"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1
+echo
+echo
+
+
+echo "10. PATCH only endAt before the stored startAt -> 400 (merged ordering still enforced)"
+echo "====================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2029-01-01T00:00:00Z"}}'
+echo
+echo
+
+
 --EXPECT--
 01. Seed an auxiliary registration (retrieve-only) -> 201
 =========================================================
@@ -160,6 +181,57 @@ Content-Length: 206
 07. A valid PATCH on the same reg (description) still succeeds -> 204
 ====================================================================
 HTTP/1.1 204 No Content
+
+
+08. PATCH only endAt (valid against the stored startAt) -> 204 (partial TimeInterval fragment)
+=============================================================================================
+HTTP/1.1 204 No Content
+
+
+09. GET the reg -> the stored startAt survives the partial merge, endAt updated
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 359
+
+{
+  "description": "updated",
+  "endpoint": "http://example.org/cs",
+  "id": "urn:ngsi-ld:CSR:IV1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "observationInterval": {
+    "endAt": "2030-03-01T00:00:00Z",
+    "startAt": "2030-01-01T00:00:00Z"
+  },
+  "type": "ContextSourceRegistration"
+}
+
+
+
+10. PATCH only endAt before the stored startAt -> 400 (merged ordering still enforced)
+=====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 206
+
+{
+  "detail": "'observationInterval.endAt' must be after 'observationInterval.startAt'",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 --TEARDOWN--
