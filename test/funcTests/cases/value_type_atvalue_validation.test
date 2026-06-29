@@ -219,12 +219,12 @@ Content-Length: 237
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 262
+Content-Length: 237
 
 {
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 DateTime for '@type':'DateTime'",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 dateTime",
   "status": 400,
-  "title": "Invalid DateTime Value",
+  "title": "Invalid Value Object",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -235,12 +235,12 @@ Content-Length: 262
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 262
+Content-Length: 237
 
 {
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 DateTime for '@type':'DateTime'",
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 dateTime",
   "status": 400,
-  "title": "Invalid DateTime Value",
+  "title": "Invalid Value Object",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

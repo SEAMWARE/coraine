@@ -1,0 +1,105 @@
+#
+# FILE            entity_attr_typed_value_object.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Entity attribute typed value-object - @value validated against @type (DateTime + xsd)
+
+--TAGS--
+entity validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. Property value {@type:DateTime, @value: valid ISO} -> 201"
+echo "============================================================="
+payload='{ "id": "urn:ngsi-ld:E1", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00Z" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Property value {@type:DateTime, @value: 'banana'} -> 400"
+echo "==========================================================="
+payload='{ "id": "urn:ngsi-ld:E2", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "banana" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Property value {@type:xsd:integer, @value: 42} -> 201"
+echo "========================================================="
+payload='{ "id": "urn:ngsi-ld:E3", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": 42 } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Property value {@type:xsd:integer, @value: 'banana'} -> 400 (previously slipped through)"
+echo "==========================================================================================="
+payload='{ "id": "urn:ngsi-ld:E4", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": "banana" } } }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Property value {@type:DateTime, @value: valid ISO} -> 201
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. Property value {@type:DateTime, @value: 'banana'} -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 237
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid ISO 8601 dateTime",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Property value {@type:xsd:integer, @value: 42} -> 201
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E3
+Content-Length: 0
+
+
+
+
+04. Property value {@type:xsd:integer, @value: 'banana'} -> 400 (previously slipped through)
+===========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid integer",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
