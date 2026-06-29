@@ -42,7 +42,7 @@ payload='{
   "information":[
     {
       "entities":   [{"type":"Vehicle"}],
-      "properties": ["speed"]
+      "propertyNames": ["speed"]
     }
   ]
 }'

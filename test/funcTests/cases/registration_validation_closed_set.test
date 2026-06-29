@@ -1,0 +1,428 @@
+#
+# FILE            registration_validation_closed_set.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+Context Source Registration - closed-set members, idPattern regex, management ranges, read-only strip
+
+--TAGS--
+error registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# 01. management.timeout = 0 - 400 (must be greater than 0, § 5.2.6.6.6)
+# 02. management.cooldown = 0 - 400
+# 03. management.timeout negative - 400
+# 04. management.timeout positive - 201
+# 05. entities[].idPattern invalid regex - 400
+# 06. entities[].idPattern empty - 400
+# 07. entities[].idPattern valid regex - 201
+# 08. entities[] item unknown member - 400 (closed set § 5.2.8)
+# 09. information[] element unknown member - 400 (closed set § 5.2.10)
+# 10. contextSourceInfo item unknown member - 400 (closed set § 5.2.22)
+# 11. management unknown member - 400 (closed set § 5.2.34)
+# 12. read-only members on create stripped (status/timesSent/...) - 201
+# 13. GET of #12 - read-only members are absent
+# 14. top-level free property still allowed - 201
+#
+
+echo "01. management.timeout = 0 - 400"
+echo "==============================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "management": { "timeout": 0 }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. management.cooldown = 0 - 400"
+echo "================================"
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "management": { "cooldown": 0 }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. management.timeout negative - 400"
+echo "===================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "management": { "timeout": -5 }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. management.timeout positive - 201"
+echo "===================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "id": "urn:ngsi-ld:Reg:mgmt-ok",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "management": { "timeout": 5, "cooldown": 2 }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. entities[].idPattern invalid regex - 400"
+echo "==========================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X", "idPattern": "[" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "06. entities[].idPattern empty - 400"
+echo "==================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X", "idPattern": "" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "07. entities[].idPattern valid regex - 201"
+echo "========================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "id": "urn:ngsi-ld:Reg:idpat-ok",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X", "idPattern": "urn:ngsi-ld:X:.*" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "08. entities[] item unknown member - 400"
+echo "======================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X", "bogus": "y" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "09. information[] element unknown member - 400"
+echo "============================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ], "bogus": "y" } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "10. contextSourceInfo item unknown member - 400"
+echo "=============================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "contextSourceInfo": [ { "key": "accept", "value": "application/json", "bogus": "y" } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "11. management unknown member - 400"
+echo "=================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "management": { "bogus": "y" }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "12. read-only members on create stripped - 201"
+echo "============================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "id": "urn:ngsi-ld:Reg:readonly",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "status": "failed",
+  "timesSent": 99,
+  "timesFailed": 7,
+  "lastSuccess": "2020-01-01T00:00:00Z",
+  "lastFailure": "2020-01-02T00:00:00Z"
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "13. GET of #12 - read-only members are absent"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:readonly
+echo
+echo
+
+
+echo "14. top-level free property still allowed - 201"
+echo "=============================================="
+payload='{
+  "type": "ContextSourceRegistration",
+  "id": "urn:ngsi-ld:Reg:freeprop",
+  "endpoint": "http://x",
+  "information": [ { "entities": [ { "type": "X" } ] } ],
+  "myFreeProperty": "anything"
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. management.timeout = 0 - 400
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 178
+
+{
+  "detail": "'management.timeout' must be greater than 0",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. management.cooldown = 0 - 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 179
+
+{
+  "detail": "'management.cooldown' must be greater than 0",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. management.timeout negative - 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 178
+
+{
+  "detail": "'management.timeout' must be greater than 0",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. management.timeout positive - 201
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:mgmt-ok
+Content-Length: 0
+
+
+
+
+05. entities[].idPattern invalid regex - 400
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "'entities[].idPattern' is not a valid regular expression",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. entities[].idPattern empty - 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "'entities[].idPattern' must not be empty",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. entities[].idPattern valid regex - 201
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:idpat-ok
+Content-Length: 0
+
+
+
+
+08. entities[] item unknown member - 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 255
+
+{
+  "detail": "'entities[]' item has unknown member 'https://uri.etsi.org/ngsi-ld/default-context/bogus' (allowed: type, id, idPattern)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. information[] element unknown member - 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 300
+
+{
+  "detail": "'information[]' element has unknown member 'https://uri.etsi.org/ngsi-ld/default-context/bogus' (allowed: entities, attributeNames, propertyNames, relationshipNames)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. contextSourceInfo item unknown member - 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 253
+
+{
+  "detail": "'contextSourceInfo' item has unknown member 'https://uri.etsi.org/ngsi-ld/default-context/bogus' (allowed: key, value)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. management unknown member - 400
+==================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 274
+
+{
+  "detail": "'management' has unknown member 'https://uri.etsi.org/ngsi-ld/default-context/bogus' (allowed: cacheDuration, timeout, cooldown, localOnly)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. read-only members on create stripped - 201
+=============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:readonly
+Content-Length: 0
+
+
+
+
+13. GET of #12 - read-only members are absent
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 210
+
+{
+  "endpoint": "http://x",
+  "id": "urn:ngsi-ld:Reg:readonly",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "X"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+14. top-level free property still allowed - 201
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:freeprop
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

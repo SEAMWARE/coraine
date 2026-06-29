@@ -351,10 +351,10 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 176
+Content-Length: 178
 
 {
-  "detail": "'management.timeout' must be non-negative",
+  "detail": "'management.timeout' must be greater than 0",
   "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
