@@ -73,7 +73,8 @@
 #include "swNgsild/ldDistOp.h"                       // ldDistOp*
 #include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
-#include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR
+#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_BAD_INPUT
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postEntityBatchMerge.h"    // Own interface
@@ -771,8 +772,24 @@ bool postEntityBatchMerge(void)
         continue;
       }
 
-      // Batch Merge = true RFC 7396 deep-merge (§ 5.6.10 → § 10.2.9).
-      ldEntityMerge(targetsV[fi], fragP, &reportsV[fi], swRest.requestStartTime, swRest.kjsonP);
+      // Batch Merge = true RFC 7396 deep-merge (§ 5.6.10 → § 10.2.9). Like the
+      // single Merge Entity it may NOT change an attribute's type (§ 10.3.5
+      // delegates to the Merge Entity behaviour). ldEntityMerge rejects such a
+      // fragment — and any other mid-merge problem — by returning false and
+      // setting the error. Capture it per-fragment NOW (the next fragment
+      // overwrites the shared problemDetail buffer), then skip persisting this
+      // one: no extra DB access, the single bulk write already skips non-DB_OK
+      // slots.
+      if (ldEntityMerge(targetsV[fi], fragP, &reportsV[fi], swRest.requestStartTime, swRest.kjsonP) == false)
+      {
+        KjNode*     fidP = kjLookup(fragP, "id");
+        const char* fid  = (fidP != NULL && fidP->type == KjString) ? fidP->value.s : "";
+        int         st   = (swRest.out.httpStatusCode >= 400) ? swRest.out.httpStatusCode : 400;
+        addBatchError(errorsP, fid, st, swRest.out.problemType, swRest.out.problemTitle,
+                      kaStrdup(&swRest.kalloc, swRest.out.problemDetail), NULL);
+        resultsV[fi] = DB_BAD_INPUT;   // != DB_OK → bulk write skips; switch skips (already reported)
+        continue;
+      }
       snapshotsV[fi] = targetsV[fi];
       resultsV[fi]   = DB_OK;
     }
@@ -813,6 +830,11 @@ bool postEntityBatchMerge(void)
           addBatchError(errorsP, eid, 404,
                         LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                         "entity does not exist", NULL);
+          break;
+        case DB_BAD_INPUT:
+          // The fragment was rejected by ldEntityMerge (e.g. an attribute
+          // type change) and already reported with its precise per-fragment
+          // detail in the merge loop above — nothing more to do here.
           break;
         default:
           addBatchError(errorsP, eid, 500,
