@@ -1,0 +1,166 @@
+#
+# FILE            registration_patch_merged_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A CSourceRegistration PATCH re-validates the COMPLETE merged result (§ 5.9.3),
+# not just the fragment — so cross-member invariants that only become visible
+# after the merge (auxiliary mode vs write operations, exclusive mode vs the
+# information[] structure, a TimeInterval whose startAt/endAt straddle the
+# deep-merge) are caught with a 400 instead of persisting an inconsistent reg.
+#
+--NAME--
+CSourceRegistration PATCH - merged-result re-validation of cross-member invariants
+
+--TAGS--
+registration validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. Seed an auxiliary registration (retrieve-only) -> 201"
+echo "========================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:AUX1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "mode": "auxiliary",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "operations": ["retrieveEntity"]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "02. PATCH a write operation onto the auxiliary reg -> 400 (auxiliary is retrieve-only)"
+echo "====================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:AUX1 --payload '{"operations":["createEntity"]}'
+echo
+echo
+
+
+echo "03. Seed an inclusive registration with a loose information[] (type-only) -> 201"
+echo "==============================================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:INC1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "mode": "inclusive",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "04. PATCH mode->exclusive onto the loose reg -> 400 (exclusive needs id + attributeNames, § 9.3.3)"
+echo "================================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:INC1 --payload '{"mode":"exclusive"}'
+echo
+echo
+
+
+echo "05. Seed a registration with a valid observationInterval -> 201"
+echo "==============================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:IV1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "observationInterval": { "startAt": "2030-01-01T00:00:00Z", "endAt": "2030-06-01T00:00:00Z" }
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "06. PATCH startAt past the stored endAt (deep-merge) -> 400 (startAt must be < endAt)"
+echo "===================================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"startAt":"2030-12-01T00:00:00Z"}}'
+echo
+echo
+
+
+echo "07. A valid PATCH on the same reg (description) still succeeds -> 204"
+echo "===================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"description":"updated"}' | grep HTTP
+echo
+echo
+
+
+--EXPECT--
+01. Seed an auxiliary registration (retrieve-only) -> 201
+=========================================================
+HTTP/1.1 201 Created
+
+
+02. PATCH a write operation onto the auxiliary reg -> 400 (auxiliary is retrieve-only)
+=====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "auxiliary registration 'operations' must be one of: retrieveOps, retrieveEntity, queryEntity (got 'createEntity')",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Seed an inclusive registration with a loose information[] (type-only) -> 201
+===============================================================================
+HTTP/1.1 201 Created
+
+
+04. PATCH mode->exclusive onto the loose reg -> 400 (exclusive needs id + attributeNames, § 9.3.3)
+=================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 274
+
+{
+  "detail": "exclusive Registration 'entities[]' entry must specify a specific 'id' (idPattern or type-only group selectors are not supported, § 9.3.3)",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Seed a registration with a valid observationInterval -> 201
+===============================================================
+HTTP/1.1 201 Created
+
+
+06. PATCH startAt past the stored endAt (deep-merge) -> 400 (startAt must be < endAt)
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 206
+
+{
+  "detail": "'observationInterval.endAt' must be after 'observationInterval.startAt'",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. A valid PATCH on the same reg (description) still succeeds -> 204
+====================================================================
+HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+swBrokerStop

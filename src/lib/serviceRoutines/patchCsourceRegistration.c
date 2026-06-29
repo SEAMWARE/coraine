@@ -36,7 +36,7 @@ bool patchCsourceRegistration(void)
   const char* regId    = swRest.in.wildcard[0];
   KjNode*     fragment = swRest.in.requestTree;
 
-  if (ldCheckRegistration(fragment, LdOpUpdateRegistration, &swRest.kalloc) == false)
+  if (ldCheckRegistration(fragment, LdOpUpdateRegistration, /*merged*/false, &swRest.kalloc) == false)
     return true;
 
   if (db.registrationUpdate == NULL)
@@ -96,6 +96,22 @@ bool patchCsourceRegistration(void)
   }
 
   ldRegSubMerge(mergedRegP, fragment, swRest.kjsonP);
+
+  //
+  // § 5.9.3 — re-validate the COMPLETE merged result before persisting. The
+  // fragment validator only sees the members the PATCH carried; cross-member
+  // invariants — auxiliary mode vs write operations, exclusive mode vs the
+  // information[] structure (§ 9.3.3), a TimeInterval whose startAt/endAt
+  // straddle the deep-merge — only become visible in the merged document.
+  // Running the Create-grade validator in 'merged' mode enforces the full
+  // mandatory/consistency shape while tolerating a stored-and-elapsed expiresAt
+  // and the server-owned fields the stored registration carries.
+  //
+  if (ldCheckRegistration(mergedRegP, LdOpCreateRegistration, /*merged*/true, &swRest.kalloc) == false)
+  {
+    ldRegCacheUnlock(regCacheP);
+    return true;  // ldCheckRegistration already raised the 400
+  }
 
   //
   // § 12.2.3.4 — the merge may have turned the registration exclusive/redirect

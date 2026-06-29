@@ -80,7 +80,7 @@ bool postCsourceRegistration(void)
   KjNode* regP = swRest.in.requestTree;
 
   // Validate the registration
-  if (ldCheckRegistration(regP, LdOpCreateRegistration, &swRest.kalloc) == false)
+  if (ldCheckRegistration(regP, LdOpCreateRegistration, /*merged*/false, &swRest.kalloc) == false)
     return true;
 
   // Extract or generate registration id
