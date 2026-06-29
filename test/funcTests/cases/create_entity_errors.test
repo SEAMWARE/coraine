@@ -2169,11 +2169,17 @@ Content-Length: 178
 
 68. type array element is empty string
 ======================================
-HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
-Location: /ngsi-ld/v1/entities/urn:e68
-Content-Length: 0
+Content-Type: application/json
+Content-Length: 188
 
+{
+  "detail": "Entity 'type' array elements must not be empty strings",
+  "status": 400,
+  "title": "Invalid Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
