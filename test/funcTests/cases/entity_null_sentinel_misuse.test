@@ -52,10 +52,10 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 247
+Content-Length: 240
 
 {
-  "detail": "'urn:ngsi-ld:null' is not allowed as the value/object of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
   "status": 400,
   "title": "Invalid Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -68,10 +68,10 @@ Content-Length: 247
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 245
+Content-Length: 238
 
 {
-  "detail": "'urn:ngsi-ld:null' is not allowed as the value/object of attribute 'https://uri.etsi.org/ngsi-ld/default-context/rel'",
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/rel'",
   "status": 400,
   "title": "Invalid Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -91,10 +91,10 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 247
+Content-Length: 240
 
 {
-  "detail": "'urn:ngsi-ld:null' is not allowed as the value/object of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
   "status": 400,
   "title": "Invalid Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

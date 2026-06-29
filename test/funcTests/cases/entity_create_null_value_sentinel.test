@@ -1,0 +1,144 @@
+#
+# FILE            entity_create_null_value_sentinel.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The 'urn:ngsi-ld:null' sentinel is the NGSI-LD Null delete marker. On a create
+# it can delete nothing, so it is never valid data and must be rejected with 400
+# (§ 4.5.5) — for a Property value, a Relationship object, a VocabProperty vocab,
+# and as an element of a ListProperty/ListRelationship. The one exception is a
+# JsonProperty 'json' value, which is opaque (value-opaqueness): there the string
+# is literal JSON data, not a marker, and is accepted.
+#
+--NAME--
+NGSI-LD Null sentinel as a value is rejected on create (except opaque JsonProperty)
+
+--TAGS--
+entity validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. VocabProperty vocab = sentinel -> 400"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","cat":{"type":"VocabProperty","vocab":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "02. ListProperty valueList with a sentinel element -> 400"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","l":{"type":"ListProperty","valueList":[1,"urn:ngsi-ld:null",3]}}'
+echo
+echo
+
+
+echo "03. ListRelationship objectList with a sentinel element -> 400"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E3","type":"T","lr":{"type":"ListRelationship","objectList":["urn:ngsi-ld:Thing:1","urn:ngsi-ld:null"]}}'
+echo
+echo
+
+
+echo "04. Property value = sentinel -> 400 (baseline)"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E4","type":"T","p":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "05. JsonProperty json = sentinel -> 201 (opaque, literal data)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E5","type":"T","j":{"type":"JsonProperty","json":"urn:ngsi-ld:null"}}' | grep HTTP
+echo
+echo
+
+
+echo "06. Valid VocabProperty + ListProperty -> 201"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E6","type":"T","cat":{"type":"VocabProperty","vocab":"feline"},"l":{"type":"ListProperty","valueList":[1,2,3]}}' | grep HTTP
+echo
+echo
+
+
+--EXPECT--
+01. VocabProperty vocab = sentinel -> 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 238
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/cat'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. ListProperty valueList with a sentinel element -> 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 241
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as a list element of attribute 'https://uri.etsi.org/ngsi-ld/default-context/l'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. ListRelationship objectList with a sentinel element -> 400
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 242
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as a list element of attribute 'https://uri.etsi.org/ngsi-ld/default-context/lr'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Property value = sentinel -> 400 (baseline)
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 236
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/p'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. JsonProperty json = sentinel -> 201 (opaque, literal data)
+==============================================================
+HTTP/1.1 201 Created
+
+
+06. Valid VocabProperty + ListProperty -> 201
+=============================================
+HTTP/1.1 201 Created
+
+
+--TEARDOWN--
+swBrokerStop

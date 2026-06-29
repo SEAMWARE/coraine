@@ -1,0 +1,121 @@
+#
+# FILE            datetime_calendar_day_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A DateTime (here an 'observedAt') must be a real calendar date: the day-of-
+# month is validated against the specific month and year. A bare 1..31 range
+# check would let 2023-02-31 / 2023-04-31 / 2023-02-29 through, and the
+# ISO->epoch converter would then silently normalize them to a different instant
+# that is stored as the timestamp. Such impossible dates are rejected with 400;
+# a genuine leap day (2024-02-29) is accepted.
+#
+--NAME--
+DateTime day-of-month is validated against month and leap year
+
+--TAGS--
+entity validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. observedAt 2023-02-31 (Feb has 28 days) -> 400"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","a":{"type":"Property","value":1,"observedAt":"2023-02-31T00:00:00Z"}}'
+echo
+echo
+
+
+echo "02. observedAt 2023-04-31 (April has 30 days) -> 400"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","a":{"type":"Property","value":1,"observedAt":"2023-04-31T00:00:00Z"}}'
+echo
+echo
+
+
+echo "03. observedAt 2023-02-29 (2023 is not a leap year) -> 400"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E3","type":"T","a":{"type":"Property","value":1,"observedAt":"2023-02-29T00:00:00Z"}}'
+echo
+echo
+
+
+echo "04. observedAt 2024-02-29 (2024 IS a leap year) -> 201"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E4","type":"T","a":{"type":"Property","value":1,"observedAt":"2024-02-29T00:00:00Z"}}' | grep HTTP
+echo
+echo
+
+
+echo "05. observedAt 2023-12-31 (valid) -> 201"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E5","type":"T","a":{"type":"Property","value":1,"observedAt":"2023-12-31T23:59:59Z"}}' | grep HTTP
+echo
+echo
+
+
+--EXPECT--
+01. observedAt 2023-02-31 (Feb has 28 days) -> 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2023-02-31T00:00:00Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. observedAt 2023-04-31 (April has 30 days) -> 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2023-04-31T00:00:00Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. observedAt 2023-02-29 (2023 is not a leap year) -> 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 262
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2023-02-29T00:00:00Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. observedAt 2024-02-29 (2024 IS a leap year) -> 201
+======================================================
+HTTP/1.1 201 Created
+
+
+05. observedAt 2023-12-31 (valid) -> 201
+========================================
+HTTP/1.1 201 Created
+
+
+--TEARDOWN--
+swBrokerStop
