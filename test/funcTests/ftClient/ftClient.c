@@ -233,6 +233,29 @@ static bool deleteDump(void)
 
 // -----------------------------------------------------------------------------
 //
+// getCount - GET /count — number of accumulated requests as a bare integer
+//
+// A parser-free alternative to GET /dump for the (many) tests that only need
+// the count of received requests: returns e.g. "3" (or "0" when empty) as plain
+// text, never JSON. A caller reads it with plain curl and never has to pipe a
+// possibly-empty/invalid body through a JSON parser — which, on an empty dump,
+// would throw to stderr and flake the test under parallel load.
+//
+static bool getCount(void)
+{
+  char* buf = (char*) kaAlloc(&swRest.kalloc, 16);
+
+  snprintf(buf, 16, "%d", dumpCount);
+  swRest.out.payload     = buf;
+  swRest.out.payloadSize = strlen(buf);
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getDie - GET /die — exit the process
 //
 static bool getDie(void)
@@ -540,6 +563,7 @@ static SwRestServiceSimplified ftServices[] =
 {
   { SwVerbGet,    "/dump",  getDump,         0,                       0 },
   { SwVerbDelete, "/dump",  deleteDump,      0,                       0 },
+  { SwVerbGet,    "/count", getCount,        0,                       0 },
   { SwVerbGet,    "/die",   getDie,          0,                       0 },
   // Programmable response stubs (mock-reply API).
   { SwVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },

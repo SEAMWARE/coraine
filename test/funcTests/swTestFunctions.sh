@@ -476,11 +476,43 @@ ftClientDump() {
   local raw
   raw=$(curl -sk "$(ftClientUrl $port /dump)")
 
+  # A transient empty read (ftClient momentarily unreachable under parallel
+  # load) must still be valid JSON — emit "[]" so a downstream `json.load`/`jq`
+  # never throws to stderr and flakes the test. For a real count, prefer
+  # ftClientCount (reads /count, parser-free).
+  [ -z "$raw" ] && raw="[]"
+
   if [ -n "$KJSON" ] && [ -n "$raw" ] && [ "$raw" != "[]" ]; then
     echo "$raw" | $KJSON -sort | head -c -1
   else
     echo -n "$raw"
   fi
+}
+
+
+# ftClientCount [--port P] - number of requests the mock receiver captured.
+#
+# Reads ftClient's /count endpoint, which returns a bare integer (never JSON),
+# so a caller never has to pipe a possibly-empty/invalid dump through a JSON
+# parser — on an empty dump that parser throws to stderr and flakes the test
+# under parallel load. Empty/failed read → 0.
+ftClientCount() {
+  # Same settle as ftClientDump so in-flight notifications are counted (valgrind
+  # path only; a no-op otherwise).
+  swValgrindSleep "${SW_VALGRIND_DUMP_SETTLE:-1.5}"
+
+  local port=$FT_CLIENT_PORT
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      shift
+    fi
+    shift
+  done
+
+  local n
+  n=$(curl -sk "$(ftClientUrl $port /count)")
+  echo "${n:-0}"
 }
 
 
