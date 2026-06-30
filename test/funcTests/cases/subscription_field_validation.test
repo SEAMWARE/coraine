@@ -1,0 +1,224 @@
+#
+# FILE            subscription_field_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Field-level validation of a Subscription on create (the same validator runs on
+# the merged result of a PATCH, so these also guard the update path):
+#
+#   - entities[].idPattern must be a valid regular expression (§ 5.2.6.6.3).
+#     An uncompilable pattern would otherwise be accepted and then silently
+#     dropped at cache time, leaving the selector matching every entity.
+#   - notificationTrigger must be a String[] of defined trigger values
+#     (§ 5.2.12). A non-array or an unknown token would otherwise collapse to a
+#     0 bitmask and silently fire on the DEFAULT triggers.
+#   - timeInterval and throttling must be Greater than 0 (§ 5.2.12); 0 is
+#     rejected, a fractional throttling is accepted.
+#   - geoQ.georel must be a valid geo-relationship (§ 5.2.13 / clause 7.2.4);
+#     an unparseable georel would otherwise be stored and fail silently at
+#     cache time.
+#
+--NAME--
+Subscription field validation (idPattern, notificationTrigger, timeInterval/throttling, georel)
+
+--TAGS--
+error subscription validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+EP='"notification":{"endpoint":{"uri":"http://localhost:9999/x"}}'
+
+echo "01. idPattern is an invalid regex -> 400"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"idPattern\":\"foo[ba\"}],$EP}"
+echo
+echo
+
+
+echo "02. idPattern is a valid regex -> 201"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"idPattern\":\"urn:.*\"}],$EP}" | grep HTTP
+echo
+echo
+
+
+echo "03. notificationTrigger with an unknown token -> 400"
+echo "===================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":[\"bogusTrigger\"],$EP}"
+echo
+echo
+
+
+echo "04. notificationTrigger as a scalar string (not an array) -> 400"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":\"entityCreated\",$EP}"
+echo
+echo
+
+
+echo "05. notificationTrigger with valid tokens -> 201"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":[\"entityCreated\",\"attributeDeleted\"],$EP}" | grep HTTP
+echo
+echo
+
+
+echo "06. timeInterval is 0 -> 400 (spec: Greater than 0)"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"timeInterval\":0,$EP}"
+echo
+echo
+
+
+echo "07. throttling is 0 -> 400 (spec: Greater than 0)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"throttling\":0,$EP}"
+echo
+echo
+
+
+echo "08. throttling is fractional 0.5 -> 201 (fractions allowed)"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"throttling\":0.5,$EP}" | grep HTTP
+echo
+echo
+
+
+echo "09. geoQ.georel is not a valid geo-relationship -> 400"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"bogusRel\"},$EP}"
+echo
+echo
+
+
+echo "10. geoQ.georel near;maxDistance -> 201"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
+echo
+echo
+
+
+--EXPECT--
+01. idPattern is an invalid regex -> 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "'entities[].idPattern' is not a valid regular expression",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. idPattern is a valid regex -> 201
+=====================================
+HTTP/1.1 201 Created
+
+
+03. notificationTrigger with an unknown token -> 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "'notificationTrigger' has an invalid value: 'bogusTrigger'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. notificationTrigger as a scalar string (not an array) -> 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "'notificationTrigger' must be a JSON array",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. notificationTrigger with valid tokens -> 201
+================================================
+HTTP/1.1 201 Created
+
+
+06. timeInterval is 0 -> 400 (spec: Greater than 0)
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "'timeInterval' must be greater than 0",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. throttling is 0 -> 400 (spec: Greater than 0)
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 170
+
+{
+  "detail": "'throttling' must be greater than 0",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. throttling is fractional 0.5 -> 201 (fractions allowed)
+==========================================================
+HTTP/1.1 201 Created
+
+
+09. geoQ.georel is not a valid geo-relationship -> 400
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "'geoQ.georel' is not a valid geo-relationship: 'bogusRel'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. geoQ.georel near;maxDistance -> 201
+=======================================
+HTTP/1.1 201 Created
+
+
+--TEARDOWN--
+swBrokerStop

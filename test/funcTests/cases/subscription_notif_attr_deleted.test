@@ -62,9 +62,9 @@ echo
 echo
 
 
-echo "06. Sub S2 with notificationTrigger=[attributeModified] only"
+echo "06. Sub S2 with notificationTrigger=[attributeUpdated] only"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeModified"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeUpdated"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
@@ -154,7 +154,7 @@ Date: REGEX(.*)
 done
 
 
-06. Sub S2 with notificationTrigger=[attributeModified] only
+06. Sub S2 with notificationTrigger=[attributeUpdated] only
 ============================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)

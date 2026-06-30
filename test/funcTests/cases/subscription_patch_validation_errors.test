@@ -444,9 +444,9 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "'throttling' must be >= 0",
+  "detail": "'throttling' must be greater than 0",
   "status": 400,
-  "title": "Negative Number",
+  "title": "Invalid Subscription",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
