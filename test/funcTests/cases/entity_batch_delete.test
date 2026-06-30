@@ -11,6 +11,7 @@
 #   - mix existing + missing    -> 207 Multi-Status
 #   - all missing               -> 409 Conflict
 #   - non-string entry          -> per-entity 400
+#   - non-URI string entry      -> per-entity 400 (input is a list of URIs)
 #   - empty array / null entry / non-array body -> 400
 #
 --NAME--
@@ -113,6 +114,19 @@ echo
 echo "12. Non-array body → 400"
 echo "========================"
 swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '"urn:V1"'
+echo
+echo
+
+
+echo "13. Invalid-URI string entry → 400 per-entity (partial)"
+echo "======================================================="
+# The input array is a list of Entity IDs (URIs) (§ 10.3.6.3); a non-URI string
+# is malformed input (per-entity 400), not a missing entity (404). V5 seeded
+# inline so a success is paired with the bad entry.
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}'
+echo
+echo
+swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V5", "not a uri"]'
 echo
 echo
 
@@ -330,6 +344,40 @@ Content-Length: 176
   "status": 400,
   "title": "Not a JSON Array",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. Invalid-URI string entry → 400 per-entity (partial)
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V5
+Content-Length: 0
+
+
+
+
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 301
+
+{
+  "errors": [
+    {
+      "entityId": "not a uri",
+      "error": {
+        "detail": "entry is not a valid URI",
+        "status": 400,
+        "title": "Invalid Array Entry",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": [
+    "urn:V5"
+  ]
 }
 
 

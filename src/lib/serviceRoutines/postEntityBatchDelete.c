@@ -46,6 +46,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdOp.h"                           // LdOpBatchDelete
 #include "swNgsild/LdProblem.h"                      // LD_ERROR_*
+#include "swNgsild/ldCheckUri.h"                      // ldCheckUri
 #include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
@@ -350,6 +351,16 @@ bool postEntityBatchDelete(void)
       addBatchError(errorsP, "", 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
                     "empty entity id", NULL);
+      continue;
+    }
+    // The input array is a list of Entity IDs (URIs) (§ 10.3.6.3) — a non-URI
+    // item is malformed input, a per-entity 400, not a 404 (a missing entity).
+    // Aligns with Batch Update/Merge, which reject an invalid entity id 400.
+    if (ldCheckUri(inP->value.s) == false)
+    {
+      addBatchError(errorsP, inP->value.s, 400,
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
+                    "entry is not a valid URI", NULL);
       continue;
     }
     idV[n++] = inP->value.s;
