@@ -87,6 +87,57 @@ echo
 echo
 
 
+# § 6.2.2 allows application/merge-patch+json on ANY PATCH (treated as
+# application/json), not only the entity-merge route — so a non-merge PATCH
+# (Update Attributes, Update Registration) accepts it too.
+echo "09. Update Attributes (PATCH /entities/{id}/attrs) with application/merge-patch+json -> 204"
+echo "=========================================================================================="
+payload='{ "P3": { "type": "Property", "value": 9 } }'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
+echo "10. Seed a registration to PATCH"
+echo "================================"
+payload='{ "id": "urn:ngsi-ld:csr:R1", "type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "T" } ] } ], "endpoint": "http://localhost:9000" }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "11. Update Registration (PATCH /csourceRegistrations/{id}) with application/merge-patch+json -> 204"
+echo "=================================================================================================="
+payload='{ "description": "patched via merge-patch media type" }'
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:csr:R1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
+echo "12. Partial Attribute Update (PATCH /entities/{id}/attrs/{attrId}) with application/merge-patch+json -> 204"
+echo "========================================================================================================="
+payload='{ "value": 7 }'
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/P2 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
+echo "13. Seed a subscription to PATCH"
+echo "================================"
+payload='{ "id": "urn:ngsi-ld:Subscription:S1", "type": "Subscription", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://localhost:9999/n" } } }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+echo
+echo
+
+
+echo "14. Update Subscription (PATCH /subscriptions/{id}) with application/merge-patch+json -> 204"
+echo "==========================================================================================="
+payload='{ "description": "patched via merge-patch media type" }'
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
 --EXPECT--
 01. Create with Content-Type text/plain
 =======================================
@@ -173,6 +224,48 @@ Content-Length: 0
 HTTP/1.1 415 Unsupported Media Type
 Date: REGEX(.*)
 Content-Length: 0
+
+
+
+
+09. Update Attributes (PATCH /entities/{id}/attrs) with application/merge-patch+json -> 204
+==========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+10. Seed a registration to PATCH
+================================
+HTTP/1.1 201 Created
+
+
+11. Update Registration (PATCH /csourceRegistrations/{id}) with application/merge-patch+json -> 204
+==================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+12. Partial Attribute Update (PATCH /entities/{id}/attrs/{attrId}) with application/merge-patch+json -> 204
+=========================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+13. Seed a subscription to PATCH
+================================
+HTTP/1.1 201 Created
+
+
+14. Update Subscription (PATCH /subscriptions/{id}) with application/merge-patch+json -> 204
+===========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
 
 
 
