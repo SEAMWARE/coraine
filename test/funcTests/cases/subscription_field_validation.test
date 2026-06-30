@@ -19,9 +19,14 @@
 #   - geoQ.georel must be a valid geo-relationship (§ 5.2.13 / clause 7.2.4);
 #     an unparseable georel would otherwise be stored and fail silently at
 #     cache time.
+#   - notification.endpoint.accept must be one of application/json,
+#     application/ld+json or application/geo+json (§ 5.2.15 Endpoint); an
+#     unsupported MIME type the notification machinery can't honour is rejected.
+#   - each entities item must carry 'type' (§ 5.2.6.6.3 EntitySelector, type
+#     cardinality 1); a selector with only id and/or idPattern is invalid.
 #
 --NAME--
-Subscription field validation (idPattern, notificationTrigger, timeInterval/throttling, georel)
+Subscription field validation (idPattern, notificationTrigger, timeInterval/throttling, georel, accept, entities type)
 
 --TAGS--
 error subscription validation
@@ -99,6 +104,48 @@ echo
 echo "10. geoQ.georel near;maxDistance -> 201"
 echo "======================================="
 swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
+echo
+echo
+
+
+echo "11. notification.endpoint.accept is an unsupported MIME type -> 400"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"text/html\"}}}"
+echo
+echo
+
+
+echo "12. notification.endpoint.accept application/geo+json -> 201"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"application/geo+json\"}}}" | grep HTTP
+echo
+echo
+
+
+echo "13. notification.endpoint.accept application/merge-patch+json is not a valid notification format -> 400"
+echo "======================================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"application/merge-patch+json\"}}}"
+echo
+echo
+
+
+echo "14. entities item selects only by id, no type -> 400 (EntitySelector type is mandatory)"
+echo "======================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"id\":\"urn:ngsi-ld:E:1\"}],$EP}"
+echo
+echo
+
+
+echo "15. entities item selects only by idPattern, no type -> 400"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"idPattern\":\".*\"}],$EP}"
+echo
+echo
+
+
+echo "16. entities item with type and id -> 201"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"id\":\"urn:ngsi-ld:E:1\"}],$EP}" | grep HTTP
 echo
 echo
 
@@ -217,6 +264,80 @@ Content-Length: 192
 
 10. geoQ.georel near;maxDistance -> 201
 =======================================
+HTTP/1.1 201 Created
+
+
+11. notification.endpoint.accept is an unsupported MIME type -> 400
+===================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "'notification.endpoint.accept' must be one of 'application/json', 'application/ld+json' or 'application/geo+json'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. notification.endpoint.accept application/geo+json -> 201
+===========================================================
+HTTP/1.1 201 Created
+
+
+13. notification.endpoint.accept application/merge-patch+json is not a valid notification format -> 400
+=======================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "'notification.endpoint.accept' must be one of 'application/json', 'application/ld+json' or 'application/geo+json'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. entities item selects only by id, no type -> 400 (EntitySelector type is mandatory)
+=======================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "'entities[].type' is mandatory",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. entities item selects only by idPattern, no type -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "'entities[].type' is mandatory",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. entities item with type and id -> 201
+=========================================
 HTTP/1.1 201 Created
 
 
