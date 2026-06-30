@@ -10,6 +10,11 @@
 # 405 with the Allow: header listing the supported methods. When the
 # path is unknown for ALL methods, 404 stays.
 #
+# § 6.2.1 / RFC 9110 § 9.3 — a token that is not an HTTP method at all (e.g.
+# PUNK) is malformed → 400, no Allow header. A VALID HTTP method that NGSI-LD
+# does not use (TRACE, CONNECT) is recognised-but-not-allowed-here → 405 +
+# Allow, exactly like any other unsupported verb on the path.
+#
 --NAME--
 HTTP 405 Method Not Allowed carries Allow header (§ 6.3.2)
 
@@ -56,6 +61,24 @@ echo
 echo
 
 
+# A token that is not an HTTP method at all → 400 BadRequestData (§ 6.2.1),
+# NOT 405: the request is malformed, so no Allow header is emitted.
+echo "05. PUNK /entities — 400 Invalid HTTP Method (not an HTTP method)"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities -X PUNK
+echo
+echo
+
+
+# TRACE is a valid HTTP method (RFC 9110 § 9.3) that NGSI-LD does not use, so on
+# a known path it is recognised-but-not-allowed → 405 + Allow (not 400).
+echo "06. TRACE /entities — 405 + Allow (valid HTTP method, not used by NGSI-LD)"
+echo "========================================================================="
+swCurl --url /ngsi-ld/v1/entities -X TRACE 2>&1 | grep -iE '^(HTTP/|Allow:)'
+echo
+echo
+
+
 --EXPECT--
 01. PATCH /entities — 405 with Allow header listing GET, POST, DELETE
 =====================================================================
@@ -78,6 +101,28 @@ Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 04. PATCH /not/a/route — 404 (no Allow because the path is unknown for ALL verbs)
 =================================================================================
 HTTP/1.1 404 Not Found
+
+
+05. PUNK /entities — 400 Invalid HTTP Method (not an HTTP method)
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "unrecognized HTTP method 'PUNK'",
+  "status": 400,
+  "title": "Invalid HTTP Method",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. TRACE /entities — 405 + Allow (valid HTTP method, not used by NGSI-LD)
+=========================================================================
+HTTP/1.1 405 Method Not Allowed
+Allow: GET, POST, DELETE, HEAD, OPTIONS
 
 
 --TEARDOWN--
