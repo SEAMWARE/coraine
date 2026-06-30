@@ -74,6 +74,19 @@ echo
 echo
 
 
+# TS 104-176 § 6.2.2: application/merge-patch+json is allowed only for HTTP PATCH
+# requests. Batch Merge performs the same RFC 7396 merge but is bound to POST, so
+# the merge-patch media type is NOT allowed on it -> 415 (carry the merge body as
+# application/json instead). [Spec doubt raised: the batch form of a merge cannot
+# use the merge-patch media type because the binding is POST, not PATCH.]
+echo "08. Batch Merge (POST /entityOperations/merge) with application/merge-patch+json -> 415 (PATCH-only media type)"
+echo "=============================================================================================================="
+payload='[ { "id": "urn:ngsi-ld:T:E1", "type": "T", "P2": { "type": "Property", "value": 3 } } ]'
+swCurl --url /ngsi-ld/v1/entityOperations/merge -X POST --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+echo
+echo
+
+
 --EXPECT--
 01. Create with Content-Type text/plain
 =======================================
@@ -148,6 +161,15 @@ Content-Length: 0
 
 07. PATCH with Content-Type text/plain -> 415
 =============================================
+HTTP/1.1 415 Unsupported Media Type
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. Batch Merge (POST /entityOperations/merge) with application/merge-patch+json -> 415 (PATCH-only media type)
+==============================================================================================================
 HTTP/1.1 415 Unsupported Media Type
 Date: REGEX(.*)
 Content-Length: 0
