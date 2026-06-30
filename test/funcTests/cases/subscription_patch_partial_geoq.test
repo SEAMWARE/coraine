@@ -1,0 +1,174 @@
+#
+# FILE            subscription_patch_partial_geoq.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Update Subscription is JSON Merge Patch (RFC 7396), and geoQ is a nested object
+# that merges recursively — a fragment may touch a subset of geoQ (just georel,
+# or just coordinates) and the omitted members are taken from the stored geoQ.
+# The fragment-level validation must therefore NOT require all three of
+# geometry/coordinates/georel to be present; that completeness requirement
+# applies only to a complete document (Create, or the re-validated merged result
+# of the PATCH). A partial geoQ used to be wrongly rejected with 400.
+#
+# Still enforced: the merged result must be a complete, valid geoQ (so a partial
+# geoQ PATCH on a subscription that has no stored geoQ is 400), and any member
+# the fragment DOES carry is validated (an invalid georel is 400).
+#
+--NAME--
+Partial geoQ fragment merges on Update Subscription (not wrongly rejected)
+
+--TAGS--
+subscription geo validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+EP='"notification":{"endpoint":{"uri":"http://localhost:9999/x"}}'
+
+echo "01. Seed S1 with a complete geoQ -> 201"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"id\":\"urn:ngsi-ld:Subscription:S1\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
+echo
+echo
+
+
+echo "02. Seed S2 with NO geoQ -> 201"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"id\":\"urn:ngsi-ld:Subscription:S2\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],$EP}" | grep HTTP
+echo
+echo
+
+
+echo "03. PATCH S1 with a partial geoQ {georel:within} -> 204 (merges)"
+echo "==============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"within"}}' | grep HTTP
+echo
+echo
+
+
+echo "04. GET S1 — georel updated, geometry/coordinates preserved"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "05. PATCH S1 with a partial geoQ {coordinates:[5,6]} -> 204 (merges)"
+echo "==================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"coordinates":[5,6]}}' | grep HTTP
+echo
+echo
+
+
+echo "06. PATCH S1 with a partial geoQ carrying an invalid georel -> 400"
+echo "================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"bogusRel"}}'
+echo
+echo
+
+
+echo "07. PATCH S2 (no stored geoQ) with a partial geoQ -> 400 (merged is incomplete)"
+echo "==============================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"geoQ":{"georel":"within"}}'
+echo
+echo
+
+
+--EXPECT--
+01. Seed S1 with a complete geoQ -> 201
+=======================================
+HTTP/1.1 201 Created
+
+
+02. Seed S2 with NO geoQ -> 201
+===============================
+HTTP/1.1 201 Created
+
+
+03. PATCH S1 with a partial geoQ {georel:within} -> 204 (merges)
+===============================================================
+HTTP/1.1 204 No Content
+
+
+04. GET S1 — georel updated, geometry/coordinates preserved
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 418
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "geoQ": {
+    "coordinates": [
+      1,
+      2
+    ],
+    "geometry": "Point",
+    "georel": "within"
+  },
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9999/x"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+05. PATCH S1 with a partial geoQ {coordinates:[5,6]} -> 204 (merges)
+===================================================================
+HTTP/1.1 204 No Content
+
+
+06. PATCH S1 with a partial geoQ carrying an invalid georel -> 400
+=================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "'geoQ.georel' is not a valid geo-relationship: 'bogusRel'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. PATCH S2 (no stored geoQ) with a partial geoQ -> 400 (merged is incomplete)
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 213
+
+{
+  "detail": "'geoQ' requires 'geometry', 'coordinates', and 'georel' — missing 'geometry'",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
