@@ -1,0 +1,135 @@
+#
+# FILE            append_overwrite_attribute_type_change.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Append Attributes (POST /entities/{id}/attrs, § 10.2.4) has replace semantics
+# when overwrite is allowed (the default): "the existing Attribute ... shall be
+# replaced by the new one supplied" (§ 10.2.4.4). A replace may change the
+# attribute type, exactly like Replace Entity / Update Attributes — unlike the
+# merge-family operations (Merge Entity, Partial Attribute Update, Batch Merge)
+# which forbid a type change. So appending a Relationship over an existing
+# Property succeeds and the attribute becomes a Relationship.
+#
+# With overwrite NOT allowed (?options=noOverwrite) the existing attribute is
+# left untouched and the conflicting append is reported in 'notUpdated'.
+#
+--NAME--
+Append with overwrite replaces an attribute and may change its type (§ 10.2.4)
+
+--TAGS--
+entity validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. Seed an entity with a Property 'p1' -> 201"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","p1":{"type":"Property","value":1}}' | grep HTTP
+echo
+echo
+
+
+echo "02. Append 'p1' as a Relationship (type change, overwrite default) -> 204"
+echo "========================================================================"
+swCurl -X POST --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs --payload '{"p1":{"type":"Relationship","object":"urn:ngsi-ld:X:1"}}' | grep HTTP
+echo
+echo
+
+
+echo "03. GET: p1 is now a Relationship"
+echo "================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "04. Append 'p1' again with noOverwrite -> 207, existing left untouched"
+echo "====================================================================="
+swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs?options=noOverwrite' --payload '{"p1":{"type":"Property","value":999}}'
+echo
+echo
+
+
+echo "05. GET: p1 is still the Relationship (noOverwrite did not touch it)"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+--EXPECT--
+01. Seed an entity with a Property 'p1' -> 201
+==============================================
+HTTP/1.1 201 Created
+
+
+02. Append 'p1' as a Relationship (type change, overwrite default) -> 204
+========================================================================
+HTTP/1.1 204 No Content
+
+
+03. GET: p1 is now a Relationship
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "p1": {
+    "object": "urn:ngsi-ld:X:1",
+    "type": "Relationship"
+  },
+  "type": "T"
+}
+
+
+
+04. Append 'p1' again with noOverwrite -> 207, existing left untouched
+=====================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 127
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "p1",
+      "reason": "Attribute already exists"
+    }
+  ],
+  "updated": []
+}
+
+
+
+05. GET: p1 is still the Relationship (noOverwrite did not touch it)
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "p1": {
+    "object": "urn:ngsi-ld:X:1",
+    "type": "Relationship"
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

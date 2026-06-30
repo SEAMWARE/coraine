@@ -1,0 +1,179 @@
+#
+# FILE            partial_update_observedat_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A partial-update fragment that touches ONLY a structural sub-attribute (e.g.
+# {"observedAt": "..."}) carries no detectable attribute type, so the per-type
+# value validation is skipped. The structural sub-attributes that have a fixed
+# shape regardless of the attribute type must still be validated, or an invalid
+# value grafts unchecked onto the stored instance and is silently coerced (a bad
+# observedAt used to become 1970-01-01T00:00:00Z). § 5.2.4 observedAt is a
+# DateTime; § 5.2.6 unitCode is a string. Both the Merge Entity path
+# (PATCH /entities/{id}) and the Partial Attribute Update path
+# (PATCH /entities/{id}/attrs/{attr}) are covered. A valid observedAt update
+# still succeeds and the stored value is preserved.
+#
+--NAME--
+A type-less partial-update fragment still validates observedAt / unitCode
+
+--TAGS--
+entity validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+echo "01. Seed an entity with a Property carrying a valid observedAt -> 201"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","p1":{"type":"Property","value":1,"observedAt":"2023-01-01T00:00:00Z"}}' | grep HTTP
+echo
+echo
+
+
+echo "02. Merge Entity: type-less fragment with a bad observedAt -> 400"
+echo "================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 --payload '{"p1":{"observedAt":"banana"}}'
+echo
+echo
+
+
+echo "03. Partial Attribute Update: bad observedAt -> 400"
+echo "==================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"observedAt":"banana"}'
+echo
+echo
+
+
+echo "04. Partial Attribute Update: non-string unitCode -> 400"
+echo "========================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"unitCode":123}'
+echo
+echo
+
+
+echo "05. The rejected PATCHes left the stored observedAt untouched"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "06. A valid observedAt Partial Attribute Update still succeeds -> 204"
+echo "===================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"observedAt":"2024-05-05T00:00:00Z"}' | grep HTTP
+echo
+echo
+
+
+echo "07. GET confirms the valid observedAt persisted and the value is kept"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+--EXPECT--
+01. Seed an entity with a Property carrying a valid observedAt -> 201
+====================================================================
+HTTP/1.1 201 Created
+
+
+02. Merge Entity: type-less fragment with a bad observedAt -> 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p1': 'observedAt' is not a valid ISO 8601 DateTime: 'banana'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Partial Attribute Update: bad observedAt -> 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p1': 'observedAt' is not a valid ISO 8601 DateTime: 'banana'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Partial Attribute Update: non-string unitCode -> 400
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p1': 'unitCode' must be a string",
+  "status": 400,
+  "title": "Invalid unitCode",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. The rejected PATCHes left the stored observedAt untouched
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 140
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "p1": {
+    "observedAt": "2023-01-01T00:00:00Z",
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+06. A valid observedAt Partial Attribute Update still succeeds -> 204
+====================================================================
+HTTP/1.1 204 No Content
+
+
+07. GET confirms the valid observedAt persisted and the value is kept
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 140
+
+{
+  "id": "urn:ngsi-ld:E1",
+  "p1": {
+    "observedAt": "2024-05-05T00:00:00Z",
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
