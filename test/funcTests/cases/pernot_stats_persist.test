@@ -59,7 +59,7 @@ echo
 
 echo "04. POST /admin/subStats/flush"
 echo "=============================="
-curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+swCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
@@ -99,7 +99,7 @@ waited
 
 04. POST /admin/subStats/flush
 ==============================
-HTTP 204
+HTTP/1.1 204 No Content
 
 
 05. Restart broker

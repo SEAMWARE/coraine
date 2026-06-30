@@ -28,7 +28,7 @@ swBrokerStart -mrs 1
 # 01. POST without body → 411 Length Required, NO body in response (per § 6.3.4).
 echo "01. POST /entities with no body — 411 (no payload)"
 echo "==================================================="
-curl -s -X POST -i http://localhost:${SW_BROKER_PORT}/ngsi-ld/v1/entities | head -20
+swCurl --url /ngsi-ld/v1/entities -X POST | head -20
 echo
 echo
 
@@ -45,8 +45,7 @@ echo
 echo "03. POST oversized body — 413"
 echo "============================="
 python3 -c "import sys, json; print(json.dumps({'id':'urn:Big','type':'X','blob':{'type':'Property','value':'A'*1100000}}))" > /tmp/swCurlBig.json
-curl -s -i -X POST -H 'Content-Type: application/json' --data-binary @/tmp/swCurlBig.json \
-     http://localhost:${SW_BROKER_PORT}/ngsi-ld/v1/entities 2>&1 | grep -iE '^HTTP/|^Content-Type:|RequestEntityTooLarge'
+swCurl --url /ngsi-ld/v1/entities --payload /tmp/swCurlBig.json | grep -iE '^HTTP/|^Content-Type:|RequestEntityTooLarge'
 \rm -f /tmp/swCurlBig.json
 echo
 echo
@@ -69,6 +68,7 @@ Content-Length: 0
 
 
 
+
 02. POST small body — 201 (well under the 1 MiB cap)
 ====================================================
 HTTP/1.1 201 Created
@@ -79,7 +79,7 @@ HTTP/1.1 201 Created
 HTTP/1.1 100 Continue
 HTTP/1.1 413 Content Too Large
 Content-Type: application/json
-  "type": "https://uri.etsi.org/ngsi-ld/errors/RequestEntityTooLarge",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/RequestEntityTooLarge"
 
 
 04. GET /entities — unaffected

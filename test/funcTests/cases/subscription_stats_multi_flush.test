@@ -47,7 +47,7 @@ echo
 
 echo "02. Flush #1"
 echo "============"
-curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+swCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
@@ -61,14 +61,14 @@ echo
 
 echo "04. Flush #2 (delta=1)"
 echo "======================"
-curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+swCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "05. Flush #3 (delta=0, no-op)"
 echo "============================="
-curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "http://$SW_BROKER_HOST:$SW_BROKER_PORT/admin/subStats/flush"
+swCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
@@ -92,7 +92,7 @@ HTTP/1.1 201 Created
 
 02. Flush #1
 ============
-HTTP 204
+HTTP/1.1 204 No Content
 
 
 03. +1 notif
@@ -102,12 +102,12 @@ HTTP/1.1 201 Created
 
 04. Flush #2 (delta=1)
 ======================
-HTTP 204
+HTTP/1.1 204 No Content
 
 
 05. Flush #3 (delta=0, no-op)
 =============================
-HTTP 204
+HTTP/1.1 204 No Content
 
 
 06. Restart, GET sub → timesSent=3 (not 5, not 6)
