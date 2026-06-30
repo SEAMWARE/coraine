@@ -138,6 +138,17 @@ echo
 echo
 
 
+# § 6.2.2 — an unacceptable Accept yields 406 AND the body lists the available
+# representations. The 406 must NOT leak the requested resource: a Retrieve
+# Entity with Accept: application/xml answers a ProblemDetails (whose detail
+# enumerates the supported media types), never the entity.
+echo "15. GET /entities/{id} with an unacceptable Accept (application/xml) -> 406 + representation list"
+echo "==============================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -H 'Accept: application/xml'
+echo
+echo
+
+
 --EXPECT--
 01. Create with Content-Type text/plain
 =======================================
@@ -267,6 +278,22 @@ HTTP/1.1 201 Created
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 
+
+
+
+15. GET /entities/{id} with an unacceptable Accept (application/xml) -> 406 + representation list
+===============================================================================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 220
+
+{
+  "detail": "supported response media types: application/json, application/ld+json, application/geo+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
 
 
 
