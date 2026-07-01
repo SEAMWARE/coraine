@@ -116,8 +116,11 @@ bool getSubscriptions(void)
     }
   }
 
+  // § 7.4.2.2: prev/next pointers describe iterating the pages of a result set;
+  // a page that is empty (none taken) AND has nothing more pending is no
+  // iteration, so emit neither; keep next when more pages remain (hasMore).
   bool hasMore = (skip + taken < total);
-  if (hasMore || skip > 0)
+  if ((taken > 0 || hasMore) && (hasMore || skip > 0))
     ldPaginationLinkHeader(hasMore);
 
   swNgsild.rawResponse    = true;

@@ -670,7 +670,12 @@ bool getEntitiesTemporal(void)
     snprintf(countStr, 32, "%ld", (rangeInfo.entityCount >= 0) ? rangeInfo.entityCount : 0L);
     swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
-  ldPaginationLinkHeader(rangeInfo.moreEntities);
+  // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
+  // more pending. When more entities remain (moreEntities) the next pointer is
+  // kept even on an empty page (e.g. limit=0&count=true) so the client can
+  // advance to the first data page.
+  if ((result != NULL && result->value.firstChildP != NULL) || rangeInfo.moreEntities)
+    ldPaginationLinkHeader(rangeInfo.moreEntities);
 
   // § 6.4.7.3: when any entity's instances remain beyond the returned
   // page, emit Link rel="intervalafter"/"intervalbefore" page pointers.

@@ -79,7 +79,10 @@ bool getCsourceSubscriptions(void)
     }
   }
 
-  ldPaginationLinkHeader(hasMore);
+  // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
+  // more pending; keep next when more pages remain (hasMore).
+  if (arrayP->value.firstChildP != NULL || hasMore)
+    ldPaginationLinkHeader(hasMore);
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = arrayP;

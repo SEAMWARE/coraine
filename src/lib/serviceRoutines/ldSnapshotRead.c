@@ -157,8 +157,11 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
   if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
     ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount);
 
+  // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
+  // more pending; keep next when more pages remain (hasMore).
   bool hasMore = ldPaginationTrim(arrayP, swNgsild.limit);
-  ldPaginationLinkHeader(hasMore);
+  if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
+    ldPaginationLinkHeader(hasMore);
 
   if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
   {

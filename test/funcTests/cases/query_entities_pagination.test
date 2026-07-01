@@ -30,8 +30,10 @@ swBrokerStart
 # 10. GET entities?limit=2&count=true - E1, E2 + NGSILD-Results-Count: 5
 # 11. GET entities?limit=0&count=true - empty array + NGSILD-Results-Count: 5
 # 12. GET entities?limit=0 (without count) - 400 error
-# 13. GET entities?offset=10 - empty array
+# 13. GET entities?offset=10 (past the end) - last element E5 (§ 6.4.7.2)
 # 14. GET entities (no limit param) - all 5 (default limit 20 > 5)
+# 15. GET entities?offset=10&count=true (past end) - last E5 + Results-Count 5
+# 16. GET entities?type=NoSuch&offset=10 (past end on empty set) - empty array
 #
 
 echo "01. Create entity E1"
@@ -158,8 +160,8 @@ echo
 echo
 
 
-echo "13. GET entities?offset=10 - empty array"
-echo "========================================"
+echo "13. GET entities?offset=10 (past end) - last element E5 (§ 6.4.7.2)"
+echo "=================================================================="
 swCurl --url '/ngsi-ld/v1/entities?offset=10&type=T'
 echo
 echo
@@ -168,6 +170,20 @@ echo
 echo "14. GET entities (no limit param) - all 5 (default limit 20 > 5)"
 echo "================================================================"
 swCurl --url '/ngsi-ld/v1/entities?type=T'
+echo
+echo
+
+
+echo "15. GET entities?offset=10&count=true (past end) - last E5 + Results-Count 5"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?offset=10&count=true&type=T'
+echo
+echo
+
+
+echo "16. GET entities?type=NoSuch&offset=10 (past end on empty set) - empty array"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?offset=10&type=NoSuch'
 echo
 echo
 
@@ -419,16 +435,25 @@ Content-Length: 167
 
 
 
-13. GET entities?offset=10 - empty array
-========================================
+13. GET entities?offset=10 (past end) - last element E5 (§ 6.4.7.2)
+==================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: </ngsi-ld/v1/entities?type=T&limit=20&offset=0>;rel="prev";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Content-Length: 109
 
-[]
+[
+  {
+    "a": {
+      "type": "Property",
+      "value": 5
+    },
+    "id": "urn:e5",
+    "type": "T"
+  }
+]
 
 
 
@@ -482,6 +507,41 @@ Content-Length: 533
     "type": "T"
   }
 ]
+
+
+
+15. GET entities?offset=10&count=true (past end) - last E5 + Results-Count 5
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 5
+Link: </ngsi-ld/v1/entities?count=true&type=T&limit=20&offset=0>;rel="prev";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 109
+
+[
+  {
+    "a": {
+      "type": "Property",
+      "value": 5
+    },
+    "id": "urn:e5",
+    "type": "T"
+  }
+]
+
+
+
+16. GET entities?type=NoSuch&offset=10 (past end on empty set) - empty array
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
 
 
 

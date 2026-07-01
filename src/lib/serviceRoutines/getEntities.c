@@ -1735,6 +1735,12 @@ bool getEntities(void)
     return true;
   }
 
+  // § 6.4.7.2: whether the LOCAL query came back empty (before any
+  // distributed merge / post-filter touches arrayP). An empty local page
+  // with a positive offset is the offset-past-the-end case handled below.
+  bool localQueryEmpty = (arrayP == NULL || arrayP->value.firstChildP == NULL);
+  bool distForwarded   = false;
+
   //
   // Source-provenance map (§ 5.2.39) — built only when an EntityMap is
   // being created. Each entityId maps to the list of sources that
@@ -1813,6 +1819,11 @@ bool getEntities(void)
                                                 modes[m], &modeMatchV[m]);
         totalMatch += modeMatchN[m];
       }
+
+      // Registrations contribute → the result is no longer purely local,
+      // so the offset-past-end clamp below does not apply (it has no single
+      // result-set size N to clamp against).
+      distForwarded = (totalMatch > 0);
 
       if (totalMatch > 0 && splitModeSetting)
       {
@@ -2245,6 +2256,44 @@ bool getEntities(void)
   }
 
   //
+  // § 6.4.7.2: "If offset is set to a value larger than the result set, the
+  // offset should be assumed to be equal to the size of the result set, i.e.
+  // only the last element of the result set is to be returned if there are any
+  // results." So an offset past the end returns the LAST entity, not an empty
+  // page. Only the local (non-distributed, non-EntityMap) path has a single
+  // well-defined result-set size N to clamp against; the distributed merge has
+  // no single N (the EntityMap-follow path clamps separately, by entryCount).
+  // Cost is paid only in this rare overshoot case: one count query (skipped if
+  // ?count already computed N), then a one-element fetch at offset N-1.
+  //
+  if (localQueryEmpty && !distForwarded && !swNgsild.entityMapCreate && swNgsild.offset > 0)
+  {
+    int64_t n;
+
+    if (swNgsild.count)
+      n = filter.totalCount;   // the query above already counted the result set
+    else
+    {
+      DbQueryFilter countFilter = filter;
+      countFilter.count = true;
+      countFilter.limit = 0;   // count-only, no entities materialized
+      KjNode* dummyP    = NULL;
+      db.entityQuery((Tenant*) swNgsild.tenantP, &countFilter, &dummyP);
+      n = countFilter.totalCount;
+    }
+
+    if (n > 0)
+    {
+      DbQueryFilter lastFilter = filter;
+      lastFilter.offset = (int) (n - 1);
+      lastFilter.limit  = 1;   // exactly the last element
+      lastFilter.count  = false;
+      arrayP = NULL;
+      db.entityQuery((Tenant*) swNgsild.tenantP, &lastFilter, &arrayP);
+    }
+  }
+
+  //
   // Add NGSILD-Results-Count header if count was requested
   //
   if (swNgsild.count)
@@ -2256,10 +2305,18 @@ bool getEntities(void)
   }
 
   //
-  // Pagination: trim to limit and add Link header with next/prev
+  // Pagination: trim to limit and add Link header with next/prev.
+  // § 7.4.2.2: the prev/next pointers describe iterating the pages of a result
+  // set. A page that is EMPTY *and* has nothing more pending is no pagination
+  // iteration, so emit neither (the prev pointer is mandated only "for all
+  // pagination iterations excepting the first one"). When more pages remain
+  // (hasMore) the next pointer is kept even on an empty page so the client can
+  // still advance. Without this guard a query past the end of an empty result
+  // set emitted a spurious rel="prev" to offset=0.
   //
   bool hasMore = ldPaginationTrim(arrayP, swNgsild.limit);
-  ldPaginationLinkHeader(hasMore);
+  if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
+    ldPaginationLinkHeader(hasMore);
 
   //
   // Apply pick/omit attribute projection (or the legacy attrs alias)
