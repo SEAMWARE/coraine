@@ -338,6 +338,62 @@ typedef struct FlatFrontier
 } FlatFrontier;
 
 
+
+// -----------------------------------------------------------------------------
+//
+// flatAddTarget - follow one Relationship target URI, append it to the flat
+// result and to the next BFS frontier
+//
+// Shared by the single-valued and multivalued (§ C.2.2.1.3, `object` is an
+// array) cases so both follow the identical fetch / § 7.7.1 gate / pick-omit /
+// visited-set path. A miss (unfollowable or already visited) is a no-op.
+//
+static void flatAddTarget(const char*    tid,
+                          KjNode*        instP,
+                          KjNode*        outArr,
+                          LdProjItem*    subPick,
+                          LdProjItem*    subOmit,
+                          Tenant*        tenantP,
+                          VisitedNode**  visitedPP,
+                          FlatFrontier** nextFrontierPP,
+                          int*           nextCountP,
+                          int*           nextCapP)
+{
+  if (tid == NULL || visitedContains(*visitedPP, tid))
+    return;
+
+  KjNode* targetEntityP = NULL;
+  int     r             = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetEntityP, tenantP);
+  if (r != 0 || targetEntityP == NULL)
+  {
+    *visitedPP = visitedAppend(*visitedPP, tid);
+    return;
+  }
+
+  // Apply pick/omit on the linked entity in storage form (the projection
+  // trees carry expanded IRIs). renderHook converts to API form afterwards.
+  if (subPick != NULL || subOmit != NULL)
+  {
+    char** subPickV = (subPick != NULL) ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)  : NULL;
+    char** subOmitV = (subOmit != NULL) ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false) : NULL;
+    ldPickOmit(targetEntityP, subPickV, subOmitV);
+  }
+
+  kjChildAdd(outArr, targetEntityP);
+  *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+
+  if (*nextCountP >= *nextCapP)
+  {
+    *nextCapP       = (*nextCapP == 0) ? 8 : (*nextCapP) * 2;
+    *nextFrontierPP = (FlatFrontier*) realloc(*nextFrontierPP, (*nextCapP) * sizeof(FlatFrontier));
+  }
+  (*nextFrontierPP)[*nextCountP].entityP = targetEntityP;
+  (*nextFrontierPP)[*nextCountP].pickSub = subPick;
+  (*nextFrontierPP)[*nextCountP].omitSub = subOmit;
+  (*nextCountP)++;
+}
+
+
 static void flatBfs(KjNode*         outArr,
                     FlatFrontier*   frontier,
                     int             frontierCount,
@@ -392,47 +448,22 @@ static void flatBfs(KjNode*         outArr,
           if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
 
           KjNode* valP = kjLookup(instP, "value");
-          if (valP == NULL || valP->type != KjString || valP->value.s == NULL)
+          if (valP == NULL)
             continue;
 
-          const char* tid = valP->value.s;
-          if (visitedContains(*visitedPP, tid))
-            continue;
-
-          KjNode* targetEntityP = NULL;
-          int     r             = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetEntityP, tenantP);
-          if (r != 0 || targetEntityP == NULL)
+          // § C.2.2.1.3: a single-valued object is one target URI; a
+          // multivalued object (`value` is an array) is a set of target URIs
+          // — each followable target entity is appended to the flat array.
+          if (valP->type == KjString)
+            flatAddTarget(valP->value.s, instP, outArr, subPick, subOmit, tenantP,
+                          visitedPP, &nextFrontier, &nextFrontierCount, &nextFrontierCap);
+          else if (valP->type == KjArray)
           {
-            *visitedPP = visitedAppend(*visitedPP, tid);
-            continue;
+            for (KjNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
+              if (oP->type == KjString)
+                flatAddTarget(oP->value.s, instP, outArr, subPick, subOmit, tenantP,
+                              visitedPP, &nextFrontier, &nextFrontierCount, &nextFrontierCap);
           }
-
-          // Apply pick/omit on the linked entity in storage form (the
-          // projection trees carry expanded IRIs). renderHook converts
-          // to API form afterwards.
-          if (subPick != NULL || subOmit != NULL)
-          {
-            char** subPickV = (subPick != NULL)
-                              ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)
-                              : NULL;
-            char** subOmitV = (subOmit != NULL)
-                              ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false)
-                              : NULL;
-            ldPickOmit(targetEntityP, subPickV, subOmitV);
-          }
-
-          kjChildAdd(outArr, targetEntityP);
-          *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
-
-          if (nextFrontierCount >= nextFrontierCap)
-          {
-            nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
-            nextFrontier    = (FlatFrontier*) realloc(nextFrontier, nextFrontierCap * sizeof(FlatFrontier));
-          }
-          nextFrontier[nextFrontierCount].entityP = targetEntityP;
-          nextFrontier[nextFrontierCount].pickSub = subPick;
-          nextFrontier[nextFrontierCount].omitSub = subOmit;
-          nextFrontierCount++;
         }
       }
     }
@@ -550,6 +581,65 @@ void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* te
 
 
 
+static void inlineWalk(KjNode* entityP, int remaining, VisitedNode** visitedPP, Tenant* tenantP, LdProjItem* pickTree, LdProjItem* omitTree);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// inlineFetchTarget - follow one Relationship target URI and return the
+// inlined, API-shape linked entity (or NULL for an unfollowable / already
+// visited target)
+//
+// Shared by the single-valued and multivalued (§ C.2.2.1.2, `object` is an
+// array → `entity` becomes an array) cases: identical fetch / § 7.7.1 gate /
+// recursion / pick-omit / API-conversion path. The caller attaches the result
+// (single: as the `entity` sub-attribute; array: as one array element).
+//
+static KjNode* inlineFetchTarget(const char*   tid,
+                                 KjNode*       instP,
+                                 int           remaining,
+                                 VisitedNode** visitedPP,
+                                 Tenant*       tenantP,
+                                 LdProjItem*   subPick,
+                                 LdProjItem*   subOmit)
+{
+  if (tid == NULL || visitedContains(*visitedPP, tid))
+    return NULL;
+
+  KjNode* targetP = NULL;
+  int     r       = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetP, tenantP);
+  if (r != 0 || targetP == NULL)
+  {
+    *visitedPP = visitedAppend(*visitedPP, tid);
+    return NULL;
+  }
+
+  *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetP));
+
+  // Recurse while the target is still in storage shape so the storage walker
+  // can find its Relationships. The target's pick/omit sub-trees become the
+  // "current level" for one more step.
+  inlineWalk(targetP, remaining - 1, visitedPP, tenantP, subPick, subOmit);
+
+  // Apply pick/omit BEFORE API-conversion — the parsed projection trees carry
+  // expanded IRIs, matching the storage form of attribute names.
+  if (subPick != NULL || subOmit != NULL)
+  {
+    char** subPickV = (subPick != NULL) ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)  : NULL;
+    char** subOmitV = (subOmit != NULL) ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false) : NULL;
+    ldPickOmit(targetP, subPickV, subOmitV);
+  }
+
+  // Convert the target itself to API (post-order). Its inlined children are
+  // already API-converted from the recursion above.
+  ldEntityToApi(targetP, &swRest.kalloc);
+
+  return targetP;
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // inlineWalk - recursive depth-bounded traversal for the inline shape
@@ -598,51 +688,36 @@ static void inlineWalk(KjNode*       entityP,
       if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
 
       KjNode* valP = kjLookup(instP, "value");
-      if (valP == NULL || valP->type != KjString)                 continue;
+      if (valP == NULL)                                           continue;
 
-      const char* tid = valP->value.s;
-
-      if (visitedContains(*visitedPP, tid))
-        continue;
-
-      KjNode* targetP = NULL;
-      int     r       = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetP, tenantP);
-      if (r != 0 || targetP == NULL)
+      if (valP->type == KjString)
       {
-        *visitedPP = visitedAppend(*visitedPP, tid);
-        continue;
+        // Single-valued object → one `entity` sub-attribute (§ C.2.2.1.2).
+        KjNode* targetP = inlineFetchTarget(valP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
+        if (targetP != NULL)
+        {
+          targetP->name = "entity";
+          kjChildAdd(instP, targetP);
+        }
       }
-
-      *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetP));
-
-      // Recurse while target is still in storage so the storage
-      // walker can find its Relationships. The target's pick/omit
-      // sub-trees become the "current level" for one more step.
-      inlineWalk(targetP, remaining - 1, visitedPP, tenantP, subPick, subOmit);
-
-      // Apply pick/omit to the linked entity BEFORE API-conversion —
-      // the parsed projection trees carry expanded IRIs, matching the
-      // storage form of attribute names. Top-level pick/omit on the
-      // primary entity is applied by the service routine; this is the
-      // analogous step for each linked level.
-      if (subPick != NULL || subOmit != NULL)
+      else if (valP->type == KjArray)
       {
-        char** subPickV = (subPick != NULL)
-                          ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)
-                          : NULL;
-        char** subOmitV = (subOmit != NULL)
-                          ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false)
-                          : NULL;
-        ldPickOmit(targetP, subPickV, subOmitV);
+        // Multivalued object → `entity` is an ARRAY holding one inlined linked
+        // entity per followable target URI, in object order (§ C.2.2.1.2).
+        KjNode* entityArr = kjArray(swRest.kjsonP, "entity");
+        for (KjNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
+        {
+          if (oP->type != KjString)                               continue;
+          KjNode* targetP = inlineFetchTarget(oP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
+          if (targetP != NULL)
+          {
+            targetP->name = NULL;
+            kjChildAdd(entityArr, targetP);
+          }
+        }
+        if (entityArr->value.firstChildP != NULL)
+          kjChildAdd(instP, entityArr);
       }
-
-      // Convert the target itself to API (post-order). Its inlined
-      // children are already API-converted from the recursion above.
-      ldEntityToApi(targetP, &swRest.kalloc);
-
-      // Attach to the originating Relationship instance as "entity".
-      targetP->name = "entity";
-      kjChildAdd(instP, targetP);
     }
   }
 }
@@ -674,11 +749,34 @@ KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 
 // -----------------------------------------------------------------------------
 //
+// idsAppend - append one target id to the grow-on-demand id vector
+//
+static void idsAppend(const char*** outIdsP, int* outCountP, int* outCapP, const char* id)
+{
+  if (id == NULL)
+    return;
+
+  if (*outCountP >= *outCapP)
+  {
+    int newCap = (*outCapP == 0) ? 8 : (*outCapP) * 2;
+    *outIdsP   = (const char**) realloc((void*) *outIdsP, newCap * sizeof(char*));
+    *outCapP   = newCap;
+  }
+  (*outIdsP)[(*outCountP)++] = id;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // collectRelationshipTargetsApi - API-format equivalent of collectRelationshipTargets
 //
 // API shape per attribute child:
 //   - single instance:  { "type": "Relationship", "object": "<uri>", ... }
 //   - multi-instance:   [ { "type": "Relationship", "object": "<uri>", ... }, ... ]
+//
+// A single-valued `object` yields one target; a multivalued `object` (array)
+// yields one target per element (§ C.2.2.1.3).
 //
 static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP, int* outCountP, int* outCapP)
 {
@@ -712,16 +810,16 @@ static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP
       if (strcmp(typeP->value.s, "Relationship") != 0)              continue;
 
       KjNode* objP = kjLookup(instances[i], "object");
-      if (objP == NULL || objP->type != KjString || objP->value.s == NULL) continue;
+      if (objP == NULL)                                             continue;
 
-      if (*outCountP >= *outCapP)
+      if (objP->type == KjString)
+        idsAppend(outIdsP, outCountP, outCapP, objP->value.s);
+      else if (objP->type == KjArray)
       {
-        int newCap = (*outCapP == 0) ? 8 : (*outCapP) * 2;
-        const char** newArr = (const char**) realloc((void*) *outIdsP, newCap * sizeof(char*));
-        *outIdsP = newArr;
-        *outCapP = newCap;
+        for (KjNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
+          if (oP->type == KjString)
+            idsAppend(outIdsP, outCountP, outCapP, oP->value.s);
       }
-      (*outIdsP)[(*outCountP)++] = objP->value.s;
     }
   }
 }
@@ -797,6 +895,46 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
 
 
 
+static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// notifFetchTarget - follow one Relationship target URI (notification path)
+// and return the API-shape linked entity, recursing one join level deeper
+//
+// Shared by the single-valued and multivalued (`object` is an array → `entity`
+// becomes an array) cases. Returns NULL for an unfollowable / already visited
+// target. The caller attaches the result (single: as `entity`; array: element).
+//
+static KjNode* notifFetchTarget(const char* tid, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP)
+{
+  if (tid == NULL || visitedContains(*visitedPP, tid))
+    return NULL;
+
+  KjNode* targetEntityP = NULL;
+  // Legacy fetch-by-id (see notifFlatBfs) — the § 7.7.1 gate is GET ?join only.
+  int     r             = linkedFetchOne(tid, NULL, false, &targetEntityP, tenantP);
+  if (r != 0 || targetEntityP == NULL)
+  {
+    *visitedPP = visitedAppend(*visitedPP, tid);
+    return NULL;
+  }
+
+  ldEntityToApi(targetEntityP, &swRest.kalloc);
+  if (!sysAttrs)
+    ldStripSysAttrs(targetEntityP);
+  *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
+
+  if (joinLevel > 1)
+    notifInlineWalk(targetEntityP, joinLevel - 1, sysAttrs, visitedPP, tenantP);
+
+  return targetEntityP;
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // notifInlineWalk - § 4.5.23.2 inline walk on API-format primary
@@ -834,29 +972,35 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
       if (strcmp(typeP->value.s, "Relationship") != 0) continue;
 
       KjNode* objP = kjLookup(instances[i], "object");
-      if (objP == NULL || objP->type != KjString || objP->value.s == NULL) continue;
+      if (objP == NULL)                                             continue;
 
-      const char* tid = objP->value.s;
-      if (visitedContains(*visitedPP, tid)) continue;
-
-      KjNode* targetEntityP = NULL;
-      // Legacy fetch-by-id (see notifFlatBfs) — gate is GET ?join only.
-      int     r             = linkedFetchOne(tid, NULL, false, &targetEntityP, tenantP);
-      if (r != 0 || targetEntityP == NULL)
+      if (objP->type == KjString)
       {
-        *visitedPP = visitedAppend(*visitedPP, tid);
-        continue;
+        // Single-valued object → one `entity` sub-attribute (§ C.2.2.1.2).
+        KjNode* targetEntityP = notifFetchTarget(objP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
+        if (targetEntityP != NULL)
+        {
+          targetEntityP->name = (char*) "entity";
+          kjChildAdd(instances[i], targetEntityP);
+        }
       }
-
-      ldEntityToApi(targetEntityP, &swRest.kalloc);
-      if (!sysAttrs)
-        ldStripSysAttrs(targetEntityP);
-      *visitedPP  = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
-      targetEntityP->name = (char*) "entity";
-      kjChildAdd(instances[i], targetEntityP);
-
-      if (joinLevel > 1)
-        notifInlineWalk(targetEntityP, joinLevel - 1, sysAttrs, visitedPP, tenantP);
+      else if (objP->type == KjArray)
+      {
+        // Multivalued object → `entity` is an ARRAY of inlined linked entities.
+        KjNode* entityArr = kjArray(swRest.kjsonP, "entity");
+        for (KjNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
+        {
+          if (oP->type != KjString)                                 continue;
+          KjNode* targetEntityP = notifFetchTarget(oP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
+          if (targetEntityP != NULL)
+          {
+            targetEntityP->name = NULL;
+            kjChildAdd(entityArr, targetEntityP);
+          }
+        }
+        if (entityArr->value.firstChildP != NULL)
+          kjChildAdd(instances[i], entityArr);
+      }
     }
   }
 }

@@ -1,0 +1,100 @@
+#
+# FILE            subscription_notif_join_multivalued.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.14 notification.join with a MULTIVALUED Relationship (its `object`
+# is an array of URIs). inline adds an `entity` ARRAY on the Relationship
+# instance (§ 4.5.23.2 / annex C.2.2.1.2); flat appends each linked entity
+# to the notification data[] array (§ 4.5.23.3).
+#
+--NAME--
+Subscription notification - join over a multivalued relationship (§ 5.2.14, § 4.5.23)
+
+--TAGS--
+subscription notification linked-entities
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7713 --status 200
+
+--RUN--
+
+echo "01. Seed P1 + P2 + V1 (owners → [P1, P2])"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owners":{"type":"Relationship","object":["urn:P1","urn:P2"]}}' | head -1
+echo
+echo
+
+
+echo "02. Sub on Vehicle with notification.join=inline, joinLevel=1"
+echo "============================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:MvInline",
+  "type": "Subscription",
+  "entities": [{"type":"Vehicle"}],
+  "notification": {
+    "join": "inline",
+    "joinLevel": 1,
+    "endpoint": {
+      "uri": "http://localhost:7713/notify",
+      "cooldown": 1
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. Trigger - update V1"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}' | head -1
+echo
+echo
+
+
+echo "04. ftClient dump — V1.owners.entity is an ARRAY holding P1 and P2"
+echo "=================================================================="
+ftClientDump --port 7713 | grep -E '"entity":|"object":|"id": "urn:P1"|"id": "urn:P2"|"value": "Alice"|"value": "Bob"'
+echo
+echo
+
+
+--EXPECT--
+01. Seed P1 + P2 + V1 (owners → [P1, P2])
+=========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Sub on Vehicle with notification.join=inline, joinLevel=1
+=============================================================
+HTTP/1.1 201 Created
+
+
+03. Trigger - update V1
+=======================
+HTTP/1.1 204 No Content
+
+
+04. ftClient dump — V1.owners.entity is an ARRAY holding P1 and P2
+==================================================================
+            "entity": [
+                "id": "urn:P1",
+                  "value": "Alice"
+                "id": "urn:P2",
+                  "value": "Bob"
+            "object": [
+
+
+--TEARDOWN--
+ftClientStop --port 7713
+swBrokerStop
+swDbDrop

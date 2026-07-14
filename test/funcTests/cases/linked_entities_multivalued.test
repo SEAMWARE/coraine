@@ -1,0 +1,275 @@
+#
+# FILE            linked_entities_multivalued.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.23 / annex C.2.2.1.2-3 — Linked-entity retrieval for a MULTIVALUED
+# Relationship (its `object` is an array of URIs). Inline nests the linked
+# entities under an `entity` ARRAY; flat appends each target to the result
+# array; simplified reduces the Relationship to the array of linked entities.
+# objectType, when present, is kept alongside the added `entity` array.
+#
+--NAME--
+Linked entities — multivalued relationship (object array) inline/flat/simplified
+
+--TAGS--
+retrieve linked-entities
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed City:Paris + City:Lyon (leaf targets)"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:City:Paris","type":"City"}'
+echo
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:City:Lyon","type":"City"}'
+echo
+echo
+
+
+echo "02. Seed Building:B → locatedAt object [Paris, Lyon] (no objectType, targets local)"
+echo "==================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Building:B","type":"Building","locatedAt":{"type":"Relationship","object":["urn:ngsi-ld:City:Paris","urn:ngsi-ld:City:Lyon"]}}'
+echo
+echo
+
+
+echo "03. Seed Building:BOT → locatedAt objectType City, object [Paris, Lyon]"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Building:BOT","type":"Building","locatedAt":{"type":"Relationship","objectType":"City","object":["urn:ngsi-ld:City:Paris","urn:ngsi-ld:City:Lyon"]}}'
+echo
+echo
+
+
+echo "04. GET B join=inline&joinLevel=1 — entity is an ARRAY [Paris, Lyon]"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:B?join=inline&joinLevel=1'
+echo
+echo
+
+
+echo "05. GET B join=flat&joinLevel=1 — building + Paris + Lyon appended"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:B?join=flat&joinLevel=1'
+echo
+echo
+
+
+echo "06. GET B join=inline&joinLevel=1&options=keyValues — locatedAt = [{Paris},{Lyon}]"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:B?join=inline&joinLevel=1&options=keyValues'
+echo
+echo
+
+
+echo "07. GET B join=flat&joinLevel=1&options=keyValues — locatedAt object array kept, targets appended"
+echo "=================================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:B?join=flat&joinLevel=1&options=keyValues'
+echo
+echo
+
+
+echo "08. GET BOT join=inline&joinLevel=1 — objectType kept alongside the entity ARRAY"
+echo "================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:BOT?join=inline&joinLevel=1'
+echo
+echo
+
+
+--EXPECT--
+01. Seed City:Paris + City:Lyon (leaf targets)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:Paris
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:City:Lyon
+Content-Length: 0
+
+
+
+
+02. Seed Building:B → locatedAt object [Paris, Lyon] (no objectType, targets local)
+===================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B
+Content-Length: 0
+
+
+
+
+03. Seed Building:BOT → locatedAt objectType City, object [Paris, Lyon]
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Building:BOT
+Content-Length: 0
+
+
+
+
+04. GET B join=inline&joinLevel=1 — entity is an ARRAY [Paris, Lyon]
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 374
+
+{
+  "id": "urn:ngsi-ld:Building:B",
+  "locatedAt": {
+    "entity": [
+      {
+        "id": "urn:ngsi-ld:City:Paris",
+        "type": "City"
+      },
+      {
+        "id": "urn:ngsi-ld:City:Lyon",
+        "type": "City"
+      }
+    ],
+    "object": [
+      "urn:ngsi-ld:City:Paris",
+      "urn:ngsi-ld:City:Lyon"
+    ],
+    "type": "Relationship"
+  },
+  "type": "Building"
+}
+
+
+
+05. GET B join=flat&joinLevel=1 — building + Paris + Lyon appended
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 346
+
+[
+  {
+    "id": "urn:ngsi-ld:Building:B",
+    "locatedAt": {
+      "object": [
+        "urn:ngsi-ld:City:Paris",
+        "urn:ngsi-ld:City:Lyon"
+      ],
+      "type": "Relationship"
+    },
+    "type": "Building"
+  },
+  {
+    "id": "urn:ngsi-ld:City:Paris",
+    "type": "City"
+  },
+  {
+    "id": "urn:ngsi-ld:City:Lyon",
+    "type": "City"
+  }
+]
+
+
+
+06. GET B join=inline&joinLevel=1&options=keyValues — locatedAt = [{Paris},{Lyon}]
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 223
+
+{
+  "id": "urn:ngsi-ld:Building:B",
+  "locatedAt": [
+    {
+      "id": "urn:ngsi-ld:City:Paris",
+      "type": "City"
+    },
+    {
+      "id": "urn:ngsi-ld:City:Lyon",
+      "type": "City"
+    }
+  ],
+  "type": "Building"
+}
+
+
+
+07. GET B join=flat&joinLevel=1&options=keyValues — locatedAt object array kept, targets appended
+==================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 286
+
+[
+  {
+    "id": "urn:ngsi-ld:Building:B",
+    "locatedAt": [
+      "urn:ngsi-ld:City:Paris",
+      "urn:ngsi-ld:City:Lyon"
+    ],
+    "type": "Building"
+  },
+  {
+    "id": "urn:ngsi-ld:City:Paris",
+    "type": "City"
+  },
+  {
+    "id": "urn:ngsi-ld:City:Lyon",
+    "type": "City"
+  }
+]
+
+
+
+08. GET BOT join=inline&joinLevel=1 — objectType kept alongside the entity ARRAY
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 402
+
+{
+  "id": "urn:ngsi-ld:Building:BOT",
+  "locatedAt": {
+    "entity": [
+      {
+        "id": "urn:ngsi-ld:City:Paris",
+        "type": "City"
+      },
+      {
+        "id": "urn:ngsi-ld:City:Lyon",
+        "type": "City"
+      }
+    ],
+    "object": [
+      "urn:ngsi-ld:City:Paris",
+      "urn:ngsi-ld:City:Lyon"
+    ],
+    "objectType": "City",
+    "type": "Relationship"
+  },
+  "type": "Building"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
