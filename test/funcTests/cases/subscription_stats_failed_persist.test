@@ -45,6 +45,7 @@ echo
 
 echo "03. GET sub → timesSent=2, timesFailed=2"
 echo "========================================"
+sleep 0.2           # let the async notification+stats update land (parallel-load flake)
 swValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
 swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
@@ -83,6 +84,7 @@ echo
 
 echo "08. GET sub → accumulated"
 echo "========================="
+sleep 0.2           # let the async notification+stats update land (parallel-load flake)
 swValgrindSleep 3   # under --vt the 3rd notification+stats update lags; let it settle
 swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo

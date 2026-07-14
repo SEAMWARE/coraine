@@ -47,6 +47,8 @@ echo
 
 echo "02. Flush #1"
 echo "============"
+sleep 0.2           # both notifs must be counted before the flush captures the delta (parallel-load flake)
+swValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
 swCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
@@ -61,6 +63,8 @@ echo
 
 echo "04. Flush #2 (delta=1)"
 echo "======================"
+sleep 0.2           # the +1 notif must be counted before this flush captures the delta (parallel-load flake)
+swValgrindSleep 3   # under --vt the notification+stats update lags; let it settle
 swCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo

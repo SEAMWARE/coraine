@@ -54,6 +54,8 @@ echo
 
 echo "03. GET CSR-sub → timesSent=2"
 echo "============================="
+sleep 0.2           # let the async notification+stats update land (parallel-load flake)
+swValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
 swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
@@ -91,6 +93,8 @@ echo
 
 echo "08. GET CSR-sub → timesSent=3"
 echo "============================="
+sleep 0.2           # let the async notification+stats update land (parallel-load flake)
+swValgrindSleep 3   # under --vt the notification+stats update lags; let it settle
 swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
