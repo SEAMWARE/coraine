@@ -33,6 +33,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "swRest/SwRestIn.h"                  // swAcceptParse, SwMimeGeoJson
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd (§ 6.3.5 NGSILD-Warning)
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
@@ -913,6 +914,15 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
       else
         mergeOneSourceInto(destP, upP, nowNs);
     }
+
+    // § 6.3.5 — an inclusive/redirect/auxiliary source that answered with an
+    // HTTP error status is tolerated (its data is simply absent from the
+    // assembled entity), but the abnormal behaviour must be signalled with an
+    // NGSILD-Warning (299). Exclusive-source errors abort into a 502 above and
+    // never reach here.
+    char* warn299 = ldDistOpWarning299(items, results, itemCount);
+    if (warn299 != NULL)
+      swRestOutHeaderAdd("NGSILD-Warning", warn299);
   }
 
   ldRegCacheMatchRelease(exclV,  exclN);

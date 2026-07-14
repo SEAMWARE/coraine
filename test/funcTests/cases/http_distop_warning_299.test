@@ -1,0 +1,211 @@
+#
+# FILE            http_distop_warning_299.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps GET § 6.3.5 — error-status source → 200 + NGSILD-Warning 299
+
+--TAGS--
+distops error registration query warning
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 403
+ftClientStart --port 7712 --status 500
+ftClientStart --port 7713 --status 200
+ftClientStart --port 7714 --status 200 --delay 2000
+
+--RUN--
+
+#
+# § 6.3.5: an NGSILD-Warning header signals abnormal behaviour on a distributed
+# HTTP GET/HEAD over /entities and /entities/{id}. An HTTP error response
+# received from a registered source (e.g. 403 - Forbidden) is warning code
+# 299 - "Miscellaneous Persistent Warning". The failing source's data is simply
+# absent from the merged (still-2xx) response; the warning is how the client
+# learns a source misbehaved.
+#
+# ftClient mocks: 7711→403, 7712→500 (error statuses → 299),
+#                 7713→200 (healthy → no warning),
+#                 7714→200 but 2s slow (a timeout is a 199, NOT a 299).
+#
+
+echo "01. Seed a local Vehicle"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}}'
+echo
+echo
+
+
+echo "02. Register inclusive CSR → healthy source (7713)"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Ok","type":"ContextSourceRegistration","endpoint":"http://localhost:7713","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. GET list with only a healthy source → 200, NO NGSILD-Warning"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+echo "04. Register inclusive CSR → 403 source (7711)"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Forbidden","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "05. GET list → 200 + NGSILD-Warning 299 for the 403 source"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+echo "06. GET single entity /entities/urn:V1 → 200 + NGSILD-Warning 299"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:V1' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+echo "07. Register inclusive CSR → 500 source (7712)"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:ServerErr","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "08. GET list → both error sources listed (comma-joined 299 warn-values)"
+echo "======================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+echo "09. Register inclusive CSR → slow source (7714), management.timeout 200ms"
+echo "========================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Slow","type":"ContextSourceRegistration","endpoint":"http://localhost:7714","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"management":{"timeout":200},"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "10. GET list → slow source times out (a 199, not 299): still only 7711 + 7712"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+echo "11. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all"
+echo "===================================================================="
+# Isolate the 404 case: drop the error/slow sources, leave only 7713 (→ 404).
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Forbidden > /dev/null
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:ServerErr > /dev/null
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Slow > /dev/null
+ftClientStop --port 7713
+ftClientStart --port 7713 --status 404
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+--EXPECT--
+01. Seed a local Vehicle
+========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. Register inclusive CSR → healthy source (7713)
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Ok
+Content-Length: 0
+
+
+
+
+03. GET list with only a healthy source → 200, NO NGSILD-Warning
+===============================================================
+HTTP/1.1 200 OK
+
+
+04. Register inclusive CSR → 403 source (7711)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Forbidden
+Content-Length: 0
+
+
+
+
+05. GET list → 200 + NGSILD-Warning 299 for the 403 source
+==========================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint"
+
+
+06. GET single entity /entities/urn:V1 → 200 + NGSILD-Warning 299
+=================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint"
+
+
+07. Register inclusive CSR → 500 source (7712)
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:ServerErr
+Content-Length: 0
+
+
+
+
+08. GET list → both error sources listed (comma-joined 299 warn-values)
+=======================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint", 299 localhost:7712 "An error response was received from the registration endpoint"
+
+
+09. Register inclusive CSR → slow source (7714), management.timeout 200ms
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Slow
+Content-Length: 0
+
+
+
+
+10. GET list → slow source times out (a 199, not 299): still only 7711 + 7712
+=============================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint", 299 localhost:7712 "An error response was received from the registration endpoint"
+
+
+11. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all
+====================================================================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+ftClientStop --port 7713
+ftClientStop --port 7714
+swBrokerStop
+swDbDrop

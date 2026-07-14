@@ -758,7 +758,7 @@ int main(int argC, char* argV[])
     SwRestCorsConfig corsConf = {
       .allowOrigin   = origin,
       .allowHeaders  = "Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization",
-      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant",
+      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning",
       .maxAge        = corsMaxAge
     };
     swRestCorsConfig(&corsConf);

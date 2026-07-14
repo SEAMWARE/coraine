@@ -2150,6 +2150,13 @@ bool getEntities(void)
         if (modeMatchV[m] != NULL) free(modeMatchV[m]);
       (void) matchV;
       (void) matchN;
+
+      // § 6.3.5 — a forwarded source that answered with an HTTP error status
+      // (e.g. 403) is tolerated (its data is simply absent from the merge), but
+      // the abnormal behaviour must be signalled with an NGSILD-Warning (299).
+      char* warn299 = ldDistOpWarning299(items, results, itemCount);
+      if (warn299 != NULL)
+        swRestOutHeaderAdd("NGSILD-Warning", warn299);
     }
 
     // Split mode post-assembly filters (§ 5.7.2.4).
