@@ -1,0 +1,137 @@
+#
+# FILE            datasetid_null_rejected.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 8.4.2 — a reserved `datasetId` identifies an Attribute instance and cannot
+# be deleted/nulled: setting it to the NGSI-LD Null "urn:ngsi-ld:null" is
+# invalid content -> 400 BadRequestData. Enforced in the shared attribute
+# validator, so it holds for Merge Entity, Partial Attribute Update and Create.
+# A real (non-null) datasetId, and the null delete-marker on a *value*, are
+# unaffected.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+datasetId = urn:ngsi-ld:null rejected with 400 BadRequestData (§ 8.4.2)
+
+--TAGS--
+entity error validation merge partial-update datasetid
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed Building:1 (name Property)"
+echo "==================================="
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:1","type":"Building","name":{"type":"Property","value":"Eiffel"}}' | head -1
+echo
+echo
+
+
+echo "02. Merge Entity (PATCH /entities/{id}) name.datasetId = null -> 400"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "03. Partial Attribute Update (PATCH /entities/{id}/attrs/name) datasetId = null -> 400"
+echo "======================================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1/attrs/name' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}'
+echo
+echo
+
+
+echo "04. Create with a datasetId = null -> 400 (same shared validator)"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:2","type":"Building","name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "05. A real (non-null) datasetId is accepted (Merge) -> 204"
+echo "========================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:dataset:1"}}' | head -1
+echo
+echo
+
+
+echo "06. The null delete-marker on a *value* still removes the attribute (Merge) -> 204"
+echo "==================================================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":"urn:ngsi-ld:null"}' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed Building:1 (name Property)
+===================================
+HTTP/1.1 201 Created
+
+
+02. Merge Entity (PATCH /entities/{id}) name.datasetId = null -> 400
+===================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 343
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/name': a 'datasetId' cannot be set to the NGSI-LD Null 'urn:ngsi-ld:null' — it identifies an Attribute instance and cannot be deleted this way (§ 8.4.2)",
+  "status": 400,
+  "title": "Invalid datasetId",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Partial Attribute Update (PATCH /entities/{id}/attrs/name) datasetId = null -> 400
+======================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 343
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/name': a 'datasetId' cannot be set to the NGSI-LD Null 'urn:ngsi-ld:null' — it identifies an Attribute instance and cannot be deleted this way (§ 8.4.2)",
+  "status": 400,
+  "title": "Invalid datasetId",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Create with a datasetId = null -> 400 (same shared validator)
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 343
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/name': a 'datasetId' cannot be set to the NGSI-LD Null 'urn:ngsi-ld:null' — it identifies an Attribute instance and cannot be deleted this way (§ 8.4.2)",
+  "status": 400,
+  "title": "Invalid datasetId",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. A real (non-null) datasetId is accepted (Merge) -> 204
+=========================================================
+HTTP/1.1 204 No Content
+
+
+06. The null delete-marker on a *value* still removes the attribute (Merge) -> 204
+===================================================================================
+HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
