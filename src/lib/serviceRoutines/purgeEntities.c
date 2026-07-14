@@ -250,6 +250,18 @@ bool purgeEntities(void)
   }
 
   //
+  // 'keep' and 'drop' are mutually exclusive: 'drop' reduces each entity to NOT
+  // contain the listed members, 'keep' reduces it down to ONLY those members —
+  // combining them is a contradictory request.
+  //
+  if ((swNgsild.dropV != NULL) && (swNgsild.keepV != NULL))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Request",
+            "the 'keep' and 'drop' query parameters are mutually exclusive and cannot be combined in a single Purge Entities request");
+    return true;
+  }
+
+  //
   // DistOps dispatch. Skipped when ?local=true or no regCache. Unlike
   // the write ops, purge forwards the *same URL* to each matching CSR:
   // the receiver applies § 5.6.21 locally within its own registry scope.

@@ -1,0 +1,117 @@
+#
+# FILE            purge_keep_drop_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Purge Entities (§ 5.6.21) — the `keep` and `drop` query parameters are
+# mutually exclusive: `drop` reduces each entity to NOT contain the listed
+# members, `keep` reduces it down to ONLY those members. A request carrying
+# both is contradictory -> 400 BadRequestData. Each on its own is accepted.
+#
+--NAME--
+DELETE /entities - Purge with both keep and drop is rejected 400 BadRequestData
+
+--TAGS--
+purge entity error validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed Building:1 (name + subCategory)"
+echo "========================================"
+swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:1","type":"Building","name":{"type":"Property","value":"x"},"subCategory":{"type":"Property","value":"y"}}' | head -1
+echo
+echo
+
+
+echo "02. DELETE /entities?type=Building&keep=name&drop=subCategory → 400"
+echo "==================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&keep=name&drop=subCategory'
+echo
+echo
+
+
+echo "03. The entity is untouched (nothing purged)"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1'
+echo
+echo
+
+
+echo "04. DELETE /entities?type=Building&drop=subCategory → 204 (drop alone works)"
+echo "============================================================================"
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&drop=subCategory' | head -1
+echo
+echo
+
+
+echo "05. DELETE /entities?type=Building&keep=name → 204 (keep alone works)"
+echo "===================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&keep=name' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed Building:1 (name + subCategory)
+========================================
+HTTP/1.1 201 Created
+
+
+02. DELETE /entities?type=Building&keep=name&drop=subCategory → 400
+===================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "the 'keep' and 'drop' query parameters are mutually exclusive and cannot be combined in a single Purge Entities request",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. The entity is untouched (nothing purged)
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 182
+
+{
+  "id": "urn:ngsi-ld:Building:1",
+  "name": {
+    "type": "Property",
+    "value": "x"
+  },
+  "subCategory": {
+    "type": "Property",
+    "value": "y"
+  },
+  "type": "Building"
+}
+
+
+
+04. DELETE /entities?type=Building&drop=subCategory → 204 (drop alone works)
+============================================================================
+HTTP/1.1 204 No Content
+
+
+05. DELETE /entities?type=Building&keep=name → 204 (keep alone works)
+====================================================================
+HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
