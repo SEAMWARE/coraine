@@ -19,6 +19,7 @@
 *.gcno
 coverage/
 coverage-etsi/
+coverage-mongoc/
 BUILD_RELEASE/
 BUILD_DEBUG/
 BUILD_COVERAGE/
