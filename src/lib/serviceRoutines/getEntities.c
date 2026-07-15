@@ -2151,12 +2151,13 @@ bool getEntities(void)
       (void) matchV;
       (void) matchN;
 
-      // § 6.3.5 — a forwarded source that answered with an HTTP error status
-      // (e.g. 403) is tolerated (its data is simply absent from the merge), but
-      // the abnormal behaviour must be signalled with an NGSILD-Warning (299).
-      char* warn299 = ldDistOpWarning299(items, results, itemCount);
-      if (warn299 != NULL)
-        swRestOutHeaderAdd("NGSILD-Warning", warn299);
+      // § 6.3.5 — a forwarded source that behaved abnormally (an HTTP error
+      // status such as 403, a timeout/no-response, or an invalid payload) is
+      // tolerated (its data is simply absent from the merge), but the abnormal
+      // behaviour must be signalled with an NGSILD-Warning (299/199/111).
+      char* warn = ldDistOpWarnings(items, results, itemCount);
+      if (warn != NULL)
+        swRestOutHeaderAdd("NGSILD-Warning", warn);
     }
 
     // Split mode post-assembly filters (§ 5.7.2.4).

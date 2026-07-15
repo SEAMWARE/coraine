@@ -128,6 +128,9 @@ echo
 echo
 
 
+# With CP2 stopped, the forward to it gets no response — the result still
+# assembles from CB+CP1 (graceful fallback), and § 6.3.5 signals the missing
+# source with an NGSILD-Warning 199.
 echo "10. CP2 down → graceful fallback (CB+CP1 only)"
 echo "================================================"
 swBrokerStop -role CP2
@@ -433,6 +436,7 @@ Entity count:
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+NGSILD-Warning: 199 localhost:1028 "No response was received from the registration endpoint within the timeout period"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 318
 

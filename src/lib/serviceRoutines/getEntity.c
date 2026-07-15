@@ -915,14 +915,14 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
         mergeOneSourceInto(destP, upP, nowNs);
     }
 
-    // § 6.3.5 — an inclusive/redirect/auxiliary source that answered with an
-    // HTTP error status is tolerated (its data is simply absent from the
-    // assembled entity), but the abnormal behaviour must be signalled with an
-    // NGSILD-Warning (299). Exclusive-source errors abort into a 502 above and
-    // never reach here.
-    char* warn299 = ldDistOpWarning299(items, results, itemCount);
-    if (warn299 != NULL)
-      swRestOutHeaderAdd("NGSILD-Warning", warn299);
+    // § 6.3.5 — an inclusive/redirect/auxiliary source that behaved abnormally
+    // (an HTTP error status, a timeout/no-response, or an invalid payload) is
+    // tolerated (its data is simply absent from the assembled entity), but the
+    // abnormal behaviour must be signalled with an NGSILD-Warning (299/199/111).
+    // Exclusive-source errors abort into a 502 above and never reach here.
+    char* warn = ldDistOpWarnings(items, results, itemCount);
+    if (warn != NULL)
+      swRestOutHeaderAdd("NGSILD-Warning", warn);
   }
 
   ldRegCacheMatchRelease(exclV,  exclN);

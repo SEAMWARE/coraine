@@ -1,12 +1,12 @@
 #
-# FILE            http_distop_warning_299.test
+# FILE            http_distop_warning.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
 --NAME--
-DistOps GET § 6.3.5 — error-status source → 200 + NGSILD-Warning 299
+DistOps GET § 6.3.5 — abnormal source → 200 + NGSILD-Warning (299/199/111)
 
 --TAGS--
 distops error registration query warning
@@ -18,20 +18,28 @@ ftClientStart --port 7711 --status 403
 ftClientStart --port 7712 --status 500
 ftClientStart --port 7713 --status 200
 ftClientStart --port 7714 --status 200 --delay 2000
+ftClientStart --port 7715 --status 200
 
 --RUN--
 
 #
 # § 6.3.5: an NGSILD-Warning header signals abnormal behaviour on a distributed
-# HTTP GET/HEAD over /entities and /entities/{id}. An HTTP error response
-# received from a registered source (e.g. 403 - Forbidden) is warning code
-# 299 - "Miscellaneous Persistent Warning". The failing source's data is simply
-# absent from the merged (still-2xx) response; the warning is how the client
-# learns a source misbehaved.
+# HTTP GET/HEAD over /entities and /entities/{id}. The failing source's data is
+# simply absent from the merged (still-2xx) response; the warning is how the
+# client learns a source misbehaved. The § 6.3.5 warning codes:
+#
+#   299 - Miscellaneous Persistent Warning — an HTTP error status (e.g. 403)
+#         was received from the endpoint.
+#   199 - Miscellaneous Warning            — no response was received within the
+#         timeout period.
+#   111 - Revalidation Failed              — a response arrived in time but its
+#         payload was invalid / non-NGSI-LD.
+#   (110 - Response is Stale is a GET-cache signal; no such cache here.)
 #
 # ftClient mocks: 7711→403, 7712→500 (error statuses → 299),
 #                 7713→200 (healthy → no warning),
-#                 7714→200 but 2s slow (a timeout is a 199, NOT a 299).
+#                 7714→200 but 2s slow, management.timeout 200ms → times out (199),
+#                 7715→200 with an invalid (non-JSON) payload → 111.
 #
 
 echo "01. Seed a local Vehicle"
@@ -97,19 +105,38 @@ echo
 echo
 
 
-echo "10. GET list → slow source times out (a 199, not 299): still only 7711 + 7712"
-echo "============================================================================="
+echo "10. GET list → slow source times out: NGSILD-Warning 199 for 7714 (§ 6.3.5)"
+echo "==========================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
 
-echo "11. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all"
+echo "11. Register inclusive CSR → invalid-payload source (7715)"
+echo "=========================================================="
+# Program 7715 to answer a forwarded GET /entities with HTTP 200 but a body that
+# is NOT valid JSON — a non-NGSI-LD payload received within the timeout (§ 6.3.5
+# warning code 111 - Revalidation Failed).
+swCurl --port 7715 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":200,"raw":"this is not a valid NGSI-LD payload {["}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Invalid","type":"ContextSourceRegistration","endpoint":"http://localhost:7715","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "12. GET list → invalid-payload source → NGSILD-Warning 111 (§ 6.3.5)"
 echo "===================================================================="
-# Isolate the 404 case: drop the error/slow sources, leave only 7713 (→ 404).
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+echo
+echo
+
+
+echo "13. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all"
+echo "===================================================================="
+# Isolate the 404 case: drop the error/slow/invalid sources, leave only 7713 (→ 404).
 swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Forbidden > /dev/null
 swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:ServerErr > /dev/null
 swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Slow > /dev/null
+swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Invalid > /dev/null
 ftClientStop --port 7713
 ftClientStart --port 7713 --status 404
 swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
@@ -191,13 +218,34 @@ Content-Length: 0
 
 
 
-10. GET list → slow source times out (a 199, not 299): still only 7711 + 7712
-=============================================================================
+10. GET list → slow source times out: NGSILD-Warning 199 for 7714 (§ 6.3.5)
+===========================================================================
 HTTP/1.1 200 OK
-NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint", 299 localhost:7712 "An error response was received from the registration endpoint"
+NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint", 299 localhost:7712 "An error response was received from the registration endpoint", 199 localhost:7714 "No response was received from the registration endpoint within the timeout period"
 
 
-11. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all
+11. Register inclusive CSR → invalid-payload source (7715)
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Invalid
+Content-Length: 0
+
+
+
+
+12. GET list → invalid-payload source → NGSILD-Warning 111 (§ 6.3.5)
+====================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 299 localhost:7711 "An error response was received from the registration endpoint", 299 localhost:7712 "An error response was received from the registration endpoint", 199 localhost:7714 "No response was received from the registration endpoint within the timeout period", 111 localhost:7715 "An invalid response payload was received from the registration endpoint"
+
+
+13. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all
 ====================================================================
 HTTP/1.1 200 OK
 
@@ -207,5 +255,6 @@ ftClientStop --port 7711
 ftClientStop --port 7712
 ftClientStop --port 7713
 ftClientStop --port 7714
+ftClientStop --port 7715
 swBrokerStop
 swDbDrop

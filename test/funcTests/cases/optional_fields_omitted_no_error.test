@@ -33,6 +33,9 @@ swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E1", "type": "
 echo
 echo
 
+# The retrieve-by-id fans out to the step-02 registration (endpoint
+# my.csource.org:1026, unreachable); it never answers, so § 6.3.5 adds an
+# NGSILD-Warning 199 alongside the locally-served entity.
 echo "04. GET the entity back"
 echo "======================="
 swCurl --url '/ngsi-ld/v1/entities/urn:E1'
@@ -60,6 +63,7 @@ HTTP/1.1 201 Created
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+NGSILD-Warning: 199 my.csource.org:1026 "No response was received from the registration endpoint within the timeout period"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 36
 

@@ -142,6 +142,9 @@ echo
 # representations. The 406 must NOT leak the requested resource: a Retrieve
 # Entity with Accept: application/xml answers a ProblemDetails (whose detail
 # enumerates the supported media types), never the entity.
+# The entity's type T is covered by CSR:R1 (endpoint localhost:9000, seeded at
+# step 10 and never listening), so the distributed retrieve for E1 gets no
+# response from that source — surfaced as a § 6.3.5 NGSILD-Warning 199.
 echo "15. GET /entities/{id} with an unacceptable Accept (application/xml) -> 406 + representation list"
 echo "==============================================================================================="
 swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -H 'Accept: application/xml'
@@ -286,6 +289,7 @@ Date: REGEX(.*)
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
+NGSILD-Warning: 199 localhost:9000 "No response was received from the registration endpoint within the timeout period"
 Content-Length: 220
 
 {
