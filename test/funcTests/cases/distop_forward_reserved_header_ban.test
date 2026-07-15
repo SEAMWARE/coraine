@@ -1,0 +1,88 @@
+#
+# FILE            distop_forward_reserved_header_ban.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps forward § 6.5.4 — contextSourceInfo cannot override reg-derived / HTTP headers
+
+--TAGS--
+distops registration tenant
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+#
+# TS 104-176 § 6.5.4: "Headers derived from other elements of the
+# CSourceRegistration, e.g. NGSILD-Tenant, take precedence and cannot be
+# overridden using contextSourceInfo. The same applies for headers generally set
+# by HTTP itself, e.g. Content-length."
+#
+# So a contextSourceInfo key-value pair that names a RESERVED header is ignored:
+# NGSILD-Tenant stays the registration-derived value (here a tenant REWRITE to
+# "backend"), and Host stays the HTTP-set authority of the endpoint — neither is
+# replaced by the contextSourceInfo value. A non-reserved custom header (X-Custom)
+# from the same contextSourceInfo array IS forwarded, proving the array is applied.
+#
+
+echo "01. Register CSR on tenant 'beta' — tenant rewrite=backend + contextSourceInfo"
+echo "    trying to override NGSILD-Tenant and Host (plus an allowed X-Custom)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payload '{
+  "id": "urn:ngsi-ld:CSR:1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "inclusive",
+  "operations": ["retrieveOps"],
+  "tenant": "backend",
+  "contextSourceInfo": [
+    { "key": "NGSILD-Tenant", "value": "evil-tenant" },
+    { "key": "Host",          "value": "evil.example.org" },
+    { "key": "X-Custom",      "value": "allowed-value" }
+  ],
+  "information": [ { "entities": [ { "type": "T" } ] } ]
+}'
+echo
+echo
+
+
+echo "02. GET ?type=T on tenant 'beta' → triggers the forward"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T' -H 'NGSILD-Tenant: beta' > /dev/null
+echo "forwarded request headers:"
+ftClientDump --port 7711 | grep -E '"(NGSILD-Tenant|Host|X-Custom)"'
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR on tenant 'beta' — tenant rewrite=backend + contextSourceInfo
+    trying to override NGSILD-Tenant and Host (plus an allowed X-Custom)
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: beta
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1
+Content-Length: 0
+
+
+
+
+02. GET ?type=T on tenant 'beta' → triggers the forward
+=======================================================
+forwarded request headers:
+      "Host": "localhost:7711",
+      "NGSILD-Tenant": "backend",
+      "X-Custom": "allowed-value"
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop
