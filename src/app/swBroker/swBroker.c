@@ -35,6 +35,7 @@
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
+#include "swNgsild/ldHooks.h"                      // ldAcceptPrecondition
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "swNgsild/ldRegCache.h"                  // ldRegCacheProbePending
 #include "swNgsild/ldNotifyStatsHook.h"           // ldNotifyStatsHookSet
@@ -517,6 +518,14 @@ static KjNode* throttleRetrieveCallback(const char* entityId, void* allocP)
 //
 static bool brokerPreServiceHook(void)
 {
+  // § 6.2.2 Accept-header precondition FIRST — a Not Acceptable media type is a
+  // 406 that must trump any other 4xx (e.g. an unacceptable Accept on a retrieve
+  // of a missing entity is 406, not 404) and, being a precondition, must reject
+  // BEFORE the service routine runs so an unacceptable Accept on a write has no
+  // side effect (spec-doubt #109).
+  if (!ldAcceptPrecondition())
+    return false;
+
   // Resolve @context unconditionally so service routines see swNgsild.contextP
   // populated whether the request had URL params, a body, or neither
   // (e.g. GET /types/Building with just a Link header).

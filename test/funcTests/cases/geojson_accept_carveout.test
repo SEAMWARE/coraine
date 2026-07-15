@@ -96,6 +96,38 @@ echo
 echo
 
 
+#
+# § 6.2.2 is a request PRECONDITION: an unacceptable Accept on a WRITE is
+# rejected BEFORE the operation runs, so it has NO side effect (spec-doubt #109).
+#
+echo "10. Create Entity + Accept geo+json → 406 (write is not Retrieve/Query)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities -H 'Accept: application/geo+json' --payload '{"id":"urn:V9","type":"Vehicle"}' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+echo
+echo
+
+
+echo "11. urn:V9 was NOT created — the 406 precondition blocked the write → 404"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V9 2>&1 | grep -iE '^HTTP'
+echo
+echo
+
+
+echo "12. Delete Entity + Accept geo+json → 406"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+echo
+echo
+
+
+echo "13. urn:V1 was NOT deleted — still retrievable → 200"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 2>&1 | grep -iE '^HTTP'
+echo
+echo
+
+
 --EXPECT--
 01. Seed a Vehicle with a location GeoProperty + a subscription
 ==============================================================
@@ -220,6 +252,28 @@ Content-Length: 198
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
+
+
+10. Create Entity + Accept geo+json → 406 (write is not Retrieve/Query)
+=======================================================================
+HTTP/1.1 406 Not Acceptable
+Content-Type: application/json
+
+
+11. urn:V9 was NOT created — the 406 precondition blocked the write → 404
+========================================================================
+HTTP/1.1 404 Not Found
+
+
+12. Delete Entity + Accept geo+json → 406
+=========================================
+HTTP/1.1 406 Not Acceptable
+Content-Type: application/json
+
+
+13. urn:V1 was NOT deleted — still retrievable → 200
+===================================================
+HTTP/1.1 200 OK
 
 
 --TEARDOWN--
