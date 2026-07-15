@@ -1,0 +1,227 @@
+#
+# FILE            geojson_accept_carveout.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+§ 6.2.2 geo+json Accept is acceptable ONLY for Retrieve/Query Entity, else 406
+
+--TAGS--
+media query geojson error
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# TS 104-176 § 6.2.2: "Notwithstanding [the general 406 rule], if the Accept
+# Header is set to application/geo+json: For Context Information Consumption
+# operations only, specifically 'Retrieve Entity' and 'Query Entity', GeoJSON is
+# considered as an acceptable content type ... For all other operations, the
+# request will result in a Not Acceptable Media Type error, returning a 406 HTTP
+# status code and the body of the message shall contain the list of the
+# available representations of the resources."
+#
+# So Accept: application/geo+json is served (200 geo+json) for Retrieve Entity
+# and Query Entity, but every OTHER operation answers 406 whose representation
+# list does NOT offer geo+json (it is not available for that operation).
+#
+
+echo "01. Seed a Vehicle with a location GeoProperty + a subscription"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}}}'
+echo
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Subscription:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
+echo
+echo
+
+
+echo "02. Retrieve Entity + Accept geo+json → 200 application/geo+json (carve-out)"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+echo
+echo
+
+
+echo "03. Query Entities + Accept geo+json → 200 application/geo+json (carve-out)"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+echo
+echo
+
+
+echo "04. GET /subscriptions (list) + Accept geo+json → 406 + representation list (no geo+json)"
+echo "========================================================================================="
+swCurl --url /ngsi-ld/v1/subscriptions -H 'Accept: application/geo+json'
+echo
+echo
+
+
+echo "05. GET /subscriptions/{id} + Accept geo+json → 406"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -H 'Accept: application/geo+json'
+echo
+echo
+
+
+echo "06. GET /csourceRegistrations + Accept geo+json → 406"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'Accept: application/geo+json'
+echo
+echo
+
+
+echo "07. GET /temporal/entities/{id} + Accept geo+json → 406 (temporal is not Retrieve Entity)"
+echo "========================================================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H 'Accept: application/geo+json'
+echo
+echo
+
+
+echo "08. GET /temporal/entities (query) + Accept geo+json → 406"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle' -H 'Accept: application/geo+json'
+echo
+echo
+
+
+echo "09. GET /types + Accept geo+json → 406"
+echo "======================================"
+swCurl --url /ngsi-ld/v1/types -H 'Accept: application/geo+json'
+echo
+echo
+
+
+--EXPECT--
+01. Seed a Vehicle with a location GeoProperty + a subscription
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+02. Retrieve Entity + Accept geo+json → 200 application/geo+json (carve-out)
+===========================================================================
+HTTP/1.1 200 OK
+Content-Type: application/geo+json
+
+
+03. Query Entities + Accept geo+json → 200 application/geo+json (carve-out)
+==========================================================================
+HTTP/1.1 200 OK
+Content-Type: application/geo+json
+
+
+04. GET /subscriptions (list) + Accept geo+json → 406 + representation list (no geo+json)
+=========================================================================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "supported response media types: application/json, application/ld+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+05. GET /subscriptions/{id} + Accept geo+json → 406
+===================================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "supported response media types: application/json, application/ld+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+06. GET /csourceRegistrations + Accept geo+json → 406
+=====================================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "supported response media types: application/json, application/ld+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+07. GET /temporal/entities/{id} + Accept geo+json → 406 (temporal is not Retrieve Entity)
+=========================================================================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "supported response media types: application/json, application/ld+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+08. GET /temporal/entities (query) + Accept geo+json → 406
+==========================================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "supported response media types: application/json, application/ld+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+09. GET /types + Accept geo+json → 406
+======================================
+HTTP/1.1 406 Not Acceptable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "supported response media types: application/json, application/ld+json",
+  "status": 406,
+  "title": "Not Acceptable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
