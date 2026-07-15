@@ -84,7 +84,7 @@ echo
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NoCreate
-Content-Length: REGEX(\d+)
+Content-Length: 0
 
 
 
@@ -94,8 +94,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 381
 
 {
   "errors": [
@@ -123,7 +122,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 103
 
 {
   "color": {

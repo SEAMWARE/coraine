@@ -1,0 +1,195 @@
+#
+# FILE            http_error_207_always_json.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+§ 6.2.3 error + 207 responses are always application/json (FQN, no @context/Link)
+
+--TAGS--
+batch error media query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+#
+# TS 104-176 § 6.2.3: "Operations that result in an error that return a payload
+# or that result in a partial success (207 Multi-Status) shall always respond
+# with MIME type application/json, regardless of the Accept header. ... Only
+# Fully Qualified Names shall be used in the payload body of error or partial
+# success responses, as there is no context present." And § 6.2.2: all error
+# responses do not include the Link header.
+#
+# So a 207 and an error-with-payload BOTH: Content-Type application/json even
+# when the client sends Accept: application/ld+json; an FQN-only body with no
+# inline @context; and no json-ld#context Link header.
+#
+
+echo "01. Seed a local entity to collide with"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","P1":{"type":"Property","value":1}}'
+echo
+echo
+
+
+echo "02. Batch create [E1 dup → 409, E2 new → 201] + Accept ld+json → 207 application/json"
+echo "===================================================================================="
+# The AlreadyExists error rides in the partial-success 207 body; the successful
+# E2 is in success[]. Despite Accept: application/ld+json the response is
+# application/json, the body is FQN (full error-type URI), no @context, no Link.
+swCurl --url /ngsi-ld/v1/entityOperations/create -H 'Accept: application/ld+json' \
+  --payload '[{"id":"urn:E1","type":"T"},{"id":"urn:E2","type":"T"}]'
+echo
+echo
+
+
+echo "03. Same batch, DEFAULT Accept → 207 application/json, still no Link"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create \
+  --payload '[{"id":"urn:E1","type":"T"},{"id":"urn:E3","type":"T"}]'
+echo
+echo
+
+
+echo "04. Batch merge into non-existent [urn:NOPE] + Accept ld+json → 404 application/json"
+echo "==================================================================================="
+# A uniform single-element batch failure renders a bare FQN error object (404);
+# § 6.2.2/6.2.3 → application/json, no @context, no Link even under ld+json.
+swCurl --url /ngsi-ld/v1/entityOperations/merge -H 'Accept: application/ld+json' \
+  --payload '[{"id":"urn:NOPE","type":"T","P1":{"type":"Property","value":9}}]'
+echo
+echo
+
+
+echo "05. Direct 400 (entity without id) + Accept ld+json → 400 application/json, no Link"
+echo "=================================================================================="
+swCurl --url /ngsi-ld/v1/entities -H 'Accept: application/ld+json' --payload '{"type":"NoId"}'
+echo
+echo
+
+
+echo "06. Direct 404 (retrieve non-existent) + Accept ld+json → 404 application/json, no Link"
+echo "======================================================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:NoSuch' -H 'Accept: application/ld+json'
+echo
+echo
+
+
+--EXPECT--
+01. Seed a local entity to collide with
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. Batch create [E1 dup → 409, E2 new → 201] + Accept ld+json → 207 application/json
+====================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 289
+
+{
+  "errors": [
+    {
+      "entityId": "urn:E1",
+      "error": {
+        "detail": "entity already exists",
+        "status": 409,
+        "title": "Already Exists",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+      }
+    }
+  ],
+  "success": [
+    "urn:E2"
+  ]
+}
+
+
+
+03. Same batch, DEFAULT Accept → 207 application/json, still no Link
+===================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 289
+
+{
+  "errors": [
+    {
+      "entityId": "urn:E1",
+      "error": {
+        "detail": "entity already exists",
+        "status": 409,
+        "title": "Already Exists",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+      }
+    }
+  ],
+  "success": [
+    "urn:E3"
+  ]
+}
+
+
+
+04. Batch merge into non-existent [urn:NOPE] + Accept ld+json → 404 application/json
+===================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 119
+
+{
+  "entityId": "urn:NOPE",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. Direct 400 (entity without id) + Accept ld+json → 400 application/json, no Link
+==================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "Entity 'id' is mandatory for CreateEntity",
+  "status": 400,
+  "title": "Missing Entity Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Direct 404 (retrieve non-existent) + Accept ld+json → 404 application/json, no Link
+======================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "entity 'urn:ngsi-ld:NoSuch' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
