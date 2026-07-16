@@ -1,0 +1,138 @@
+#
+# FILE            csr_subscription_notify_ldjson.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-176 § 6.5.3 — a csource notification's POST MIME type is
+# application/json by default (with the @context in a Link header), but is
+# switched to application/ld+json via notification.endpoint.accept. For the
+# ld+json case the @context ships INLINE in the body (on each data[] member,
+# the CSR) and NO Link header is emitted — the CSR-subscription parallel to
+# the entity-notification § 6.5.2 rule (subscription_notify_ldjson_inline_context).
+#
+# REQUIRE_DB: mongoc
+--NAME--
+CSR Subscription notify — ld+json carries @context inline, no Link (§ 6.5.3)
+
+--TAGS--
+csr-sub subscription notification ldjson context
+
+--INIT--
+swDbDrop
+contextServerStart
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "00. Serve a context (ctxA)"
+echo "==========================="
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": { "spd": "https://uri.etsi.org/ngsi-ld/default-context/speed" }
+}'
+echo
+echo
+
+
+echo "01. csource-sub via ctxA, endpoint.accept = application/ld+json"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S-LD","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s","accept":"application/ld+json"}}}' -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. Register matching CSR-A (Vehicle) — triggers a CsourceNotification"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. Dump — Content-Type ld+json, @context ctxA inline in data[], no Link"
+echo "========================================================================"
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+00. Serve a context (ctxA)
+===========================
+
+
+01. csource-sub via ctxA, endpoint.accept = application/ld+json
+==============================================================
+HTTP/1.1 201 Created
+
+
+02. Register matching CSR-A (Vehicle) — triggers a CsourceNotification
+=====================================================================
+HTTP/1.1 201 Created
+
+
+03. Dump — Content-Type ld+json, @context ctxA inline in data[], no Link
+========================================================================
+[
+  {
+    "body": {
+      "data": [],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S-LD",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/ld+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/s",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "@context": "http://localhost:7080/jsonldContexts/ctxA",
+          "endpoint": "http://cp1.example",
+          "id": "urn:CSR:A",
+          "information": [
+            {
+              "entities": [
+                {
+                  "type": "Vehicle"
+                }
+              ]
+            }
+          ],
+          "mode": "inclusive",
+          "type": "ContextSourceRegistration"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S-LD",
+      "triggerReason": "newlyMatching",
+      "type": "ContextSourceNotification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/ld+json",
+      "Host": "localhost:7701",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/s",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+ftClientStop
+contextServerStop
+swBrokerStop
+swDbDrop
