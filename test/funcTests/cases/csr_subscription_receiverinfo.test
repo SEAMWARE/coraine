@@ -1,0 +1,74 @@
+#
+# FILE            csr_subscription_receiverinfo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-176 § 6.5.3 — when the broker sends a CsourceNotification, if the
+# csourceSubscription's notification.endpoint.receiverInfo array is present,
+# a custom HTTP header shall be generated for each {key,value} member and
+# included in the outbound HTTP POST. This mirrors the entity-notification
+# rule of § 6.5.2 (see subscription_endpoint_receiverinfo.test) for the
+# Context Source Registration subscription notification path.
+#
+--NAME--
+CSR Subscription - endpoint.receiverInfo as outbound headers (§ 6.5.3)
+
+--TAGS--
+csr-sub subscription notification receiverinfo
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Subscribe S1 (Vehicle) with receiverInfo (X-Token, X-Tenant)"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1","receiverInfo":[{"key":"X-Token","value":"abc123"},{"key":"X-Tenant","value":"demo"}]}}}' | head -1
+echo
+echo
+
+
+echo "02. Register CSR-A (Vehicle) — triggers a CsourceNotification to S1"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. Inspect ftClient dump — X-Token and X-Tenant headers were forwarded"
+echo "======================================================================="
+# Two CsourceNotifications carry the receiverInfo headers: the initial
+# (empty-data) notification sent when S1 was created, and the newlyMatching
+# notification triggered by CSR-A. Both must carry the custom headers.
+ftClientDump | grep -E '"X-(Token|Tenant)"'
+echo
+echo
+
+
+--EXPECT--
+01. Subscribe S1 (Vehicle) with receiverInfo (X-Token, X-Tenant)
+================================================================
+HTTP/1.1 201 Created
+
+
+02. Register CSR-A (Vehicle) — triggers a CsourceNotification to S1
+==================================================================
+HTTP/1.1 201 Created
+
+
+03. Inspect ftClient dump — X-Token and X-Tenant headers were forwarded
+=======================================================================
+      "X-Tenant": "demo",
+      "X-Token": "abc123"
+      "X-Tenant": "demo",
+      "X-Token": "abc123"
+
+
+--TEARDOWN--
+ftClientStop
+swBrokerStop
+swDbDrop
