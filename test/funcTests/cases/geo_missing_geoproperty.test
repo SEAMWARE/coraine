@@ -1,0 +1,305 @@
+#
+# FILE            geo_missing_geoproperty.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.2.4: "When resolving geo-queries, Entities which do not convey
+# the target GeoProperty of the query shall be considered as non-matching." The
+# target GeoProperty is named by the `geoproperty` parameter (default: location).
+#
+# The second half is a regression guard: a GeoProperty added to an existing
+# entity AFTER creation (via merge / append / batch-merge) must get its 2dsphere
+# index so a subsequent georel=near query over it succeeds (it used to 500 with
+# "unable to find index for $geoNear query" — the index was only ensured on
+# create / replace).
+#
+--NAME--
+GeoQuery — entity missing the target GeoProperty is non-matching (§ 7.2.4) + dynamic geo-index
+
+--TAGS--
+geoquery geoproperty query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed E1/E2 with location, E3 with NO location (only name)"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.1,40.0]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[9.0,41.0]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E3","type":"P","name":{"type":"Property","value":"noloc"}}' | head -1
+echo
+echo
+
+
+echo "02. georel=within default location — E1,E2 match; E3 (no location) non-matching"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7,39%5D,%5B10,39%5D,%5B10,42%5D,%5B7,42%5D,%5B7,39%5D%5D%5D&orderBy=id&options=keyValues'
+echo
+echo
+
+
+echo "03. georel=near default location — E1,E2 by distance; E3 non-matching"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=P&georel=near%3BmaxDistance==200000&geometry=Point&coordinates=%5B8,40%5D&options=keyValues'
+echo
+echo
+
+
+echo "04. Seed E4 with opArea (at creation), E5 with location only (no opArea)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E4","type":"P","opArea":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.05,40.0]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E5","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.2,40.0]}}}' | head -1
+echo
+echo
+
+
+echo "05. georel=within&geoproperty=opArea — only E4 has opArea; E1/E2/E5 non-matching"
+echo "================================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7,39%5D,%5B10,39%5D,%5B10,42%5D,%5B7,42%5D,%5B7,39%5D%5D%5D&geoproperty=opArea&orderBy=id&options=keyValues'
+echo
+echo
+
+
+echo "06. Regression: PATCH-merge opArea onto E1, then near&geoproperty=opArea -> 200 (E4,E1)"
+echo "======================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{"opArea":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.1,40.0]}}}' | head -1
+swCurl --url '/ngsi-ld/v1/entities?type=P&georel=near%3BmaxDistance==500000&geometry=Point&coordinates=%5B8,40%5D&geoproperty=opArea&options=keyValues'
+echo
+echo
+
+
+echo "07. Regression: append opArea onto E5 (POST /attrs), then near&geoproperty=opArea -> 200"
+echo "========================================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E5/attrs --payload '{"opArea":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.2,40.0]}}}' | head -1
+swCurl --url '/ngsi-ld/v1/entities?type=P&georel=near%3BmaxDistance==500000&geometry=Point&coordinates=%5B8,40%5D&geoproperty=opArea&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed E1/E2 with location, E3 with NO location (only name)
+============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. georel=within default location — E1,E2 match; E3 (no location) non-matching
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 313
+
+[
+  {
+    "id": "urn:ngsi-ld:E1",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "id": "urn:ngsi-ld:E2",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+03. georel=near default location — E1,E2 by distance; E3 non-matching
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 385
+
+[
+  {
+    "geoDistance": 8527.517817111,
+    "id": "urn:ngsi-ld:E1",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 139844.307016697,
+    "id": "urn:ngsi-ld:E2",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+04. Seed E4 with opArea (at creation), E5 with location only (no opArea)
+=======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+05. georel=within&geoproperty=opArea — only E4 has opArea; E1/E2/E5 non-matching
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 158
+
+[
+  {
+    "id": "urn:ngsi-ld:E4",
+    "opArea": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+06. Regression: PATCH-merge opArea onto E1, then near&geoproperty=opArea -> 200 (E4,E1)
+=======================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 485
+
+[
+  {
+    "geoDistance": 4263.759076255,
+    "id": "urn:ngsi-ld:E4",
+    "opArea": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 8527.517817111,
+    "id": "urn:ngsi-ld:E1",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "opArea": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+07. Regression: append opArea onto E5 (POST /attrs), then near&geoproperty=opArea -> 200
+========================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 778
+
+[
+  {
+    "geoDistance": 4263.759076255,
+    "id": "urn:ngsi-ld:E4",
+    "opArea": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 8527.517817111,
+    "id": "urn:ngsi-ld:E1",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "opArea": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 17055.032951024,
+    "id": "urn:ngsi-ld:E5",
+    "location": {
+      "coordinates": [
+        8.2,
+        40
+      ],
+      "type": "Point"
+    },
+    "opArea": {
+      "coordinates": [
+        8.2,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -40,6 +40,7 @@
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/mongoc/mongocBsonToKjTree.h"      // mongocBsonToKjTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
+#include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkMerge.h"   // Own interface
 
 
@@ -246,6 +247,13 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk);
   }
+
+  // A merge can introduce a new GeoProperty attribute — ensure its 2dsphere
+  // index for each applied fragment so a later georel=near / dist-sort query
+  // over it does not fail for want of an index (idempotent; cached paths skip).
+  for (int i = 0; i < n; i++)
+    if (staged[i] && (resultsV[i] == DB_OK) && (mergedTargetsV[i] != NULL))
+      mongocGeoIndexEnsure(tenantP, mergedTargetsV[i], collP);
 
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);

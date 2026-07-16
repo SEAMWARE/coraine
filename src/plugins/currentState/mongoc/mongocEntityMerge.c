@@ -37,6 +37,7 @@
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"      // mongocEscapeDotsInKey
+#include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityMerge.h"    // Own interface
 
 
@@ -193,6 +194,12 @@ int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
         result = DB_ERR;
       }
     }
+
+    // A merge can introduce a new GeoProperty attribute — ensure its 2dsphere
+    // index so a later georel=near / dist-sort query over it does not fail for
+    // want of an index (idempotent; cached field paths are skipped).
+    if (result == DB_OK)
+      mongocGeoIndexEnsure(tenantP, mergedEntity, collP);
 
     bson_destroy(&filter);
     mongoc_collection_destroy(collP);
