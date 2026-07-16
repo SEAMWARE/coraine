@@ -1,0 +1,476 @@
+#
+# FILE            distop_write_single_source_status.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - single-entity write status per § 6.3.5 (504/502/409 single source, 207 multi)
+
+--TAGS--
+distops error registration patch delete
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7716 --status 200 --delay 2000
+ftClientStart --port 7717 --status 500
+ftClientStart --port 7718 --status 204
+
+--RUN--
+
+#
+# TS 104-176 § 6.3.5 / § 7.3.x — the response code of a distributed single-entity
+# write (merge / replace / replace-attr / delete). The distributed-op result is a
+# BatchOperationResult; § 6.3.5 refines the STATUS CODE when the whole operation is
+# served by a SINGLE authoritative source (one exclusive/redirect, nothing local):
+#
+#   - 504 Gateway Timeout - the single source fails to respond in time
+#   - 502 Bad Gateway      - the single forwarded request fails for any other reason
+#   - 409 Conflict         - the single source does not support the op (§ 10.2.3.4)
+#
+# When the entity is distributed over several sources, an all-failed outcome is a
+# plain 207 Multi-Status. Partial success is always 207. Full success is 204.
+#
+# Mocks: 7716 sleeps 2s (CSR timeout 200ms → times out); 7717 answers 500;
+# 7718 answers 204 (live); http://localhost:9 refuses the connection.
+#
+
+echo "01. Register single EXCLUSIVE CSR (urn:W1) -> slow source (timeout)"
+echo "==================================================================="
+payload='{
+  "id": "urn:CSR:W1",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:7716",
+  "management": { "timeout": 200 },
+  "operations": ["mergeEntity", "deleteEntity"],
+  "information": [ { "entities": [ { "id": "urn:W1", "type": "T" } ], "propertyNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH urn:W1 -> single source times out -> 504 Gateway Timeout"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:W1 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+echo
+echo
+
+
+echo "03. DELETE urn:W1 -> single source times out -> 504 Gateway Timeout"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:W1 -X DELETE
+echo
+echo
+
+
+echo "04. Register single EXCLUSIVE CSR (urn:W2) -> source answering 500"
+echo "=================================================================="
+payload='{
+  "id": "urn:CSR:W2",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:7717",
+  "operations": ["mergeEntity"],
+  "information": [ { "entities": [ { "id": "urn:W2", "type": "T" } ], "propertyNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. PATCH urn:W2 -> single source fails (500) -> 502 Bad Gateway"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:W2 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+echo
+echo
+
+
+echo "06. Register single EXCLUSIVE CSR (urn:W3) -> dead endpoint (conn refused)"
+echo "=========================================================================="
+payload='{
+  "id": "urn:CSR:W3",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:9",
+  "management": { "timeout": 200 },
+  "operations": ["replaceAttr"],
+  "information": [ { "entities": [ { "id": "urn:W3", "type": "T" } ], "propertyNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "07. PUT urn:W3/attrs/speed -> single source conn refused -> 502 Bad Gateway"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:W3/attrs/speed -X PUT --payload '{"type":"Property","value":9}'
+echo
+echo
+
+
+echo "08. Register single EXCLUSIVE CSR (urn:NU) -> operations exclude mergeEntity"
+echo "============================================================================"
+payload='{
+  "id": "urn:CSR:NU",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:7718",
+  "operations": ["retrieveEntity"],
+  "information": [ { "entities": [ { "id": "urn:NU", "type": "T" } ], "propertyNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "09. PATCH urn:NU -> single source refuses the op -> 409 Conflict"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:NU -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+echo
+echo
+
+
+echo "10. Register TWO EXCLUSIVE CSRs on urn:X (dead), owning distinct attrs"
+echo "======================================================================"
+payload='{
+  "id": "urn:CSR:X1",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:9",
+  "management": { "timeout": 200 },
+  "operations": ["mergeEntity", "deleteEntity"],
+  "information": [ { "entities": [ { "id": "urn:X", "type": "T" } ], "propertyNames": ["p"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+payload='{
+  "id": "urn:CSR:X2",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:9",
+  "management": { "timeout": 200 },
+  "operations": ["mergeEntity", "deleteEntity"],
+  "information": [ { "entities": [ { "id": "urn:X", "type": "T" } ], "propertyNames": ["q"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "11. PATCH urn:X p+q -> distributed over two sources, all fail -> 207"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:X -X PATCH --payload '{"p":{"type":"Property","value":1},"q":{"type":"Property","value":2}}'
+echo
+echo
+
+
+echo "12. DELETE urn:X -> distributed over two sources, all fail -> 207"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:X -X DELETE
+echo
+echo
+
+
+echo "13. Register single EXCLUSIVE CSR (urn:LV) -> live source (204)"
+echo "==============================================================="
+payload='{
+  "id": "urn:CSR:LV",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:7718",
+  "operations": ["mergeEntity"],
+  "information": [ { "entities": [ { "id": "urn:LV", "type": "T" } ], "propertyNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "14. PATCH urn:LV -> single source succeeds -> 204 No Content"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:LV -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+echo
+echo
+
+
+--EXPECT--
+01. Register single EXCLUSIVE CSR (urn:W1) -> slow source (timeout)
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:W1
+Content-Length: 0
+
+
+
+
+02. PATCH urn:W1 -> single source times out -> 504 Gateway Timeout
+==================================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 322
+
+{
+  "errors": [
+    {
+      "entityId": "urn:W1",
+      "error": {
+        "detail": "forward failed: Request timeout",
+        "status": 504,
+        "title": "Gateway Timeout",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:W1"
+    }
+  ],
+  "success": []
+}
+
+
+
+03. DELETE urn:W1 -> single source times out -> 504 Gateway Timeout
+===================================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 322
+
+{
+  "errors": [
+    {
+      "entityId": "urn:W1",
+      "error": {
+        "detail": "forward failed: Request timeout",
+        "status": 504,
+        "title": "Gateway Timeout",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:W1"
+    }
+  ],
+  "success": []
+}
+
+
+
+04. Register single EXCLUSIVE CSR (urn:W2) -> source answering 500
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:W2
+Content-Length: 0
+
+
+
+
+05. PATCH urn:W2 -> single source fails (500) -> 502 Bad Gateway
+================================================================
+HTTP/1.1 502 Bad Gateway
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 314
+
+{
+  "errors": [
+    {
+      "entityId": "urn:W2",
+      "error": {
+        "detail": "forward returned status 500",
+        "status": 500,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:W2"
+    }
+  ],
+  "success": []
+}
+
+
+
+06. Register single EXCLUSIVE CSR (urn:W3) -> dead endpoint (conn refused)
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:W3
+Content-Length: 0
+
+
+
+
+07. PUT urn:W3/attrs/speed -> single source conn refused -> 502 Bad Gateway
+===========================================================================
+HTTP/1.1 502 Bad Gateway
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 320
+
+{
+  "errors": [
+    {
+      "entityId": "urn:W3",
+      "error": {
+        "detail": "forward failed: Connection failed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:W3"
+    }
+  ],
+  "success": []
+}
+
+
+
+08. Register single EXCLUSIVE CSR (urn:NU) -> operations exclude mergeEntity
+============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:NU
+Content-Length: 0
+
+
+
+
+09. PATCH urn:NU -> single source refuses the op -> 409 Conflict
+================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 330
+
+{
+  "errors": [
+    {
+      "entityId": "urn:NU",
+      "error": {
+        "detail": "exclusive registration does not support mergeEntity",
+        "status": 409,
+        "title": "Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      },
+      "registrationId": "urn:CSR:NU"
+    }
+  ],
+  "success": []
+}
+
+
+
+10. Register TWO EXCLUSIVE CSRs on urn:X (dead), owning distinct attrs
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:X1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:X2
+Content-Length: 0
+
+
+
+
+11. PATCH urn:X p+q -> distributed over two sources, all fail -> 207
+====================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 600
+
+{
+  "errors": [
+    {
+      "entityId": "urn:X",
+      "error": {
+        "detail": "forward failed: Connection failed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:X1"
+    },
+    {
+      "entityId": "urn:X",
+      "error": {
+        "detail": "forward failed: Connection failed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:X2"
+    }
+  ],
+  "success": []
+}
+
+
+
+12. DELETE urn:X -> distributed over two sources, all fail -> 207
+=================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 600
+
+{
+  "errors": [
+    {
+      "entityId": "urn:X",
+      "error": {
+        "detail": "forward failed: Connection failed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:X1"
+    },
+    {
+      "entityId": "urn:X",
+      "error": {
+        "detail": "forward failed: Connection failed",
+        "status": 502,
+        "title": "Bad Gateway",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      },
+      "registrationId": "urn:CSR:X2"
+    }
+  ],
+  "success": []
+}
+
+
+
+13. Register single EXCLUSIVE CSR (urn:LV) -> live source (204)
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:LV
+Content-Length: 0
+
+
+
+
+14. PATCH urn:LV -> single source succeeds -> 204 No Content
+============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+--TEARDOWN--
+ftClientStop --port 7716
+ftClientStop --port 7717
+ftClientStop --port 7718
+swBrokerStop
+swDbDrop

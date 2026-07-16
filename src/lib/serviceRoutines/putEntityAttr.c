@@ -186,6 +186,11 @@ bool putEntityAttr(void)
   KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
+  // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
+  bool    singleAuthoritative = false;   // exactly one exclusive/redirect source, no inclusive
+  int     forwardFailCount    = 0;       // forwarded entries that failed (non-2xx, non-404)
+  bool    forwardTimedOut     = false;   // that failed forward was a broker per-CSR timeout
+
   const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   bool dispatch = (swNgsild.local == false
@@ -210,6 +215,8 @@ bool putEntityAttr(void)
     int inclN  = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
                                                   entityId, NULL, NULL,
                                                   LdRegModeInclusive, &inclV);
+
+    singleAuthoritative = ((exclN + redirN) == 1) && (inclN == 0);
 
     LdDistOpGroup groups[] = {
       { exclV,  exclN,  "exclusive", true  },
@@ -259,10 +266,15 @@ bool putEntityAttr(void)
         if (detach[items[i].modeIdx]) localApply = false;
       }
       else if (sc != 404)
-        ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
-                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+      {
+        bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
+                              LD_ERROR_INTERNAL_ERROR, to ? "Gateway Timeout" : "Bad Gateway",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
+        forwardFailCount++;
+        if (to) forwardTimedOut = true;
+      }
     }
 
     ldRegCacheMatchRelease(exclV,  exclN);
@@ -281,7 +293,10 @@ bool putEntityAttr(void)
 
     if (rr == DB_NOT_FOUND)
     {
-      if (!anySucceeded)
+      // Not local and nothing succeeded. A distributed error means the entity is
+      // held by a source that failed — fall through to the § 6.3.5 decision
+      // (504/502/409/207) rather than masking it as a local 404.
+      if (!anySucceeded && errorsArrayP->value.firstChildP == NULL)
       {
         ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                 "entity '%s' not found", entityId);
@@ -299,7 +314,10 @@ bool putEntityAttr(void)
       KjNode* tAttrP = kjLookup(targetEntity, attrIri);
       if (tAttrP == NULL)
       {
-        if (!anySucceeded)
+        // Attribute absent locally and nothing succeeded. A distributed error
+        // means the attribute is owned by a source that failed — fall through to
+        // the § 6.3.5 decision rather than masking it as a local 404.
+        if (!anySucceeded && errorsArrayP->value.firstChildP == NULL)
         {
           ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                   "attribute '%s' not found in entity '%s'", attrWild, entityId);
@@ -392,6 +410,14 @@ bool putEntityAttr(void)
   kjChildAdd(respBodyP, errorsArrayP);
 
   swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = anySucceeded ? 207 : 409;
+
+  // § 6.3.5 / § 7.3.x — single authoritative source → its single-source code
+  // (504/502/409), distributed over several sources → 207. See patchEntity.
+  if (anySucceeded)
+    swRest.out.httpStatusCode = 207;
+  else if (singleAuthoritative && errorsCount == 1)
+    swRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
+  else
+    swRest.out.httpStatusCode = 207;
   return true;
 }

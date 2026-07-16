@@ -271,6 +271,11 @@ bool replaceEntity(void)
   KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
+  // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
+  bool    singleAuthoritative = false;   // exactly one exclusive/redirect source, no inclusive
+  int     forwardFailCount    = 0;       // forwarded entries that failed (non-2xx, non-404)
+  bool    forwardTimedOut     = false;   // that failed forward was a broker per-CSR timeout
+
   const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
 
   bool dispatch = (swNgsild.local == false
@@ -303,6 +308,8 @@ bool replaceEntity(void)
     int inclN  = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
+
+    singleAuthoritative = ((exclN + redirN) == 1) && (inclN == 0);
 
     //
     // Attribute chopping per mode (§ 4.3.6.3 / § 10.2.10.4):
@@ -382,10 +389,15 @@ bool replaceEntity(void)
       if (sc >= 200 && sc < 300)
         anySucceeded = true;
       else if (sc != 404)
-        ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
-                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+      {
+        bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
+                              LD_ERROR_INTERNAL_ERROR, to ? "Gateway Timeout" : "Bad Gateway",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
+        forwardFailCount++;
+        if (to) forwardTimedOut = true;
+      }
     }
 
     ldRegCacheMatchRelease(exclV,  exclN);
@@ -527,7 +539,15 @@ bool replaceEntity(void)
   kjChildAdd(respBodyP, errorsArrayP);
 
   swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = anySucceeded ? 207 : 409;
+
+  // § 6.3.5 / § 7.3.x — single authoritative source → its single-source code
+  // (504/502/409), distributed over several sources → 207. See patchEntity.
+  if (anySucceeded)
+    swRest.out.httpStatusCode = 207;
+  else if (singleAuthoritative && errorsCount == 1)
+    swRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
+  else
+    swRest.out.httpStatusCode = 207;
 
   return true;
 }
