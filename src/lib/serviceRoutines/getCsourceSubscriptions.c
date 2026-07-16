@@ -19,6 +19,8 @@
 #include "kjson/kjLookup.h"                          // kjLookup
 
 #include "swNgsild/swNgsild.h"                       // ldContextResolve, swNgsild
+#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
@@ -74,6 +76,12 @@ bool getCsourceSubscriptions(void)
       KjNode* jcP = kjLookup(subP, "_jcResolved");
       if (jcP != NULL)
         kjChildRemove(subP, jcP);
+
+      // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
+      if (swNgsild.sysAttrs == false)
+        ldStripSysAttrs(subP);
+      else
+        ldSysTimestampsToIso(subP, &swRest.kalloc);
 
       kjChildAdd(arrayP, subP);
     }

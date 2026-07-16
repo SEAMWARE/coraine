@@ -15,6 +15,8 @@
 #include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
+#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
 #include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
@@ -78,6 +80,13 @@ bool getSubscription(void)
 
   if (cacheItem != NULL) ldSubscriptionCountersInject(subP, cacheItem);
   else                   ldPernotCountersInject(subP, pernotItem);
+
+  // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 only under
+  // sysAttrs; stripped otherwise.
+  if (swNgsild.sysAttrs == false)
+    ldStripSysAttrs(subP);
+  else
+    ldSysTimestampsToIso(subP, &swRest.kalloc);
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = subP;

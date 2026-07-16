@@ -22,6 +22,7 @@
 #include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "swNgsild/LdRegCache.h"                     // LdRegCache
 #include "swNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
 #include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
@@ -266,6 +267,9 @@ bool patchSubscription(void)
     else
       kjChildAdd(mergedSubP, kjString(swRest.kjsonP, LD_VOCAB_STATUS, newStatus));
   }
+
+  // § 6.4.5 — bump modifiedAt to now; createdAt (from the retrieved tree) stays
+  ldSysTimestampModify(mergedSubP);
 
   int r = db.subscriptionReplace(tenantP, subId, mergedSubP);
 

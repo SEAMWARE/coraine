@@ -14,6 +14,8 @@
 #include "kjson/kjLookup.h"                          // kjLookup
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
+#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
 #include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
@@ -45,6 +47,13 @@ static void subPostProcess(KjNode* subP)
   KjNode* jcP = kjLookup(subP, "_jcResolved");
   if (jcP != NULL)
     kjChildRemove(subP, jcP);
+
+  // § 6.4.5 — createdAt/modifiedAt (stored as nanosecond integers) are rendered
+  // as ISO 8601 only when the client asks for system attributes; stripped otherwise.
+  if (swNgsild.sysAttrs == false)
+    ldStripSysAttrs(subP);
+  else
+    ldSysTimestampsToIso(subP, &swRest.kalloc);
 }
 
 

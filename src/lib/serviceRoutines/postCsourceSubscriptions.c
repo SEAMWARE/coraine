@@ -36,6 +36,7 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemLookup
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 #include "swNgsild/LdRegCache.h"                     // LdRegCache
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
 
@@ -142,6 +143,10 @@ bool postCsourceSubscriptions(void)
 
   KjNode* statusP = kjString(swRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
+
+  // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
+  // the persisted tree; rendered to ISO only when the client asks for sysAttrs)
+  ldSysTimestampCreate(subP);
 
   //
   // jsonldContext: only auto-fill when the user didn't supply one. The

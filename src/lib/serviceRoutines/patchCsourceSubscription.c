@@ -33,6 +33,7 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheItemRemove, ldSubCacheItemAdd
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "swNgsild/LdRegCache.h"                     // LdRegCache
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
 
@@ -158,6 +159,10 @@ bool patchCsourceSubscription(void)
     else
       kjChildAdd(subTree, kjString(NULL, LD_VOCAB_STATUS, newStatus));
   }
+
+  // § 6.4.5 — bump modifiedAt to now (in-place on the existing integer node;
+  // createdAt, stamped at create time, is left untouched)
+  ldSysTimestampModify(subTree);
 
   //
   // Persist the merged tree. The DB fragment semantics in our plugins

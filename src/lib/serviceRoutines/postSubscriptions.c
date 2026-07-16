@@ -35,6 +35,7 @@ extern SwldContextCache* swldCacheGet(void);
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 #include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
 #include "swNgsild/ldQParse.h"                       // ldQParse
 #include "swNgsild/ldQRender.h"                      // ldQRender
@@ -201,6 +202,10 @@ bool postSubscriptions(void)
 
   KjNode* statusP = kjString(swRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
+
+  // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
+  // the persisted tree; rendered to ISO only when the client asks for sysAttrs)
+  ldSysTimestampCreate(subP);
 
   //
   // § 5.5.5 / § 5.8.1.4 — auto-populate `jsonldContext` when the user

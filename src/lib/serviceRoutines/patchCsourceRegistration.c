@@ -18,6 +18,7 @@
 #include "swNgsild/LdSubCache.h"                     // LdSubCache
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubMatchingSubIds, ldCsrSubOnRegUpdate
 #include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -125,6 +126,9 @@ bool patchCsourceRegistration(void)
     ldRegCacheUnlock(regCacheP);
     return true;  // regConflictCheck already raised the 409 ldError
   }
+
+  // § 6.4.5 — bump modifiedAt to now; createdAt (from the retrieved tree) stays
+  ldSysTimestampModify(mergedRegP);
 
   int r = db.registrationUpdate(tenantP, regId, mergedRegP);
 

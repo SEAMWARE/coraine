@@ -14,6 +14,8 @@
 #include "kjson/kjClone.h"                           // kjClone
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
+#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheItemLookup
 
@@ -48,7 +50,15 @@ bool getCsourceRegistration(void)
 
   ldContextResolve();
 
+  KjNode* regP = kjClone(swRest.kjsonP, itemP->regTree);
+
+  // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
+  if (swNgsild.sysAttrs == false)
+    ldStripSysAttrs(regP);
+  else
+    ldSysTimestampsToIso(regP, &swRest.kalloc);
+
   swNgsild.rawResponse    = true;
-  swRest.out.responseTree = kjClone(swRest.kjsonP, itemP->regTree);
+  swRest.out.responseTree = regP;
   return true;
 }

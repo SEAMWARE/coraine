@@ -1,0 +1,161 @@
+#
+# FILE            resource_sysattrs.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-176 § 6.4.5 — system-generated createdAt/modifiedAt for the
+# Subscription, ContextSourceRegistration and ContextSourceSubscription
+# NGSI-LD Elements. GET on these resources supports options=sysAttrs (and the
+# successor sysAttrs=true): the two timestamps are included where known and
+# omitted otherwise. They are read-only (server-owned) and modifiedAt advances
+# on every PATCH while createdAt is immutable.
+#
+# REQUIRE_DB: mongoc
+--NAME--
+System createdAt/modifiedAt on subscriptions & registrations (§ 6.4.5)
+
+--TAGS--
+subscription csr-sub registration sysattrs
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create a subscription, a registration, a csource-subscription"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Subscription:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9000/n"}}}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:R1","type":"ContextSourceRegistration","endpoint":"http://cp1.example","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:ngsi-ld:Subscription:CS1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9000/n"}}}' | head -1
+echo
+echo
+
+
+echo "02. Default GET (no sysAttrs) omits createdAt/modifiedAt"
+echo "========================================================"
+echo -n "sub single: ";   swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "sub list:   ";   swCurl --url '/ngsi-ld/v1/subscriptions' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "reg single: ";   swCurl --url '/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "csr-sub single: "; swCurl --url '/ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CS1' | grep -cE '"(createdAt|modifiedAt)"'
+echo
+echo
+
+
+echo "03. sysAttrs=true / options=sysAttrs include BOTH timestamps (count=2)"
+echo "====================================================================="
+echo -n "sub single sysAttrs=true:    "; swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1?sysAttrs=true' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "sub list options=sysAttrs:   "; swCurl --url '/ngsi-ld/v1/subscriptions?options=sysAttrs' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "reg single options=sysAttrs: "; swCurl --url '/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1?options=sysAttrs' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "reg list sysAttrs=true:      "; swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&sysAttrs=true' | grep -cE '"(createdAt|modifiedAt)"'
+echo -n "csr-sub single sysAttrs=true: "; swCurl --url '/ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CS1?sysAttrs=true' | grep -cE '"(createdAt|modifiedAt)"'
+echo
+echo
+
+
+echo "04. Single subscription GET with sysAttrs — full body"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1?sysAttrs=true'
+echo
+echo
+
+
+echo "05. PATCH advances modifiedAt, leaves createdAt (compare across PATCH)"
+echo "====================================================================="
+C1=$(swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1?sysAttrs=true' | grep createdAt)
+M1=$(swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1?sysAttrs=true' | grep modifiedAt)
+sleep 1.1
+swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"description":"updated"}' | head -1
+C2=$(swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1?sysAttrs=true' | grep createdAt)
+M2=$(swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1?sysAttrs=true' | grep modifiedAt)
+echo "createdAt unchanged? $([ "${C1#*: }" = "${C2#*: }" ] && echo YES || echo NO)"
+echo "modifiedAt advanced? $([ "${M1#*: }" != "${M2#*: }" ] && echo YES || echo NO)"
+echo
+echo
+
+
+echo "06. createdAt/modifiedAt are read-only on create"
+echo "================================================"
+echo -n "sub with client createdAt: "; swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Subscription:S2","type":"Subscription","createdAt":"2020-01-01T00:00:00Z","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9000/n"}}}' | head -1
+echo -n "reg with client createdAt (stripped, 201): "; swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:R2","type":"ContextSourceRegistration","createdAt":"2020-01-01T00:00:00Z","endpoint":"http://cp.example","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+echo "reg R2 kept the client 2020 timestamp? (0=no) $(swCurl --url '/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R2?sysAttrs=true' | grep -c '2020-01-01')"
+echo
+echo
+
+
+--EXPECT--
+01. Create a subscription, a registration, a csource-subscription
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Default GET (no sysAttrs) omits createdAt/modifiedAt
+========================================================
+sub single: 0
+sub list:   0
+reg single: 0
+csr-sub single: 0
+
+
+03. sysAttrs=true / options=sysAttrs include BOTH timestamps (count=2)
+=====================================================================
+sub single sysAttrs=true:    2
+sub list options=sysAttrs:   2
+reg single options=sysAttrs: 2
+reg list sysAttrs=true:      2
+csr-sub single sysAttrs=true: 2
+
+
+04. Single subscription GET with sysAttrs — full body
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "modifiedAt": "REGEX(.*)",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9000/n"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+05. PATCH advances modifiedAt, leaves createdAt (compare across PATCH)
+=====================================================================
+HTTP/1.1 204 No Content
+createdAt unchanged? YES
+modifiedAt advanced? YES
+
+
+06. createdAt/modifiedAt are read-only on create
+================================================
+sub with client createdAt: HTTP/1.1 400 Bad Request
+reg with client createdAt (stripped, 201): HTTP/1.1 201 Created
+reg R2 kept the client 2020 timestamp? (0=no) 0
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

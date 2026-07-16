@@ -28,6 +28,7 @@
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegCreate
 #include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegCreate
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 #include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
@@ -114,6 +115,10 @@ bool postCsourceRegistration(void)
   // cached yet, so passing its own id as the self-skip is harmless here.
   if (regConflictCheck(regP, regModeOf(regP), idP->value.s, &swRest.kalloc))
     return true;
+
+  // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
+  // the persisted tree; rendered to ISO only when the client asks for sysAttrs)
+  ldSysTimestampCreate(regP);
 
   // Create registration in the database
   if (db.registrationCreate == NULL)

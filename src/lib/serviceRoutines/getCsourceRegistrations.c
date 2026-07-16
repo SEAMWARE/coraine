@@ -58,6 +58,8 @@
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/ldPickOmit.h"                     // ldPickOmit
 #include "swNgsild/ldLangReduce.h"                   // ldLangReduce
+#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
 #include "swNgsild/LdNormalizeInput.h"               // ldWrapAsGeoProperty
 #include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
@@ -94,6 +96,8 @@ static bool paramSupported(const char* key)
   if (strcmp(key, "timeAt")           == 0)     return true;
   if (strcmp(key, "endTimeAt")        == 0)     return true;
   if (strcmp(key, "timeproperty")     == 0)     return true;
+  if (strcmp(key, "options")          == 0)     return true;   // § 6.4.5 — options=sysAttrs
+  if (strcmp(key, "sysAttrs")         == 0)     return true;   // § 6.4.5 — successor of options=sysAttrs
   return false;
 }
 
@@ -416,6 +420,12 @@ bool getCsourceRegistrations(void)
         // § 5.2.9 — the CSR geo-coverage fields (location/observationSpace/operationSpace) are bare GeoJSON on the
         // wire, on both the discovery list and the single-CSR retrieve endpoints. (ETSI forge issue #119: fixtures
         // 037_05/07/08 assert the GeoProperty wrapper on the list endpoint, inconsistent with 033_01_03.)
+
+        // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
+        if (swNgsild.sysAttrs == false)
+          ldStripSysAttrs(clone);
+        else
+          ldSysTimestampsToIso(clone, &swRest.kalloc);
 
         kjChildAdd(arrayP, clone);
       }
