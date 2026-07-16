@@ -1,0 +1,123 @@
+#
+# FILE            snapshot_local_false_ignored.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-176 § 6.4.11: "Operations on a Snapshot ... are always implicitly
+# local scope, overriding setting the local parameter to false, i.e. such a
+# setting is to be ignored by implementations."
+#
+# A snapshot-aware read (NGSILD-Snapshot header) must NOT forward to matching
+# Context Source Registrations even when ?local=false is explicitly given.
+# The snapshot read short-circuits before the distributed-forward block, so
+# local=false has no effect. Control step first proves the SAME query WITHOUT
+# the snapshot header DOES forward (so the no-forward below is meaningful).
+#
+# REQUIRE_DB: mongoc
+--NAME--
+Snapshot read ignores local=false — no distop forwarding (§ 6.4.11)
+
+--TAGS--
+snapshot distop local
+
+--INIT--
+swDbDrop
+swSnapDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+
+--RUN--
+
+echo "01. Seed a local Vehicle"
+echo "========================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+echo
+echo
+
+
+echo "02. Create a snapshot capturing the Vehicle (before any CSR exists)"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Frozen","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. Register a matching CSR (type Vehicle) at the mock receiver"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "04. CONTROL — GET ?type=Vehicle&local=false (no snapshot) DOES forward"
+echo "====================================================================="
+ftClientReset --port 7711
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' > /dev/null
+sleep 0.8
+ftClientDump --port 7711 | grep -E '"verb"|"url"'
+echo
+echo
+
+
+echo "05. SNAPSHOT — GET ?type=Vehicle&local=false + NGSILD-Snapshot does NOT forward"
+echo "==============================================================================="
+ftClientReset --port 7711
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+sleep 0.8
+echo "forwards-to-mock=$(ftClientDump --port 7711 | grep -c '\"verb\"')"
+echo
+echo
+
+
+--EXPECT--
+01. Seed a local Vehicle
+========================
+HTTP/1.1 201 Created
+
+
+02. Create a snapshot capturing the Vehicle (before any CSR exists)
+==================================================================
+HTTP/1.1 201 Created
+
+
+03. Register a matching CSR (type Vehicle) at the mock receiver
+==============================================================
+HTTP/1.1 201 Created
+
+
+04. CONTROL — GET ?type=Vehicle&local=false (no snapshot) DOES forward
+=====================================================================
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+
+
+05. SNAPSHOT — GET ?type=Vehicle&local=false + NGSILD-Snapshot does NOT forward
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 136
+
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  }
+]
+
+forwards-to-mock=0
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swSnapDrop
+swDbDrop
