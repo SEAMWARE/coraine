@@ -32,7 +32,7 @@ extern bool getEntity(void);
 //
 typedef struct DistRetrieveErr
 {
-  int          status;          // 0 = ok; 502 = exclusive-source failure
+  int          status;          // 0 = ok; 504 = single-source timeout, 502 = other single-source failure
   bool         noEndpoint;      // true: exclusive registration had no endpoint
   const char*  upstreamDetail;  // upstream error detail, or NULL
   const char*  regId;           // failing registration id

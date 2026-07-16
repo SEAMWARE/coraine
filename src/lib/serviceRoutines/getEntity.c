@@ -865,15 +865,25 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
       int g      = itemGroup[i];
       int upCode = results[i].statusCode;
 
-      if (upCode == 404 && g == 0) continue;  // exclusive: 404 tolerated
+      // § 6.3.5: a single registered source holding ALL of the data — an
+      // exclusive registration (always authoritative), or a redirect that is
+      // the SOLE matching source with no local data — carries the single-source
+      // error contract (508/504/404/502). A redirect among several sources, or
+      // any inclusive/auxiliary source, is best-effort and its failures are
+      // tolerated (merged as a gap).
+      bool singleSource = (g == 0) || ((g == 1) && (itemCount == 1) && (destP == NULL));
+
+      if (upCode == 404 && singleSource) continue;  // 404 = no data → final 404 (not abnormal)
       if (upCode < 200 || upCode >= 300)
       {
-        if (g == 0)
+        if (singleSource)
         {
-          // Exclusive non-2xx (except 404) → abort with a 502 for the caller.
+          // Non-404 failure of the single source → abort. A broker-side timeout
+          // (fails to respond in time) is 504 Gateway Timeout; any other reason
+          // (connection refused, upstream error status, …) is 502 Bad Gateway.
           if (errP != NULL)
           {
-            errP->status         = 502;
+            errP->status         = results[i].timedOut ? 504 : 502;
             errP->upstreamDetail = results[i].errorDetail;
             errP->regId          = (items[i].csr != NULL) ? items[i].csr->regId : NULL;
             errP->upstreamCode   = upCode;
@@ -884,7 +894,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
           ldRegCacheMatchRelease(auxV,   auxN);
           return NULL;
         }
-        continue;  // redir/incl/aux: tolerate failures
+        continue;  // multi-source redir / incl / aux: tolerate failures
       }
 
       KjNode* upP = results[i].responseTree;
@@ -915,11 +925,12 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
         mergeOneSourceInto(destP, upP, nowNs);
     }
 
-    // § 6.3.5 — an inclusive/redirect/auxiliary source that behaved abnormally
-    // (an HTTP error status, a timeout/no-response, or an invalid payload) is
-    // tolerated (its data is simply absent from the assembled entity), but the
-    // abnormal behaviour must be signalled with an NGSILD-Warning (299/199/111).
-    // Exclusive-source errors abort into a 502 above and never reach here.
+    // § 6.3.5 — a best-effort source (inclusive, auxiliary, or a redirect among
+    // several) that behaved abnormally (an HTTP error status, a timeout/no-
+    // response, or an invalid payload) is tolerated (its data is simply absent
+    // from the assembled entity), but the abnormal behaviour must be signalled
+    // with an NGSILD-Warning (299/199/111). Single-source (exclusive, or a lone
+    // redirect) errors abort into a 504/502 above and never reach here.
     char* warn = ldDistOpWarnings(items, results, itemCount);
     if (warn != NULL)
       swRestOutHeaderAdd("NGSILD-Warning", warn);
@@ -1042,12 +1053,15 @@ bool getEntity(void)
       }
       if (err.status != 0)
       {
-        // Exclusive source failed — the registrationId / upstream status
-        // ride along as structured ProblemDetails members (RFC 9457 §3.2).
+        // Single-source forward failed — § 6.3.5: 504 Gateway Timeout when the
+        // source failed to respond in time, else 502 Bad Gateway. The
+        // registrationId / upstream status ride along as structured
+        // ProblemDetails members (RFC 9457 §3.2).
+        const char* title = (err.status == 504) ? "Gateway Timeout" : "Bad Gateway";
         if (err.upstreamDetail)
-          ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed: %s", err.upstreamDetail);
+          ldError(err.status, LD_ERROR_INTERNAL_ERROR, title, "forwarded request failed: %s", err.upstreamDetail);
         else
-          ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "forwarded request failed (status %d)", err.upstreamCode);
+          ldError(err.status, LD_ERROR_INTERNAL_ERROR, title, "forwarded request failed (status %d)", err.upstreamCode);
         ldErrorExtraString("registrationId", err.regId);
         if (err.upstreamCode > 0)
           ldErrorExtraInt("statusCode", err.upstreamCode);

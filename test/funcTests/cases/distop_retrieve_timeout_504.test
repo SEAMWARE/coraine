@@ -1,0 +1,195 @@
+#
+# FILE            distop_retrieve_timeout_504.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - single-source retrieve that times out -> 504 (§ 6.3.5)
+
+--TAGS--
+distops registration retrieve
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7716 --status 200 --delay 2000
+
+--RUN--
+
+#
+# TS 104-176 § 6.3.5: for an exclusive or redirect registration where all of the
+# data is held in a SINGLE registered source, "504 Gateway Timeout" shall be
+# returned if that source fails to respond in time — distinct from "502 Bad
+# Gateway" which is reserved for a forward that fails for any other reason.
+#
+# ftClient on 7716 sleeps 2s before responding; each CSR declares
+# management.timeout: 200 ms, so the forwarded GET times out.
+#
+# 01. Register a REDIRECT single-source CSR (urn:V1) -> slow ftClient
+# 02. GET urn:V1 -> forward times out -> 504 Gateway Timeout
+# 03. Register an EXCLUSIVE single-source CSR (urn:V2) -> slow ftClient
+# 04. GET urn:V2 -> forward times out -> 504 Gateway Timeout
+# 05. Register an EXCLUSIVE CSR (urn:V3) -> dead endpoint (connection refused)
+# 06. GET urn:V3 -> connection refused (not a timeout) -> 502 Bad Gateway
+#
+
+echo "01. Register a REDIRECT single-source CSR (urn:V1) -> slow ftClient"
+echo "=================================================================="
+payload='{
+  "id": "urn:CSR:Redir",
+  "type": "ContextSourceRegistration",
+  "mode": "redirect",
+  "endpoint": "http://localhost:7716",
+  "management": { "timeout": 200 },
+  "information": [
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. GET urn:V1 -> forward times out -> 504 Gateway Timeout"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "03. Register an EXCLUSIVE single-source CSR (urn:V2) -> slow ftClient"
+echo "===================================================================="
+payload='{
+  "id": "urn:CSR:Excl",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:7716",
+  "management": { "timeout": 200 },
+  "information": [
+    { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ], "propertyNames": [ "speed" ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:V2 -> forward times out -> 504 Gateway Timeout"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+echo "05. Register an EXCLUSIVE CSR (urn:V3) -> dead endpoint"
+echo "======================================================="
+payload='{
+  "id": "urn:CSR:Dead",
+  "type": "ContextSourceRegistration",
+  "mode": "exclusive",
+  "endpoint": "http://localhost:9",
+  "management": { "timeout": 200 },
+  "information": [
+    { "entities": [ { "id": "urn:V3", "type": "Vehicle" } ], "propertyNames": [ "speed" ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "06. GET urn:V3 -> connection refused (not a timeout) -> 502 Bad Gateway"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V3
+echo
+echo
+
+
+--EXPECT--
+01. Register a REDIRECT single-source CSR (urn:V1) -> slow ftClient
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Redir
+Content-Length: 0
+
+
+
+
+02. GET urn:V1 -> forward times out -> 504 Gateway Timeout
+==========================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 207
+
+{
+  "detail": "forwarded request failed: Request timeout",
+  "registrationId": "urn:CSR:Redir",
+  "status": 504,
+  "title": "Gateway Timeout",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+03. Register an EXCLUSIVE single-source CSR (urn:V2) -> slow ftClient
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Excl
+Content-Length: 0
+
+
+
+
+04. GET urn:V2 -> forward times out -> 504 Gateway Timeout
+==========================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 206
+
+{
+  "detail": "forwarded request failed: Request timeout",
+  "registrationId": "urn:CSR:Excl",
+  "status": 504,
+  "title": "Gateway Timeout",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+05. Register an EXCLUSIVE CSR (urn:V3) -> dead endpoint
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Dead
+Content-Length: 0
+
+
+
+
+06. GET urn:V3 -> connection refused (not a timeout) -> 502 Bad Gateway
+=======================================================================
+HTTP/1.1 502 Bad Gateway
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 204
+
+{
+  "detail": "forwarded request failed: Connection failed",
+  "registrationId": "urn:CSR:Dead",
+  "status": 502,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7716
+swBrokerStop
+swDbDrop
