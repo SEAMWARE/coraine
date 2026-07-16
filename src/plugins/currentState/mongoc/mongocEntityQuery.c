@@ -181,6 +181,100 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
 
 // -----------------------------------------------------------------------------
 //
+// jsonStrEscape - escape a string for embedding inside a JSON string literal
+//
+static void jsonStrEscape(char* dst, int dstSize, const char* src)
+{
+  int j = 0;
+  for (int i = 0; (src[i] != 0) && (j < dstSize - 7); i++)
+  {
+    unsigned char c = (unsigned char) src[i];
+    if      (c == '"' || c == '\\') { dst[j++] = '\\'; dst[j++] = c;   }
+    else if (c == '\n')             { dst[j++] = '\\'; dst[j++] = 'n'; }
+    else if (c == '\r')             { dst[j++] = '\\'; dst[j++] = 'r'; }
+    else if (c == '\t')             { dst[j++] = '\\'; dst[j++] = 't'; }
+    else if (c < 0x20)              { j += snprintf(dst + j, dstSize - j, "\\u%04x", c); }
+    else                             dst[j++] = c;
+  }
+  dst[j] = 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bsonAppendLangWildcard - § 7.2.3.4 item 5 "[*]" (no natural language) match.
+//
+// MongoDB cannot wildcard the keys of an object in a plain field path, so the
+// languageMap (an object at langPath) is turned into an array of {k,v} pairs
+// with $objectToArray inside a $expr, and matched against ANY key's value —
+// scalar or a single array element. Negative operators (!= / notPattern) require
+// that NO key match, so the positive predicate is wrapped in $not. Relational
+// operators are not meaningful over language text and are left to fall through
+// (they resolve to a literal "*" key that never exists → no match), so this only
+// handles == / != / pattern / notPattern.
+//
+static void bsonAppendLangWildcard(bson_t* docP, const char* langPath, LdQTerm* term)
+{
+  char pred[4096];   // per-element positive predicate over "$$kv.v"
+  bool pattern = (term->op == LdQPattern) || (term->op == LdQNotPattern);
+
+  if ((term->valueType == LdQString) || (term->valueType == LdQNoValue))
+  {
+    char esc[1024];
+    jsonStrEscape(esc, sizeof(esc), term->value.s);
+    if (pattern)
+      snprintf(pred, sizeof(pred),
+        "{\"$or\":["
+          "{\"$and\":[{\"$eq\":[{\"$type\":\"$$kv.v\"},\"string\"]},{\"$regexMatch\":{\"input\":\"$$kv.v\",\"regex\":\"%s\"}}]},"
+          "{\"$and\":[{\"$isArray\":\"$$kv.v\"},{\"$anyElementTrue\":{\"$map\":{\"input\":\"$$kv.v\",\"as\":\"e\",\"in\":{\"$and\":[{\"$eq\":[{\"$type\":\"$$e\"},\"string\"]},{\"$regexMatch\":{\"input\":\"$$e\",\"regex\":\"%s\"}}]}}}}]}"
+        "]}", esc, esc);
+    else
+      snprintf(pred, sizeof(pred),
+        "{\"$or\":[{\"$eq\":[\"$$kv.v\",\"%s\"]},{\"$and\":[{\"$isArray\":\"$$kv.v\"},{\"$in\":[\"%s\",\"$$kv.v\"]}]}]}", esc, esc);
+  }
+  else if (term->valueType == LdQNumber)
+  {
+    char num[64];
+    snprintf(num, sizeof(num), "%.17g", term->value.n);
+    snprintf(pred, sizeof(pred),
+      "{\"$or\":[{\"$eq\":[\"$$kv.v\",%s]},{\"$and\":[{\"$isArray\":\"$$kv.v\"},{\"$in\":[%s,\"$$kv.v\"]}]}]}", num, num);
+  }
+  else if (term->valueType == LdQBool)
+  {
+    const char* b = term->value.b ? "true" : "false";
+    snprintf(pred, sizeof(pred),
+      "{\"$or\":[{\"$eq\":[\"$$kv.v\",%s]},{\"$and\":[{\"$isArray\":\"$$kv.v\"},{\"$in\":[%s,\"$$kv.v\"]}]}]}", b, b);
+  }
+  else
+    return;   // unsupported value type for a "[*]" term
+
+  bool negative = (term->op == LdQUnequal) || (term->op == LdQNotPattern);
+
+  char any[8192];
+  snprintf(any, sizeof(any),
+    "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\",\"in\":%s}}}",
+    langPath, pred);
+
+  char cond[8320];
+  if (negative)
+    snprintf(cond, sizeof(cond), "{\"$not\":[%s]}", any);
+  else
+    snprintf(cond, sizeof(cond), "%s", any);
+
+  bson_error_t error;
+  bson_t*      condP = bson_new_from_json((const uint8_t*) cond, -1, &error);
+  if (condP != NULL)
+  {
+    bson_append_document(docP, "$expr", 5, condP);
+    bson_destroy(condP);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bsonAppendQTerm - build BSON filter for a single Q term
 //
 static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
@@ -277,6 +371,31 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   // Value leaf: plain terms compare inside the default instance.
   //
   pos += snprintf(path + pos, sizeof(path) - pos, "%s.value", (term->subPathN > 0) ? "" : ".@none");
+
+  //
+  // § 7.2.3.4 item 5 — "[*]" (no natural language specified): match ANY key of
+  // the LanguageProperty's languageMap. MongoDB can't wildcard object keys in a
+  // field path, so this compiles to a $expr over $objectToArray (path so far
+  // names the languageMap object).
+  //
+  if ((term->valuePathN == 1) && (strcmp(term->valuePathV[0], "*") == 0))
+  {
+    if ((term->op == LdQExists) || (term->op == LdQNotExists))
+    {
+      bson_t existsDoc;
+      bson_append_document_begin(docP, path, -1, &existsDoc);
+      bson_append_bool(&existsDoc, "$exists", 7, (term->op == LdQExists));
+      bson_append_document_end(docP, &existsDoc);
+      return;
+    }
+    if ((term->op == LdQEqual) || (term->op == LdQUnequal) ||
+        (term->op == LdQPattern) || (term->op == LdQNotPattern))
+    {
+      bsonAppendLangWildcard(docP, path, term);
+      return;
+    }
+    // relational operators over "[*]" fall through (they never match — see helper)
+  }
 
   //
   // § 4.9 "[...]" — descend INTO the value: opaque member names.
