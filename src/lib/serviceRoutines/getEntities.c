@@ -2199,7 +2199,7 @@ bool getEntities(void)
   // Sort by orderBy before pagination (§ 4.23)
   //
   if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
-    ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount);
+    ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount, swNgsild.collation);
 
   //
   // Entity map: if entityMap=true, freeze the sorted entity IDs into a map

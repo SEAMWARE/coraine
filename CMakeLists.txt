@@ -84,6 +84,21 @@ set(SW_STATIC_LIBS
 #
 set(SW_DYNAMIC_LIBS microhttpd ssl crypto pthread dl m mosquitto)
 
+#
+# ICU "root" collation for orderBy string ordering (§ 7.6.2.1). ON by default.
+# Must match swNgsild's SW_WITH_ICU build flag (which selects the code path);
+# this adds the matching ICU libs to the final broker link. Turn both off
+# together to build without the libicu dependency.
+#
+option(SW_FEATURE_ICU_COLLATION "orderBy string ordering via ICU root collation (needs libicu)" ON)
+if (SW_FEATURE_ICU_COLLATION)
+  find_package(ICU REQUIRED COMPONENTS i18n uc data)
+  list(APPEND SW_DYNAMIC_LIBS ICU::i18n ICU::uc ICU::data)
+  message(STATUS "Feature ICU_COLLATION: ON (ICU ${ICU_VERSION})")
+else()
+  message(STATUS "Feature ICU_COLLATION: OFF")
+endif()
+
 if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
   set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} --coverage")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")

@@ -1,0 +1,145 @@
+#
+# FILE            orderby_string_collation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2.1 — "for strings the default collation order shall be
+# defined as using ICU 'root' collation order ... a reasonable language-agnostic
+# sort order". Root collation is case-insensitive at the primary level, so
+# apple/Apple and banana/Banana group together (lowercase before uppercase),
+# NOT the raw byte order where every uppercase initial (Apple, Banana) sorts
+# ahead of every lowercase one. The order is: apple, Apple, banana, Banana,
+# cherry — and its exact reverse for ;desc. (Values are pure ASCII, so the ICU
+# build and the dependency-free approximation agree.)
+#
+--NAME--
+orderBy string ordering is case-insensitive root collation, not byte order (§ 7.6.2.1)
+
+--TAGS--
+orderBy collation query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed 5 entities: apple, Banana, cherry, Apple, banana"
+echo "========================================================="
+for v in \
+  '{"id":"urn:ngsi-ld:N1","type":"T","name":{"type":"Property","value":"apple"}}' \
+  '{"id":"urn:ngsi-ld:N2","type":"T","name":{"type":"Property","value":"Banana"}}' \
+  '{"id":"urn:ngsi-ld:N3","type":"T","name":{"type":"Property","value":"cherry"}}' \
+  '{"id":"urn:ngsi-ld:N4","type":"T","name":{"type":"Property","value":"Apple"}}' \
+  '{"id":"urn:ngsi-ld:N5","type":"T","name":{"type":"Property","value":"banana"}}' ; do
+  swCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
+done
+echo
+echo
+
+
+echo "02. orderBy=name — apple, Apple, banana, Banana, cherry (root, not byte order)"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=name;desc — the exact reverse"
+echo "========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 5 entities: apple, Banana, cherry, Apple, banana
+=========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=name — apple, Apple, banana, Banana, cherry (root, not byte order)
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 376
+
+[
+  {
+    "id": "urn:ngsi-ld:N1",
+    "name": "apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N4",
+    "name": "Apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N5",
+    "name": "banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N2",
+    "name": "Banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N3",
+    "name": "cherry",
+    "type": "T"
+  }
+]
+
+
+
+03. orderBy=name;desc — the exact reverse
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 376
+
+[
+  {
+    "id": "urn:ngsi-ld:N3",
+    "name": "cherry",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N2",
+    "name": "Banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N5",
+    "name": "banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N4",
+    "name": "Apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:N1",
+    "name": "apple",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

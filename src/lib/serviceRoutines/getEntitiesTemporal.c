@@ -649,7 +649,7 @@ bool getEntitiesTemporal(void)
   // § 4.23: orderBy. For temporal output the sorter picks the most-recent
   // instance value per entity (see ldOrderSort.c::temporalLatestValue).
   if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
-    ldOrderSort(result, swNgsild.orderByV, swNgsild.orderByCount);
+    ldOrderSort(result, swNgsild.orderByV, swNgsild.orderByCount, swNgsild.collation);
 
   // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction
   // and ?format=temporalValues run in renderHook, see ldHooks.c).
