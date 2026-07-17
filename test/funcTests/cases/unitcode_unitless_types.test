@@ -1,0 +1,160 @@
+#
+# FILE            unitcode_unitless_types.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.6 — unitCode qualifies a numeric/plain value and is only valid
+# on a Property (§ 5.2.6.4.1) or ListProperty. It "shall never be present" on the
+# unitless attribute types: GeoProperty (§ 5.2.6.4.5), LanguageProperty,
+# VocabProperty (§ 5.2.6.4.7) and JsonProperty (§ 5.2.6.4.10). Supplying it there
+# is a forbidden NGSI-LD term → 400 BadRequestData.
+#
+# GeoProperty shares the "value" key with Property, so the check has to key off
+# the attribute type, not the value key.
+#
+--NAME--
+unitCode is forbidden on the unitless attribute types (§ 5.2.6)
+
+--TAGS--
+unitCode attribute validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Property + unitCode — allowed (201)"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P","type":"T","p":{"type":"Property","value":1,"unitCode":"CEL"}}' | head -1
+echo
+echo
+
+
+echo "02. ListProperty + unitCode — allowed (201)"
+echo "==========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:LP","type":"T","lp":{"type":"ListProperty","valueList":[1,2],"unitCode":"CEL"}}' | head -1
+echo
+echo
+
+
+echo "03. GeoProperty + unitCode — forbidden (400)"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:G","type":"T","g":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8,40]},"unitCode":"CEL"}}'
+echo
+echo
+
+
+echo "04. LanguageProperty + unitCode — forbidden (400)"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L","type":"T","l":{"type":"LanguageProperty","languageMap":{"en":"x"},"unitCode":"CEL"}}'
+echo
+echo
+
+
+echo "05. VocabProperty + unitCode — forbidden (400)"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:V","type":"T","v":{"type":"VocabProperty","vocab":"x","unitCode":"CEL"}}'
+echo
+echo
+
+
+echo "06. JsonProperty + unitCode — forbidden (400)"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J","type":"T","j":{"type":"JsonProperty","json":{"a":1},"unitCode":"CEL"}}'
+echo
+echo
+
+
+echo "07. GeoProperty WITHOUT unitCode — allowed (201, control)"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:G2","type":"T","g":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8,40]}}}' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Property + unitCode — allowed (201)
+=======================================
+HTTP/1.1 201 Created
+
+
+02. ListProperty + unitCode — allowed (201)
+===========================================
+HTTP/1.1 201 Created
+
+
+03. GeoProperty + unitCode — forbidden (400)
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 258
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/g' of type GeoProperty has a forbidden NGSI-LD term: 'unitCode'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. LanguageProperty + unitCode — forbidden (400)
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 263
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/l' of type LanguageProperty has a forbidden NGSI-LD term: 'unitCode'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. VocabProperty + unitCode — forbidden (400)
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 260
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/v' of type VocabProperty has a forbidden NGSI-LD term: 'unitCode'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. JsonProperty + unitCode — forbidden (400)
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 259
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/j' of type JsonProperty has a forbidden NGSI-LD term: 'unitCode'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. GeoProperty WITHOUT unitCode — allowed (201, control)
+=========================================================
+HTTP/1.1 201 Created
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
