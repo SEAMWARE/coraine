@@ -1,0 +1,250 @@
+#
+# FILE            orderby_value_subitem.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2.3 — an orderBy attribute path may carry a trailing path
+# enclosed in a single pair of square brackets ("attr[member]" or "attr[a.b]"),
+# addressing a sub-item WITHIN the attribute's compound JSON value. Evaluated as
+# an ECMA-262 MemberExpression in dot notation against the seed value; if it
+# yields no defined value the target is non-existent (→ sorts last, § 7.6.2.2).
+# The bracket members are raw JSON keys, NOT @context-expanded.
+#
+--NAME--
+orderBy trailing path sorts by a sub-item of a compound value (§ 7.6.2.3)
+
+--TAGS--
+orderBy query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed 4 Places; P4's address has no 'city' sub-item"
+echo "======================================================"
+for v in \
+  '{"id":"urn:ngsi-ld:P1","type":"Place","address":{"type":"Property","value":{"city":"Madrid","zip":"3"}}}' \
+  '{"id":"urn:ngsi-ld:P2","type":"Place","address":{"type":"Property","value":{"city":"Berlin","zip":"1"}}}' \
+  '{"id":"urn:ngsi-ld:P3","type":"Place","address":{"type":"Property","value":{"city":"Oslo","zip":"2"}}}' \
+  '{"id":"urn:ngsi-ld:P4","type":"Place","address":{"type":"Property","value":{"zip":"9"}}}' ; do
+  swCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
+done
+echo
+echo
+
+
+echo "02. orderBy=address[city] — Berlin, Madrid, Oslo; missing-city P4 LAST"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Place&orderBy=address%5Bcity%5D&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=address[city];desc — Oslo, Madrid, Berlin; missing-city P4 still LAST"
+echo "================================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Place&orderBy=address%5Bcity%5D;desc&options=keyValues'
+echo
+echo
+
+
+echo "04. orderBy=address[zip] — 1,2,3,9 (P2,P3,P1,P4)"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Place&orderBy=address%5Bzip%5D&options=keyValues'
+echo
+echo
+
+
+echo "05. Malformed trailing path orderBy=address[city (no closing bracket) → 400"
+echo "=========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Place&orderBy=address%5Bcity'
+echo
+echo
+
+
+echo "06. Empty trailing path orderBy=address[] → 400"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Place&orderBy=address%5B%5D'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 4 Places; P4's address has no 'city' sub-item
+======================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=address[city] — Berlin, Madrid, Oslo; missing-city P4 LAST
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 465
+
+[
+  {
+    "address": {
+      "city": "Berlin",
+      "zip": "1"
+    },
+    "id": "urn:ngsi-ld:P2",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "city": "Madrid",
+      "zip": "3"
+    },
+    "id": "urn:ngsi-ld:P1",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "city": "Oslo",
+      "zip": "2"
+    },
+    "id": "urn:ngsi-ld:P3",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "zip": "9"
+    },
+    "id": "urn:ngsi-ld:P4",
+    "type": "Place"
+  }
+]
+
+
+
+03. orderBy=address[city];desc — Oslo, Madrid, Berlin; missing-city P4 still LAST
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 465
+
+[
+  {
+    "address": {
+      "city": "Oslo",
+      "zip": "2"
+    },
+    "id": "urn:ngsi-ld:P3",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "city": "Madrid",
+      "zip": "3"
+    },
+    "id": "urn:ngsi-ld:P1",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "city": "Berlin",
+      "zip": "1"
+    },
+    "id": "urn:ngsi-ld:P2",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "zip": "9"
+    },
+    "id": "urn:ngsi-ld:P4",
+    "type": "Place"
+  }
+]
+
+
+
+04. orderBy=address[zip] — 1,2,3,9 (P2,P3,P1,P4)
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 465
+
+[
+  {
+    "address": {
+      "city": "Berlin",
+      "zip": "1"
+    },
+    "id": "urn:ngsi-ld:P2",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "city": "Oslo",
+      "zip": "2"
+    },
+    "id": "urn:ngsi-ld:P3",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "city": "Madrid",
+      "zip": "3"
+    },
+    "id": "urn:ngsi-ld:P1",
+    "type": "Place"
+  },
+  {
+    "address": {
+      "zip": "9"
+    },
+    "id": "urn:ngsi-ld:P4",
+    "type": "Place"
+  }
+]
+
+
+
+05. Malformed trailing path orderBy=address[city (no closing bracket) → 400
+==========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 197
+
+{
+  "detail": "malformed trailing path in orderBy term 'address[city' (§ 7.6.2.3)",
+  "status": 400,
+  "title": "Invalid orderBy",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Empty trailing path orderBy=address[] → 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "malformed trailing path in orderBy term 'address[]' (§ 7.6.2.3)",
+  "status": 400,
+  "title": "Invalid orderBy",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
