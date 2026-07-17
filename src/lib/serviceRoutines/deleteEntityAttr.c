@@ -283,6 +283,24 @@ bool deleteEntityAttr(void)
 
         bool changed = applyLocalDelete(targetEntity, attrIri);
 
+        if (!changed && !anySucceeded)
+        {
+          // The entity and the attribute both exist, but the requested
+          // instance is absent: either a datasetId that no instance carries,
+          // or (no datasetId given) the default "@none" instance on an attr
+          // that only has datasetId-bearing instances. A bare "entity not
+          // found" would be misleading — report the missing instance.
+          if (swNgsild.datasetId != NULL)
+            ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                    "attribute '%s' has no instance with datasetId '%s' in entity '%s'",
+                    attrWild, swNgsild.datasetId, entityId);
+          else
+            ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                    "attribute '%s' has no default instance in entity '%s'",
+                    attrWild, entityId);
+          return true;
+        }
+
         if (changed)
         {
           if (db.entityReplace == NULL)

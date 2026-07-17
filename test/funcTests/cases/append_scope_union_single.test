@@ -1,0 +1,130 @@
+#
+# FILE            append_scope_union_single.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.5 — the scope of an Entity is "a String or Array of Strings".
+# A single scope renders as a bare String. On an append with options=noOverwrite
+# the fragment's scope is UNIONED into the existing scope; when that union leaves
+# exactly one value (e.g. "/x" ∪ "/x") the result must collapse back to a bare
+# String, not a one-element Array. A union of two distinct scopes stays an Array.
+#
+--NAME--
+Scope union collapsing to a single value renders as a String (§ 5.2.5)
+
+--TAGS--
+scope append noOverwrite
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create entity with a single string scope '/x'"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:S1","type":"T","scope":"/x","a":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. Append (noOverwrite) with scope '/x' — union collapses to one value"
+echo "======================================================================="
+swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S1/attrs?options=noOverwrite' --payload '{"scope":"/x","b":{"type":"Property","value":2}}' | head -1
+echo
+echo
+
+
+echo "03. GET urn:ngsi-ld:S1 — scope is a bare String '/x'"
+echo "===================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S1' --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "04. Create entity with scope '/x' for the two-scope control"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:S2","type":"T","scope":"/x","a":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "05. Append (noOverwrite) with scope '/y' — union keeps two values"
+echo "================================================================="
+swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S2/attrs?options=noOverwrite' --payload '{"scope":"/y","b":{"type":"Property","value":2}}' | head -1
+echo
+echo
+
+
+echo "06. GET urn:ngsi-ld:S2 — scope is an Array ['/x','/y']"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S2' --urlParams 'options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Create entity with a single string scope '/x'
+=================================================
+HTTP/1.1 201 Created
+
+
+02. Append (noOverwrite) with scope '/x' — union collapses to one value
+=======================================================================
+HTTP/1.1 204 No Content
+
+
+03. GET urn:ngsi-ld:S1 — scope is a bare String '/x'
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 81
+
+{
+  "a": 1,
+  "b": 2,
+  "id": "urn:ngsi-ld:S1",
+  "scope": "/x",
+  "type": "T"
+}
+
+
+
+04. Create entity with scope '/x' for the two-scope control
+===========================================================
+HTTP/1.1 201 Created
+
+
+05. Append (noOverwrite) with scope '/y' — union keeps two values
+=================================================================
+HTTP/1.1 204 No Content
+
+
+06. GET urn:ngsi-ld:S2 — scope is an Array ['/x','/y']
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 101
+
+{
+  "a": 1,
+  "b": 2,
+  "id": "urn:ngsi-ld:S2",
+  "scope": [
+    "/x",
+    "/y"
+  ],
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
