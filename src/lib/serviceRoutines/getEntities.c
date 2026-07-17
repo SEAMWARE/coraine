@@ -1712,6 +1712,36 @@ bool getEntities(void)
   filter.count    = swNgsild.count;
 
   //
+  // § 7.6.2.2 sort-by-distance: an orderBy "<geoprop>;dist-asc|dist-desc" term
+  // ranks entities by distance from ?orderFrom to <geoprop>. It needs orderFrom
+  // (a reference Point) and, for now, a Point orderGeometry (default). The plugin
+  // computes each entity's geoDistance and orders geo-bearing entities first.
+  //
+  for (int i = 0; i < swNgsild.orderByCount; i++)
+  {
+    if (!swNgsild.orderByV[i].byDistance)
+      continue;
+
+    if (swNgsild.orderFrom == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid orderBy",
+              "orderBy dist-asc/dist-desc requires the orderFrom parameter");
+      return true;
+    }
+    if (swNgsild.orderGeometry != NULL && strcmp(swNgsild.orderGeometry, "Point") != 0)
+    {
+      ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+              "sort by distance is only supported for a Point orderGeometry (got '%s')", swNgsild.orderGeometry);
+      return true;
+    }
+
+    filter.distGeoproperty = (swNgsild.orderByV[i].pathSegN > 0) ? swNgsild.orderByV[i].pathSegV[0] : NULL;
+    filter.distFrom        = swNgsild.orderFrom;
+    filter.distDesc        = (swNgsild.orderByV[i].dir == LdOrderDesc);
+    break;  // a single dist term drives the ranking
+  }
+
+  //
   // Determine split-entities mode: per-request param overrides global setting.
   // Split mode only activates when registrations actually match (checked below).
   //

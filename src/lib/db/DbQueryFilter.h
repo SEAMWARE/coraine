@@ -38,6 +38,15 @@ typedef struct DbQueryFilter
   char*      coordinates;  // reference geometry coordinates (JSON array string)
   char*      geoproperty;  // expanded IRI of the geoproperty to query
 
+  // Sort-by-distance (§ 7.6.2.2, orderBy=<geoprop>;dist-asc|dist-desc) — orthogonal
+  // to the geoRel filter. When distGeoproperty != NULL the plugin ranks entities by
+  // distance from distFrom to that GeoProperty (nearest first, or farthest if
+  // distDesc), attaching each entity's `geoDistance`; entities lacking the
+  // GeoProperty rank last. distFrom is always a Point (non-Point → 501 upstream).
+  char*      distGeoproperty;  // expanded IRI of the GeoProperty to sort by (NULL = no dist-sort)
+  char*      distFrom;         // reference Point coordinates (JSON array string)
+  bool       distDesc;         // true → farthest first (dist-desc)
+
   int     limit;      // max entities to return
   int     offset;     // entities to skip
   bool    count;      // whether to compute total count

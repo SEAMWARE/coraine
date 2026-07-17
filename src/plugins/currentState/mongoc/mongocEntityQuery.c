@@ -820,6 +820,64 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
 
 // -----------------------------------------------------------------------------
 //
+// bsonAppendNonGeoMatch - append the non-geo filter clauses (id / idPattern /
+// type / scope / q) to a $match document. Shared by the $geoNear pipeline's
+// $match stage and the dist-sort $unionWith non-geo sub-pipeline.
+//
+static void bsonAppendNonGeoMatch(bson_t* matchFilter, DbQueryFilter* filterP)
+{
+  if (filterP->idV != NULL)
+    bsonInArray(matchFilter, "_id", filterP->idV);
+  if (filterP->idPattern != NULL)
+  {
+    bson_t regexDoc;
+    bson_append_document_begin(matchFilter, "_id", 3, &regexDoc);
+    bson_append_regex(&regexDoc, "$regex", 6, filterP->idPattern, "");
+    bson_append_document_end(matchFilter, &regexDoc);
+  }
+  if (filterP->typeExpr != NULL && !filterP->typeExpr->isSimple)
+  {
+    bson_t orArray;
+    bson_append_array_begin(matchFilter, "$or", 3, &orArray);
+    for (int gix = 0; gix < filterP->typeExpr->groupCount; gix++)
+    {
+      char key2[16];
+      int  keyLen2 = snprintf(key2, sizeof(key2), "%d", gix);
+      LdTypeGroup* grp = &filterP->typeExpr->groupV[gix];
+      bson_t orElem;
+      bson_append_document_begin(&orArray, key2, keyLen2, &orElem);
+      if (grp->count == 1)
+        bson_append_utf8(&orElem, "type", 4, grp->typeV[0], -1);
+      else
+      {
+        bson_t allDoc, allArray;
+        bson_append_document_begin(&orElem, "type", 4, &allDoc);
+        bson_append_array_begin(&allDoc, "$all", 4, &allArray);
+        for (int tix = 0; tix < grp->count; tix++)
+        {
+          char tkey[16];
+          int  tkeyLen = snprintf(tkey, sizeof(tkey), "%d", tix);
+          bson_append_utf8(&allArray, tkey, tkeyLen, grp->typeV[tix], -1);
+        }
+        bson_append_array_end(&allDoc, &allArray);
+        bson_append_document_end(&orElem, &allDoc);
+      }
+      bson_append_document_end(&orArray, &orElem);
+    }
+    bson_append_array_end(matchFilter, &orArray);
+  }
+  else if (filterP->typeV != NULL)
+    bsonInArray(matchFilter, "type", filterP->typeV);
+  if (filterP->scopeExpr != NULL)
+    bsonAppendScopeFilter(matchFilter, filterP->scopeExpr);
+  if (filterP->qExpr != NULL)
+    bsonAppendQFilter(matchFilter, filterP->qExpr);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocEntityQuery -
 //
 int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
@@ -1054,20 +1112,28 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   // For georel=near, use $geoNear aggregation pipeline to get distance.
   // For all other queries, use find().
   //
-  bool useGeoNear = (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear);
+  bool useGeoNear  = (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear);
+  bool useDistSort = (filterP != NULL && filterP->geoRel == NULL && filterP->distGeoproperty != NULL);
 
   mongoc_cursor_t* cursorP;
 
-  if (useGeoNear)
+  if (useGeoNear || useDistSort)
   {
     //
-    // Build aggregation pipeline: $geoNear -> $match -> $sort -> $skip -> $limit
+    // Build aggregation pipeline: $geoNear -> $match [-> $sort -> $unionWith] -> $skip -> $limit
     //
-    // $geoNear must be the first stage. It handles the geo filter and adds
-    // a "geoDistance" field (meters) to each document.
+    // $geoNear must be the first stage. It handles the geo reference and adds a
+    // "geoDistance" field (metres) to each document. § 7.6.2.2 sort-by-distance
+    // reuses this with the orderFrom Point as the reference, no distance cutoff,
+    // then appends the entities that lack the GeoProperty ($unionWith, ranked
+    // last) and paginates across both.
     //
+    const char* nearGeoprop  = useDistSort ? filterP->distGeoproperty : filterP->geoproperty;
+    const char* nearGeomType = useDistSort ? "Point"                  : filterP->geometry;
+    const char* nearCoords   = useDistSort ? filterP->distFrom        : filterP->coordinates;
+
     char fieldPath[1024];
-    snprintf(fieldPath, sizeof(fieldPath), "%s.@none.value", mongocEscapeDotsInKey(filterP->geoproperty));
+    snprintf(fieldPath, sizeof(fieldPath), "%s.@none.value", mongocEscapeDotsInKey(nearGeoprop));
 
     bson_t pipeline;
     bson_init(&pipeline);
@@ -1090,9 +1156,9 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       // Build reference geometry inline
       bson_t nearGeometry;
       bson_init(&nearGeometry);
-      bson_append_utf8(&nearGeometry, "type", 4, filterP->geometry, -1);
+      bson_append_utf8(&nearGeometry, "type", 4, nearGeomType, -1);
 
-      const char* coordStr = filterP->coordinates;
+      const char* coordStr = nearCoords;
       while (*coordStr == ' ') coordStr++;
       if (*coordStr == '[')
         bsonAppendCoordArray(&nearGeometry, "coordinates", 11, coordStr);
@@ -1104,9 +1170,10 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       bson_append_utf8(&geoNearDoc, "key", 3, fieldPath, -1);
       bson_append_bool(&geoNearDoc, "spherical", 9, true);
 
-      if (filterP->geoRel->maxDistance >= 0)
+      // dist-sort has no distance cutoff (geoRel is NULL).
+      if (useGeoNear && filterP->geoRel->maxDistance >= 0)
         bson_append_double(&geoNearDoc, "maxDistance", 11, filterP->geoRel->maxDistance);
-      if (filterP->geoRel->minDistance >= 0)
+      if (useGeoNear && filterP->geoRel->minDistance >= 0)
         bson_append_double(&geoNearDoc, "minDistance", 11, filterP->geoRel->minDistance);
 
       bson_append_document_end(&stageDoc, &geoNearDoc);
@@ -1120,52 +1187,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       bson_t matchFilter;
       bson_init(&matchFilter);
 
-      if (filterP->idV != NULL)
-        bsonInArray(&matchFilter, "_id", filterP->idV);
-      if (filterP->idPattern != NULL)
-      {
-        bson_t regexDoc;
-        bson_append_document_begin(&matchFilter, "_id", 3, &regexDoc);
-        bson_append_regex(&regexDoc, "$regex", 6, filterP->idPattern, "");
-        bson_append_document_end(&matchFilter, &regexDoc);
-      }
-      if (filterP->typeExpr != NULL && !filterP->typeExpr->isSimple)
-      {
-        bson_t orArray;
-        bson_append_array_begin(&matchFilter, "$or", 3, &orArray);
-        for (int gix = 0; gix < filterP->typeExpr->groupCount; gix++)
-        {
-          char key2[16];
-          int  keyLen2 = snprintf(key2, sizeof(key2), "%d", gix);
-          LdTypeGroup* grp = &filterP->typeExpr->groupV[gix];
-          bson_t orElem;
-          bson_append_document_begin(&orArray, key2, keyLen2, &orElem);
-          if (grp->count == 1)
-            bson_append_utf8(&orElem, "type", 4, grp->typeV[0], -1);
-          else
-          {
-            bson_t allDoc, allArray;
-            bson_append_document_begin(&orElem, "type", 4, &allDoc);
-            bson_append_array_begin(&allDoc, "$all", 4, &allArray);
-            for (int tix = 0; tix < grp->count; tix++)
-            {
-              char tkey[16];
-              int  tkeyLen = snprintf(tkey, sizeof(tkey), "%d", tix);
-              bson_append_utf8(&allArray, tkey, tkeyLen, grp->typeV[tix], -1);
-            }
-            bson_append_array_end(&allDoc, &allArray);
-            bson_append_document_end(&orElem, &allDoc);
-          }
-          bson_append_document_end(&orArray, &orElem);
-        }
-        bson_append_array_end(&matchFilter, &orArray);
-      }
-      else if (filterP->typeV != NULL)
-        bsonInArray(&matchFilter, "type", filterP->typeV);
-      if (filterP->scopeExpr != NULL)
-        bsonAppendScopeFilter(&matchFilter, filterP->scopeExpr);
-      if (filterP->qExpr != NULL)
-        bsonAppendQFilter(&matchFilter, filterP->qExpr);
+      bsonAppendNonGeoMatch(&matchFilter, filterP);
 
       // Only add $match if there are non-geo filters
       if (!bson_empty(&matchFilter))
@@ -1178,6 +1200,51 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
         bson_append_document_end(&stages, &stageDoc);
       }
       bson_destroy(&matchFilter);
+    }
+
+    // --- dist-sort tail: reverse to farthest-first for dist-desc, then append
+    //     the entities that lack the GeoProperty ($unionWith), ranked last.
+    //     $geoNear already yields nearest-first, so dist-asc needs no $sort. ---
+    if (useDistSort)
+    {
+      if (filterP->distDesc)
+      {
+        char key[16];
+        int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+        bson_t stageDoc, sortDoc;
+        bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+        bson_append_document_begin(&stageDoc, "$sort", 5, &sortDoc);
+        BSON_APPEND_INT32(&sortDoc, "geoDistance", -1);
+        bson_append_document_end(&stageDoc, &sortDoc);
+        bson_append_document_end(&stages, &stageDoc);
+      }
+
+      // $unionWith: the entities matching the same non-geo filters but WITHOUT
+      // the GeoProperty — appended after the distance-sorted ones, so they rank
+      // last (§ 7.6.2.2) while $skip/$limit still page across the whole stream.
+      {
+        char key[16];
+        int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+        bson_t stageDoc, unionDoc, subPipe, subStage, subMatch, existsDoc;
+
+        bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+        bson_append_document_begin(&stageDoc, "$unionWith", 10, &unionDoc);
+        bson_append_utf8(&unionDoc, "coll", 4, "entities", 8);
+        bson_append_array_begin(&unionDoc, "pipeline", 8, &subPipe);
+        bson_append_document_begin(&subPipe, "0", 1, &subStage);
+        bson_append_document_begin(&subStage, "$match", 6, &subMatch);
+
+        bsonAppendNonGeoMatch(&subMatch, filterP);
+        bson_append_document_begin(&subMatch, fieldPath, -1, &existsDoc);
+        bson_append_bool(&existsDoc, "$exists", 7, false);
+        bson_append_document_end(&subMatch, &existsDoc);
+
+        bson_append_document_end(&subStage, &subMatch);
+        bson_append_document_end(&subPipe, &subStage);
+        bson_append_array_end(&unionDoc, &subPipe);
+        bson_append_document_end(&stageDoc, &unionDoc);
+        bson_append_document_end(&stages, &stageDoc);
+      }
     }
 
     // --- $skip stage ---

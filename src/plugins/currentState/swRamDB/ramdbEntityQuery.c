@@ -73,6 +73,29 @@ static int geoCandCmp(const void* a, const void* b)
 
 
 
+// distCandCmp - § 7.6.2.2 sort-by-distance ordering. Entities that convey the
+// GeoProperty (dist >= 0) rank ahead of those that do not (dist < 0), which sort
+// last; among geo-bearing entities the order is ascending, or descending when
+// distDescCand is set (dist-desc). qsort has no context arg → thread-local flag.
+//
+static __thread bool distDescCand;
+
+static int distCandCmp(const void* a, const void* b)
+{
+  double da = ((const GeoCand*) a)->dist;
+  double db = ((const GeoCand*) b)->dist;
+  bool   ga = (da >= 0);
+  bool   gb = (db >= 0);
+
+  if (ga != gb) return ga ? -1 : 1;   // geo-bearing first
+  if (!ga)      return 0;             // both lack the GeoProperty
+
+  int cmp = (da < db) ? -1 : (da > db) ? 1 : 0;
+  return distDescCand ? -cmp : cmp;
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // ramdbEntityQuery -
@@ -92,6 +115,21 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
 
   GeoCand* cands = (GeoCand*) kaAlloc(&swRest.kalloc, sizeof(GeoCand) * (total > 0 ? total : 1));
   int      nCand = 0;
+
+  // § 7.6.2.2 sort-by-distance — a synthetic near filter reused per entity to
+  // compute the distance from the orderFrom Point to the named GeoProperty.
+  DbQueryFilter  distFilter;
+  LdGeoRel       distRel = { LdGeoNear, -1, -1 };
+  DbQueryFilter* distFilterP = NULL;
+  if (filterP != NULL && filterP->distGeoproperty != NULL && filterP->geoRel == NULL)
+  {
+    distFilter             = *filterP;
+    distFilter.geoRel      = &distRel;
+    distFilter.geometry    = (char*) "Point";
+    distFilter.coordinates = filterP->distFrom;
+    distFilter.geoproperty = filterP->distGeoproperty;
+    distFilterP            = &distFilter;
+  }
 
   for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
   {
@@ -187,6 +225,13 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       if (!ramdbGeoMatch(eP, filterP, &geoDistance))
         continue;
     }
+    else if (distFilterP != NULL)
+    {
+      // § 7.6.2.2 sort-by-distance (no filtering): distance from orderFrom to the
+      // named GeoProperty. A missing/non-Point GeoProperty leaves geoDistance -1
+      // (the entity is kept but ranks last).
+      ramdbGeoMatch(eP, distFilterP, &geoDistance);
+    }
 
     cands[nCand].eP   = eP;
     cands[nCand].dist = geoDistance;
@@ -203,6 +248,13 @@ int ramdbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   //
   if (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear)
     qsort(cands, nCand, sizeof(GeoCand), geoCandCmp);
+  else if (filterP != NULL && filterP->distGeoproperty != NULL)
+  {
+    // § 7.6.2.2 sort-by-distance — geo-bearing entities nearest/farthest first,
+    // non-geo entities last. Paginate over this order, like the near path.
+    distDescCand = filterP->distDesc;
+    qsort(cands, nCand, sizeof(GeoCand), distCandCmp);
+  }
 
   //
   // Paginate (offset/limit) and render. limit == 0 means count-only.

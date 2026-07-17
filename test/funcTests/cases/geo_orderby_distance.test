@@ -1,0 +1,302 @@
+#
+# FILE            geo_orderby_distance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2.2 / § 7.6.2.3 — orderBy=<geoproperty>;dist-asc|dist-desc
+# ranks entities by distance from the ?orderFrom reference Point to that
+# GeoProperty. Entities that convey the GeoProperty rank ahead of those that do
+# not (which have no distance and sort last). Each result carries geoDistance
+# (metres). orderFrom is required and, for now, only a Point orderGeometry is
+# supported.
+#
+# On mongoc this is the $geoNear (index-backed) path for the geo-bearing
+# entities plus a $unionWith for the non-geo tail, paginated across both.
+#
+--NAME--
+orderBy dist-asc/dist-desc — sort entities by distance from orderFrom (§ 7.6.2.2)
+
+--TAGS--
+geoquery orderBy distance query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed A(near),C(mid),B(far) with location; D with no location"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.05,40.0]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.1,40.0]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[9.0,41.0]}}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:D","type":"P","name":{"type":"Property","value":"noloc"}}' | head -1
+echo
+echo
+
+
+echo "02. orderBy=location;dist-asc — nearest first: A, C, B, then D (no location) last"
+echo "================================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=location;dist-desc — farthest first: B, C, A, then D last"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-desc&orderFrom=%5B8,40%5D&options=keyValues'
+echo
+echo
+
+
+echo "04. dist-asc limit=2 — the two nearest: A, C"
+echo "============================================"
+swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&limit=2&options=keyValues'
+echo
+echo
+
+
+echo "05. dist-asc offset=2 limit=5 — pages into the non-geo tail: B, D"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&offset=2&limit=5&options=keyValues'
+echo
+echo
+
+
+echo "06. dist-asc without orderFrom — 400 BadRequestData"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc'
+echo
+echo
+
+
+echo "07. dist-asc with a non-Point orderGeometry — 501 Not Implemented"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B7,39%5D,%5B9,41%5D%5D&orderGeometry=LineString'
+echo
+echo
+
+
+--EXPECT--
+01. Seed A(near),C(mid),B(far) with location; D with no location
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=location;dist-asc — nearest first: A, C, B, then D (no location) last
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 647
+
+[
+  {
+    "geoDistance": 4263.759076255,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 8527.517817111,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 139844.307016697,
+    "id": "urn:ngsi-ld:B",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "id": "urn:ngsi-ld:D",
+    "name": "noloc",
+    "type": "P"
+  }
+]
+
+
+
+03. orderBy=location;dist-desc — farthest first: B, C, A, then D last
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 647
+
+[
+  {
+    "geoDistance": 139844.307016697,
+    "id": "urn:ngsi-ld:B",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 8527.517817111,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 4263.759076255,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "id": "urn:ngsi-ld:D",
+    "name": "noloc",
+    "type": "P"
+  }
+]
+
+
+
+04. dist-asc limit=2 — the two nearest: A, C
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=[8,40]&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 384
+
+[
+  {
+    "geoDistance": 4263.759076255,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 8527.517817111,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+05. dist-asc offset=2 limit=5 — pages into the non-geo tail: B, D
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=[8,40]&options=keyValues&limit=5&offset=0>;rel="prev";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 266
+
+[
+  {
+    "geoDistance": 139844.307016697,
+    "id": "urn:ngsi-ld:B",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "id": "urn:ngsi-ld:D",
+    "name": "noloc",
+    "type": "P"
+  }
+]
+
+
+
+06. dist-asc without orderFrom — 400 BadRequestData
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 189
+
+{
+  "detail": "orderBy dist-asc/dist-desc requires the orderFrom parameter",
+  "status": 400,
+  "title": "Invalid orderBy",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. dist-asc with a non-Point orderGeometry — 501 Not Implemented
+=================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 216
+
+{
+  "detail": "sort by distance is only supported for a Point orderGeometry (got 'LineString')",
+  "status": 501,
+  "title": "Not Implemented",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
