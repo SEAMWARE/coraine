@@ -33,7 +33,7 @@
 #include "swJsonld/swldInit.h"                       // swldCoreContext
 
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
+#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -135,6 +135,15 @@ bool putEntityAttrValue(void)
   const char* typeStr    = (typeNodeP != NULL && typeNodeP->type == KjString) ? typeNodeP->value.s : NULL;
   const char* member     = valueMemberForType(typeStr);
 
+  // § 10.2.6.4 — if the target (default) instance previously carried an observedAt
+  // sub-attribute, the value-only set updates it to the ?observedAt param when
+  // supplied (handled by the merge's observedAt injection) or REMOVES it when no
+  // ?observedAt is given. The removal is expressed with the NGSI-LD Null marker on
+  // the synthesized fragment (§ 4.5.5.9).
+  KjNode* targetInstP  = kjLookup(attrWrapperP, "@none");
+  if (targetInstP == NULL) targetInstP = firstInstP;
+  bool hadObservedAt = (targetInstP != NULL) && (kjLookup(targetInstP, LD_VOCAB_OBSERVED_AT) != NULL);
+
   // § 10.2.6.4 — a null value (or the urn:ngsi-ld:null sentinel) is invalid,
   // except for a JsonProperty whose json value may legitimately be null.
   bool isJsonProperty = (typeStr != NULL && strcmp(typeStr, "JsonProperty") == 0);
@@ -161,6 +170,12 @@ bool putEntityAttrValue(void)
     kjChildAdd(fragP, kjString(swRest.kjsonP, "type", typeStr));
   valueP->name = (char*) member;
   kjChildAdd(fragP, valueP);
+
+  // § 10.2.6.4 observedAt: remove it when the attribute had one and no ?observedAt
+  // is supplied. When ?observedAt IS supplied the merge injects it into the
+  // fragment (ldEntityMerge), so nothing extra is needed for the update case.
+  if (hadObservedAt && swNgsild.observedAt == NULL)
+    kjChildAdd(fragP, kjString(swRest.kjsonP, LD_VOCAB_OBSERVED_AT, (char*) LD_VOCAB_NGSILD_NULL));
 
   // Expand the synthesized fragment the way ldParseHook would for a normal
   // PATCH /attrs body (the raw value-only body itself was deliberately not

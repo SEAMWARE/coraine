@@ -1,0 +1,200 @@
+#
+# FILE            set_attr_value_observedat.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.2.6.4 (Set Attribute Value) observedAt semantics + the § 4.5.5.9
+# NGSI-LD Null (urn:ngsi-ld:null) removal marker on observedAt in a merge/update.
+#
+#   - PUT /attrs/{attr}/value with NO ?observedAt, when the attribute previously
+#     carried observedAt, REMOVES observedAt.
+#   - with ?observedAt=<ts>, UPDATES observedAt to that timestamp.
+#   - an attribute that had no observedAt does not gain one.
+#   - PATCH /attrs/{attr} with { "observedAt": "urn:ngsi-ld:null" } removes it
+#     (was wrongly rejected as an invalid DateTime); a genuinely malformed
+#     observedAt is still rejected with 400.
+#
+--NAME--
+Set Attribute Value observedAt update/remove (§ 10.2.6.4) + NGSI-LD Null on observedAt
+
+--TAGS--
+observedAt attrValue patch query
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed urn:E with P1 carrying observedAt=2020"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E","type":"T","P1":{"type":"Property","value":1,"observedAt":"2020-01-01T00:00:00Z"}}' | head -1
+echo
+echo
+
+
+echo "02. PUT P1/value=2 with NO ?observedAt → observedAt removed (§ 10.2.6.4)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P1/value -X PUT --payload '2'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E?attrs=P1'
+echo
+echo
+
+
+echo "03. Re-add observedAt, then PUT P1/value=3 with ?observedAt=2021 → updated"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P1 -X PUT --payload '{"type":"Property","value":2,"observedAt":"2020-01-01T00:00:00Z"}' | head -1
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P1/value?observedAt=2021-06-01T00:00:00Z' -X PUT --payload '3'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E?attrs=P1'
+echo
+echo
+
+
+echo "04. An attribute WITHOUT observedAt does not gain one on set-value"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","P1":{"type":"Property","value":1}}' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E2/attrs/P1/value -X PUT --payload '9'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E2?attrs=P1'
+echo
+echo
+
+
+echo "05. PATCH P1 { observedAt: urn:ngsi-ld:null } removes observedAt (§ 4.5.5.9)"
+echo "==========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E3","type":"T","P1":{"type":"Property","value":5,"observedAt":"2020-01-01T00:00:00Z"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E3/attrs/P1 -X PATCH --payload '{"observedAt":"urn:ngsi-ld:null"}'
+swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E3?attrs=P1'
+echo
+echo
+
+
+echo "06. A malformed observedAt is still rejected with 400"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E3/attrs/P1 -X PATCH --payload '{"observedAt":"not-a-date"}'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:E with P1 carrying observedAt=2020
+===============================================
+HTTP/1.1 201 Created
+
+
+02. PUT P1/value=2 with NO ?observedAt → observedAt removed (§ 10.2.6.4)
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 97
+
+{
+  "P1": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:ngsi-ld:E",
+  "type": "T"
+}
+
+
+
+03. Re-add observedAt, then PUT P1/value=3 with ?observedAt=2021 → updated
+==========================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": {
+    "observedAt": "REGEX(.*)",
+    "type": "Property",
+    "value": 3
+  },
+  "id": "urn:ngsi-ld:E",
+  "type": "T"
+}
+
+
+
+04. An attribute WITHOUT observedAt does not gain one on set-value
+=================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 98
+
+{
+  "P1": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:ngsi-ld:E2",
+  "type": "T"
+}
+
+
+
+05. PATCH P1 { observedAt: urn:ngsi-ld:null } removes observedAt (§ 4.5.5.9)
+===========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 98
+
+{
+  "P1": {
+    "type": "Property",
+    "value": 5
+  },
+  "id": "urn:ngsi-ld:E3",
+  "type": "T"
+}
+
+
+
+06. A malformed observedAt is still rejected with 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 253
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': 'observedAt' is not a valid ISO 8601 DateTime: 'not-a-date'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
