@@ -1,0 +1,144 @@
+#
+# FILE            orderby_desc_null_last.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2.2 — when sorting by value, the implicit mixed-datatype
+# comparison order ends with "... Null ... Attribute does not exist", and the
+# clause is explicit: "(null values last)". That rule is direction-agnostic:
+# an entity whose sort Attribute is absent (or Null) must sort LAST for BOTH
+# ascending and descending (;desc) ordering — a plain negation of the value
+# comparison would otherwise float the missing/null entities to the front on
+# ;desc. Here E10/E20/E30 carry 'speed'; EMISS/EMISS2 do not.
+#
+--NAME--
+orderBy ;desc keeps missing/null-valued attributes last (§ 7.6.2.2)
+
+--TAGS--
+orderBy query pagination
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed 3 entities with speed + 2 without speed"
+echo "================================================"
+for v in \
+  '{"id":"urn:ngsi-ld:E10","type":"T","speed":{"type":"Property","value":10}}' \
+  '{"id":"urn:ngsi-ld:E30","type":"T","speed":{"type":"Property","value":30}}' \
+  '{"id":"urn:ngsi-ld:E20","type":"T","speed":{"type":"Property","value":20}}' \
+  '{"id":"urn:ngsi-ld:EMISS","type":"T","other":{"type":"Property","value":1}}' \
+  '{"id":"urn:ngsi-ld:EMISS2","type":"T","another":{"type":"Property","value":2}}' ; do
+  swCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
+done
+echo
+echo
+
+
+echo "02. orderBy=speed;desc — 30,20,10 then the two missing LAST"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed;desc&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=speed (asc control) — 10,20,30 then the two missing LAST"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 3 entities with speed + 2 without speed
+================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=speed;desc — 30,20,10 then the two missing LAST
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 363
+
+[
+  {
+    "id": "urn:ngsi-ld:E30",
+    "speed": 30,
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:E20",
+    "speed": 20,
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:E10",
+    "speed": 10,
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:EMISS",
+    "other": 1,
+    "type": "T"
+  },
+  {
+    "another": 2,
+    "id": "urn:ngsi-ld:EMISS2",
+    "type": "T"
+  }
+]
+
+
+
+03. orderBy=speed (asc control) — 10,20,30 then the two missing LAST
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 363
+
+[
+  {
+    "id": "urn:ngsi-ld:E10",
+    "speed": 10,
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:E20",
+    "speed": 20,
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:E30",
+    "speed": 30,
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:EMISS",
+    "other": 1,
+    "type": "T"
+  },
+  {
+    "another": 2,
+    "id": "urn:ngsi-ld:EMISS2",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
