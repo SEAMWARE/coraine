@@ -6,8 +6,10 @@
 // Copyright 2026 Seamware
 //
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
 
 #include "swRest/SwRestState.h"                      // swRest
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
 #include "kjson/kjClone.h"                           // kjClone
@@ -77,7 +79,11 @@ bool getSubscriptions(void)
   KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
 
   int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-  int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : -1;  // -1 → unbounded
+  // swNgsild.limit defaults to 20 (ldHooks); 0 only when the client explicitly
+  // asked for limit=0 — valid only together with count=true (ldParamsValidate),
+  // meaning "just the count, no items". Mapping it to unbounded returned the
+  // whole set, so keep it as-is: limit=0 → an empty page.
+  int limit = swNgsild.limit;
   int seen  = 0;
   int taken = 0;
 
@@ -131,6 +137,14 @@ bool getSubscriptions(void)
   bool hasMore = (skip + taken < total);
   if ((taken > 0 || hasMore) && (hasMore || skip > 0))
     ldPaginationLinkHeader(hasMore);
+
+  // § 7.5 / § 6.4.6 (TS 104-176): relay the total element count when requested.
+  if (swNgsild.count)
+  {
+    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    snprintf(countStr, 32, "%d", total);
+    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+  }
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = arrayP;

@@ -1,0 +1,142 @@
+#
+# FILE            subscriptions_count_header.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.5 / HTTP binding TS 104-176 § 6.4.6 — when a client requests
+# ?count=true on a paginated query, the total element count is relayed in the
+# NGSILD-Results-Count response header. This applies to the Query Subscriptions
+# (§ 5.9.3) and Query Context Source Registration Subscriptions collections too,
+# not only entities. § 6.4.6 also defines limit=0 (valid only with count=true)
+# as "give me just the count" — an empty page, NOT the whole set.
+#
+--NAME--
+count=true relays NGSILD-Results-Count on subscription collections; limit=0 is an empty page (§ 6.4.6)
+
+--TAGS--
+subscription count pagination
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed 3 subscriptions + 1 context-source subscription"
+echo "========================================================"
+for i in 1 2 3; do
+  swCurl --url /ngsi-ld/v1/subscriptions \
+    --payload "{\"id\":\"urn:ngsi-ld:Sub:$i\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/n$i\"}}}" | head -1
+done
+swCurl --url /ngsi-ld/v1/csourceSubscriptions \
+  --payload '{"id":"urn:ngsi-ld:CsrSub:1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:9999/c"}}}' | head -1
+echo
+echo
+
+
+echo "02. GET /subscriptions?count=true — 200 + NGSILD-Results-Count: 3"
+echo "================================================================"
+R=$(swCurl --url '/ngsi-ld/v1/subscriptions?count=true')
+echo "$R" | grep -iE '^HTTP/|^NGSILD-Results-Count:'
+echo "items: $(echo "$R" | grep -c '"id"')"
+echo
+echo
+
+
+echo "03. GET /subscriptions?limit=0&count=true — empty page, count still 3"
+echo "===================================================================="
+R=$(swCurl --url '/ngsi-ld/v1/subscriptions?limit=0&count=true')
+echo "$R" | grep -iE '^HTTP/|^NGSILD-Results-Count:'
+echo "items: $(echo "$R" | grep -c '"id"')"
+echo
+echo
+
+
+echo "04. GET /subscriptions?limit=2&count=true — 2 items, count 3"
+echo "============================================================"
+R=$(swCurl --url '/ngsi-ld/v1/subscriptions?limit=2&count=true')
+echo "$R" | grep -iE '^HTTP/|^NGSILD-Results-Count:'
+echo "items: $(echo "$R" | grep -c '"id"')"
+echo
+echo
+
+
+echo "05. GET /subscriptions?limit=0 without count — 400"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/subscriptions?limit=0' | head -1
+echo
+echo
+
+
+echo "06. GET /csourceSubscriptions?count=true — 200 + NGSILD-Results-Count: 1"
+echo "========================================================================"
+R=$(swCurl --url '/ngsi-ld/v1/csourceSubscriptions?count=true')
+echo "$R" | grep -iE '^HTTP/|^NGSILD-Results-Count:'
+echo "items: $(echo "$R" | grep -c '"id"')"
+echo
+echo
+
+
+echo "07. GET /csourceSubscriptions?limit=0&count=true — empty page, count 1"
+echo "====================================================================="
+R=$(swCurl --url '/ngsi-ld/v1/csourceSubscriptions?limit=0&count=true')
+echo "$R" | grep -iE '^HTTP/|^NGSILD-Results-Count:'
+echo "items: $(echo "$R" | grep -c '"id"')"
+echo
+echo
+
+
+--EXPECT--
+01. Seed 3 subscriptions + 1 context-source subscription
+========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET /subscriptions?count=true — 200 + NGSILD-Results-Count: 3
+================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+items: 3
+
+
+03. GET /subscriptions?limit=0&count=true — empty page, count still 3
+====================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+items: 0
+
+
+04. GET /subscriptions?limit=2&count=true — 2 items, count 3
+============================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+items: 2
+
+
+05. GET /subscriptions?limit=0 without count — 400
+==================================================
+HTTP/1.1 400 Bad Request
+
+
+06. GET /csourceSubscriptions?count=true — 200 + NGSILD-Results-Count: 1
+========================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+items: 1
+
+
+07. GET /csourceSubscriptions?limit=0&count=true — empty page, count 1
+=====================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+items: 0
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

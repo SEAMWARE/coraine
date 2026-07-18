@@ -11,8 +11,10 @@
 // regSubCache and returns an array of subscription trees.
 //
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
 
 #include "swRest/SwRestState.h"                      // swRest
+#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd, kjChildRemove
 #include "kjson/kjClone.h"                           // kjClone
@@ -42,10 +44,20 @@ bool getCsourceSubscriptions(void)
   KjNode* arrayP  = kjArray(swRest.kjsonP, NULL);
   bool    hasMore = false;
 
+  // Total across the CSR-subscription cache — for the count header and to
+  // decide whether a further page is pending.
+  int total = 0;
+  if (cacheP != NULL)
+    for (LdSubCacheItem* it = cacheP->itemList; it != NULL; it = it->next)
+      if (it->subTree != NULL) total++;
+
   if (cacheP != NULL)
   {
     int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : 1 << 30;
+    // swNgsild.limit defaults to 20 (ldHooks); 0 only when the client asked for
+    // limit=0 (valid only with count=true) — "just the count, no items". Keep
+    // it as-is so limit=0 yields an empty page, not the whole set.
+    int limit = swNgsild.limit;
     int idx   = 0;
 
     for (LdSubCacheItem* itemP = cacheP->itemList; itemP != NULL; itemP = itemP->next)
@@ -91,6 +103,14 @@ bool getCsourceSubscriptions(void)
   // more pending; keep next when more pages remain (hasMore).
   if (arrayP->value.firstChildP != NULL || hasMore)
     ldPaginationLinkHeader(hasMore);
+
+  // § 7.5 / § 6.4.6 (TS 104-176): relay the total element count when requested.
+  if (swNgsild.count)
+  {
+    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    snprintf(countStr, 32, "%d", total);
+    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+  }
 
   swNgsild.rawResponse    = true;
   swRest.out.responseTree = arrayP;
