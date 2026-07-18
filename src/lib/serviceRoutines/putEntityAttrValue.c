@@ -152,7 +152,9 @@ bool putEntityAttrValue(void)
     if (valueP->type == KjNull ||
         (valueP->type == KjString && valueP->value.s != NULL && strcmp(valueP->value.s, "urn:ngsi-ld:null") == 0))
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Request",
+      // § 10.2.6.4: a null / urn:ngsi-ld:null body raises InvalidRequest
+      // specifically (not the generic BadRequestData).
+      ldError(400, LD_ERROR_INVALID_REQUEST, "Invalid Request",
               "a null value-only body is not allowed for attribute '%s'", attrWild);
       return true;
     }
