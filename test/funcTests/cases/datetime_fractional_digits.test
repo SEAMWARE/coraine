@@ -1,0 +1,124 @@
+#
+# FILE            datetime_fractional_digits.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.2.4 — a DateTime Seconds component "may optionally contain a
+# decimal fraction. In this case the string shall contain two integer digits,
+# followed by a decimal point and then one or more fractional digits, up to a
+# maximum of six." So the fraction must have 1..6 digits: zero digits (a bare
+# decimal point) and more than six digits are both invalid → 400 BadRequestData.
+# The value is exercised via a Property's observedAt sub-attribute.
+#
+--NAME--
+DateTime fractional seconds accept 1..6 digits, reject 0 or >6 (§ 5.2.2.4)
+
+--TAGS--
+datetime attribute validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. observedAt with 3 fractional digits — 201"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F3","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123Z"}}' | head -1
+echo
+echo
+
+
+echo "02. observedAt with 6 fractional digits (the maximum) — 201"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F6","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456Z"}}' | head -1
+echo
+echo
+
+
+echo "03. observedAt with 6 fractional digits + offset timezone — 201"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Foff","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456+02:00"}}' | head -1
+echo
+echo
+
+
+echo "04. observedAt with no fraction — 201"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F0","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00Z"}}' | head -1
+echo
+echo
+
+
+echo "05. observedAt with 7 fractional digits — 400 (exceeds six)"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}'
+echo
+echo
+
+
+echo "06. observedAt with a bare decimal point (zero digits) — 400"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fdot","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.Z"}}'
+echo
+echo
+
+
+--EXPECT--
+01. observedAt with 3 fractional digits — 201
+=============================================
+HTTP/1.1 201 Created
+
+
+02. observedAt with 6 fractional digits (the maximum) — 201
+===========================================================
+HTTP/1.1 201 Created
+
+
+03. observedAt with 6 fractional digits + offset timezone — 201
+===============================================================
+HTTP/1.1 201 Created
+
+
+04. observedAt with no fraction — 201
+=====================================
+HTTP/1.1 201 Created
+
+
+05. observedAt with 7 fractional digits — 400 (exceeds six)
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 270
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2026-04-28T10:00:00.1234567Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. observedAt with a bare decimal point (zero digits) — 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 263
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2026-04-28T10:00:00.Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
