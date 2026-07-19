@@ -1,0 +1,85 @@
+#
+# FILE            subscription_q_datetime_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 4.9 / § 5.2.6.6 — a subscription's q filter is stored parsed and
+# re-rendered when the subscription is retrieved. A DateTime literal in q must
+# round-trip as the ISO 8601 string it was given, NOT as the raw epoch-nanosecond
+# integer: re-submitting the integer form would re-parse as a Number, silently
+# changing the comparison's semantics.
+#
+--NAME--
+Subscription q DateTime literal round-trips as ISO 8601, not a nanosecond integer (§ 4.9)
+
+--TAGS--
+subscription q datetime
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. q with a DateTime sub-attribute comparison round-trips as ISO"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Sub:1","type":"Subscription","entities":[{"type":"T"}],"q":"temperature.observedAt>2020-01-01T00:00:00Z","notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | head -1
+swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:1' | grep '"q":'
+echo
+echo
+
+
+echo "02. q with a DateTime value comparison round-trips as ISO"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Sub:2","type":"Subscription","entities":[{"type":"T"}],"q":"birthday==2020-06-15T12:30:00Z","notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | head -1
+swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:2' | grep '"q":'
+echo
+echo
+
+
+echo "03. q DateTime with a fractional second preserves the fraction"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Sub:3","type":"Subscription","entities":[{"type":"T"}],"q":"t.observedAt>2020-01-01T00:00:00.123Z","notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | head -1
+swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:3' | grep '"q":'
+echo
+echo
+
+
+echo "04. A numeric q comparison is unaffected (stays numeric)"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Sub:4","type":"Subscription","entities":[{"type":"T"}],"q":"temp>5","notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | head -1
+swCurl --url '/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:4' | grep '"q":'
+echo
+echo
+
+
+--EXPECT--
+01. q with a DateTime sub-attribute comparison round-trips as ISO
+================================================================
+HTTP/1.1 201 Created
+  "q": "temperature.observedAt>2020-01-01T00:00:00Z",
+
+
+02. q with a DateTime value comparison round-trips as ISO
+========================================================
+HTTP/1.1 201 Created
+  "q": "birthday==2020-06-15T12:30:00Z",
+
+
+03. q DateTime with a fractional second preserves the fraction
+==============================================================
+HTTP/1.1 201 Created
+  "q": "t.observedAt>2020-01-01T00:00:00.123Z",
+
+
+04. A numeric q comparison is unaffected (stays numeric)
+========================================================
+HTTP/1.1 201 Created
+  "q": "temp>5",
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
