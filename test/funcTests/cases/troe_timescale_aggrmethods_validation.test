@@ -1,0 +1,127 @@
+#
+# FILE            troe_timescale_aggrmethods_validation.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 3.2.7 — aggrMethods is a closed enum of aggregation methods
+# (avg, distinctCount, max, min, stddev, sum, sumsq, totalCount; the broker
+# also accepts "count" as a documented alias of totalCount). An unrecognised
+# method name is an invalid URL parameter → 400 BadRequestData, rather than
+# being silently dropped (which yields an empty aggregation). Applies to both
+# the query (temporal/entities) and single-entity retrieve routes.
+#
+--NAME--
+Invalid aggrMethods value is rejected with 400, not silently ignored (§ 3.2.7)
+
+--TAGS--
+temporal aggregation validation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 with two speed instances"
+echo "========================================"
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T12:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Valid aggrMethods=avg,max → 200 (accepted)"
+echo "=============================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,max&aggrPeriodDuration=PT4H' | head -1
+echo
+echo
+
+
+echo "03. Valid alias aggrMethods=count → 200 (accepted)"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=count&aggrPeriodDuration=PT4H' | head -1
+echo
+echo
+
+
+echo "04. Invalid aggrMethods=bogus → 400 BadRequestData"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=bogus&aggrPeriodDuration=PT4H'
+echo
+echo
+
+
+echo "05. Mixed valid+invalid aggrMethods=avg,bogus → 400"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,bogus&aggrPeriodDuration=PT4H' | head -1
+echo
+echo
+
+
+echo "06. Single-entity retrieve with aggrMethods=bogus → 400"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=bogus&aggrPeriodDuration=PT4H' | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with two speed instances
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. Valid aggrMethods=avg,max → 200 (accepted)
+==============================================
+HTTP/1.1 200 OK
+
+
+03. Valid alias aggrMethods=count → 200 (accepted)
+==================================================
+HTTP/1.1 200 OK
+
+
+04. Invalid aggrMethods=bogus → 400 BadRequestData
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 188
+
+{
+  "detail": "'bogus' is not a valid aggregation method (§ 3.2.7)",
+  "status": 400,
+  "title": "Invalid URL Parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Mixed valid+invalid aggrMethods=avg,bogus → 400
+===================================================
+HTTP/1.1 400 Bad Request
+
+
+06. Single-entity retrieve with aggrMethods=bogus → 400
+=======================================================
+HTTP/1.1 400 Bad Request
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

@@ -32,6 +32,7 @@
 #include "swRest/SwRestState.h"                      // swRest
 #include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
 #include "swNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
+#include "swNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -403,6 +404,21 @@ bool getEntitiesTemporal(void)
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "'aggrMethods' is required when the requested format is 'aggregatedValues'");
     return true;
+  }
+
+  // § 3.2.7: aggrMethods is a closed enum. An unrecognised method would be
+  // silently dropped (empty aggregation), so reject it with 400 BadRequestData.
+  if (swNgsild.format == LdFormatAggregatedValues)
+  {
+    for (int i = 0; swNgsild.aggrMethodsV[i] != NULL; i++)
+    {
+      if (!ldAggrMethodValid(swNgsild.aggrMethodsV[i]))
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URL Parameter",
+                "'%s' is not a valid aggregation method (§ 3.2.7)", swNgsild.aggrMethodsV[i]);
+        return true;
+      }
+    }
   }
 
   // § 6.18.3.2: at least one of (id, idPattern, type, attrs, q, georel)
