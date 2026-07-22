@@ -102,21 +102,24 @@ static char** attrIRIArray(KjNode* arrP, KAlloc* allocP)
 //
 // Returns true if a cached reg of mode 'cachedMode' would block the new reg.
 //
-//  new exclusive ← blocked by existing exclusive | redirect | inclusive
-//  new redirect  ← blocked by existing exclusive | inclusive  (multiple redirects coexist)
+//  new exclusive ← blocked by existing exclusive | redirect
+//  new redirect  ← blocked by existing exclusive             (multiple redirects coexist)
 //  new inclusive ← (no creation-time block per spec)
 //  new auxiliary ← (no creation-time block per spec)
+//
+// An exclusive reg is ALLOWED to overlap an existing INCLUSIVE one: that collision
+// is permitted, the exclusive source's attributes being stripped from the inclusive
+// contribution at runtime. Likewise redirect + inclusive coexist. Only exclusive↔redirect
+// is a hard conflict (both claim sole authority over the attribute), rejected either way.
 //
 static bool blockingMode(LdRegMode newMode, LdRegMode cachedMode)
 {
   if (newMode == LdRegModeExclusive)
     return (cachedMode == LdRegModeExclusive ||
-            cachedMode == LdRegModeRedirect  ||
-            cachedMode == LdRegModeInclusive);
+            cachedMode == LdRegModeRedirect);
 
   if (newMode == LdRegModeRedirect)
-    return (cachedMode == LdRegModeExclusive ||
-            cachedMode == LdRegModeInclusive);
+    return (cachedMode == LdRegModeExclusive);
 
   return false;
 }
