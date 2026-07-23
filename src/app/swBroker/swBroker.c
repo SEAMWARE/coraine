@@ -233,7 +233,7 @@ static KArg kargV[] =
   { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
   { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
   { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
-  { "--high-precision",     "-hp",          KaBool,   _vp &highPrecision, KaOpt, _vp false, _vp false, _vp true, "render sysattr timestamps with full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
+  { "--high-precision",     "-hp",          KaBool,   _vp &highPrecision, KaOpt, _vp false, _vp false, _vp true, "render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
   { "--asyncSnapshot",      "-asyncSnapshot",  KaBool, _vp &asyncSnapshot, KaOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
   { "--maxRequestSize",     "-mrs",            KaInt,  _vp &maxRequestSize, KaOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
   { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
