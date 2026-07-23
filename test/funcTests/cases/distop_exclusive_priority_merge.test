@@ -1,0 +1,73 @@
+#
+# Exclusive-source attribute priority in the multi-source read merge (§ 4.5.5).
+#
+# The same entity attribute (urn:E1 speed) is claimed by an EXCLUSIVE
+# registration on source A and ALSO offered by an INCLUSIVE registration on
+# source B (§ 5.9.2 permits the overlap). A type query forwards to BOTH sources.
+# Source B returns a NEWER observedAt than A, so the plain merge timestamp
+# tiebreaker (ldDistInstanceShouldReplace) would pick B's value. But the
+# attribute is exclusively claimed, so B's colliding copy is discarded and the
+# EXCLUSIVE source A wins regardless of the newer timestamp.
+#
+--NAME--
+DistOps — exclusive source's attribute wins over a newer inclusive copy (§ 4.5.5)
+--TAGS--
+distops registration
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 200
+ftClientStart --port 7712 --status 200
+--RUN--
+echo "01. Source A@7711 (exclusive): speed=100 observedAt 2020 (older)"
+echo "==============================================================="
+swCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "/entities", "status": 200, "body": [ { "id": "urn:E1", "type": "Vehicle", "speed": { "type": "Property", "value": 100, "observedAt": "2020-01-01T00:00:00Z" } } ] }' | grep HTTP
+echo
+
+
+echo "02. Source B@7712 (inclusive): speed=999 observedAt 2099 (newer)"
+echo "==============================================================="
+swCurl --port 7712 --url /mock/reply --payload '{ "verb": "GET", "path": "/entities", "status": 200, "body": [ { "id": "urn:E1", "type": "Vehicle", "speed": { "type": "Property", "value": 999, "observedAt": "2099-01-01T00:00:00Z" } } ] }' | grep HTTP
+echo
+
+
+echo "03. Register exclusive CSR A (urn:E1 speed) then inclusive CSR B (urn:E1 speed)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "id": "urn:CSR:A", "type": "ContextSourceRegistration", "endpoint": "http://localhost:7711", "mode": "exclusive", "operations": ["retrieveOps"], "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ], "propertyNames": ["speed"] } ] }' | grep HTTP
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "id": "urn:CSR:B", "type": "ContextSourceRegistration", "endpoint": "http://localhost:7712", "mode": "inclusive", "operations": ["retrieveOps"], "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ], "propertyNames": ["speed"] } ] }' | grep HTTP
+echo
+echo
+
+
+echo "04. GET ?type=Vehicle — exclusive speed (100, older) wins over inclusive (999, newer)"
+echo "===================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' | grep -E '"(value|observedAt)"'
+echo
+echo
+--EXPECT--
+01. Source A@7711 (exclusive): speed=100 observedAt 2020 (older)
+===============================================================
+HTTP/1.1 201 Created
+
+02. Source B@7712 (inclusive): speed=999 observedAt 2099 (newer)
+===============================================================
+HTTP/1.1 201 Created
+
+03. Register exclusive CSR A (urn:E1 speed) then inclusive CSR B (urn:E1 speed)
+==============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+04. GET ?type=Vehicle — exclusive speed (100, older) wins over inclusive (999, newer)
+====================================================================================
+      "observedAt": "2020-01-01T00:00:00Z",
+      "value": 100
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+swBrokerStop
+swDbDrop
+
