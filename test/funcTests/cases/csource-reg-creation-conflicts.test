@@ -24,7 +24,7 @@ swBrokerStart
 # 05. POST redirect reg for V1+color   → 409 (overlaps with exclusive R3)
 # 06. POST exclusive reg for V2+speed  → 201 (different entity, no local V2)
 # 07. POST inclusive reg for V3+humidity → 201 (no conflict checks for inclusive)
-# 08. POST exclusive reg for V3+humidity → 409 (now blocked by inclusive R7)
+# 08. POST exclusive reg for V3+humidity → 201 (exclusive/redirect may overlap inclusive R7, § 5.9.2)
 # 09. POST inclusive reg for V1+speed → 201 (inclusive coexists with everything)
 # 10. POST auxiliary reg for V1+speed → 201 (auxiliary always accepted)
 #
@@ -200,7 +200,7 @@ echo
 echo
 
 
-echo "08. exclusive for V3+humidity -> 409 (blocked by inclusive R7)"
+echo "08. exclusive for V3+humidity -> 201 (exclusive may overlap inclusive R7)"
 echo "=============================================================="
 payload='{
   "id": "urn:CSR:R8",
@@ -368,19 +368,13 @@ Content-Length: 0
 
 
 
-08. exclusive for V3+humidity -> 409 (blocked by inclusive R7)
+08. exclusive for V3+humidity -> 201 (exclusive may overlap inclusive R7)
 ==============================================================
-HTTP/1.1 409 Conflict
+HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: REGEX(\d+)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R8
+Content-Length: 0
 
-{
-  "detail": "registration overlaps with existing registration 'urn:CSR:R7' on entity 'urn:V3'",
-  "status": 409,
-  "title": "Conflict",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
-}
 
 
 
