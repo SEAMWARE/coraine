@@ -2124,6 +2124,28 @@ bool getEntities(void)
             ldStripAtContext(remoteEntity);
             apiAttrToStorageWrap(remoteEntity);
 
+            // Runtime exclusive-priority: an attribute exclusively claimed by another
+            // registration is authoritative from that (exclusive) source alone. Discard any
+            // colliding copy arriving from THIS non-exclusive source — otherwise the timestamp
+            // tiebreaker in the merge below could let a newer inclusive value overwrite the
+            // exclusive one (§ 4.5.5 / mode semantics). Sources are fanned out exclusive-first,
+            // so the exclusive copy is already in place by the time inclusive results merge.
+            if (csr->mode != LdRegModeExclusive)
+            {
+              LdRegCache* excRc  = (LdRegCache*) ((Tenant*) swNgsild.tenantP)->regCacheP;
+              KjNode*     etP    = kjLookup(remoteEntity, "type");
+              char*       etV[2] = { (etP != NULL && etP->type == KjString) ? etP->value.s : NULL, NULL };
+              for (KjNode* aP = remoteEntity->value.firstChildP; aP != NULL; )
+              {
+                KjNode* nextAP = aP->next;
+                if (aP->name != NULL && aP->name[0] != '@' &&
+                    strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
+                    ldRegCacheAttrExclusivelyClaimed(excRc, remoteIdP->value.s, etV[0] != NULL ? etV : NULL, aP->name, swRest.requestStartTime))
+                  kjChildRemove(remoteEntity, aP);
+                aP = nextAP;
+              }
+            }
+
             if (existingP == NULL)
             {
               kjChildAdd(arrayP, remoteEntity);
