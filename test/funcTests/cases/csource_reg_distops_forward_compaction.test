@@ -290,6 +290,7 @@ Date: REGEX(.*)
       }
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "91",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -326,6 +327,7 @@ Date: REGEX(.*)
       }
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "91",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -346,6 +348,7 @@ Date: REGEX(.*)
       "value": 77
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "75",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -388,6 +391,7 @@ Date: REGEX(.*)
       }
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "91",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -408,6 +412,7 @@ Date: REGEX(.*)
       "value": 77
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "75",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -430,6 +435,7 @@ Date: REGEX(.*)
       }
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "89",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -466,6 +472,7 @@ HTTP/1.1 204 No Content
       }
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "91",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -486,6 +493,7 @@ HTTP/1.1 204 No Content
       "value": 77
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "75",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -508,6 +516,7 @@ HTTP/1.1 204 No Content
       }
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "89",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -520,6 +529,7 @@ HTTP/1.1 204 No Content
   },
   {
     "headers": {
+      "Accept": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
@@ -548,6 +558,7 @@ HTTP/1.1 204 No Content
       }
     ],
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "121",
       "Content-Type": "application/json",
       "Host": "localhost:7711",

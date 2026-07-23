@@ -143,6 +143,7 @@ HTTP/1.1 204 No Content
       }
     ],
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "143",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -179,6 +180,7 @@ HTTP/1.1 204 No Content
       }
     ],
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "143",
       "Content-Type": "application/json",
       "Host": "localhost:7712",

@@ -102,6 +102,7 @@ Content-Length: 0
 [
   {
     "headers": {
+      "Accept": "application/json",
       "Authorization": "Bearer tok-xyz",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -131,6 +132,7 @@ Content-Length: 0
 [
   {
     "headers": {
+      "Accept": "application/json",
       "Authorization": "Bearer tok-xyz",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -161,6 +163,7 @@ Content-Length: 0
 [
   {
     "headers": {
+      "Accept": "application/json",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "NGSILD-Tenant": "backend",

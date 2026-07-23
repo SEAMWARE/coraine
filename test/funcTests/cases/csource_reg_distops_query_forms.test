@@ -189,6 +189,7 @@ Content-Length: REGEX(\d+)
 [
   {
     "headers": {
+      "Accept": "application/json",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
@@ -234,6 +235,7 @@ Content-Length: REGEX(\d+)
 [
   {
     "headers": {
+      "Accept": "application/json",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
@@ -261,6 +263,7 @@ Content-Length: REGEX(\d+)
       "type": "Query"
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "80",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
@@ -300,6 +303,7 @@ Content-Length: REGEX(\d+)
 [
   {
     "headers": {
+      "Accept": "application/json",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
@@ -327,6 +331,7 @@ Content-Length: REGEX(\d+)
       "type": "Query"
     },
     "headers": {
+      "Accept": "application/json",
       "Content-Length": "80",
       "Content-Type": "application/json",
       "Host": "localhost:7711",
