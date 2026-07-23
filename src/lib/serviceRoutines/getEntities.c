@@ -2021,11 +2021,21 @@ bool getEntities(void)
           LdRegCacheItem* csr    = items[i].csr;
           int             code   = results[i].statusCode;
 
-          // responseBody is tokenized in place by the reception-time parse, so it
-          // is no longer printable as a string — trace status/len/error only.
-          KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s",
+          // responseBody is tokenized in place by the reception-time parse, so
+          // the raw buffer is no longer printable — render the parsed tree back
+          // to a string for the trace instead.
+          const char* renderedBody = "(none)";
+          if (results[i].responseTree != NULL)
+          {
+            int   rsz  = kjFastRenderSize(results[i].responseTree) + 1;
+            char* rbuf = (char*) kaAlloc(&swRest.kalloc, rsz);
+            kjFastRender(results[i].responseTree, rbuf);
+            renderedBody = rbuf;
+          }
+          KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%s",
                code, results[i].responseBodyLen,
-               results[i].errorDetail != NULL ? results[i].errorDetail : "(none)");
+               results[i].errorDetail != NULL ? results[i].errorDetail : "(none)",
+               renderedBody);
 
           if (code < 200 || code >= 300) continue;
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
