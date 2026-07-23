@@ -29,7 +29,7 @@ swBrokerStart --contextSourceExtras /tmp/csx.json
 
 echo "01. GET /info/sourceIdentity — contextSourceExtras present, verbatim"
 echo "===================================================================="
-swCurl --url /info/sourceIdentity | grep -E '"(contextSourceExtras|instance|tags|contact|email|phone)"'
+swCurl --url /ngsi-ld/v1/info/sourceIdentity | grep -E '"(contextSourceExtras|instance|tags|contact|email|phone)"'
 echo
 echo
 

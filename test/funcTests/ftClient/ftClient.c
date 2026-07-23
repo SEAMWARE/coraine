@@ -46,6 +46,7 @@
 //
 static KjNode* dumpArray     = NULL;     // accumulates requests (malloc allocator)
 static int     dumpCount     = 0;
+static int     probeCount    = 0;        // sourceIdentity discovery probes seen (kept OUT of dumpArray)
 
 
 
@@ -64,6 +65,7 @@ typedef struct FtStub
   char*           verb;     // "POST", "GET", ...
   char*           path;     // substring to find in the request urlPath
   int             status;   // HTTP status to return
+  int             delayMs;  // sleep this many ms before responding (per-path timeout injection), 0 = none
   char*           body;     // rendered JSON body to return (malloc), or NULL
   struct FtStub*  next;
 } FtStub;
@@ -112,8 +114,9 @@ static KArg ftArgV[] =
 //
 static void dumpInit(void)
 {
-  dumpArray = kjArray(NULL, NULL);
-  dumpCount = 0;
+  dumpArray  = kjArray(NULL, NULL);
+  dumpCount  = 0;
+  probeCount = 0;
 }
 
 
@@ -256,6 +259,28 @@ static bool getCount(void)
 
 // -----------------------------------------------------------------------------
 //
+// getProbeCount - GET /probeCount — number of sourceIdentity probes seen.
+//
+// Probes are infrastructure (§ 5.15 alias discovery) and are deliberately kept
+// out of the request dump, so a test can't count them there. This bare-integer
+// endpoint lets a test assert the probe fired (no contextSourceAlias supplied)
+// or did NOT fire (alias supplied in the registration → probe skipped).
+//
+static bool getProbeCount(void)
+{
+  char* buf = (char*) kaAlloc(&swRest.kalloc, 16);
+
+  snprintf(buf, 16, "%d", probeCount);
+  swRest.out.payload     = buf;
+  swRest.out.payloadSize = strlen(buf);
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getDie - GET /die — exit the process
 //
 static bool getDie(void)
@@ -301,6 +326,11 @@ static bool stubServe(void)
   if (s == NULL)
     return false;
 
+  // Per-path delay — lets a test time out ONLY a specific endpoint (e.g. the
+  // sourceIdentity probe) without the global --delay slowing the forwards too.
+  if (s->delayMs > 0)
+    usleep(s->delayMs * 1000);
+
   swRest.out.httpStatusCode = s->status;
 
   if (s->body != NULL)
@@ -337,14 +367,16 @@ static bool postMockReply(void)
   KjNode* verbP   = kjLookup(tree, "verb");
   KjNode* pathP   = kjLookup(tree, "path");
   KjNode* statusP = kjLookup(tree, "status");
+  KjNode* delayP  = kjLookup(tree, "delayMs"); // sleep before responding (per-path timeout injection)
   KjNode* bodyP   = kjLookup(tree, "body");
   KjNode* rawP    = kjLookup(tree, "raw");   // verbatim body (e.g. malformed JSON for a 502 test)
 
   FtStub* s = (FtStub*) calloc(1, sizeof(FtStub));
-  s->verb   = strdup(((verbP != NULL) && (verbP->type == KjString)) ? verbP->value.s : "POST");
-  s->path   = strdup(((pathP != NULL) && (pathP->type == KjString)) ? pathP->value.s : "/");
-  s->status = ((statusP != NULL) && (statusP->type == KjInt)) ? (int) statusP->value.i : 200;
-  s->body   = NULL;
+  s->verb    = strdup(((verbP != NULL) && (verbP->type == KjString)) ? verbP->value.s : "POST");
+  s->path    = strdup(((pathP != NULL) && (pathP->type == KjString)) ? pathP->value.s : "/");
+  s->status  = ((statusP != NULL) && (statusP->type == KjInt)) ? (int) statusP->value.i : 200;
+  s->delayMs = ((delayP  != NULL) && (delayP->type  == KjInt)) ? (int) delayP->value.i  : 0;
+  s->body    = NULL;
 
   if ((rawP != NULL) && (rawP->type == KjString))
     s->body = strdup(rawP->value.s);
@@ -440,10 +472,24 @@ static bool postAccumulate(void)
 //
 static bool getAccumulate(void)
 {
-  bool isProbe = (swRest.in.urlPath != NULL &&
-                  strcmp(swRest.in.urlPath, "/info/sourceIdentity") == 0);
+  // Match the sourceIdentity probe by SUFFIX: the resource lives under the API
+  // root, so the broker sends "<endpoint>/ngsi-ld/v1/info/sourceIdentity". A
+  // bare-path match (old "/info/sourceIdentity") silently stops recognizing the
+  // probe once the caller carries the /ngsi-ld/v1 prefix, letting it pollute the
+  // dump. Suffix-match covers both spellings.
+  static const char probeSuffix[] = "/info/sourceIdentity";
+  bool isProbe = false;
+  if (swRest.in.urlPath != NULL)
+  {
+    int urlLen    = (int) strlen(swRest.in.urlPath);
+    int suffixLen = (int) (sizeof(probeSuffix) - 1);
+    isProbe = (urlLen >= suffixLen) &&
+              (strcmp(swRest.in.urlPath + urlLen - suffixLen, probeSuffix) == 0);
+  }
 
-  if (!isProbe)
+  if (isProbe)
+    probeCount++;
+  else
     dumpAccumulate();
   KT_T(1, "GET %s received (probe=%d total: %d, status=%u, delay=%ums)",
        swRest.in.urlPath, isProbe, dumpCount, ftPostStatus, ftDelayMs);
@@ -564,6 +610,7 @@ static SwRestServiceSimplified ftServices[] =
   { SwVerbGet,    "/dump",  getDump,         0,                       0 },
   { SwVerbDelete, "/dump",  deleteDump,      0,                       0 },
   { SwVerbGet,    "/count", getCount,        0,                       0 },
+  { SwVerbGet,    "/probeCount", getProbeCount, 0,                    0 },
   { SwVerbGet,    "/die",   getDie,          0,                       0 },
   // Programmable response stubs (mock-reply API).
   { SwVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },

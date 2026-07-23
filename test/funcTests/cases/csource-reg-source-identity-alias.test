@@ -1,0 +1,152 @@
+#
+# FILE            csource-reg-source-identity-alias.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - a registration's contextSourceAlias skips the sourceIdentity probe (§ 5.15)
+
+--TAGS--
+distops registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+#
+# A registration MAY carry contextSourceAlias — the source's loop-detection
+# pseudonym (§ 5.2.9). When present the broker already knows the alias, so it
+# MUST NOT probe <endpoint>/ngsi-ld/v1/info/sourceIdentity (§ 5.15) to learn it.
+# ftClient keeps a separate probeCount (probes are infrastructure, kept out of
+# the request dump) so we can assert the probe did NOT fire, then confirm the
+# supplied alias still drives proactive loop detection.
+#
+
+echo "01. Register CSR carrying contextSourceAlias -> probe must be skipped"
+echo "===================================================================="
+payload='{
+  "id": "urn:CSR:Ext",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "contextSourceAlias": "ext-alias",
+  "operations": ["createEntity"],
+  "information": [
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. ftClient probeCount -> 0 (alias supplied, no probe sent)"
+echo "============================================================"
+ftClientProbeCount --port 7711
+echo
+echo
+
+
+echo "03. POST urn:V1 -> forwarded to the CSR (data plane works)"
+echo "=========================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. ftClient forward count -> 1 (createEntity forwarded)"
+echo "========================================================"
+ftClientCount --port 7711
+echo
+echo
+
+
+echo "05. POST urn:V1 with Via carrying ext-alias -> proactive loop skip"
+echo "=================================================================="
+#
+# The supplied alias is already in the incoming Via chain, so the redirect CSR
+# is skipped proactively (no wasted forward). The entity is owned by the skipped
+# redirect source and cannot be stored locally -> 508 Loop Detected (§ 6.3.18).
+#
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 7 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" --header "Via: 1.1 ext-alias"
+echo
+echo
+
+
+echo "06. ftClient forward count -> still 1 (step 05 was skipped, not forwarded)"
+echo "=========================================================================="
+ftClientCount --port 7711
+echo
+echo
+
+
+--EXPECT--
+01. Register CSR carrying contextSourceAlias -> probe must be skipped
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Ext
+Content-Length: 0
+
+
+
+
+02. ftClient probeCount -> 0 (alias supplied, no probe sent)
+============================================================
+0
+
+
+03. POST urn:V1 -> forwarded to the CSR (data plane works)
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. ftClient forward count -> 1 (createEntity forwarded)
+========================================================
+1
+
+
+05. POST urn:V1 with Via carrying ext-alias -> proactive loop skip
+==================================================================
+HTTP/1.1 508 Loop Detected
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "detail": "loop detected: registration resolves back to this broker, so createEntity cannot be forwarded",
+  "status": 508,
+  "title": "Loop Detected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LoopDetected"
+}
+
+
+
+06. ftClient forward count -> still 1 (step 05 was skipped, not forwarded)
+==========================================================================
+1
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

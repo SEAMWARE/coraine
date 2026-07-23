@@ -163,7 +163,7 @@ SwRestServiceSimplified ngsildCoreServices[] =
   { SwVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery, pCheckQuery },
 
   // Context Source Identity (§ 5.15 / § 6.33)
-  { SwVerbGet,    "/info/sourceIdentity",      getSourceIdentity, 0, LdOpNone },
+  { SwVerbGet,    "/ngsi-ld/v1/info/sourceIdentity", getSourceIdentity, 0, LdOpNone },
 
   // Broker product / version handshake (non-NGSI-LD).
   { SwVerbGet,    "/version",                  getVersion,        0, LdOpNone },

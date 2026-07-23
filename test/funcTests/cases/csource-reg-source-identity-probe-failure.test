@@ -1,0 +1,198 @@
+#
+# FILE            csource-reg-source-identity-probe-failure.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - a failing sourceIdentity probe is non-fatal; forwarding still works (§ 5.15)
+
+--TAGS--
+distops registration
+
+--INIT--
+swDbDrop
+swBrokerStart
+ftClientStart --port 7711 --status 201
+
+--RUN--
+#
+# The sourceIdentity probe (§ 5.15) is best-effort. If the source errors or times
+# out on it, the broker simply does not learn the alias proactively — the CSR is
+# still created and later forwarding still works. Loop safety is not lost: with no
+# proactively-learned alias the loop is still broken reactively via the Via header,
+# one hop later (see csource-reg-distops-create-loop / csource-reg-proactive-loop).
+#
+
+echo "01. Make ftClient return 503 on the sourceIdentity probe"
+echo "========================================================"
+swCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "info/sourceIdentity", "status": 503 }'
+echo
+echo
+
+
+echo "02. Register CSR (no alias) -> probe fires, gets 503; create still succeeds"
+echo "==========================================================================="
+payload='{
+  "id": "urn:CSR:ErrProbe",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["createEntity"],
+  "information": [
+    { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. POST urn:V1 -> still forwarded despite the failed probe"
+echo "==========================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. ftClient forward count -> 1 (data plane works)"
+echo "=================================================="
+ftClientCount --port 7711
+echo
+echo
+
+
+echo "05. ftClient probeCount -> 1 (the probe was attempted, it just failed)"
+echo "======================================================================"
+ftClientProbeCount --port 7711
+echo
+echo
+
+
+echo "06. Make ftClient DELAY the probe 800 ms (> the 500 ms probe timeout)"
+echo "====================================================================="
+swCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "info/sourceIdentity", "status": 200, "delayMs": 800 }'
+echo
+echo
+
+
+echo "07. Register another CSR -> probe times out; create still succeeds"
+echo "=================================================================="
+payload='{
+  "id": "urn:CSR:SlowProbe",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "mode": "redirect",
+  "operations": ["createEntity"],
+  "information": [
+    { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ] }
+  ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "08. POST urn:V2 -> still forwarded despite the timed-out probe"
+echo "=============================================================="
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 9 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. ftClient forward count -> 2 (both createEntity forwards landed)"
+echo "==================================================================="
+ftClientCount --port 7711
+echo
+echo
+
+
+--EXPECT--
+01. Make ftClient return 503 on the sourceIdentity probe
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Register CSR (no alias) -> probe fires, gets 503; create still succeeds
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:ErrProbe
+Content-Length: 0
+
+
+
+
+03. POST urn:V1 -> still forwarded despite the failed probe
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. ftClient forward count -> 1 (data plane works)
+==================================================
+1
+
+
+05. ftClient probeCount -> 1 (the probe was attempted, it just failed)
+======================================================================
+1
+
+
+06. Make ftClient DELAY the probe 800 ms (> the 500 ms probe timeout)
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+07. Register another CSR -> probe times out; create still succeeds
+==================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:SlowProbe
+Content-Length: 0
+
+
+
+
+08. POST urn:V2 -> still forwarded despite the timed-out probe
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+
+09. ftClient forward count -> 2 (both createEntity forwards landed)
+===================================================================
+2
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+swBrokerStop
+swDbDrop

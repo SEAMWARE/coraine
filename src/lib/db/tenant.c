@@ -269,7 +269,7 @@ bool tenantPreServiceHook(void)
   // or not that tenant has been created on this broker. Bypass the
   // tenant lookup so unknown tenants still get a valid probe response.
   //
-  if (swRest.in.urlPath != NULL && strcmp(swRest.in.urlPath, "/info/sourceIdentity") == 0)
+  if (swRest.in.urlPath != NULL && strcmp(swRest.in.urlPath, "/ngsi-ld/v1/info/sourceIdentity") == 0)
     return true;
 
   bool autoCreate = (swRest.in.verb != SwVerbGet);

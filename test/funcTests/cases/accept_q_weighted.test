@@ -81,9 +81,9 @@ echo
 echo
 
 
-echo "08. Accept: geo+json only on /info/sourceIdentity → 406 (no carve-out)"
+echo "08. Accept: geo+json only on /ngsi-ld/v1/info/sourceIdentity → 406 (no carve-out)"
 echo "======================================================================"
-swCurl --url /info/sourceIdentity -H "Accept: application/geo+json" 2>&1 | grep -E "^HTTP" | head -1
+swCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Accept: application/geo+json" 2>&1 | grep -E "^HTTP" | head -1
 echo
 echo
 
@@ -136,7 +136,7 @@ HTTP/1.1 406 Not Acceptable
 HTTP/1.1 406 Not Acceptable
 
 
-08. Accept: geo+json only on /info/sourceIdentity → 406 (no carve-out)
+08. Accept: geo+json only on /ngsi-ld/v1/info/sourceIdentity → 406 (no carve-out)
 ======================================================================
 HTTP/1.1 406 Not Acceptable
 

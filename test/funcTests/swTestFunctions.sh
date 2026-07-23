@@ -520,6 +520,29 @@ ftClientCount() {
 }
 
 
+# ftClientProbeCount [--port P] - number of sourceIdentity discovery probes seen.
+#
+# Probes (GET .../info/sourceIdentity, § 5.15 alias discovery) are infrastructure
+# and are kept OUT of the request dump, so ftClientCount never counts them. This
+# reads ftClient's /probeCount (bare integer) so a test can assert the probe fired
+# (no contextSourceAlias supplied in the registration) or was skipped (alias given).
+#
+ftClientProbeCount() {
+  local port=$FT_CLIENT_PORT
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      shift
+    fi
+    shift
+  done
+
+  local n
+  n=$(curl -sk "$(ftClientUrl $port /probeCount)")
+  echo "${n:-0}"
+}
+
+
 # ftClientReset [--port P] - clear accumulated notifications
 #
 ftClientReset() {

@@ -40,21 +40,21 @@ swBrokerStart -role CP1 --csourceAlias cp1-alias
 
 echo "01. GET /info/sourceIdentity on CB (default tenant)"
 echo "==================================================="
-swCurl --url /info/sourceIdentity
+swCurl --url /ngsi-ld/v1/info/sourceIdentity
 echo
 echo
 
 
 echo "02. GET /info/sourceIdentity on CP1"
 echo "==================================="
-swCurl --port $CP1_PORT --url /info/sourceIdentity
+swCurl --port $CP1_PORT --url /ngsi-ld/v1/info/sourceIdentity
 echo
 echo
 
 
 echo "03. GET /info/sourceIdentity on CB with tenant t1"
 echo "================================================="
-swCurl --url /info/sourceIdentity --tenant t1
+swCurl --url /ngsi-ld/v1/info/sourceIdentity --tenant t1
 echo
 echo
 
