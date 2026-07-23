@@ -12,7 +12,13 @@
 #include <signal.h>                               // signal, SIGINT, SIGTERM
 #include <string.h>                               // strcmp, memcpy
 #include <time.h>                                 // time
+#include <stdint.h>                               // uint32_t
 #include <execinfo.h>                             // backtrace, backtrace_symbols
+#include <ifaddrs.h>                              // getifaddrs, freeifaddrs, struct ifaddrs
+#include <net/if.h>                               // IFF_LOOPBACK, IFF_UP, IFF_RUNNING, IFF_POINTOPOINT
+#include <sys/socket.h>                           // AF_INET
+#include <netinet/in.h>                           // struct sockaddr_in
+#include <arpa/inet.h>                            // inet_ntop, ntohl, INET_ADDRSTRLEN
 
 #include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
 #include "ktrace/kTrace.h"                        // KT_I, KT_V, KT_X
@@ -224,7 +230,7 @@ static KArg kargV[] =
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--defaultUserContext", "-duc",         KaString, _vp &defaultUserContext, KaOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
   { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
-  { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: http://localhost:<port>)" },
+  { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
   { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
   { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
   { "--high-precision",     "-hp",          KaBool,   _vp &highPrecision, KaOpt, _vp false, _vp false, _vp true, "render sysattr timestamps with full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
@@ -646,6 +652,104 @@ static void contextSourceExtrasLoad(const char* cliPath)
 
 // -----------------------------------------------------------------------------
 //
+// httpEndpointDetect - discover the LAN address peers can actually use to reach us
+//
+// The forwarded Link header, distributed-subscription callbacks, and served
+// @context URLs all embed ldBrokerHttpEndpoint, so it must resolve to an address
+// reachable from the OTHER brokers on the network — not "localhost".
+//
+// The naive route trick (connect a UDP socket to a public IP, read getsockname)
+// returns whatever interface owns the default route. On a host running a VPN such
+// as CloudflareWARP that is the tunnel address (a /32, POINTOPOINT), which peers on
+// the LAN cannot reach. So we scan the interfaces directly and pick the best one:
+//
+//   hard reject   loopback, admin-down, no-carrier, point-to-point (VPN tun), /32 host addr
+//   deprioritize  container/virtual/VPN interface names (docker*, veth*, br-*, tun*, ...)
+//   prefer        physical-looking names (en*, eth*, wl*) and RFC-1918 private ranges
+//
+// The winner becomes the DEFAULT for --httpEndpoint; an explicit --httpEndpoint
+// always overrides. Returns true and fills endpoint[] on success.
+//
+static bool httpEndpointDetect(char* endpoint, size_t endpointLen, unsigned short port)
+{
+  static const char* virtualPrefix[] =
+  {
+    "docker", "veth", "br-", "virbr", "vnet", "vmnet", "vbox",
+    "tun", "tap", "wg", "tailscale", "zt", "cni", "flannel", "cali", "warp"
+  };
+
+  struct ifaddrs* ifList = NULL;
+  if (getifaddrs(&ifList) != 0)
+    return false;
+
+  char bestIp[INET_ADDRSTRLEN] = { 0 };
+  int  bestScore               = -1000000;
+
+  for (struct ifaddrs* ifP = ifList; ifP != NULL; ifP = ifP->ifa_next)
+  {
+    if (ifP->ifa_addr == NULL)                        continue;
+    if (ifP->ifa_addr->sa_family != AF_INET)          continue;   // IPv4 only
+
+    unsigned int flags = ifP->ifa_flags;
+    if (flags & IFF_LOOPBACK)                         continue;   // 127.0.0.0/8
+    if ((flags & IFF_UP) == 0)                        continue;   // administratively down
+    if ((flags & IFF_RUNNING) == 0)                   continue;   // no carrier
+    if (flags & IFF_POINTOPOINT)                      continue;   // VPN tunnel (WARP, ppp, ...)
+
+    // A /32 host address is not a usable LAN prefix — another VPN/tunnel tell.
+    if (ifP->ifa_netmask != NULL)
+    {
+      uint32_t mask = ntohl(((struct sockaddr_in*) ifP->ifa_netmask)->sin_addr.s_addr);
+      if (mask == 0xffffffff)                         continue;
+    }
+
+    struct sockaddr_in* sa = (struct sockaddr_in*) ifP->ifa_addr;
+    char                ip[INET_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip)) == NULL)  continue;
+
+    const char* name  = (ifP->ifa_name != NULL) ? ifP->ifa_name : "";
+    int         score = 0;
+
+    for (unsigned int i = 0; i < sizeof(virtualPrefix) / sizeof(virtualPrefix[0]); i++)
+    {
+      if (strncmp(name, virtualPrefix[i], strlen(virtualPrefix[i])) == 0)
+      {
+        score -= 1000;   // last resort only
+        break;
+      }
+    }
+
+    if ((strncmp(name, "en", 2) == 0) || (strncmp(name, "eth", 3) == 0) ||
+        (strncmp(name, "wl", 2) == 0) || (strncmp(name, "em", 2) == 0))
+      score += 100;      // physical-looking name
+
+    uint32_t a = ntohl(sa->sin_addr.s_addr);
+    if (((a & 0xff000000) == 0x0a000000) ||           // 10.0.0.0/8
+        ((a & 0xfff00000) == 0xac100000) ||           // 172.16.0.0/12
+        ((a & 0xffff0000) == 0xc0a80000))             // 192.168.0.0/16
+      score += 10;       // RFC-1918 private — a LAN broker's reachable address
+
+    if (score > bestScore)
+    {
+      bestScore = score;
+      strncpy(bestIp, ip, sizeof(bestIp) - 1);
+      bestIp[sizeof(bestIp) - 1] = 0;
+    }
+  }
+
+  freeifaddrs(ifList);
+
+  if (bestIp[0] == 0)
+    return false;
+
+  snprintf(endpoint, endpointLen, "http://%s:%u", bestIp, (unsigned) port);
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // main -
 //
 int main(int argC, char* argV[])
@@ -699,17 +803,29 @@ int main(int argC, char* argV[])
     ldCsourceAliasBase = csourceAlias;
 
   //
-  // Externally-reachable HTTP base URL — used as the callback root in
-  // notification.endpoint.uri of derived (distributed) subscriptions
-  // (§ 5.8.1.4). Defaults to http://localhost:<port> for tests; real
-  // multi-host setups override via --httpEndpoint.
+  // Externally-reachable HTTP base URL — embedded in forwarded Link headers,
+  // the callback root of derived (distributed) subscriptions (§ 5.8.1.4), and
+  // served @context URLs. Peers on other hosts must be able to reach it, so the
+  // default is auto-discovered from the LAN interfaces (httpEndpointDetect);
+  // --httpEndpoint overrides, and http://localhost:<port> is the last-resort
+  // fallback when no usable interface is found.
   //
+  const char* endpointSource;
   if (httpEndpoint != NULL)
+  {
     ldBrokerHttpEndpoint = httpEndpoint;
+    endpointSource       = "--httpEndpoint";
+  }
   else
   {
     static char defaultEndpoint[64];
-    snprintf(defaultEndpoint, sizeof(defaultEndpoint), "http://localhost:%u", (unsigned) port);
+    if (httpEndpointDetect(defaultEndpoint, sizeof(defaultEndpoint), port))
+      endpointSource = "auto-detected LAN IP";
+    else
+    {
+      snprintf(defaultEndpoint, sizeof(defaultEndpoint), "http://localhost:%u", (unsigned) port);
+      endpointSource = "fallback (no LAN interface found)";
+    }
     ldBrokerHttpEndpoint = defaultEndpoint;
   }
 
@@ -719,6 +835,7 @@ int main(int argC, char* argV[])
     KT_X(1, "ktInit failed");
 
   KT_V("swBroker  %s", SWBROKER_VERSION);
+  KT_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
 
   signal(SIGINT,  onSignal);
   signal(SIGTERM, onSignal);

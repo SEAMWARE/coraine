@@ -85,7 +85,11 @@ swBrokerStart() {
   swRoleLookup "$role" || return 1
   swBrokerStop -role "$role" 2>/dev/null
 
-  local cmd="$SW_BROKER --port $SW_ROLE_PORT --pretty-print 2 --foreground"
+  # --httpEndpoint is pinned to localhost so served-@context URLs, distributed-sub
+  # callbacks and forwarded Link headers are host-independent (the broker now
+  # auto-detects a LAN IP by default, which would make expected outputs vary per
+  # test machine). Tests that need a different endpoint append their own -he.
+  local cmd="$SW_BROKER --port $SW_ROLE_PORT --pretty-print 2 --foreground --httpEndpoint http://localhost:$SW_ROLE_PORT"
 
   # Current-state DB plugin
   case "$SW_DB_TYPE" in
