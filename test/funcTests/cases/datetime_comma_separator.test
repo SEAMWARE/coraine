@@ -1,0 +1,155 @@
+#
+# FILE            datetime_comma_separator.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.2.4 — the DateTime Seconds decimal fraction uses a decimal
+# point as separator, but "in requests, also a comma instead of a decimal point
+# may be used as separator for compatibility reasons". (In previous versions of
+# NGSI-LD only the comma was supported, as ISO 8601 prefers it.) So a comma
+# fraction shall be ACCEPTED on input.
+#
+# Two render behaviours, both correct:
+#   - a system-recognized timestamp (observedAt) is stored as epoch-nanoseconds
+#     and re-rendered from that, so a comma request comes back CANONICALIZED to a
+#     decimal point.
+#   - a user DateTime Property *value* (@type:DateTime) is a validated-but-opaque
+#     string with no ns conversion, so it is preserved VERBATIM — the comma is
+#     echoed back exactly as sent.
+#
+# A 7-digit comma fraction is accepted too (beyond the spec max, stored to ns);
+# only a bare separator with zero digits is rejected → 400.
+#
+--NAME--
+DateTime comma fraction separator accepted on input (§ 5.2.2.4)
+
+--TAGS--
+datetime attribute validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. observedAt with a comma fraction — 201 (accepted for compatibility)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C1","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,500000Z"}}' | head -1
+echo
+echo
+
+
+echo "02. GET it — observedAt (ns-backed) is CANONICALIZED to a decimal point"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:C1
+echo
+echo
+
+
+echo "03. DateTime Property value with a comma fraction — 201"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C2","type":"T","when":{"type":"Property","value":{"@type":"DateTime","@value":"2023-06-15T12:30:45,123Z"}}}' | head -1
+echo
+echo
+
+
+echo "04. GET it — a DateTime *value* is an opaque string, echoed VERBATIM (comma kept)"
+echo "================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:C2
+echo
+echo
+
+
+echo "05. comma fraction with seven digits — 201 (beyond the spec max, accepted)"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,1234567Z"}}' | head -1
+echo
+echo
+
+
+echo "06. comma with zero fraction digits (bare separator) — 400"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C0","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,Z"}}'
+echo
+echo
+
+
+--EXPECT--
+01. observedAt with a comma fraction — 201 (accepted for compatibility)
+=======================================================================
+HTTP/1.1 201 Created
+
+
+02. GET it — observedAt (ns-backed) is CANONICALIZED to a decimal point
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "observedAt": "2026-04-28T10:00:00.5Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:C1",
+  "type": "T"
+}
+
+
+
+03. DateTime Property value with a comma fraction — 201
+=======================================================
+HTTP/1.1 201 Created
+
+
+04. GET it — a DateTime *value* is an opaque string, echoed VERBATIM (comma kept)
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 176
+
+{
+  "id": "urn:ngsi-ld:C2",
+  "type": "T",
+  "when": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2023-06-15T12:30:45,123Z"
+    }
+  }
+}
+
+
+
+05. comma fraction with seven digits — 201 (beyond the spec max, accepted)
+==========================================================================
+HTTP/1.1 201 Created
+
+
+06. comma with zero fraction digits (bare separator) — 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 263
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2026-04-28T10:00:00,Z'",
+  "status": 400,
+  "title": "Invalid observedAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

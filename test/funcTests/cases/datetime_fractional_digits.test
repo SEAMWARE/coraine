@@ -6,14 +6,17 @@
 # Copyright 2026 Seamware
 #
 # TS 104-175 § 5.2.2.4 — a DateTime Seconds component "may optionally contain a
-# decimal fraction. In this case the string shall contain two integer digits,
-# followed by a decimal point and then one or more fractional digits, up to a
-# maximum of six." So the fraction must have 1..6 digits: zero digits (a bare
-# decimal point) and more than six digits are both invalid → 400 BadRequestData.
-# The value is exercised via a Property's observedAt sub-attribute.
+# decimal fraction ... up to a maximum of six" digits. On INPUT the broker is
+# deliberately more liberal than that maximum: a value is stored as epoch-
+# nanoseconds (9-digit resolution), so 7..9 fractional digits are accepted, and
+# anything beyond nine is rounded to nanosecond resolution (the round can carry
+# into the whole second). The only invalid fraction is a bare separator with
+# zero digits → 400. Output precision is a render-time choice: this default
+# broker renders 6 digits (µs); see datetime_high_precision for the 9-digit
+# --high-precision rendering. The value is exercised via a Property's observedAt.
 #
 --NAME--
-DateTime fractional seconds accept 1..6 digits, reject 0 or >6 (§ 5.2.2.4)
+DateTime fraction: accept 1..9 digits, round >9 to ns, reject bare separator (§ 5.2.2.4)
 
 --TAGS--
 datetime attribute validation
@@ -31,8 +34,8 @@ echo
 echo
 
 
-echo "02. observedAt with 6 fractional digits (the maximum) — 201"
-echo "==========================================================="
+echo "02. observedAt with 6 fractional digits (the spec maximum) — 201"
+echo "==============================================================="
 swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F6","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456Z"}}' | head -1
 echo
 echo
@@ -52,14 +55,49 @@ echo
 echo
 
 
-echo "05. observedAt with 7 fractional digits — 400 (exceeds six)"
-echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}'
+echo "05. observedAt with 7 fractional digits — 201 (beyond the spec max, accepted)"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}' | head -1
 echo
 echo
 
 
-echo "06. observedAt with a bare decimal point (zero digits) — 400"
+echo "06. GET F7 — default broker renders 6 fractional digits (µs); the 7th is dropped"
+echo "================================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:F7
+echo
+echo
+
+
+echo "07. observedAt with 9 fractional digits (full ns) — 201"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F9","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789Z"}}' | head -1
+echo
+echo
+
+
+echo "08. observedAt with 12 digits — 201 (rounded to nanoseconds)"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F12","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789999Z"}}' | head -1
+echo
+echo
+
+
+echo "09. observedAt .9999999999 — round carries into the whole second — 201"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fc","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.9999999999Z"}}' | head -1
+echo
+echo
+
+
+echo "10. GET Fc — the rounded-up fraction advanced the second to 10:00:01Z"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Fc
+echo
+echo
+
+
+echo "11. observedAt with a bare decimal point (zero digits) — 400"
 echo "============================================================"
 swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fdot","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.Z"}}'
 echo
@@ -72,8 +110,8 @@ echo
 HTTP/1.1 201 Created
 
 
-02. observedAt with 6 fractional digits (the maximum) — 201
-===========================================================
+02. observedAt with 6 fractional digits (the spec maximum) — 201
+===============================================================
 HTTP/1.1 201 Created
 
 
@@ -87,23 +125,67 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 
 
-05. observedAt with 7 fractional digits — 400 (exceeds six)
-===========================================================
-HTTP/1.1 400 Bad Request
+05. observedAt with 7 fractional digits — 201 (beyond the spec max, accepted)
+=============================================================================
+HTTP/1.1 201 Created
+
+
+06. GET F7 — default broker renders 6 fractional digits (µs); the 7th is dropped
+================================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 270
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/a': 'observedAt' is not a valid ISO 8601 DateTime: '2026-04-28T10:00:00.1234567Z'",
-  "status": 400,
-  "title": "Invalid observedAt",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "a": {
+    "observedAt": "2026-04-28T10:00:00.123456Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:F7",
+  "type": "T"
 }
 
 
 
-06. observedAt with a bare decimal point (zero digits) — 400
+07. observedAt with 9 fractional digits (full ns) — 201
+=======================================================
+HTTP/1.1 201 Created
+
+
+08. observedAt with 12 digits — 201 (rounded to nanoseconds)
+============================================================
+HTTP/1.1 201 Created
+
+
+09. observedAt .9999999999 — round carries into the whole second — 201
+======================================================================
+HTTP/1.1 201 Created
+
+
+10. GET Fc — the rounded-up fraction advanced the second to 10:00:01Z
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "observedAt": "2026-04-28T10:00:01Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:Fc",
+  "type": "T"
+}
+
+
+
+11. observedAt with a bare decimal point (zero digits) — 400
 ============================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)

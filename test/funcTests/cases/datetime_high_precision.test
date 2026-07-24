@@ -1,0 +1,156 @@
+#
+# FILE            datetime_high_precision.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.2.4 — DateTime values are stored as epoch-nanoseconds. By
+# default the broker renders 6 fractional digits (µs, the spec maximum), which
+# keeps forwarded values parseable by peers that reject 9-digit fractions. When
+# started with --high-precision (-hp) it renders the full 9 digits (ns), so a
+# 7..9-digit input round-trips losslessly. Anything beyond 9 digits is rounded to
+# nanosecond resolution on input regardless of the flag. Exercised via observedAt.
+#
+--NAME--
+DateTime --high-precision renders full 9-digit (ns) fractions (§ 5.2.2.4)
+
+--TAGS--
+datetime attribute validation
+
+--INIT--
+swDbDrop
+swBrokerStart --high-precision
+
+--RUN--
+
+echo "01. seed 7/8/9-digit and >9-digit observedAt values — all 201"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H8","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.12345678Z"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H9","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789Z"}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Hround","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567895Z"}}' | head -1
+echo
+echo
+
+
+echo "02. GET H7 — 7 digits round-trip exactly under -hp"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H7
+echo
+echo
+
+
+echo "03. GET H8 — 8 digits round-trip exactly under -hp"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H8
+echo
+echo
+
+
+echo "04. GET H9 — 9 digits (full ns) round-trip exactly under -hp"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H9
+echo
+echo
+
+
+echo "05. GET Hround — a 10th digit of 5 rounds the ns up (.1234567895 -> .12345679)"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Hround
+echo
+echo
+
+
+--EXPECT--
+01. seed 7/8/9-digit and >9-digit observedAt values — all 201
+=============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET H7 — 7 digits round-trip exactly under -hp
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "observedAt": "2026-04-28T10:00:00.1234567Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:H7",
+  "type": "T"
+}
+
+
+
+03. GET H8 — 8 digits round-trip exactly under -hp
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "observedAt": "2026-04-28T10:00:00.12345678Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:H8",
+  "type": "T"
+}
+
+
+
+04. GET H9 — 9 digits (full ns) round-trip exactly under -hp
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "observedAt": "2026-04-28T10:00:00.123456789Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:H9",
+  "type": "T"
+}
+
+
+
+05. GET Hround — a 10th digit of 5 rounds the ns up (.1234567895 -> .12345679)
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "observedAt": "2026-04-28T10:00:00.12345679Z",
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:Hround",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
