@@ -11,7 +11,7 @@
 #include <stddef.h>                                       // NULL
 #include <stdio.h>                                        // snprintf
 #include <stdlib.h>                                       // calloc, free
-#include <string.h>                                       // strcmp, strncpy
+#include <string.h>                                       // strcmp, strlen, memcpy
 #include <time.h>                                         // clock_gettime
 #include <pthread.h>                                      // pthread_mutex_t
 #include <semaphore.h>                                    // sem_*
@@ -240,7 +240,16 @@ int timescalePoolEnsure(Tenant* tenantP)
     return TROE_ERR;
   }
 
-  strncpy(poolP->dbName, dbName, sizeof(poolP->dbName) - 1);
+  // Copy with an explicit clamp + terminator rather than strncpy: at -O2 gcc can see that
+  // dbName may be exactly as long as the destination and warns (stringop-truncation), and
+  // -Werror turns that into a broken Release build. The behaviour is unchanged - an
+  // over-long db name is still truncated to fit.
+  size_t dbNameLen = strlen(dbName);
+  if (dbNameLen >= sizeof(poolP->dbName))
+    dbNameLen = sizeof(poolP->dbName) - 1;
+  memcpy(poolP->dbName, dbName, dbNameLen);
+  poolP->dbName[dbNameLen] = 0;
+
   poolP->items = items;
   poolP->connV = connV;
   sem_init(&poolP->queueSem, 0, items);
