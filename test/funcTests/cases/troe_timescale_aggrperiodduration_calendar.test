@@ -1,0 +1,306 @@
+#
+# FILE            troe_timescale_aggrperiodduration_calendar.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.2.7 - CALENDAR aggrPeriodDuration (P#M / P#Y).
+#
+# A month is not a fixed number of nanoseconds, so these buckets have different
+# widths from each other: Jan is 31 days, Feb 28, Mar 31. The boundaries are
+# walked on the calendar rather than derived from a constant width, which is what
+# separates these cases from P#D / P#W / PT#H.
+#
+# Pinned here:
+#   - P1M over a quarter gives three buckets on month boundaries
+#   - P1Y steps whole years
+#   - a duration may mix both halves (P1M15D = a month, then 15 days)
+#   - day-of-month is CLAMPED: 01-31 + P1M is 02-28, not 03-03
+#   - the final bucket is clipped to endTimeAt
+#
+--NAME--
+TRoE timescale - calendar aggrPeriodDuration (P#M / P#Y)
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 with one sample mid-month, Jan/Feb/Mar 2026"
+echo "==========================================================="
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-01-15T00:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-02-15T00:00:00Z"},
+    {"type":"Property","value":30,"observedAt":"2026-03-15T00:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+echo "02. P1M over Q1 - three buckets of DIFFERENT widths (31/28/31 days)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
+echo
+echo
+
+echo "03. P2M over Q1 - two buckets, the second clipped to endTimeAt"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=P2M'
+echo
+echo
+
+echo "04. P1Y - one bucket per year, so all three samples land together"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2027-01-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=P1Y'
+echo
+echo
+
+echo "05. P1M15D - both halves: a calendar month, then 15 fixed days"
+echo "============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M15D'
+echo
+echo
+
+echo "06. Day clamp: start 01-31 + P1M is 02-28 (not 03-03)"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-31T00:00:00Z&endTimeAt=2026-05-01T00:00:00Z&format=aggregatedValues&aggrMethods=totalCount&aggrPeriodDuration=P1M'
+echo
+echo
+
+echo "07. Leap February: 2024-01-31 + P1M is 02-29"
+echo "============================================"
+payload='{
+  "id":   "urn:V2",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":5,"observedAt":"2024-02-10T00:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V2?timerel=between&timeAt=2024-01-31T00:00:00Z&endTimeAt=2024-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=totalCount&aggrPeriodDuration=P1M'
+echo
+echo
+
+--EXPECT--
+01. Seed urn:V1 with one sample mid-month, Jan/Feb/Mar 2026
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. P1M over Q1 - three buckets of DIFFERENT widths (31/28/31 days)
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        10,
+        "2026-01-01T00:00:00Z",
+        "2026-02-01T00:00:00Z"
+      ],
+      [
+        20,
+        "2026-02-01T00:00:00Z",
+        "2026-03-01T00:00:00Z"
+      ],
+      [
+        30,
+        "2026-03-01T00:00:00Z",
+        "2026-04-01T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+03. P2M over Q1 - two buckets, the second clipped to endTimeAt
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 494
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        15,
+        "2026-01-01T00:00:00Z",
+        "2026-03-01T00:00:00Z"
+      ],
+      [
+        30,
+        "2026-03-01T00:00:00Z",
+        "2026-04-01T00:00:00Z"
+      ]
+    ],
+    "totalCount": [
+      [
+        2,
+        "2026-01-01T00:00:00Z",
+        "2026-03-01T00:00:00Z"
+      ],
+      [
+        1,
+        "2026-03-01T00:00:00Z",
+        "2026-04-01T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. P1Y - one bucket per year, so all three samples land together
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 311
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-01-01T00:00:00Z",
+        "2027-01-01T00:00:00Z"
+      ]
+    ],
+    "totalCount": [
+      [
+        3,
+        "2026-01-01T00:00:00Z",
+        "2027-01-01T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+05. P1M15D - both halves: a calendar month, then 15 fixed days
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 286
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        15,
+        "2026-01-01T00:00:00Z",
+        "2026-02-16T00:00:00Z"
+      ],
+      [
+        30,
+        "2026-02-16T00:00:00Z",
+        "2026-03-31T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. Day clamp: start 01-31 + P1M is 02-28 (not 03-03)
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 291
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "totalCount": [
+      [
+        1,
+        "2026-01-31T00:00:00Z",
+        "2026-02-28T00:00:00Z"
+      ],
+      [
+        1,
+        "2026-02-28T00:00:00Z",
+        "2026-03-28T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+07. Leap February: 2024-01-31 + P1M is 02-29
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V2
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 200
+
+{
+  "id": "urn:V2",
+  "speed": {
+    "totalCount": [
+      [
+        1,
+        "2024-01-31T00:00:00Z",
+        "2024-02-29T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop

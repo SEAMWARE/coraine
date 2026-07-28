@@ -17,10 +17,11 @@
 #     whole-window bucket, NOT a 400 - "e.g." in the spec means the two
 #     listed spellings are examples, not the only legal ones
 #
-# KNOWN LIMITATION (step 03): a non-zero calendar period (P1M / P1Y) is valid per
-# spec but has no fixed width, so it currently falls back to the whole window.
-# Bucketing it needs a calendar boundary walk instead of a constant width. The
-# step pins today's behaviour so a future change to it is deliberate and visible.
+# Calendar periods (P#M / P#Y) bucket properly too - here P1M over a three-week
+# window is legitimately ONE bucket, because the next month boundary lands past
+# endTimeAt and the last bucket is clipped to it. The interesting calendar cases
+# (differing month lengths, day clamping, leap years) live in
+# troe_timescale_aggrperiodduration_calendar.test.
 #
 --NAME--
 TRoE timescale - aggrPeriodDuration forms (PnW, invalid, zero)
@@ -62,8 +63,8 @@ swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-0
 echo
 echo
 
-echo "03. P1M - calendar month"
-echo "========================"
+echo "03. P1M over 3 weeks - ONE bucket: next month boundary is past endTimeAt"
+echo "======================================================================="
 swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
 echo
 echo
@@ -185,8 +186,8 @@ Content-Length: 378
 
 
 
-03. P1M - calendar month
-========================
+03. P1M over 3 weeks - ONE bucket: next month boundary is past endTimeAt
+=======================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
