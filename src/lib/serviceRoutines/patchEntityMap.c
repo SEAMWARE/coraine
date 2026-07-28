@@ -7,14 +7,22 @@
 //
 // PATCH /ngsi-ld/v1/entityMaps/{entityMapId} — Update EntityMap (§ 5.14.2).
 //
-// The spec (§ 5.14.2.4) says "Perform an update operation on the target
+// The spec (§ 14.3.4) says "Perform an update operation on the target
 // EntityMap using the fields specified within then JSON-LD document.
-// Any provided output-only fields shall be ignored." In practice the
-// only field of an EntityMap that is meaningfully updatable is
-// expiresAt — id and type are immutable, and the entityMap / linkedMaps
-// members are broker-generated snapshots. This routine accepts
-// expiresAt and 400s on anything else rather than silently ignoring,
-// so clients get a clear error on typos / misuse.
+// Any provided output-only fields shall be ignored."
+//
+// The output-only members are entityMap and linkedMaps (§ 5.2.6.5.5:
+// "They shall not be provided by Context Consumers. In the event that
+// they are provided in update operations, NGSI-LD implementations shall
+// ignore them."). Both are therefore skipped here, NOT rejected — a
+// client that echoes back a retrieved EntityMap must not get a 400.
+//
+// Ignoring means treating them as absent, so a body carrying nothing but
+// output-only members still fails the expiresAt check below.
+//
+// expiresAt is the only meaningfully updatable field. id and type are not
+// output-only, and the spec says nothing about updating them, so they keep
+// their 400 — as does any unknown field.
 //
 
 #include <stddef.h>                                  // NULL
@@ -54,8 +62,8 @@ bool patchEntityMap(void)
 
   //
   // Walk the body — only expiresAt (and @context as a JSON-LD keyword) is
-  // accepted. Any other field (id, type, entityMap, linkedMaps, or an
-  // unknown name) → 400.
+  // accepted. The output-only members are ignored. Any other field (id,
+  // type, or an unknown name) → 400.
   //
   KjNode* expiresAtP = NULL;
   for (KjNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
@@ -68,6 +76,10 @@ bool patchEntityMap(void)
       expiresAtP = fP;
       continue;
     }
+
+    // Output-only (§ 5.2.6.5.5) — silently ignored, per § 14.3.4.
+    if ((strcmp(fP->name, "entityMap") == 0) || (strcmp(fP->name, "linkedMaps") == 0))
+      continue;
 
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
             "field '%s' cannot be updated on an EntityMap — only expiresAt is mutable", fP->name);

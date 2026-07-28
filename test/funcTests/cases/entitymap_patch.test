@@ -22,10 +22,20 @@ swBrokerStart
 # 02. PATCH expiresAt — success, 204
 # 03. GET the map → expiresAt reflects the new value
 # 04. PATCH with extra field (id) → 400
-# 05. PATCH with entityMap in body → 400
+# 05. PATCH with the output-only entityMap alongside expiresAt → 204, entityMap ignored
 # 06. PATCH with invalid expiresAt string → 400
 # 07. PATCH with no expiresAt → 400
 # 08. PATCH non-existent map → 404
+# 09. GET the map → the output-only members survived step 05 untouched
+# 10. PATCH with the output-only linkedMaps alongside expiresAt → 204, ignored
+# 11. PATCH with ONLY output-only members → 400, they are absent for the expiresAt check
+#
+# 05/10/11 pin § 14.3.4 "Any provided output-only fields shall be ignored" and
+# § 5.2.6.5.5 "In the event that they are provided in update operations, NGSI-LD
+# implementations shall ignore them". entityMap and linkedMaps are the two
+# output-only members, so echoing back a retrieved EntityMap must not 400.
+# id and type are NOT output-only and the spec says nothing about updating them,
+# so they keep their 400 (step 04), as does any unknown field.
 #
 
 echo "01. Seed entities + create map"
@@ -61,9 +71,9 @@ echo
 echo
 
 
-echo "05. PATCH with entityMap in body → 400"
-echo "======================================"
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"entityMap":{"urn:X":["@none"]}}'
+echo "05. PATCH with output-only entityMap alongside expiresAt → 204, ignored"
+echo "======================================================================="
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2098-01-01T00:00:00.000Z","entityMap":{"urn:X":["@none"]}}'
 echo
 echo
 
@@ -85,6 +95,31 @@ echo
 echo "08. PATCH non-existent map → 404"
 echo "================================"
 swCurl --url "/ngsi-ld/v1/entityMaps/urn:NoSuch" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
+echo
+echo
+
+
+echo "09. GET map → step 05 left the output-only members untouched"
+echo "============================================================"
+# The bogus {"urn:X":["@none"]} from step 05 must NOT have replaced the
+# broker-generated mapping, and expiresAt must show step 05's value.
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '"expiresAt"|urn:V1|urn:V2|urn:X'
+echo
+echo
+
+
+echo "10. PATCH with output-only linkedMaps alongside expiresAt → 204, ignored"
+echo "========================================================================"
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2097-01-01T00:00:00.000Z","linkedMaps":{"urn:reg:1":"urn:map:1"}}'
+echo
+echo
+
+
+echo "11. PATCH with ONLY output-only members → 400 (they count as absent)"
+echo "===================================================================="
+# Ignoring them means treating them as not provided, so the mandatory
+# expiresAt is missing — a Mandatory Field Missing 400, not Immutable Field.
+swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"entityMap":{"urn:X":["@none"]},"linkedMaps":{"urn:reg:1":"urn:map:1"}}'
 echo
 echo
 
@@ -119,7 +154,7 @@ Date: REGEX(.*)
 
 03. GET map → expiresAt reflects new value
 ==========================================
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "2099-01-01T00:00:00.000Z",
 
 
 04. PATCH with id field → 400
@@ -138,19 +173,11 @@ Content-Length: 204
 
 
 
-05. PATCH with entityMap in body → 400
-======================================
-HTTP/1.1 400 Bad Request
+05. PATCH with output-only entityMap alongside expiresAt → 204, ignored
+=======================================================================
+HTTP/1.1 204 No Content
 Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 211
 
-{
-  "detail": "field 'entityMap' cannot be updated on an EntityMap — only expiresAt is mutable",
-  "status": 400,
-  "title": "Immutable Field",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
 
 
 
@@ -202,6 +229,34 @@ Content-Length: 159
 
 
 
---TEARDOWN--
-swBrokerStop
-swDbDrop
+09. GET map → step 05 left the output-only members untouched
+============================================================
+    "urn:V1": [
+    "urn:V2": [
+  "expiresAt": "2098-01-01T00:00:00.000Z",
+
+
+10. PATCH with output-only linkedMaps alongside expiresAt → 204, ignored
+========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+11. PATCH with ONLY output-only members → 400 (they count as absent)
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 185
+
+{
+  "detail": "Update EntityMap requires expiresAt in the body",
+  "status": 400,
+  "title": "Mandatory Field Missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
