@@ -1,0 +1,308 @@
+#
+# FILE            subscription_notif_attr_deleted_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Attribute-deletion notifications identify WHICH dataset instances were
+# removed (§ 5.8.6 / TS 104-175 § 10.5.7).
+#
+# The normative text says a deleted Attribute is reported with the name as
+# key and "urn:ngsi-ld:null" as value, "unless more information is required.
+# The latter is the case, if: a datasetId needs to be provided; ...". So a
+# removed instance that carries a datasetId must be reported as an object
+# holding that datasetId, not as a bare marker.
+#
+# The single-instance delete was already correct. The case that was not:
+# deleteAll on a multi-instance Attribute removes every instance at once and
+# used to collapse into ONE anonymous marker, so a receiver could not tell
+# which instances went away. Now one marker per removed instance is emitted,
+# each keyed by its datasetId (the default instance stays datasetId-less).
+#
+--NAME--
+attributeDeleted notification reports each removed dataset instance
+
+--TAGS--
+datasetid delete subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed V1: speed with @none + urn:ds:1 + urn:ds:2"
+echo "==================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10},
+    {"type": "Property", "value": 20, "datasetId": "urn:ds:1"},
+    {"type": "Property", "value": 30, "datasetId": "urn:ds:2"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Subscription on attributeDeleted"
+echo "===================================="
+swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "03. Delete ONE instance: speed?datasetId=urn:ds:1"
+echo "================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ds:1'
+echo
+echo
+
+
+echo "04. Notification: null marker carries datasetId urn:ds:1, others survive"
+echo "========================================================================"
+ftClientDump
+echo
+echo
+
+
+echo "05. Reset the notification receiver"
+echo "==================================="
+ftClientReset
+echo
+echo
+
+
+echo "06. Delete ALL remaining instances: speed?deleteAll=true"
+echo "========================================================"
+swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?deleteAll=true'
+echo
+echo
+
+
+echo "07. Notification: one marker per removed instance (@none + urn:ds:2)"
+echo "===================================================================="
+# Two instances were removed, so two markers. The default instance carries
+# no datasetId; urn:ds:2 carries its own. A single anonymous marker here
+# would lose the identity of both.
+ftClientDump
+echo
+echo
+
+
+echo "08. Reset the notification receiver"
+echo "==================================="
+ftClientReset
+echo
+echo
+
+
+echo "09. Seed V2: color with a SINGLE dataset instance urn:ds:9"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":[{"type":"Property","value":"red","datasetId":"urn:ds:9"}]}'
+echo
+echo
+
+
+echo "10. Delete it: color?datasetId=urn:ds:9 — the attribute is now gone"
+echo "==================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V2/attrs/color?datasetId=urn:ds:9'
+echo
+echo
+
+
+echo "11. Notification: marker still carries datasetId urn:ds:9"
+echo "========================================================="
+# Nothing survives in the wrapper, but the removed instance was
+# dataset-bearing, so the datasetId is still required.
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1: speed with @none + urn:ds:1 + urn:ds:2
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. Subscription on attributeDeleted
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Content-Length: 0
+
+
+
+
+03. Delete ONE instance: speed?datasetId=urn:ds:1
+=================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. Notification: null marker carries datasetId urn:ds:1, others survive
+========================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": [
+            {
+              "type": "Property",
+              "value": 10
+            },
+            {
+              "datasetId": "urn:ds:2",
+              "type": "Property",
+              "value": 30
+            },
+            {
+              "datasetId": "urn:ds:1",
+              "type": "Property",
+              "value": "urn:ngsi-ld:null"
+            }
+          ],
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+05. Reset the notification receiver
+===================================
+
+
+06. Delete ALL remaining instances: speed?deleteAll=true
+========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. Notification: one marker per removed instance (@none + urn:ds:2)
+====================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": [
+            {
+              "type": "Property",
+              "value": "urn:ngsi-ld:null"
+            },
+            {
+              "datasetId": "urn:ds:2",
+              "type": "Property",
+              "value": "urn:ngsi-ld:null"
+            }
+          ],
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+08. Reset the notification receiver
+===================================
+
+
+09. Seed V2: color with a SINGLE dataset instance urn:ds:9
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+
+10. Delete it: color?datasetId=urn:ds:9 — the attribute is now gone
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+11. Notification: marker still carries datasetId urn:ds:9
+=========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "color": {
+            "datasetId": "urn:ds:9",
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "id": "urn:V2",
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+

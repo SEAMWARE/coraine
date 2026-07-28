@@ -332,22 +332,35 @@ bool deleteEntityAttr(void)
               // a sub with notificationTrigger=["attributeDeleted"] would
               // never fire on attr-delete).
               //
-              // Per § 5.8.6: when only one dataset instance was removed
-              // (datasetId variant or @none default with deleteAll=false),
-              // record the deleted dsKey on the report entry so the
-              // notification renderer can inject a per-instance null marker
-              // alongside the surviving instances.
-              const char* deletedDsKey = NULL;
+              // Per § 5.8.6: record the dsKey of EVERY removed instance on the
+              // report entry, so the notification renderer can inject one
+              // per-instance null marker alongside whatever survives. The
+              // spec requires the datasetId whenever the deleted instance
+              // carries one - with deleteAll a multi-instance Attribute loses
+              // them all at once, and a single anonymous marker would hide
+              // which instances went away.
+              //
+              // Scope is not a dataset-keyed wrapper, so it keeps the plain
+              // "@none" key, as does any snapshot that is not an object.
+              KjNode* dsKeys = kjArray(swRest.kjsonP, "datasetIds");
               if (!swNgsild.deleteAll)
-                deletedDsKey = (swNgsild.datasetId != NULL) ? swNgsild.datasetId : "@none";
+                kjChildAdd(dsKeys, kjString(swRest.kjsonP, NULL,
+                                            (swNgsild.datasetId != NULL) ? swNgsild.datasetId : "@none"));
+              else if ((preSnapshot != NULL) && (preSnapshot->type == KjObject) &&
+                       (strcmp(attrIri, LD_VOCAB_SCOPE) != 0))
+              {
+                for (KjNode* instP = preSnapshot->value.firstChildP; instP != NULL; instP = instP->next)
+                  kjChildAdd(dsKeys, kjString(swRest.kjsonP, NULL, instP->name));
+              }
+              else
+                kjChildAdd(dsKeys, kjString(swRest.kjsonP, NULL, "@none"));
 
               LdMergeReport report;
               report.changes = kjArray(swRest.kjsonP, "changes");
               KjNode* entry = kjObject(swRest.kjsonP, NULL);
               kjChildAdd(entry, kjString(swRest.kjsonP, "attr",   attrIri));
               kjChildAdd(entry, kjString(swRest.kjsonP, "reason", "attributeDeleted"));
-              if (deletedDsKey != NULL)
-                kjChildAdd(entry, kjString(swRest.kjsonP, "datasetId", deletedDsKey));
+              kjChildAdd(entry, dsKeys);
               if (preSnapshot != NULL)
               {
                 preSnapshot->name = (char*) "preValue";
