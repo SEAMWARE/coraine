@@ -1,0 +1,346 @@
+#
+# FILE            troe_timescale_aggrperiodduration_forms.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.2.7 - aggrPeriodDuration accepted forms.
+#
+# The duration is "P[n]Y[n]M[n]DT[n]H[n]M[n]S" OR "P[n]W", and only a ZERO
+# duration (PT0S / P0D) means one bucket spanning the whole time range.
+#
+# Pinned here:
+#   - P1W buckets exactly like P7D (a week is always 7 days)
+#   - an unparseable duration is a 400, NOT a silently-accepted whole window
+#   - every spelling of a ZERO duration (PT0S, P0D, P0M, P0Y) is the
+#     whole-window bucket, NOT a 400 - "e.g." in the spec means the two
+#     listed spellings are examples, not the only legal ones
+#
+# KNOWN LIMITATION (step 03): a non-zero calendar period (P1M / P1Y) is valid per
+# spec but has no fixed width, so it currently falls back to the whole window.
+# Bucketing it needs a calendar boundary walk instead of a constant width. The
+# step pins today's behaviour so a future change to it is deliberate and visible.
+#
+--NAME--
+TRoE timescale - aggrPeriodDuration forms (PnW, invalid, zero)
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "00. Seed urn:V1 with one speed sample per week over 3 weeks"
+echo "=========================================================="
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-04-01T00:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-08T00:00:00Z"},
+    {"type":"Property","value":30,"observedAt":"2026-04-15T00:00:00Z"}
+  ]
+}'
+swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+echo "01. CONTROL P7D - expect three weekly buckets (10, 20, 30)"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P7D'
+echo
+echo
+
+echo "02. P1W - spec-legal alternative form, must equal P7D"
+echo "====================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1W'
+echo
+echo
+
+echo "03. P1M - calendar month"
+echo "========================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
+echo
+echo
+
+echo "04. INVALID duration 'banana' - should not be silently accepted"
+echo "==============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=banana'
+echo
+echo
+
+echo "05. INVALID duration '1D' - no P designator"
+echo "==========================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=1D'
+echo
+echo
+
+echo "06. CONTROL PT0S - whole window, one bucket avg 20"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT0S'
+echo
+echo
+
+echo "07. P0D - zero duration, other spelling: whole window"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0D'
+echo
+echo
+
+echo "08. P0M - zero MONTHS is still a zero duration: whole window, not 400"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0M'
+echo
+echo
+
+echo "09. P0Y - same for zero YEARS"
+echo "============================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0Y'
+echo
+echo
+
+--EXPECT--
+00. Seed urn:V1 with one speed sample per week over 3 weeks
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: 0
+
+
+
+
+01. CONTROL P7D - expect three weekly buckets (10, 20, 30)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        10,
+        "2026-04-01T00:00:00Z",
+        "2026-04-08T00:00:00Z"
+      ],
+      [
+        20,
+        "2026-04-08T00:00:00Z",
+        "2026-04-15T00:00:00Z"
+      ],
+      [
+        30,
+        "2026-04-15T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+02. P1W - spec-legal alternative form, must equal P7D
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        10,
+        "2026-04-01T00:00:00Z",
+        "2026-04-08T00:00:00Z"
+      ],
+      [
+        20,
+        "2026-04-08T00:00:00Z",
+        "2026-04-15T00:00:00Z"
+      ],
+      [
+        30,
+        "2026-04-15T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+03. P1M - calendar month
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 194
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-01T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. INVALID duration 'banana' - should not be silently accepted
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "aggrPeriodDuration is not a valid ISO 8601 duration: 'banana'",
+  "status": 400,
+  "title": "Invalid temporal query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. INVALID duration '1D' - no P designator
+===========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "aggrPeriodDuration is not a valid ISO 8601 duration: '1D'",
+  "status": 400,
+  "title": "Invalid temporal query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. CONTROL PT0S - whole window, one bucket avg 20
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 194
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-01T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+07. P0D - zero duration, other spelling: whole window
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 194
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-01T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+08. P0M - zero MONTHS is still a zero duration: whole window, not 400
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 194
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-01T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+09. P0Y - same for zero YEARS
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 194
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        20,
+        "2026-04-01T00:00:00Z",
+        "2026-04-22T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
