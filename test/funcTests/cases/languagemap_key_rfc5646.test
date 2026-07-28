@@ -1,0 +1,215 @@
+#
+# FILE            languagemap_key_rfc5646.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.6.4.6 - languageMap keys.
+#
+# The clause is normative: the keys "shall be JSON strings representing IETF RFC
+# 5646 language codes or the JSON-LD @none". Only the SHAPE is checked - "zz" is
+# well-formed and accepted even though no such language is registered, because
+# validating against the IANA registry would need the registry and would reject
+# tags that become valid the next time it is updated.
+#
+# @none must stay legal: it is the JSON-LD default-language key AND the carrier of
+# the NGSI-LD Null encoding {"@none": "urn:ngsi-ld:null"} - step 08 pins that the
+# attribute deletion still works.
+#
+--NAME--
+languageMap keys must be RFC 5646 language tags (or @none)
+
+--TAGS--
+languageproperty validation rfc5646
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. valid: en, en-US, zh-Hans-CN, @none"
+echo "======================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello","en-US":"hi","zh-Hans-CN":"ni hao","@none":"fallback"}}}'
+echo
+echo
+
+echo "02. digits only: '123'"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","name":{"type":"LanguageProperty","languageMap":{"123":"nope"}}}'
+echo
+echo
+
+echo "03. punctuation: '!!'"
+echo "====================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","name":{"type":"LanguageProperty","languageMap":{"!!":"nope"}}}'
+echo
+echo
+
+echo "04. underscore instead of hyphen: 'en_US'"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"T","name":{"type":"LanguageProperty","languageMap":{"en_US":"nope"}}}'
+echo
+echo
+
+echo "05. trailing hyphen: 'en-'"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E5","type":"T","name":{"type":"LanguageProperty","languageMap":{"en-":"nope"}}}'
+echo
+echo
+
+echo "06. single letter: 'e'"
+echo "======================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E6","type":"T","name":{"type":"LanguageProperty","languageMap":{"e":"nope"}}}'
+echo
+echo
+
+echo "07. a whole sentence as a key"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E7","type":"T","name":{"type":"LanguageProperty","languageMap":{"this is not a language":"nope"}}}'
+echo
+echo
+
+echo "08. the NGSI-LD Null encoding {@none: urn:ngsi-ld:null} must keep working"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E8","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello"}}}'
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E8/attrs --payload '{"name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}'
+swCurl --url /ngsi-ld/v1/entities/urn:E8
+echo
+echo
+
+--EXPECT--
+01. valid: en, en-US, zh-Hans-CN, @none
+=======================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. digits only: '123'
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 195
+
+{
+  "detail": "'languageMap' key is not an RFC 5646 language tag: '123'",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. punctuation: '!!'
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "'languageMap' key is not an RFC 5646 language tag: '!!'",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. underscore instead of hyphen: 'en_US'
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 197
+
+{
+  "detail": "'languageMap' key is not an RFC 5646 language tag: 'en_US'",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. trailing hyphen: 'en-'
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 195
+
+{
+  "detail": "'languageMap' key is not an RFC 5646 language tag: 'en-'",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. single letter: 'e'
+======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "'languageMap' key is not an RFC 5646 language tag: 'e'",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. a whole sentence as a key
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 214
+
+{
+  "detail": "'languageMap' key is not an RFC 5646 language tag: 'this is not a language'",
+  "status": 400,
+  "title": "Invalid LanguageProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. the NGSI-LD Null encoding {@none: urn:ngsi-ld:null} must keep working
+========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E8
+Content-Length: 0
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 36
+
+{
+  "id": "urn:E8",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
