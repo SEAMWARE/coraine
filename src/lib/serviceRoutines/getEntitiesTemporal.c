@@ -42,6 +42,7 @@
 
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
+#include "swNgsild/LdQ.h"                            // LdQNode
 #include "swNgsild/LdProj.h"                          // LdProjItem
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdGeoRel.h"                        // LdGeoNear
@@ -392,6 +393,25 @@ bool getEntitiesTemporal(void)
               (swNgsild.omit != NULL) ? swNgsild.omit : "");
       return true;
     }
+  }
+
+  //
+  // § 11.3.3.4 continues: "...or filter conditions indicate the use of Linked
+  // Entity retrieval, an error of type BadRequestData shall be raised."
+  //
+  // The q counterpart of the brace projection is the § 4.9 LinkedEntityRelation,
+  // `q=owner{age>30}`, which ldQParse records as a chain depth on the root. The
+  // temporal query never followed those relationships, so the condition was
+  // simply dropped and the entity came back anyway: `q=owner{age>50}` against a
+  // 35-year-old owner still returned the vehicle. An ignored filter yields wrong
+  // ENTITIES, not merely extra fields, so this is refused rather than tolerated.
+  //
+  if ((swNgsild.qExpr != NULL) && (swNgsild.qExpr->linkedDepth > 0))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Query",
+            "'q' uses a linked-entity relation ('%s'), which a temporal query does not support",
+            (swNgsild.q != NULL) ? swNgsild.q : "");
+    return true;
   }
 
   // § 6.3.22 / § 5.5.15 — NGSILD-Snapshot routes the temporal query to

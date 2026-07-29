@@ -1,0 +1,165 @@
+#
+# FILE            troe_timescale_temporal_linked_q.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A linked-entity filter condition is not allowed on the temporal query
+# (§ 11.3.3.4).
+#
+# "If projection attributes or filter conditions indicate the use of Linked
+# Entity retrieval, an error of type BadRequestData shall be raised."
+#
+# The filter-condition form is the § 4.9 LinkedEntityRelation: q=owner{age>30},
+# a relationship name carrying a sub-query evaluated against the linked Entity.
+#
+# The temporal query never followed those relationships, so the condition was
+# silently dropped and the Entity was returned regardless: q=owner{age>50}
+# against a 35-year-old owner still returned the vehicle. That is worse than the
+# projection case — an ignored filter yields the wrong ENTITIES, not merely
+# extra fields.
+#
+# Steps 06/07 are the control that matters: on the Core API the same linked q
+# really does filter, so the restriction is temporal-only and that path is
+# untouched. They need their own seed (step 05) because a temporal POST does
+# not populate the Core-API store — without it an empty result would prove
+# nothing at all.
+#
+--NAME--
+TRoE timescale - linked-entity filter condition is refused on the temporal query
+
+--TAGS--
+troe timescale postgres temporal q validation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:Alice (age 35) and urn:V1 (owner=Alice, speed=10)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:Alice","type":"Person","age":[{"type":"Property","value":35,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"owner":[{"type":"Relationship","object":"urn:Alice","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+echo
+echo
+
+
+echo "02. Temporal query with q=owner{age>30} → 400"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=owner%7Bage%3E30%7D'
+echo
+echo
+
+
+echo "03. Temporal query with q=owner{age>50} → 400 as well"
+echo "====================================================="
+# Same refusal whether or not the condition would have matched — it is the
+# linked-entity retrieval that is unsupported, not the outcome.
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=owner%7Bage%3E50%7D'
+echo
+echo
+
+
+echo "04. Control — a plain temporal q still filters normally"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed%3E5' | grep -E '"id"|"value"'
+echo
+echo
+
+
+echo "05. Seed the same data through the Core API"
+echo "==========================================="
+# POST /temporal/entities populates only the temporal store, so the Core-API
+# control below needs its own entities — without them an empty result would
+# prove nothing.
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Alice","type":"Person","age":{"type":"Property","value":35}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"owner":{"type":"Relationship","object":"urn:Alice"}}' | head -1
+echo
+echo
+
+
+echo "06. Core-API control — the same linked q matches there (Alice is 35)"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D' | grep -E '"id"'
+echo
+echo
+
+
+echo "07. Core-API control — and really filters: age>50 excludes V1"
+echo "============================================================="
+# Empty result, not an error: linked-entity filtering is a working Core-API
+# feature and this change does not touch it.
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E50%7D' | grep -E '"id"|^\[\]'
+echo
+echo
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swTroeDrop
+
+--EXPECT--
+01. Seed urn:Alice (age 35) and urn:V1 (owner=Alice, speed=10)
+==============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Temporal query with q=owner{age>30} → 400
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 220
+
+{
+  "detail": "'q' uses a linked-entity relation ('owner{age>30}'), which a temporal query does not support",
+  "status": 400,
+  "title": "Invalid Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Temporal query with q=owner{age>50} → 400 as well
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 220
+
+{
+  "detail": "'q' uses a linked-entity relation ('owner{age>50}'), which a temporal query does not support",
+  "status": 400,
+  "title": "Invalid Query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Control — a plain temporal q still filters normally
+=======================================================
+    "id": "urn:V1",
+        "value": 10
+
+
+05. Seed the same data through the Core API
+===========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+06. Core-API control — the same linked q matches there (Alice is 35)
+====================================================================
+    "id": "urn:V1",
+
+
+07. Core-API control — and really filters: age>50 excludes V1
+=============================================================
+[]
+
+
