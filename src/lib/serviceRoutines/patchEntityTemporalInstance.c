@@ -22,7 +22,7 @@
 #include "swJsonld/swldExpand.h"                     // swldExpand
 
 #include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
+#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjRender.h"                          // kjFastRender
@@ -40,6 +40,32 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/patchEntityTemporalInstance.h"  // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bodyIsBareInstance - is the body the Attribute instance itself, unwrapped?
+//
+// The spec's fragment is { "<attr>": [ { instance } ] }, but a bare instance
+// body has long been accepted too. It carries no Attribute name, so there is
+// nothing in it that could disagree with the one in the URL — recognised the
+// same way the TRoE plugins recognise it, by a known Attribute type.
+//
+static bool bodyIsBareInstance(KjNode* bodyP)
+{
+  KjNode* tP = kjLookup(bodyP, "type");
+
+  if (tP == NULL || tP->type != KjString || tP->value.s == NULL)
+    return false;
+
+  const char* t = tP->value.s;
+
+  return ((strcmp(t, "Property")         == 0) || (strcmp(t, "Relationship")     == 0) ||
+          (strcmp(t, "GeoProperty")      == 0) || (strcmp(t, "LanguageProperty") == 0) ||
+          (strcmp(t, "VocabProperty")    == 0) || (strcmp(t, "ListProperty")     == 0) ||
+          (strcmp(t, "ListRelationship") == 0) || (strcmp(t, "JsonProperty")     == 0));
+}
 
 
 
@@ -148,6 +174,80 @@ bool patchEntityTemporalInstance(void)
   SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
   const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
+
+  //
+  // The body is an EntityTemporal Fragment, and § 11.2.5.4 says to replace the
+  // target instance with "the Attribute instance in the EntityTemporal
+  // Fragment" — the instance held under the TARGET Attribute's name. Names are
+  // compared expanded (§ 8.2.4), so "speed" and its IRI are the same target.
+  //
+  // Without this check the fragment's Attribute name was ignored entirely and
+  // whichever array came first was applied: PATCH .../attrs/speed/{inst} with a
+  // body of {"color":[...]} silently overwrote the speed instance with colour
+  // data. § 11.2.5.3 also fixes the cardinality — "an Array of exactly one
+  // item" — and a second item used to be dropped without a word.
+  //
+  // A bare instance body (no Attribute wrapper) stays accepted as before; there
+  // is no name in it that could contradict the URL.
+  //
+  if (!bodyIsBareInstance(bodyP))
+  {
+    KjNode* targetP = NULL;
+
+    for (KjNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+    {
+      if (fP->name == NULL)               continue;
+      if (fP->name[0] == '@')             continue;
+      if (strcmp(fP->name, "id")   == 0)  continue;
+      if (strcmp(fP->name, "type") == 0)  continue;
+
+      const char* fIri = swldExpand(ctxP, fP->name, &swRest.kalloc, NULL, NULL);
+      if (fIri == NULL) fIri = fP->name;
+
+      if (strcmp(fIri, attrIri) == 0)
+      {
+        targetP = fP;
+        break;
+      }
+    }
+
+    if (targetP == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Fragment",
+              "EntityTemporal Fragment does not contain the target attribute '%s'", attrWild);
+      return true;
+    }
+
+    if (targetP->type == KjArray)
+    {
+      int instances = 0;
+      for (KjNode* iP = targetP->value.firstChildP; iP != NULL; iP = iP->next)
+        instances++;
+
+      if (instances != 1)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Fragment",
+                "attribute '%s' must hold exactly one instance, got %d", attrWild, instances);
+        return true;
+      }
+    }
+
+    //
+    // Drop every other Attribute member, so the target instance is the only one
+    // the TRoE plugin can pick up regardless of the order they arrived in.
+    //
+    KjNode* fP = bodyP->value.firstChildP;
+    while (fP != NULL)
+    {
+      KjNode* nextP = fP->next;
+
+      if ((fP != targetP) && (fP->name != NULL) && (fP->name[0] != '@') &&
+          (strcmp(fP->name, "id") != 0) && (strcmp(fP->name, "type") != 0))
+        kjChildRemove(bodyP, fP);
+
+      fP = nextP;
+    }
+  }
 
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
