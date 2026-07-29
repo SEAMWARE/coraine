@@ -1,0 +1,177 @@
+#
+# FILE            snapshot_purge_q_required.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Purge Snapshots requires a query (§ 16.7.4).
+#
+# "If the NGSI-LD Query is not present or it is not a valid as per clause 7.2.3,
+# restricted to members of the Snapshot data type, then an error of type
+# BadRequestData shall be raised."
+#
+# So an unqualified DELETE on the collection is an error, NOT an instruction to
+# purge the whole tenant — which is what it used to do, silently and with a 204.
+# Purging everything is still possible (step 08), it just has to be asked for
+# with a q that matches all.
+#
+--NAME--
+Purge Snapshots requires a q — an unqualified DELETE must not wipe the tenant
+
+--TAGS--
+snapshot delete validation
+
+--INIT--
+swDbDrop
+swSnapDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create S1 (priority 3) + S2 (priority 8)"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S1","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S2","type":"Snapshot","snapshotPriority":8,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "02. DELETE /snapshots with no q → 400"
+echo "====================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots'
+echo
+echo
+
+
+echo "03. Both snapshots survived the refused purge"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
+echo
+echo
+
+
+echo "04. DELETE /snapshots?q= (empty q) → 400"
+echo "========================================"
+# An empty q is not a valid NGSI-LD Query, so it is refused for the same reason.
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q='
+echo
+echo
+
+
+echo "05. Both snapshots still there"
+echo "=============================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
+echo
+echo
+
+
+echo "06. DELETE /snapshots?q=snapshotPriority>5 → 204, only S2 matches"
+echo "================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+echo
+echo
+
+
+echo "07. S1 (priority 3) kept, S2 (priority 8) purged"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
+echo
+echo
+
+
+echo "08. Purging everything is still possible — with an explicit match-all q"
+echo "======================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
+echo
+echo
+
+
+echo "09. S1 is gone too"
+echo "=================="
+swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Create S1 (priority 3) + S2 (priority 8)
+============================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. DELETE /snapshots with no q → 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "Purge Snapshots requires a 'q' query selecting the snapshots to purge",
+  "status": 400,
+  "title": "Mandatory URI Parameter Missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Both snapshots survived the refused purge
+=============================================
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+
+
+04. DELETE /snapshots?q= (empty q) → 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "Purge Snapshots requires a 'q' query selecting the snapshots to purge",
+  "status": 400,
+  "title": "Mandatory URI Parameter Missing",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Both snapshots still there
+==============================
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+
+
+06. DELETE /snapshots?q=snapshotPriority>5 → 204, only S2 matches
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. S1 (priority 3) kept, S2 (priority 8) purged
+================================================
+HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
+
+
+08. Purging everything is still possible — with an explicit match-all q
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. S1 is gone too
+==================
+HTTP/1.1 404 Not Found
+
+

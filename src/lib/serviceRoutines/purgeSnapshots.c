@@ -5,13 +5,15 @@
 //
 // Copyright 2026 Seamware
 //
-// DELETE /ngsi-ld/v1/snapshots[?q=...] — Purge Snapshots (§ 5.16.7).
+// DELETE /ngsi-ld/v1/snapshots?q=... — Purge Snapshots (§ 16.7).
 //
 // The q-filter (NGSI-LD § 4.9) matches against members of the Snapshot
 // data type — typically snapshotStatus, snapshotPriority, expiresAt,
 // lastUsedAt. Snapshots whose stored tree satisfies the q-expression
-// are removed from the cache. Without q (or with an empty q), all
-// snapshots on the current tenant are purged.
+// are removed from the cache.
+//
+// q is MANDATORY (§ 16.7.4) — a missing or empty q is a BadRequestData,
+// not a licence to purge the whole tenant.
 //
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strcmp
@@ -183,6 +185,26 @@ bool purgeSnapshots(void)
 {
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
+  //
+  // § 16.7.4: "If the NGSI-LD Query is not present or it is not a valid as per
+  // clause 7.2.3, restricted to members of the Snapshot data type, then an error
+  // of type BadRequestData shall be raised."
+  //
+  // So the query is mandatory: an unqualified DELETE on the collection must not
+  // wipe every snapshot on the tenant. Purging all of them is still possible,
+  // with a q that matches all - it just has to be asked for explicitly.
+  //
+  // Checked before the empty-cache shortcut below, so a missing q is reported
+  // the same way whether or not the tenant happens to hold any snapshots.
+  //
+  const char* qStr = readQParam();
+  if ((qStr == NULL) || (qStr[0] == 0))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory URI Parameter Missing",
+            "Purge Snapshots requires a 'q' query selecting the snapshots to purge");
+    return true;
+  }
+
   if (tenantP->snapshotCacheP == NULL)
   {
     swRest.out.httpStatusCode = 204;
@@ -191,17 +213,12 @@ bool purgeSnapshots(void)
 
   LdSnapshotCache* cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
 
-  const char* qStr = readQParam();
-  LdQNode*    qP   = NULL;
-  if (qStr != NULL && qStr[0] != 0)
+  LdQNode* qP = ldQParse(qStr, &swRest.kalloc);
+  if (qP == NULL)
   {
-    qP = ldQParse(qStr, &swRest.kalloc);
-    if (qP == NULL)
-    {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid q-expression",
-              "invalid q expression: '%s'", qStr);
-      return true;
-    }
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid q-expression",
+            "invalid q expression: '%s'", qStr);
+    return true;
   }
 
   //

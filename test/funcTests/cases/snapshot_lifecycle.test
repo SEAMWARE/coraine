@@ -145,9 +145,10 @@ echo
 echo
 
 
-echo "17. DELETE /snapshots (no q) → 204, purges remaining"
-echo "===================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/snapshots
+echo "17. DELETE /snapshots with a match-all q → 204, purges remaining"
+echo "================================================================"
+# q is mandatory (§ 16.7.4); purging everything is asked for explicitly.
+swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
 echo
 echo
 
@@ -408,8 +409,8 @@ Content-Length: REGEX(\d+)
 
 
 
-17. DELETE /snapshots (no q) → 204, purges remaining
-====================================================
+17. DELETE /snapshots with a match-all q → 204, purges remaining
+================================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 
