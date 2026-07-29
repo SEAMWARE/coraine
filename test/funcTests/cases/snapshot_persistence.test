@@ -296,9 +296,35 @@ Content-Length: REGEX(\d+)
 
 08. PATCH All priority → 9; restart; verify it stuck
 ====================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
 Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:All",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 9,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
 
 HTTP/1.1 200 OK
 Date: REGEX(.*)

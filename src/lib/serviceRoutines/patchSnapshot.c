@@ -212,6 +212,21 @@ bool patchSnapshot(void)
   // § 5.16.6 — fire SnapshotNotification on any status update.
   ldSnapshotNotify(itemP, false);
 
-  swRest.out.httpStatusCode = 204;
+  //
+  // § 16.5.5 output data is "A JSON-LD object representing the Snapshot status",
+  // and the HTTP binding (TS 104-176 § 13.3.3.2) lists 200 OK carrying "the
+  // JSON-LD representation of the updated Snapshot status" as the only success
+  // response — there is no 204 for this operation.
+  //
+  // Rendered exactly as Retrieve Snapshot Status renders it: a clone into the
+  // per-request kalloc, with the hidden "_snapSeq" boot-reload field stripped.
+  //
+  KjNode* clone = kjClone(swRest.kjsonP, itemP->tree);
+  KjNode* seqP  = (clone != NULL) ? kjLookup(clone, "_snapSeq") : NULL;
+  if (seqP != NULL)
+    kjChildRemove(clone, seqP);
+
+  swRest.out.responseTree   = clone;
+  swRest.out.httpStatusCode = 200;
   return true;
 }

@@ -183,9 +183,35 @@ Content-Length: REGEX(\d+)
 
 03. PATCH /snapshots/S1 — bump priority to 9
 ============================================
-HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
 Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
+{
+  "expiresAt": REGEX(".*"),
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "lastUsedAt": REGEX(".*"),
+  "snapshotPriority": 9,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
 
 
 
