@@ -39,6 +39,7 @@
 
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
+#include "swNgsild/LdProj.h"                          // LdProjItem
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT, LD_VOCAB_EXPIRES_AT
 #include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
@@ -288,6 +289,39 @@ bool getEntityTemporal(void)
   // (pick ∩ omit, pick + attrs, omit + attrs, etc).
   if (ldParamsValidate())
     return true;
+
+  //
+  // § 11.3.2.4: "If projection attributes are present and indicate the use of
+  // Linked Entity retrieval, an error of type BadRequestData shall be raised."
+  //
+  // A projection term carries a linked-entity sub-projection when it has a
+  // `{...}` part — `pick=owner{object}` — which ldProjectionParse records as a
+  // child. Temporal retrieval does not follow relationships, so such a request
+  // used to be answered 200 with the sub-projection silently ignored and the
+  // whole attribute returned: the client asked for one thing and got another,
+  // with nothing to say so.
+  //
+  for (LdProjItem* pP = swNgsild.pickTree; pP != NULL; pP = pP->next)
+  {
+    if (pP->child != NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Projection",
+              "'pick' uses a linked-entity projection ('%s'), which a temporal retrieval does not support",
+              (swNgsild.pick != NULL) ? swNgsild.pick : "");
+      return true;
+    }
+  }
+
+  for (LdProjItem* pP = swNgsild.omitTree; pP != NULL; pP = pP->next)
+  {
+    if (pP->child != NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Projection",
+              "'omit' uses a linked-entity projection ('%s'), which a temporal retrieval does not support",
+              (swNgsild.omit != NULL) ? swNgsild.omit : "");
+      return true;
+    }
+  }
 
   const char* entityId = swRest.in.wildcard[0];
 

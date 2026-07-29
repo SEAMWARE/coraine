@@ -1,0 +1,185 @@
+#
+# FILE            troe_timescale_temporal_linked_projection.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Linked-entity projection is not allowed on the temporal API
+# (§ 11.3.2.4 and § 11.3.3.4).
+#
+# § 11.3.2.4: "If projection attributes are present and indicate the use of
+# Linked Entity retrieval, an error of type BadRequestData shall be raised."
+# § 11.3.3.4 says the same for the temporal query.
+#
+# A projection term denotes linked-entity retrieval when it carries a `{...}`
+# sub-projection — `pick=owner{object}` — the LinkedEntityTerm of the § 4.21
+# Attribute Projection Language.
+#
+# This used to be answered 200 with the sub-projection silently discarded and
+# the whole attribute returned, so a client asking to follow a relationship got
+# something else entirely and no indication of it. Temporal retrieval does not
+# follow relationships, so the request has to be refused.
+#
+# Note `attrs=` already rejected the brace, but as a forbidden character in an
+# attribute name (§ 4.6.2) — a different path, pinned here too so both stay put.
+#
+--NAME--
+TRoE timescale - linked-entity projection is refused on temporal retrieval and query
+
+--TAGS--
+troe timescale postgres temporal projection validation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 — speed Property + owner Relationship"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"owner":[{"type":"Relationship","object":"urn:P1","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+echo
+echo
+
+
+echo "02. Temporal retrieve with pick=owner{object} → 400"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=owner%7Bobject%7D'
+echo
+echo
+
+
+echo "03. Temporal retrieve with omit=owner{object} → 400"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?omit=owner%7Bobject%7D'
+echo
+echo
+
+
+echo "04. Temporal QUERY with pick=owner{object} → 400"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&pick=owner%7Bobject%7D'
+echo
+echo
+
+
+echo "05. attrs=owner{object} → 400 on the attribute-name path (§ 4.6.2)"
+echo "=================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=owner%7Bobject%7D'
+echo
+echo
+
+
+echo "06. Control — a plain projection is untouched"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=speed' | grep -E '"value"|"speed"'
+echo
+echo
+
+
+echo "07. Control — nested braces are caught too"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=owner%7Bobject%7Bx%7D%7D'
+echo
+echo
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swTroeDrop
+
+--EXPECT--
+01. Seed urn:V1 — speed Property + owner Relationship
+=====================================================
+HTTP/1.1 201 Created
+
+
+02. Temporal retrieve with pick=owner{object} → 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 234
+
+{
+  "detail": "'pick' uses a linked-entity projection ('owner{object}'), which a temporal retrieval does not support",
+  "status": 400,
+  "title": "Invalid Projection",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Temporal retrieve with omit=owner{object} → 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 234
+
+{
+  "detail": "'omit' uses a linked-entity projection ('owner{object}'), which a temporal retrieval does not support",
+  "status": 400,
+  "title": "Invalid Projection",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Temporal QUERY with pick=owner{object} → 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "'pick' uses a linked-entity projection ('owner{object}'), which a temporal query does not support",
+  "status": 400,
+  "title": "Invalid Projection",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. attrs=owner{object} → 400 on the attribute-name path (§ 4.6.2)
+==================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 218
+
+{
+  "detail": "attribute name 'owner{object}' contains a forbidden character (0x7b) — § 4.6.2",
+  "status": 400,
+  "title": "Invalid Attribute Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Control — a plain projection is untouched
+=============================================
+  "speed": [
+      "value": 10
+
+
+07. Control — nested braces are caught too
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 237
+
+{
+  "detail": "'pick' uses a linked-entity projection ('owner{object{x}}'), which a temporal retrieval does not support",
+  "status": 400,
+  "title": "Invalid Projection",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+

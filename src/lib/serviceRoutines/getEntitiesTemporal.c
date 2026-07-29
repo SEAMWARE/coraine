@@ -42,6 +42,7 @@
 
 #include "swJsonld/swldExpandTree.h"                 // swldExpandTree
 
+#include "swNgsild/LdProj.h"                          // LdProjItem
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdGeoRel.h"                        // LdGeoNear
 #include "swNgsild/ldParams.h"                        // LD_PARAM_LIMIT
@@ -364,6 +365,34 @@ bool getEntitiesTemporal(void)
   // (pick ∩ omit, pick + attrs, omit + attrs, etc).
   if (ldParamsValidate())
     return true;
+
+  //
+  // § 11.3.3.4: "If projection attributes or filter conditions indicate the use
+  // of Linked Entity retrieval, an error of type BadRequestData shall be
+  // raised." Same reason as the single-entity temporal retrieval: a `{...}`
+  // sub-projection used to be accepted and then quietly dropped.
+  //
+  for (LdProjItem* pP = swNgsild.pickTree; pP != NULL; pP = pP->next)
+  {
+    if (pP->child != NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Projection",
+              "'pick' uses a linked-entity projection ('%s'), which a temporal query does not support",
+              (swNgsild.pick != NULL) ? swNgsild.pick : "");
+      return true;
+    }
+  }
+
+  for (LdProjItem* pP = swNgsild.omitTree; pP != NULL; pP = pP->next)
+  {
+    if (pP->child != NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Projection",
+              "'omit' uses a linked-entity projection ('%s'), which a temporal query does not support",
+              (swNgsild.omit != NULL) ? swNgsild.omit : "");
+      return true;
+    }
+  }
 
   // § 6.3.22 / § 5.5.15 — NGSILD-Snapshot routes the temporal query to
   // the snap-tenant's frozen TRoE store. Distop dispatch is bypassed,
