@@ -31,7 +31,7 @@
 #include "swNgsild/ldRegCache.h"                         // ldRegCacheMatchForRetrieve
 #include "swNgsild/ldStripAtContext.h"                   // ldStripAtContext
 #include "swNgsild/ldApiEntityToDbModel.h"               // ldApiEntityToDbModel
-#include "swNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
+#include "swNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile
 #include "swNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
@@ -438,6 +438,10 @@ static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
 {
   if (destDb == NULL || srcDb == NULL || destDb->type != KjObject || srcDb->type != KjObject)
     return;
+
+  // The non-reified entity-level expiresAt is not an Attribute and so takes
+  // its own § 4.5.5.3 route: unanimous across versions or gone.
+  ldDistExpiresAtReconcile(destDb, srcDb);
 
   KjNode* srcAttrP = srcDb->value.firstChildP;
   while (srcAttrP != NULL)

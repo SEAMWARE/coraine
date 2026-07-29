@@ -1,0 +1,488 @@
+#
+# FILE            distop_expires_at_merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.5.3 — the non-reified entity-level expiresAt of an Entity assembled
+# from several versions (the local copy plus one per registered Context
+# Source) is reconciled across ALL of those versions:
+#
+#   - missing from at least one version  → removed from the assembled Entity
+#   - present in every version           → the DateTime furthest in the future
+#
+# Each version's own entity-level expiresAt has already cascaded onto its
+# Attributes (§ 4.5.5.2, see distop_expires_at_propagate), so a shortened or
+# dropped Entity-level value leaves the per-Attribute expiry untouched. That
+# cascade is exercised here on the query (list) path too, not just retrieve.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+DistOp § 4.5.5.3 — entity-level expiresAt across sources
+
+--TAGS--
+distops expiresAt merge retrieve
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart
+swBrokerStart -role CP1
+swBrokerStart -role CP2
+
+--RUN--
+
+echo "01. Seed urn:V1 on CP1 - expiresAt 2099, speed"
+echo "=============================================="
+swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "speed": {
+    "type": "Property",
+    "value": 20
+  }
+}' | head -1
+echo
+echo
+
+
+echo "02. Seed urn:V1 on CP2 - expiresAt 2150, colour"
+echo "==============================================="
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2150-01-01T00:00:00Z",
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  }
+}' | head -1
+echo
+echo
+
+
+echo "03. Register CB->CP1 inclusive for Vehicle"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "04. Register CB->CP2 inclusive for Vehicle"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:CP2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "05. GET urn:V1 on CB - both versions transient -> furthest future (2150)"
+echo "======================================================================="
+echo "  entity: 2150 (CP2, furthest in the future - NOT CP1's 2099)"
+echo "  speed:  2099 (cascaded from CP1's own version)"
+echo "  colour: 2150 (cascaded from CP2's own version)"
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "06. Query /entities on CB - same reconciliation on the list path"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+echo
+echo
+
+
+echo "07. Re-seed urn:V1 on CP2 WITHOUT expiresAt"
+echo "==========================================="
+swCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  }
+}' | head -1
+echo
+echo
+
+
+echo "08. GET urn:V1 on CB - CP2 is not transient -> entity-level expiresAt GONE"
+echo "=========================================================================="
+echo "  speed keeps its cascaded 2099 - the CP1 version really does expire"
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "09. Query /entities on CB - same on the list path"
+echo "================================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+echo
+echo
+
+
+echo "10. Put CP2 back at 2150 and add a LOCAL version on CB with expiresAt 2100"
+echo "=========================================================================="
+swCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2150-01-01T00:00:00Z",
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  }
+}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2100-01-01T00:00:00Z",
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}' | head -1
+echo
+echo
+
+
+echo "11. GET urn:V1 on CB - local 2100 + CP1 2099 + CP2 2150 -> 2150"
+echo "==============================================================="
+echo "  weight carries NO expiresAt of its own: § 4.5.5.2 cascades the"
+echo "  entity-level value for Entities RECEIVED from a Context Source,"
+echo "  and the local copy is deleted wholesale when its expiry passes."
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "12. Drop expiresAt from the LOCAL version -> entity-level GONE again"
+echo "==================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "13. Restore the LOCAL version's expiresAt 2100 + snapshot the split Entity"
+echo "=========================================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2100-01-01T00:00:00Z",
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}' | head -1
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Exp",
+  "type": "Snapshot",
+  "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "14. Snapshot read - the frozen Entity carries the reconciled 2150"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 on CP1 - expiresAt 2099, speed
+==============================================
+HTTP/1.1 201 Created
+
+
+02. Seed urn:V1 on CP2 - expiresAt 2150, colour
+===============================================
+HTTP/1.1 201 Created
+
+
+03. Register CB->CP1 inclusive for Vehicle
+==========================================
+HTTP/1.1 201 Created
+
+
+04. Register CB->CP2 inclusive for Vehicle
+==========================================
+HTTP/1.1 201 Created
+
+
+05. GET urn:V1 on CB - both versions transient -> furthest future (2150)
+=======================================================================
+  entity: 2150 (CP2, furthest in the future - NOT CP1's 2099)
+  speed:  2099 (cascaded from CP1's own version)
+  colour: 2150 (cascaded from CP2's own version)
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "expiresAt": "2150-01-01T00:00:00Z",
+    "type": "Property",
+    "value": "red"
+  },
+  "expiresAt": "2150-01-01T00:00:00Z",
+  "id": "urn:V1",
+  "speed": {
+    "expiresAt": "2099-01-01T00:00:00Z",
+    "type": "Property",
+    "value": 20
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. Query /entities on CB - same reconciliation on the list path
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "colour": {
+      "expiresAt": "2150-01-01T00:00:00Z",
+      "type": "Property",
+      "value": "red"
+    },
+    "expiresAt": "2150-01-01T00:00:00Z",
+    "id": "urn:V1",
+    "speed": {
+      "expiresAt": "2099-01-01T00:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Re-seed urn:V1 on CP2 WITHOUT expiresAt
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+
+
+08. GET urn:V1 on CB - CP2 is not transient -> entity-level expiresAt GONE
+==========================================================================
+  speed keeps its cascaded 2099 - the CP1 version really does expire
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "expiresAt": "2099-01-01T00:00:00Z",
+    "type": "Property",
+    "value": 20
+  },
+  "type": "Vehicle"
+}
+
+
+
+09. Query /entities on CB - same on the list path
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "colour": {
+      "type": "Property",
+      "value": "red"
+    },
+    "id": "urn:V1",
+    "speed": {
+      "expiresAt": "2099-01-01T00:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+10. Put CP2 back at 2150 and add a LOCAL version on CB with expiresAt 2100
+==========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+11. GET urn:V1 on CB - local 2100 + CP1 2099 + CP2 2150 -> 2150
+===============================================================
+  weight carries NO expiresAt of its own: § 4.5.5.2 cascades the
+  entity-level value for Entities RECEIVED from a Context Source,
+  and the local copy is deleted wholesale when its expiry passes.
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "expiresAt": "2150-01-01T00:00:00Z",
+    "type": "Property",
+    "value": "red"
+  },
+  "expiresAt": "2150-01-01T00:00:00Z",
+  "id": "urn:V1",
+  "speed": {
+    "expiresAt": "2099-01-01T00:00:00Z",
+    "type": "Property",
+    "value": 20
+  },
+  "type": "Vehicle",
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}
+
+
+
+12. Drop expiresAt from the LOCAL version -> entity-level GONE again
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "expiresAt": "2150-01-01T00:00:00Z",
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "speed": {
+    "expiresAt": "2099-01-01T00:00:00Z",
+    "type": "Property",
+    "value": 20
+  },
+  "type": "Vehicle",
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}
+
+
+
+13. Restore the LOCAL version's expiresAt 2100 + snapshot the split Entity
+==========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+14. Snapshot read - the frozen Entity carries the reconciled 2150
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "colour": {
+      "type": "Property",
+      "value": "red"
+    },
+    "expiresAt": "2150-01-01T00:00:00Z",
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle",
+    "weight": {
+      "type": "Property",
+      "value": 900
+    }
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2

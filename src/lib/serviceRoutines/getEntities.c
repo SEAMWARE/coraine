@@ -2134,6 +2134,12 @@ bool getEntities(void)
             ldStripAtContext(remoteEntity);
             apiAttrToStorageWrap(remoteEntity);
 
+            // § 4.5.5.2 — this version's entity-level expiresAt cascades onto
+            // each of its Attributes (shortening any attr-level value further
+            // in the future) BEFORE the entity-level values are reconciled
+            // across versions below. Same as the retrieve-one path.
+            ldExpiresAtPropagate(remoteEntity, swRest.kjsonP);
+
             // Runtime exclusive-priority: an attribute exclusively claimed by another
             // registration is authoritative from that (exclusive) source alone. Discard any
             // colliding copy arriving from THIS non-exclusive source — otherwise the timestamp
@@ -2164,6 +2170,12 @@ bool getEntities(void)
             else if (splitMode)
             {
               srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
+
+              // § 4.5.5.3 — the non-reified entity-level expiresAt is not an
+              // Attribute and so is reconciled separately from the instance
+              // loop below: unanimous across versions or gone.
+              ldDistExpiresAtReconcile(existingP, remoteEntity);
+
               for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
               {
                 KjNode* nextSrcAttr = srcAttrP->next;
