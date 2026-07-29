@@ -68,6 +68,7 @@
 #include "troe/TroeDriver.h"                      // troe
 #include "troe/troeInit.h"                        // troeStart, troeStop
 #include "troe/troeDispatch.h"                    // troeDispatchPending
+#include "db/dbExpiredEntities.h"                 // dbExpiredEntityDispatchPending
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
@@ -561,6 +562,7 @@ static void brokerPostResponseHook(void)
   ldNotifyDispatchPending();
   ldCsrSubDispatchPending();
   troeDispatchPending();
+  dbExpiredEntityDispatchPending();   // transient Entities a read found expired
   ldRegCacheProbePending();
   ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch
 }

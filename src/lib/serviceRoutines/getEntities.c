@@ -51,6 +51,7 @@
 #include "swNgsild/LdGeoRel.h"                       // ldGeoRelParse
 
 #include "db/DbDriver.h"                             // db, DB_OK
+#include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter
 #include "db/Tenant.h"                               // Tenant
 
 #include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesExpandArrayFlat / Inline
@@ -1764,6 +1765,15 @@ bool getEntities(void)
       ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying entities");
     return true;
   }
+
+  //
+  // § 5.2.4 transient Entities: drop any whose entity-level expiresAt has
+  // passed and queue them for deletion once the response is out. Done here,
+  // before localQueryEmpty / pagination / the distributed merge, so an expired
+  // Entity is invisible to every one of them. The DB query deliberately does
+  // not filter on expiresAt — the rows have to reach RAM to be noticed.
+  //
+  dbExpiredEntityFilter((Tenant*) swNgsild.tenantP, arrayP);
 
   // § 6.4.7.2: whether the LOCAL query came back empty (before any
   // distributed merge / post-filter touches arrayP). An empty local page

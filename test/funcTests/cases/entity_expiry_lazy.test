@@ -1,0 +1,147 @@
+#
+# FILE            entity_expiry_lazy.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Transient Entities: an expired Entity is neither served nor kept (§ 5.2.4).
+#
+# "expiresAt is defined as the system temporal Property at which a certain
+# Entity or Attribute shall become invalid and may be automatically removed from
+# the Context Broker."
+#
+# expiresAt was stored and honoured nowhere on the read paths: an Entity whose
+# expiresAt had passed — even one created already expired — was returned in full
+# by both a GET by id and a query, indefinitely. It was live data as far as any
+# client could tell.
+#
+# There is no clean-up thread. An expired Entity is noticed by whatever read
+# walks over it: dropped from that response, then deleted once the response is
+# on its way (the post-response hook, beside the notification and TRoE drains).
+# So the read paths deliberately do NOT push an expiresAt predicate into the
+# database — the rows have to reach RAM to be noticed at all.
+#
+# Step 05 is the one that distinguishes "hidden" from "deleted": the count comes
+# from the database, so it only drops once the row is really gone.
+#
+--NAME--
+An expired Entity is not served, and is deleted after the response
+
+--TAGS--
+entity expiry validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed one live Entity (2099) and one already expired (2020)"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T1","type":"T","expiresAt":"2099-01-01T00:00:00Z","speed":{"type":"Property","value":10}}' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T2","type":"T","expiresAt":"2020-01-01T00:00:00Z","speed":{"type":"Property","value":20}}' | head -1
+echo
+echo
+
+
+echo "02. Both are in storage to begin with"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=1' | grep -i "ngsild-results-count"
+echo
+echo
+
+
+echo "03. GET the expired one → 404, as if it were not there"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities/urn:T2'
+echo
+echo
+
+
+echo "04. A query returns only the live one"
+echo "====================================="
+swCurl --url '/ngsi-ld/v1/entities?type=T' | grep -E '"id"'
+echo
+echo
+
+
+echo "05. And it is really gone from storage, not merely hidden"
+echo "========================================================="
+# The count is answered by the database. It drops to 1 only because the reads
+# above queued urn:T2 and the post-response hook deleted it.
+swCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=1' | grep -i "ngsild-results-count"
+echo
+echo
+
+
+echo "06. The live Entity is untouched, expiresAt and all"
+echo "==================================================="
+swCurl --url '/ngsi-ld/v1/entities/urn:T1' | grep -E '"id"|"expiresAt"|"value"'
+echo
+echo
+
+
+echo "07. An Entity with no expiresAt is never affected"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T3","type":"T","speed":{"type":"Property","value":30}}' | head -1
+swCurl --url '/ngsi-ld/v1/entities/urn:T3' | grep -E '"id"'
+echo
+echo
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+
+--EXPECT--
+01. Seed one live Entity (2099) and one already expired (2020)
+==============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Both are in storage to begin with
+=====================================
+NGSILD-Results-Count: 2
+
+
+03. GET the expired one → 404, as if it were not there
+======================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:T2' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. A query returns only the live one
+=====================================
+    "id": "urn:T1",
+
+
+05. And it is really gone from storage, not merely hidden
+=========================================================
+NGSILD-Results-Count: 1
+
+
+06. The live Entity is untouched, expiresAt and all
+===================================================
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "id": "urn:T1",
+    "value": 10
+
+
+07. An Entity with no expiresAt is never affected
+=================================================
+HTTP/1.1 201 Created
+  "id": "urn:T3",
+
+

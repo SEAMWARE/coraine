@@ -45,6 +45,7 @@
 #include "swNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "db/dbExpiredEntities.h"                 // dbExpiredEntityIs
 #include "db/Tenant.h"                               // Tenant
 
 #include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesFlat
@@ -774,6 +775,12 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
   KjNode* destP = NULL;
   db.entityRetrieve(tP, entityId, &destP);
 
+  // § 5.2.4: an expired local copy contributes nothing to the merge — the
+  // registered sources may still hold the Entity, and expiresAt "only applies
+  // to the local storage". Queued for deletion once the response is out.
+  if (dbExpiredEntityIs(tP, destP))
+    destP = NULL;
+
   int64_t nowNs = nowNanoseconds();
 
   LdRegCacheItem** groups[]  = { exclV, redirV, inclV, auxV };
@@ -1086,6 +1093,11 @@ bool getEntity(void)
 
   KjNode* entityP = NULL;
   int     r       = db.entityRetrieve((Tenant*) swNgsild.tenantP, entityId, &entityP);
+
+  // § 5.2.4: a transient Entity past its expiresAt is invalid — answered as if
+  // it were not there, and queued for deletion once the response is out.
+  if ((r == DB_OK) && dbExpiredEntityIs((Tenant*) swNgsild.tenantP, entityP))
+    r = DB_NOT_FOUND;
 
   if (r == DB_NOT_FOUND)
   {
