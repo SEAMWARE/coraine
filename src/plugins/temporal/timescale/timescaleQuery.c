@@ -286,6 +286,42 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
 
 
 
+
+// -----------------------------------------------------------------------------
+//
+// typeNodeFromJson - build the entity's "type" member from the JSON array the
+// SELECT returns for the TEXT[] column, e.g. ["Vehicle","Car"].
+//
+// § 5.2.6.4.2: one type name renders as a JSON string, several as an array. A
+// missing or empty list yields NULL and the member is left out entirely, which
+// is what an Entity written before the column became an array looks like.
+//
+static KjNode* typeNodeFromJson(const char* json, Kjson* kjsonP, KAlloc* kaP)
+{
+  if ((json == NULL) || (json[0] == 0))
+    return NULL;
+
+  char*   copy  = kaStrdup(kaP, json);
+  KjNode* arrayP = kjParse(kjsonP, copy);
+
+  if ((arrayP == NULL) || (arrayP->type != KjArray) || (arrayP->value.firstChildP == NULL))
+    return NULL;
+
+  KjNode* firstP = arrayP->value.firstChildP;
+
+  if (firstP->next == NULL)
+  {
+    if ((firstP->type != KjString) || (firstP->value.s == NULL) || (firstP->value.s[0] == 0))
+      return NULL;
+    return kjString(kjsonP, "type", firstP->value.s);
+  }
+
+  arrayP->name = (char*) "type";
+  return arrayP;
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // buildEntityTemporalDocLocked - build the EntityTemporal tree for one entity.
@@ -342,7 +378,9 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   {
     const char* idParam[1] = { entityId };
     PGresult* eRes = PQexecParams(timescaleConn,
-      "SELECT entity_type FROM troe_entities "
+      // array_to_json so the TEXT[] comes back as ["Vehicle","Car"], which
+      // kjParse turns straight into the node the renderer wants.
+      "SELECT array_to_json(entity_type)::text FROM troe_entities "
       "WHERE entity_id = $1 "
       "ORDER BY modified_at DESC LIMIT 1",
       1, NULL, idParam, NULL, NULL, 0);
@@ -488,8 +526,10 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   KjNode* root   = kjObject(kjsonP, NULL);
 
   kjChildAdd(root, kjString(kjsonP, "id", entityId));
-  if (entityType != NULL)
-    kjChildAdd(root, kjString(kjsonP, "type", entityType));
+
+  KjNode* typeNodeP = typeNodeFromJson(entityType, kjsonP, &swRest.kalloc);
+  if (typeNodeP != NULL)
+    kjChildAdd(root, typeNodeP);
 
   // § 4.5.2 / § 4.5.6 createdAt / modifiedAt at the entity level — derived
   // from troe_entities. createdAt = the modified_at of the earliest 'created'
@@ -716,7 +756,11 @@ static const char* idsInClause(char** idV, KAlloc* kaP)
 
 // -----------------------------------------------------------------------------
 //
-// typesInClause - " AND entity_type IN ('a','b',...)" or "" when empty.
+// typesInClause - " AND entity_type && ARRAY['a','b',...]" or "" when empty.
+//
+// entity_type is a TEXT[] (an Entity may hold several types, § 5.2.6.4.2), so
+// the filter is an array-OVERLAP test: the Entity matches when ANY of its types
+// is among the requested ones. The GIN index on entity_type serves &&.
 //
 static const char* typesInClause(char** typeV, KAlloc* kaP)
 {
@@ -729,7 +773,7 @@ static const char* typesInClause(char** typeV, KAlloc* kaP)
 
   char* buf = (char*) kaAlloc(kaP, needed);
   int   p   = 0;
-  p += snprintf(buf + p, needed - p, " AND entity_type IN (");
+  p += snprintf(buf + p, needed - p, " AND entity_type && ARRAY[");
 
   for (int i = 0; typeV[i] != NULL; i++)
   {
@@ -742,7 +786,7 @@ static const char* typesInClause(char** typeV, KAlloc* kaP)
     }
     buf[p++] = '\'';
   }
-  buf[p++] = ')';
+  buf[p++] = ']';
   buf[p]   = 0;
   return buf;
 }
@@ -1053,7 +1097,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   int   pSize = wSize + 256;
   char* pageSql = (char*) kaAlloc(&swRest.kalloc, pSize);
   snprintf(pageSql, pSize,
-    "SELECT entity_id, entity_type %s ORDER BY entity_id LIMIT %d OFFSET %d",
+    "SELECT entity_id, array_to_json(entity_type)::text %s ORDER BY entity_id LIMIT %d OFFSET %d",
     where, limit + 1, offset);
 
   PGresult* eRes = PQexecParams(timescaleConn, pageSql, nParams, NULL,

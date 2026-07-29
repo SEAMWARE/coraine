@@ -141,6 +141,46 @@ static int troeMig001Initial(PGconn* conn)
 
 // -----------------------------------------------------------------------------
 //
+// troeMig002EntityTypeArray - an Entity may carry more than one type.
+//
+// § 5.2.6.4.2: an Entity's "type" is one type name or an array of them, and
+// § 11.2.3.4 has the Temporal API grow that list ("add them to the list of
+// Entity Type names"). A single TEXT column cannot hold it, so both entity_type
+// columns become TEXT[]. Existing rows convert to a one-element array, which is
+// exactly what they meant.
+//
+// The two indexes that LED with entity_type are replaced by GIN indexes: the
+// type filter is now an array-overlap test, which btree cannot serve.
+//
+static int troeMig002EntityTypeArray(PGconn* conn)
+{
+  static const char* sqls[] =
+  {
+    "ALTER TABLE troe_entities ALTER COLUMN entity_type TYPE TEXT[] USING ARRAY[entity_type]",
+    "ALTER TABLE troe_attrs    ALTER COLUMN entity_type TYPE TEXT[] USING ARRAY[entity_type]",
+
+    "DROP INDEX IF EXISTS troe_entities_type_modified",
+    "DROP INDEX IF EXISTS troe_attrs_type_attr_observed",
+
+    "CREATE INDEX IF NOT EXISTS troe_entities_type ON troe_entities USING GIN (entity_type)",
+    "CREATE INDEX IF NOT EXISTS troe_attrs_type    ON troe_attrs    USING GIN (entity_type)",
+
+    // The attr-name half of the dropped troe_attrs index is still worth having.
+    "CREATE INDEX IF NOT EXISTS troe_attrs_attr_observed ON troe_attrs (attr_name, observed_at DESC)",
+
+    NULL
+  };
+
+  for (int i = 0; sqls[i] != NULL; i++)
+    if (execSimple(conn, sqls[i]) != 0)
+      return -1;
+
+  return 0;
+}
+
+
+// -----------------------------------------------------------------------------
+//
 // Migration table.
 //
 typedef struct
@@ -152,8 +192,9 @@ typedef struct
 
 static const TroeMigration migrationsV[] =
 {
-  { 1, "initial schema", troeMig001Initial },
-  { 0, NULL,             NULL              }
+  { 1, "initial schema",                troeMig001Initial     },
+  { 2, "entity_type becomes a TEXT[]",  troeMig002EntityTypeArray },
+  { 0, NULL,                            NULL                  }
 };
 
 

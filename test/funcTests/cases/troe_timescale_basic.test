@@ -50,7 +50,7 @@ echo "04. troe_entities — 2 rows: created + deleted"
 echo "============================================="
 sleep 0.2
 psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
-  -c "SELECT entity_id, op, regexp_replace(entity_type, '.*/', '') FROM troe_entities ORDER BY modified_at"
+  -c "SELECT entity_id, op, array_to_string(ARRAY(SELECT regexp_replace(t, '.*/', '') FROM unnest(entity_type) AS t), ',') FROM troe_entities ORDER BY modified_at"
 echo
 echo
 

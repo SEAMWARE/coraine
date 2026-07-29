@@ -164,7 +164,38 @@ bool postEntitiesTemporal(void)
   }
   if (ldCheckUri(idP->value.s) == false)
     return true;
-  if (typeP == NULL || typeP->type != KjString || typeP->value.s[0] == 0)
+  //
+  // § 5.2.6.4.2: an Entity's type is one type name OR an array of them. Only the
+  // string form used to be accepted, so an array was reported as a missing type -
+  // wrong on both counts, the type WAS supplied and an array is legal.
+  //
+  if (typeP == NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
+            "EntityTemporal must include a non-empty 'type'");
+    return true;
+  }
+
+  if (typeP->type == KjArray)
+  {
+    if (typeP->value.firstChildP == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
+              "EntityTemporal must include a non-empty 'type'");
+      return true;
+    }
+
+    for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+    {
+      if ((tP->type != KjString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
+                "every entry of the 'type' array must be a non-empty string");
+        return true;
+      }
+    }
+  }
+  else if ((typeP->type != KjString) || (typeP->value.s[0] == 0))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "EntityTemporal must include a non-empty 'type'");
@@ -190,8 +221,30 @@ bool postEntitiesTemporal(void)
   // enters the write dispatch.
   if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
-    char*   typeBuf[2] = { typeP->value.s, NULL };
-    char**  typeArr    = typeBuf;
+    //
+    // Registration matching considers EVERY type the Entity carries, not just
+    // the first - a CSR registered for the second of two types has to match.
+    //
+    int typeCount = 1;
+    if (typeP->type == KjArray)
+    {
+      typeCount = 0;
+      for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+        typeCount++;
+    }
+
+    char**  typeArr = (char**) kaAlloc(&swRest.kalloc, sizeof(char*) * (typeCount + 1));
+    int     tIx     = 0;
+
+    if (typeP->type == KjArray)
+    {
+      for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+        typeArr[tIx++] = tP->value.s;
+    }
+    else
+      typeArr[tIx++] = typeP->value.s;
+
+    typeArr[tIx] = NULL;
 
     LdRegCacheItem** exclV  = NULL;
     LdRegCacheItem** redirV = NULL;

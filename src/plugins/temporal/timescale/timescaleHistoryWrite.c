@@ -378,11 +378,16 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
   KjNode* typeP = kjLookup(rootP, "type");
   if (idP == NULL || idP->type != KjString || idP->value.s[0] == 0)
     return TROE_ERR;
-  if (typeP == NULL || typeP->type != KjString || typeP->value.s[0] == 0)
+  // § 5.2.6.4.2 - one type name or an array of them.
+  if (typeP == NULL)
+    return TROE_ERR;
+  if ((typeP->type == KjArray) && (typeP->value.firstChildP == NULL))
+    return TROE_ERR;
+  if ((typeP->type != KjArray) && ((typeP->type != KjString) || (typeP->value.s[0] == 0)))
     return TROE_ERR;
 
   const char* entityId   = idP->value.s;
-  const char* entityType = typeP->value.s;
+  const char* entityType = (typeP->type == KjString) ? typeP->value.s : NULL;
   TimescaleConn* cP = timescaleConnGet(tenantP);
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
@@ -415,6 +420,9 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
     eEv.tenantP      = tenantP;
     eEv.entityId     = entityId;
     eEv.entityType   = entityType;
+    // The snapshot is what carries a multi-type list: entityType above is only
+    // set for the single-name form (see entityTypeArrayLiteral).
+    eEv.entitySnapshot = rootP;
     eEv.modifiedAtNs = swRest.requestStartTime;
 
     int r = timescaleExecEntityInsertLocked(&eEv);
@@ -721,29 +729,80 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
     return TROE_NOT_FOUND;
   }
 
-  // Look up entity_type from the most-recent troe_entities row so the
-  // synthesised attr rows carry the right type (entity_type is part of
-  // the troe_attrs schema, used for type-filtered queries).
-  const char* idParamV[1] = { entityId };
-  PGresult* tRes = PQexecParams(timescaleConn,
-    "SELECT entity_type FROM troe_entities "
-    "WHERE entity_id = $1 ORDER BY modified_at DESC LIMIT 1",
-    1, NULL, idParamV, NULL, NULL, 0);
-  if (PQresultStatus(tRes) != PGRES_TUPLES_OK || PQntuples(tRes) == 0)
+  //
+  // § 11.2.3.4: "If type is included in the EntityTemporal Fragment and it
+  // includes Entity Type names that are not yet in the target Temporal Evolution
+  // of an Entity, add them to the list of Entity Type names of the target."
+  //
+  // Merged into the Entity's most recent troe_entities row: that row is what the
+  // renderer and the type filter read, and there is no entity-level "updated" op
+  // to append instead (created / replaced / deleted are the only ones, and
+  // "replaced" would misdescribe an attribute append).
+  //
+  // The concatenation only appends names not already present, so the existing
+  // order is kept and the output stays deterministic. The denormalised copy in
+  // troe_attrs.entity_type is deliberately not rewritten - it is not what the
+  // type filter reads, and rewriting every attribute row of an Entity to record
+  // one new type name is not worth it.
+  //
   {
-    KT_E("timescale: entity_type lookup failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(tRes);
-    timescaleConn = NULL;
-    timescaleConnRelease(cP);
-    return TROE_ERR;
+    char        typeLit[1024];
+    KjNode*     typeP = kjLookup(rootP, "type");
+    int         pos   = 0;
+
+    typeLit[pos++] = '{';
+
+    if ((typeP != NULL) && (typeP->type == KjArray))
+    {
+      bool first = true;
+      for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      {
+        if ((tP->type != KjString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
+          continue;
+        if (!first)
+          typeLit[pos++] = ',';
+        first = false;
+        pos = troeTypeNameQuoted(tP->value.s, typeLit, pos, sizeof(typeLit));
+      }
+    }
+    else if ((typeP != NULL) && (typeP->type == KjString) && (typeP->value.s != NULL) && (typeP->value.s[0] != 0))
+      pos = troeTypeNameQuoted(typeP->value.s, typeLit, pos, sizeof(typeLit));
+
+    typeLit[pos++] = '}';
+    typeLit[pos]   = 0;
+
+    if (pos > 2)   // anything other than "{}"
+    {
+      const char* tParamV[2] = { entityId, typeLit };
+      PGresult*   uRes = PQexecParams(timescaleConn,
+        "UPDATE troe_entities SET entity_type = entity_type || "
+        "  ARRAY(SELECT t FROM unnest($2::text[]) AS t WHERE NOT (t = ANY(entity_type))) "
+        "WHERE entity_id = $1 "
+        "  AND modified_at = (SELECT max(modified_at) FROM troe_entities WHERE entity_id = $1)",
+        2, NULL, tParamV, NULL, NULL, 0);
+
+      if (PQresultStatus(uRes) != PGRES_COMMAND_OK)
+      {
+        KT_E("timescale: entity_type merge failed: %s", PQerrorMessage(timescaleConn));
+        PQclear(uRes);
+        timescaleConn = NULL;
+        timescaleConnRelease(cP);
+        return TROE_ERR;
+      }
+      PQclear(uRes);
+    }
   }
-  const char* entityType = kaStrdup(&swRest.kalloc, PQgetvalue(tRes, 0, 0));
-  PQclear(tRes);
+
+  // entity_type is left to the INSERT: with the column a TEXT[] the stored list
+  // no longer fits TroeEvent's single-name field, and the troe_attrs INSERT
+  // already falls back to the type list on this Entity's most recent
+  // troe_entities row. entityHasRows above is the existence check the old
+  // lookup doubled as.
 
   PGresult* beginR = PQexec(timescaleConn, "BEGIN");
   PQclear(beginR);
 
-  int r = insertInstanceRows(tenantP, entityId, entityType, rootP, swRest.requestStartTime);
+  int r = insertInstanceRows(tenantP, entityId, NULL, rootP, swRest.requestStartTime);
   if (r != TROE_OK)
   {
     PQclear(PQexec(timescaleConn, "ROLLBACK"));

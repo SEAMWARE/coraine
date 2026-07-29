@@ -1,0 +1,212 @@
+#
+# FILE            troe_timescale_multi_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An Entity may carry several types, in the Temporal API too
+# (§ 5.2.6.4.2 and § 11.2.3.4).
+#
+# TRoE stored entity_type as a single TEXT column, so:
+#   - a temporal create with an array type was refused with "EntityTemporal must
+#     include a non-empty 'type'" — misleading, the type WAS supplied;
+#   - a multi-type Entity created through the Core API landed in the temporal
+#     store with an EMPTY type, losing it outright (step 06);
+#   - § 11.2.3.4's "add them to the list of Entity Type names" could not work, so
+#     a new type on an attribute append was silently dropped.
+#
+# entity_type is now a TEXT[] (migration 2). One type renders as a JSON string
+# and several as an array, per § 5.2.6.4.2, and the type filter is an overlap
+# test so it matches on ANY of an Entity's types, not just the first.
+#
+--NAME--
+TRoE timescale - an Entity may carry several types
+
+--TAGS--
+troe timescale postgres temporal type validation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Temporal create with an array type → 201"
+echo "============================================"
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:A1","type":["Vehicle","Car"],"speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+echo
+echo
+
+
+echo "02. Both types are stored, in the order given"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A4 '"type": \['
+echo
+echo
+
+
+echo "03. Append attributes carrying a NEW type → § 11.2.3.4 adds it"
+echo "=============================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1/attrs' --payload '{"type":"Truck","color":[{"type":"Property","value":"red","observedAt":"2026-02-01T00:00:00Z"}]}'
+echo
+echo
+
+
+echo "04. The type list grew to Vehicle, Car, Truck"
+echo "============================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A5 '"type": \['
+echo
+echo
+
+
+echo "05. Appending an EXISTING type is a no-op — no duplicate"
+echo "========================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1/attrs' --payload '{"type":"Vehicle","weight":[{"type":"Property","value":5,"observedAt":"2026-03-01T00:00:00Z"}]}' | head -1
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A5 '"type": \['
+echo
+echo
+
+
+echo "06. A multi-type Entity created via the Core API keeps its types in TRoE"
+echo "========================================================================"
+# This used to come back as "type": "" — the service routine only reads a
+# string type, so the array left the TRoE event with no type at all.
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:M1","type":["Building","House"],"height":{"type":"Property","value":3}}' | head -1
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:M1' | grep -A4 '"type": \['
+echo
+echo
+
+
+echo "07. The type filter matches on a NON-first type"
+echo "==============================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Truck&timerel=after&timeAt=2020-01-01T00:00:00Z' | grep -E '"id"'
+echo
+echo
+
+
+echo "08. A single type still renders as a plain string"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:S1","type":"Vehicle","speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1' | grep -E '^  "type"'
+echo
+echo
+
+
+echo "09. An empty type array is still a missing type → 400"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:E1","type":[],"speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}'
+echo
+echo
+
+
+echo "10. A non-string entry in the type array → 400"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:E2","type":["Vehicle",42],"speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}'
+echo
+echo
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swTroeDrop
+
+--EXPECT--
+01. Temporal create with an array type → 201
+============================================
+HTTP/1.1 201 Created
+
+
+02. Both types are stored, in the order given
+=============================================
+  "type": [
+    "Vehicle",
+    "Car"
+  ]
+}
+
+
+03. Append attributes carrying a NEW type → § 11.2.3.4 adds it
+==============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. The type list grew to Vehicle, Car, Truck
+=============================================
+  "type": [
+    "Vehicle",
+    "Car",
+    "Truck"
+  ]
+}
+
+
+05. Appending an EXISTING type is a no-op — no duplicate
+========================================================
+HTTP/1.1 204 No Content
+  "type": [
+    "Vehicle",
+    "Car",
+    "Truck"
+  ],
+  "weight": [
+
+
+06. A multi-type Entity created via the Core API keeps its types in TRoE
+========================================================================
+HTTP/1.1 201 Created
+  "type": [
+    "Building",
+    "House"
+  ]
+}
+
+
+07. The type filter matches on a NON-first type
+===============================================
+    "id": "urn:A1",
+
+
+08. A single type still renders as a plain string
+=================================================
+HTTP/1.1 201 Created
+  "type": "Vehicle"
+
+
+09. An empty type array is still a missing type → 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "an empty array is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. A non-string entry in the type array → 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "every entry of the 'type' array must be a non-empty string",
+  "status": 400,
+  "title": "Invalid Field Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+

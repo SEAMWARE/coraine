@@ -256,6 +256,94 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
 
 
 
+
+// -----------------------------------------------------------------------------
+//
+// troeTypeNameQuoted - append "name" to a postgres array literal, quote- and
+// backslash-escaped.
+//
+int troeTypeNameQuoted(const char* name, char* buf, int pos, int bufSize)
+{
+  if (pos + 3 >= bufSize)
+    return pos;
+
+  buf[pos++] = '"';
+
+  for (const char* p = name; (*p != 0) && (pos + 3 < bufSize); p++)
+  {
+    if ((*p == '"') || (*p == '\\'))
+      buf[pos++] = '\\';
+    buf[pos++] = *p;
+  }
+
+  buf[pos++] = '"';
+
+  return pos;
+}
+
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityTypeArrayLiteral - render the Entity's type(s) as a postgres text[]
+// literal, e.g. {"Vehicle","Car"}.
+//
+// An Entity carries one type name or several (§ 5.2.6.4.2), and § 11.2.3.4 lets
+// the Temporal API grow that list, so troe_entities/troe_attrs.entity_type is a
+// TEXT[] (migration 2).
+//
+// The list is taken from the event's entity snapshot when there is one, because
+// TroeEvent.entityType is a single string and the service routines leave it NULL
+// for a multi-type Entity - which used to store an empty type in the temporal
+// history and lose it. Without a snapshot the single name is all there is.
+//
+// Type names are IRIs, so a quote or backslash is not expected; escaped anyway
+// rather than trusting the input to stay that way.
+//
+static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int bufSize)
+{
+  KjNode* typeP = (evP->entitySnapshot != NULL) ? kjLookup(evP->entitySnapshot, "type") : NULL;
+  int     pos   = 0;
+
+  buf[pos++] = '{';
+
+  if ((typeP != NULL) && (typeP->type == KjArray))
+  {
+    bool first = true;
+
+    for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+    {
+      if ((tP->type != KjString) || (tP->value.s == NULL))
+        continue;
+      if (!first)
+        buf[pos++] = ',';
+      first = false;
+      pos = troeTypeNameQuoted(tP->value.s, buf, pos, bufSize);
+    }
+  }
+  else
+  {
+    const char* single = NULL;
+
+    if ((typeP != NULL) && (typeP->type == KjString))
+      single = typeP->value.s;
+    else if (evP->entityType != NULL)
+      single = evP->entityType;
+
+    if ((single != NULL) && (single[0] != 0))
+      pos = troeTypeNameQuoted(single, buf, pos, bufSize);
+  }
+
+  buf[pos++] = '}';
+  buf[pos]   = 0;
+
+  return buf;
+}
+
+
+
+
 // -----------------------------------------------------------------------------
 //
 // timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
@@ -266,15 +354,17 @@ int timescaleExecEntityInsertLocked(const TroeEvent* evP)
   char tsExpr[64];
   timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
+  char typeLit[1024];
+
   const char* paramV[3];
-  paramV[0] = evP->entityId   != NULL ? evP->entityId   : "";
-  paramV[1] = evP->entityType != NULL ? evP->entityType : "";
+  paramV[0] = evP->entityId != NULL ? evP->entityId : "";
+  paramV[1] = entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
   paramV[2] = opName(evP->op);
 
   char sql[512];
   snprintf(sql, sizeof(sql),
            "INSERT INTO troe_entities (entity_id, entity_type, modified_at, op) "
-           "VALUES ($1, $2, %s, $3) "
+           "VALUES ($1, $2::text[], %s, $3) "
            "ON CONFLICT (entity_id, modified_at, op) DO NOTHING",
            tsExpr);
 
@@ -331,10 +421,11 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   //   $11 v_datetime, $12 v_compound, $13 sub_attrs
   const char* paramV[13];
   char        kindBuf[16];
+  char        typeLit[1024];
   snprintf(kindBuf, sizeof(kindBuf), "%d", cols.kind);
 
-  paramV[0]  = evP->entityId   != NULL ? evP->entityId   : "";
-  paramV[1]  = evP->entityType != NULL ? evP->entityType : "";
+  paramV[0]  = evP->entityId != NULL ? evP->entityId : "";
+  paramV[1]  = entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
   paramV[2]  = evP->attrName   != NULL ? evP->attrName   : "";
   paramV[3]  = (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId;
   paramV[4]  = opName(evP->op);
@@ -351,12 +442,19 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   // table's DEFAULT, so each row is unique by construction.
   // created_at and modified_at are seeded to the same instant on insert;
   // Modify-Instance later bumps modified_at while leaving created_at fixed.
-  char sql[1024];
+  char sql[2048];
   snprintf(sql, sizeof(sql),
            "INSERT INTO troe_attrs ("
            "  entity_id, entity_type, attr_name, dataset_id, created_at, modified_at, op, attr_kind, "
            "  observed_at, v_text, v_number, v_bool, v_datetime, v_compound, sub_attrs) "
-           "VALUES ($1, $2, $3, $4, %s, %s, $5, $6::smallint, "
+           // An attribute event carries no entity snapshot, so $2 can come out
+           // empty for a multi-type Entity; fall back to the type list already
+           // recorded for this Entity rather than storing nothing.
+           "VALUES ($1, COALESCE(NULLIF($2::text[], '{}'),"
+           "                     (SELECT entity_type FROM troe_entities"
+           "                       WHERE entity_id = $1"
+           "                       ORDER BY modified_at DESC LIMIT 1),"
+           "                     '{}'::text[]), $3, $4, %s, %s, $5, $6::smallint, "
            "        $7::timestamptz, $8, $9::double precision, $10::boolean, $11::timestamptz, "
            "        $12::jsonb, $13::jsonb)",
            tsExpr, tsExpr);

@@ -35,4 +35,12 @@ extern int timescaleExecAttrInsertLocked  (const TroeEvent* evP);
 //
 extern void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize);
 
+
+// -----------------------------------------------------------------------------
+//
+// troeTypeNameQuoted - append "name" to a postgres text[] array literal being
+// built in buf, quote- and backslash-escaped. Returns the new write position.
+//
+extern int troeTypeNameQuoted(const char* name, char* buf, int pos, int bufSize);
+
 #endif  // TIMESCALE_TIMESCALEEVENT_H_
