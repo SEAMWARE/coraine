@@ -1,0 +1,185 @@
+#
+# FILE            null_marker_create_rejected.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The NGSI-LD Null marker is only legal where deletion has a meaning (§ 8.2.3).
+#
+# "Any attempt to use 'urn:ngsi-ld:null' as a first level member value ... with
+# the exception of NGSI-LD Fragments used in partial update and merge operations
+# or to represent deleted Properties in concise representation as part of
+# notifications, shall result in an error of type BadRequestData."
+#
+# "Any attempt to use 'urn:ngsi-ld:null' as the right-hand side of value in a
+# Property, as the right-hand side of object in a Relationship or to use
+# {"@none": "urn:ngsi-ld:null"} as the right-hand side of languageMap, with the
+# exception of ... update and merge operations and the representation of deleted
+# Properties, Relationships or Language Properties in notifications and the
+# temporal evolution, shall result in an error ..."
+#
+# Property, Relationship and the first-level concise form were already refused
+# on a Create. The LanguageProperty form was NOT: the marker lives INSIDE the
+# map ({"@none": "urn:ngsi-ld:null"}), so the scalar test never saw it and the
+# Entity was created with the delete marker stored as if it were data — a
+# following GET returned the languageMap verbatim.
+#
+# Steps 06 and 07 are the other half of the rule: the very same marker stays
+# legal in the flows that do mean deletion.
+#
+--NAME--
+NGSI-LD Null is refused where deletion has no meaning (§ 8.2.3)
+
+--TAGS--
+validation delete languageproperty
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create with a first-level null marker (concise) → 400"
+echo "========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N1","type":"T","speed":"urn:ngsi-ld:null"}'
+echo
+echo
+
+
+echo "02. Create with a Property value of null marker → 400"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N2","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "03. Create with a Relationship object of null marker → 400"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N3","type":"T","owner":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
+echo
+echo
+
+
+echo "04. Create with languageMap {@none: null marker} → 400"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N4","type":"T","name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}'
+echo
+echo
+
+
+echo "05. Nothing was created"
+echo "======================="
+swCurl --url '/ngsi-ld/v1/entities/urn:N4' | head -1
+echo
+echo
+
+
+echo "06. Legal: a merge fragment deletes a Property with the marker"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:OK","type":"T","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:OK --payload '{"type":"T","color":"urn:ngsi-ld:null"}' | head -1
+swCurl --url '/ngsi-ld/v1/entities/urn:OK' | grep -E '"speed"|"color"'
+echo
+echo
+
+
+echo "07. Legal: a merge fragment deletes a LanguageProperty the same way"
+echo "==================================================================="
+# The form refused on a Create in step 04 is exactly the one that has to work
+# here — this is the § 5.2.6.4.6 deletion encoding.
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:OK2","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello"}},"speed":{"type":"Property","value":1}}' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:OK2 --payload '{"type":"T","name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}' | head -1
+swCurl --url '/ngsi-ld/v1/entities/urn:OK2' | grep -E '"name"|"speed"'
+echo
+echo
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+
+--EXPECT--
+01. Create with a first-level null marker (concise) → 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 263
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as a first-level value in Create Entity (field: 'https://uri.etsi.org/ngsi-ld/default-context/speed')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Create with a Property value of null marker → 400
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 240
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Create with a Relationship object of null marker → 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 240
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Create with languageMap {@none: null marker} → 400
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the languageMap of attribute 'https://uri.etsi.org/ngsi-ld/default-context/name'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Nothing was created
+=======================
+HTTP/1.1 404 Not Found
+
+
+06. Legal: a merge fragment deletes a Property with the marker
+==============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+  "speed": {
+
+
+07. Legal: a merge fragment deletes a LanguageProperty the same way
+===================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+  "speed": {
+
+
