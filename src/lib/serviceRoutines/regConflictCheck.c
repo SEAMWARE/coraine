@@ -19,6 +19,7 @@
 #include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
+#include "swNgsild/ldDistOp.h"                       // ldDistOpEndpointIsSelf
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -271,6 +272,28 @@ bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KA
 {
   if (newMode != LdRegModeExclusive && newMode != LdRegModeRedirect)
     return false;
+
+  // § 12.2.2.4 / § 12.2.3.4 — a redirect registration says the Entity lives
+  // ELSEWHERE, i.e. in another broker, so one that names this broker is a
+  // Conflict. The spec words the rule as "endpoint and tenant match", but the
+  // tenant is not what makes it wrong: redirecting to ourselves under another
+  // tenant still redirects to ourselves, and the data is then not elsewhere at
+  // all. So the authority alone decides (spec-doubt #113).
+  //
+  // Only redirect is restricted. inclusive / exclusive / auxiliary
+  // registrations that name this broker stay legal — they are how a single
+  // instance federates across its own tenants (see the self-forward path).
+  if (newMode == LdRegModeRedirect)
+  {
+    KjNode* endpointP = kjLookup(regP, "endpoint");
+
+    if ((endpointP != NULL) && (endpointP->type == KjString) && ldDistOpEndpointIsSelf(endpointP->value.s))
+    {
+      ldError(409, LD_ERROR_CONFLICT, "Conflict",
+              "a redirect registration must point at another broker, not at this one ('%s')", endpointP->value.s);
+      return true;
+    }
+  }
 
   Tenant*       tenantP = (Tenant*) swNgsild.tenantP;
   LdRegCache*   cacheP  = (LdRegCache*) tenantP->regCacheP;

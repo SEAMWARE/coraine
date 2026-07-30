@@ -28,7 +28,9 @@ swBrokerStart --csourceAlias cb-alias
 # merely suppresses the forward and the local op proceeds (no 508).
 #
 # The loop is detected at entry from the Via header, so the registered
-# endpoint is never contacted — a single broker (cb-alias) is enough.
+# endpoint is never contacted — a single broker (cb-alias) is enough. The
+# exclusive/inclusive registrations may therefore name CB itself; the redirect
+# one must name another broker (§ 12.2.2.4 forbids redirecting to ourselves).
 #
 #   01  Register CB exclusive CSR on urn:V1
 #   02  DELETE   urn:V1                 + Via cb-alias  -> 508
@@ -152,7 +154,7 @@ echo "======================================================================="
 payload='{
   "id": "urn:CSR:Redir3",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CB_PORT'",
+  "endpoint": "http://cp.example.org:1026",
   "mode": "redirect",
   "operations": ["redirectionOps"],
   "information": [

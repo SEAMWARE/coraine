@@ -1,0 +1,242 @@
+#
+# FILE            csource-reg-redirect-self.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 12.2.2.4 / § 12.2.3.4 — a REDIRECT registration says the Entity lives
+# ELSEWHERE, i.e. in another broker. One that names THIS broker is a Conflict,
+# both on create and on update (a PATCH that moves the endpoint here, or that
+# turns an existing registration into a redirect).
+#
+# The spec words the rule as "if the endpoint and tenant properties match the
+# Context Broker itself", but the tenant is not what makes it wrong: redirecting
+# to ourselves under another tenant still redirects to ourselves, and the Entity
+# is then not elsewhere at all. So the endpoint authority alone decides, and a
+# tenant rewrite does not rescue it (spec-doubt #113).
+#
+# Only redirect is restricted. inclusive / exclusive / auxiliary registrations
+# naming this broker stay legal — that is how one instance federates across its
+# own tenants, and it is what the self-forward short-circuit runs in-process
+# (see distop-self-forward-retrieve, csource-reg-distops-create-tenant-via).
+#
+--NAME--
+Registration - a redirect registration may not name this broker (§ 12.2.2.4)
+
+--TAGS--
+registration validation distops redirect
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. redirect + endpoint = this broker -> 409 Conflict"
+echo "===================================================="
+payload='{
+  "id": "urn:CSR:Self1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "redirect",
+  "information": [ { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. redirect + endpoint = this broker + tenant rewrite -> 409 as well"
+echo "===================================================================="
+echo "    (the spec's literal 'endpoint AND tenant' reading would allow this)"
+payload='{
+  "id": "urn:CSR:Self2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "redirect",
+  "tenant": "t2",
+  "information": [ { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. CONTROL inclusive + endpoint = this broker -> 201"
+echo "===================================================="
+payload='{
+  "id": "urn:CSR:SelfInc",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "inclusive",
+  "tenant": "t2",
+  "information": [ { "entities": [ { "id": "urn:V3", "type": "Vehicle" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. CONTROL exclusive + endpoint = this broker + tenant rewrite -> 201"
+echo "====================================================================="
+echo "    (this is the cross-tenant self-forward pattern)"
+payload='{
+  "id": "urn:CSR:SelfExc",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "exclusive",
+  "tenant": "t2",
+  "information": [ { "entities": [ { "id": "urn:V4", "type": "Vehicle" } ], "attributeNames": ["speed"] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. CONTROL redirect to ANOTHER broker -> 201"
+echo "============================================"
+payload='{
+  "id": "urn:CSR:Elsewhere",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://cp.example.org:1026",
+  "mode": "redirect",
+  "information": [ { "entities": [ { "id": "urn:V5", "type": "Vehicle" } ] } ]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "06. PATCH the legal redirect to point HERE -> 409 (§ 12.2.3.4)"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere -X PATCH \
+       --payload '{"endpoint": "http://localhost:'$CB_PORT'"}'
+echo
+echo
+
+
+echo "07. PATCH the inclusive self-registration into a redirect -> 409"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc -X PATCH \
+       --payload '{"mode": "redirect"}'
+echo
+echo
+
+
+echo "08. The legal redirect is untouched, the inclusive one is still inclusive"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere | grep -E '"(endpoint|mode)"'
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc   | grep -E '"(endpoint|mode)"'
+echo
+echo
+
+
+--EXPECT--
+01. redirect + endpoint = this broker -> 409 Conflict
+====================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 212
+
+{
+  "detail": "a redirect registration must point at another broker, not at this one ('http://localhost:1026')",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+02. redirect + endpoint = this broker + tenant rewrite -> 409 as well
+====================================================================
+    (the spec's literal 'endpoint AND tenant' reading would allow this)
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 212
+
+{
+  "detail": "a redirect registration must point at another broker, not at this one ('http://localhost:1026')",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+03. CONTROL inclusive + endpoint = this broker -> 201
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc
+Content-Length: 0
+
+
+
+
+04. CONTROL exclusive + endpoint = this broker + tenant rewrite -> 201
+=====================================================================
+    (this is the cross-tenant self-forward pattern)
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfExc
+Content-Length: 0
+
+
+
+
+05. CONTROL redirect to ANOTHER broker -> 201
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere
+Content-Length: 0
+
+
+
+
+06. PATCH the legal redirect to point HERE -> 409 (§ 12.2.3.4)
+=============================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 212
+
+{
+  "detail": "a redirect registration must point at another broker, not at this one ('http://localhost:1026')",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+07. PATCH the inclusive self-registration into a redirect -> 409
+===============================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 212
+
+{
+  "detail": "a redirect registration must point at another broker, not at this one ('http://localhost:1026')",
+  "status": 409,
+  "title": "Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+08. The legal redirect is untouched, the inclusive one is still inclusive
+=======================================================================
+  "endpoint": "http://cp.example.org:1026",
+  "mode": "redirect",
+  "endpoint": "http://localhost:1026",
+  "mode": "inclusive",
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

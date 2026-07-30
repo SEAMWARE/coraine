@@ -25,7 +25,7 @@ swBrokerStart
 # On tenant t1, a CSR is registered with:
 #   - endpoint: http://localhost:$CB_PORT    (back to CB itself)
 #   - tenant:   "t2"                         (§ 5.2.9 rewrite)
-#   - mode:     redirect
+#   - mode:     exclusive  (redirect may not name this broker — § 12.2.2.4)
 #
 # Client POSTs an entity on t1. CB-on-t1 matches the CSR, forwards to
 # http://localhost:$CB_PORT/entities with headers:
@@ -51,14 +51,15 @@ payload='{
   "id": "urn:CSR:Rewrite",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CB_PORT'",
-  "mode": "redirect",
+  "mode": "exclusive",
   "tenant": "t2",
   "operations": ["createEntity", "retrieveEntity"],
   "information": [
     {
       "entities": [
         { "id": "urn:V1", "type": "Vehicle" }
-      ]
+      ],
+      "attributeNames": ["speed"]
     }
   ]
 }'

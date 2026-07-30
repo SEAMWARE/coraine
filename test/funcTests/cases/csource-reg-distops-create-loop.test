@@ -18,22 +18,25 @@ swBrokerStart
 --RUN--
 
 #
-# Register a redirect CSR on CB that points back to CB itself and owns the
-# whole entity (no propertyNames). A POST carrying CB's own alias in the Via
-# header is a loop (§ 9.7): the create can neither be forwarded (it would loop)
-# nor stored locally (the entity is held by the redirect source), so it is
-# answered with 508 Loop Detected (TS 104-176 § 6.3.18).
+# Register a redirect CSR on CB that owns the whole entity (no propertyNames).
+# A POST carrying CB's own alias in the Via header is a loop (§ 9.7): the create
+# can neither be forwarded (it would loop) nor stored locally (the entity is
+# held by the redirect source), so it is answered with 508 Loop Detected
+# (TS 104-176 § 6.3.18).
 #
 # We simulate the "second hop" by including a Via header matching the broker's
-# own alias in the initial POST, rather than arranging a full round-trip.
+# own alias in the initial POST, rather than arranging a full round-trip. The
+# loop therefore comes from the Via header alone and the registered endpoint is
+# never contacted — it just has to be some OTHER broker, since a redirect
+# registration naming this one is a § 12.2.2.4 Conflict.
 #
 
-echo "01. Register CSR pointing back to CB"
-echo "===================================="
+echo "01. Register redirect CSR owning urn:V1"
+echo "======================================="
 payload='{
   "id": "urn:CSR:Self",
   "type": "ContextSourceRegistration",
-  "endpoint": "http://localhost:'$CB_PORT'",
+  "endpoint": "http://cp.example.org:1026",
   "mode": "redirect",
   "operations": ["createEntity"],
   "information": [
@@ -62,8 +65,8 @@ echo
 
 
 --EXPECT--
-01. Register CSR pointing back to CB
-====================================
+01. Register redirect CSR owning urn:V1
+=======================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Self
