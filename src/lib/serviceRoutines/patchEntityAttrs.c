@@ -79,18 +79,6 @@ static bool isEntityKeyword(const char* name)
 
 
 
-// -----------------------------------------------------------------------------
-//
-// shortNameOf -
-//
-static const char* shortNameOf(const char* attrIri)
-{
-  const char* compact = swldCompact(swldCoreContext(), attrIri);
-  return (compact != NULL) ? compact : attrIri;
-}
-
-
-
 static void addNotUpdated(KjNode* arrP, const char* attrName,
                           const char* reason, const char* regId)
 {
@@ -184,7 +172,7 @@ static void recordFragmentAttrsNotUpdated(KjNode* targetP, KjNode* fragP,
   for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
   {
     if (isEntityKeyword(c->name)) continue;
-    addNotUpdated(targetP, shortNameOf(c->name), reason, regId);
+    addNotUpdated(targetP, c->name, reason, regId);
   }
 }
 
@@ -194,7 +182,7 @@ static void recordFragmentAttrsUpdated(KjNode* targetP, KjNode* fragP)
   for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
   {
     if (isEntityKeyword(c->name)) continue;
-    addUpdatedUnique(targetP, shortNameOf(c->name));
+    addUpdatedUnique(targetP, c->name);
   }
 }
 
@@ -465,7 +453,7 @@ bool patchEntityAttrs(void)
     for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
     {
       if (isEntityKeyword(c->name)) continue;
-      addUpdatedUnique(updatedP, shortNameOf(c->name));
+      addUpdatedUnique(updatedP, c->name);
     }
 
     ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);

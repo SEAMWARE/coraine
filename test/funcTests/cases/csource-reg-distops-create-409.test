@@ -121,14 +121,14 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 648
+Content-Length: 738
 
 {
   "errors": [
     {
       "entityId": "urn:V1",
       "error": {
-        "detail": "forward returned status 503; affected attributes: speed",
+        "detail": "forward returned status 503; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
         "status": 503,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
@@ -138,7 +138,7 @@ Content-Length: 648
     {
       "entityId": "urn:V1",
       "error": {
-        "detail": "forward returned status 403; affected attributes: color",
+        "detail": "forward returned status 403; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/color",
         "status": 403,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"

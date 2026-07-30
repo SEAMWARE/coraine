@@ -87,7 +87,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "forward failed: Connection failed; affected attributes: speed",
+  "detail": "forward failed: Connection failed; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
   "status": 502,
   "title": "Bad Gateway",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
@@ -103,7 +103,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "forward failed: registration endpoint in cooldown after failure; affected attributes: speed",
+  "detail": "forward failed: registration endpoint in cooldown after failure; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
   "status": 504,
   "title": "Bad Gateway",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
@@ -119,7 +119,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "forward failed: Connection failed; affected attributes: speed",
+  "detail": "forward failed: Connection failed; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
   "status": 502,
   "title": "Bad Gateway",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"

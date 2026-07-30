@@ -169,14 +169,14 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 366
+Content-Length: 411
 
 {
   "errors": [
     {
       "entityId": "urn:V2",
       "error": {
-        "detail": "forward failed: Connection failed; affected attributes: speed",
+        "detail": "forward failed: Connection failed; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
         "status": 502,
         "title": "Bad Gateway",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"

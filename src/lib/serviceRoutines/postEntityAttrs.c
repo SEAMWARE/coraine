@@ -74,18 +74,6 @@ static bool isEntityKeyword(const char* name)
 
 // -----------------------------------------------------------------------------
 //
-// shortNameOf - compact a (possibly expanded) attribute name for the response
-//
-static const char* shortNameOf(const char* attrIri)
-{
-  const char* compact = swldCompact(swldCoreContext(), attrIri);
-  return (compact != NULL) ? compact : attrIri;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // entityInfoCoversId - does any EntityInfo entry in riP cover entityId?
 //
 static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
@@ -182,7 +170,8 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
     }
 
     KjNode*     tAttrP    = kjLookup(existing, fAttrP->name);
-    const char* shortName = shortNameOf(fAttrP->name);
+    // § 6.2.3: a 207 body carries Fully Qualified Names, so no compaction here.
+    const char* attrFqn = fAttrP->name;
     bool        anyConflict = false;
     bool        anyKept     = false;
 
@@ -216,12 +205,12 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
     }
 
     if (noOverwrite && anyConflict)
-      ldWriteResultNotUpdatedAdd(notUpdatedP, shortName, "Attribute already exists", NULL, 0);
+      ldWriteResultNotUpdatedAdd(notUpdatedP, attrFqn, "Attribute already exists", NULL, 0);
 
     if (!anyKept)
       kjChildRemove(fragment, fAttrP);
     else
-      ldWriteResultUpdatedAdd(updatedP, shortName);
+      ldWriteResultUpdatedAdd(updatedP, attrFqn);
 
     fAttrP = nextAttr;
   }

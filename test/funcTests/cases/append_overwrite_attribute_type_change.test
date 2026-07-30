@@ -97,12 +97,12 @@ Content-Length: 119
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 127
+Content-Length: 172
 
 {
   "notUpdated": [
     {
-      "attributeName": "p1",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/p1",
       "reason": "Attribute already exists"
     }
   ],

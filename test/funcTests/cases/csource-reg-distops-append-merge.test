@@ -133,7 +133,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 208
+Content-Length: 253
 
 {
   "notUpdated": [
@@ -145,7 +145,7 @@ Content-Length: 208
     }
   ],
   "updated": [
-    "color"
+    "https://uri.etsi.org/ngsi-ld/default-context/color"
   ]
 }
 
@@ -166,19 +166,19 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 214
+Content-Length: 304
 
 {
   "notUpdated": [
     {
-      "attributeName": "speed",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/speed",
       "reason": "forward returned status 503",
       "registrationId": "urn:CSR:Speed",
       "statusCode": 503
     }
   ],
   "updated": [
-    "color"
+    "https://uri.etsi.org/ngsi-ld/default-context/color"
   ]
 }
 
@@ -199,19 +199,19 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 244
+Content-Length: 334
 
 {
   "notUpdated": [
     {
-      "attributeName": "speed",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/speed",
       "reason": "forward failed: malformed JSON in forwarded response body",
       "registrationId": "urn:CSR:Speed",
       "statusCode": 502
     }
   ],
   "updated": [
-    "color"
+    "https://uri.etsi.org/ngsi-ld/default-context/color"
   ]
 }
 

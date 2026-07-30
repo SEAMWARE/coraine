@@ -149,17 +149,17 @@ Content-Length: 239
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 146
+Content-Length: 236
 
 {
   "notUpdated": [
     {
-      "attributeName": "brand",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/brand",
       "reason": "Attribute already exists"
     }
   ],
   "updated": [
-    "weight"
+    "https://uri.etsi.org/ngsi-ld/default-context/weight"
   ]
 }
 
@@ -217,16 +217,16 @@ Content-Length: 161
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 218
+Content-Length: 308
 
 {
   "notUpdated": [
     {
-      "attributeName": "speed",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/speed",
       "reason": "Attribute already exists"
     },
     {
-      "attributeName": "color",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/color",
       "reason": "Attribute already exists"
     }
   ],

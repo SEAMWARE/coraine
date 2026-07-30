@@ -27,7 +27,6 @@
 
 #include "swJsonld/swldInit.h"                       // swldCoreContext, SWLD_CORE_CONTEXT_URL
 #include "swJsonld/SwldContext.h"                    // SwldContext
-#include "swJsonld/swldCompact.h"                    // swldCompact
 #include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
 
 #include "swNgsild/swNgsild.h"                       // ldError, ldCheckEntity, LdOp, LD_ERROR_*, swNgsild
@@ -239,14 +238,20 @@ static char* renderFragmentWithContext(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
-// fragmentShortAttrList - comma-separated compacted attr names from a fragment
+// fragmentAttrList - comma-separated attr names from a fragment
 //
 // Helper for building the ProblemDetails.detail string — lists which
 // attributes of the entity were affected by this failure.
 //
-static const char* fragmentShortAttrList(KjNode* fragP)
+// The names go in FULLY QUALIFIED. This text ends up in an error or a 207
+// partial-success body, which per TS 104-176 § 6.2.3 carries no @context of its
+// own ("Only Fully Qualified Names shall be used ... as there is no context
+// present"), so a compacted name in there would be a name the client has
+// nothing to resolve against.
+//
+static const char* fragmentAttrList(KjNode* fragP)
 {
-  static __thread char buf[256];
+  static __thread char buf[512];
   int pos = 0;
 
   if (fragP == NULL)
@@ -262,10 +267,9 @@ static const char* fragmentShortAttrList(KjNode* fragP)
     if (strcmp(c->name, "id")   == 0)          continue;
     if (strcmp(c->name, "type") == 0)          continue;
 
-    const char* compact = swldCompact(swldCoreContext(), c->name);
-    const char* shortN  = (compact != NULL) ? compact : c->name;
+    const char* attrFqn = c->name;
 
-    int nlen = strlen(shortN);
+    int nlen = strlen(attrFqn);
     if (pos + nlen + 2 >= (int) sizeof(buf))
       break;
 
@@ -274,7 +278,7 @@ static const char* fragmentShortAttrList(KjNode* fragP)
       buf[pos++] = ',';
       buf[pos++] = ' ';
     }
-    memcpy(buf + pos, shortN, nlen);
+    memcpy(buf + pos, attrFqn, nlen);
     pos += nlen;
   }
 
@@ -576,7 +580,7 @@ bool postEntities(void)
               char detail[384];
               snprintf(detail, sizeof(detail),
                        "%s registration does not support createEntity; affected attributes: %s",
-                       modeTag[g], fragmentShortAttrList(fragP));
+                       modeTag[g], fragmentAttrList(fragP));
               ldBatchErrorListAdd(&errors, entityId, 409,
                                   LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
               continue;
@@ -651,7 +655,7 @@ bool postEntities(void)
             char detail[512];
             snprintf(detail, sizeof(detail), "%s; affected attributes: %s",
                      forwardFailureReason(upCode, results[i].errorDetail),
-                     fragmentShortAttrList(itemFrag[i]));
+                     fragmentAttrList(itemFrag[i]));
             ldBatchErrorListAdd(&errors, entityId,
                                 (upCode >= 400) ? upCode : 502,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",

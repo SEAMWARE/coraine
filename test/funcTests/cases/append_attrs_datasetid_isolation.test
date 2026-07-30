@@ -140,12 +140,12 @@ Date: REGEX(.*)
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 130
+Content-Length: 175
 
 {
   "notUpdated": [
     {
-      "attributeName": "speed",
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/speed",
       "reason": "Attribute already exists"
     }
   ],
