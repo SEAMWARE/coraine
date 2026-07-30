@@ -17,7 +17,7 @@ registration discovery q
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

@@ -29,7 +29,7 @@ registration validation distops redirect
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

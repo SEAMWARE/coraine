@@ -21,7 +21,7 @@ registration attributeNames
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

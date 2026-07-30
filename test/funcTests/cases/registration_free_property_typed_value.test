@@ -13,7 +13,7 @@ registration validation
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 echo "01. Create a registration carrying a free DateTime value-object property -> 201"

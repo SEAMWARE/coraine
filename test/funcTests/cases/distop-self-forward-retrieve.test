@@ -24,7 +24,7 @@ distops self-forward retrieve tenant registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

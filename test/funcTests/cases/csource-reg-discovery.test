@@ -25,7 +25,7 @@ discovery query registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

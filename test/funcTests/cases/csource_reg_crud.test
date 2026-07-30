@@ -13,7 +13,7 @@ create delete registration retrieve update
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

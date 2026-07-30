@@ -21,7 +21,7 @@ csr-sub subscription update
 --INIT--
 swDbDrop
 ftClientStart
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

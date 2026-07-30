@@ -29,8 +29,8 @@ swDbDrop
 swDbDrop -role CP1
 swDbDrop -db swBroker
 contextServerStart
-swBrokerStart
-swBrokerStart -role CP1
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
 
 contextServerPush /jsonldContexts/ctxClient '{
   "@context": {

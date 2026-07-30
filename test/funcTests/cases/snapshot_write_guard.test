@@ -20,7 +20,7 @@ snapshot
 --INIT--
 swDbDrop
 swSnapDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

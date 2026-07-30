@@ -13,7 +13,7 @@ distops error append registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 ftClientStart --port 7721
 ftClientStart --port 7722
 

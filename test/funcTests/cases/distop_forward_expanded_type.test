@@ -9,7 +9,7 @@ DistOps forward — query by URL-encoded expanded type IRI
 distops registration
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 ftClientStart --port 7711 --status 200
 --RUN--
 echo "01. Register CSR for type Vehicle -> ftClient"

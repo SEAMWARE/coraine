@@ -13,7 +13,7 @@ distops registration
 
 --INIT--
 swDbDrop
-swBrokerStart --csourceAlias cb-alias
+swBrokerStart --csourceAlias cb-alias -dist
 
 --RUN--
 #

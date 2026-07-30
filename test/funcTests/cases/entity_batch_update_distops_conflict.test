@@ -28,8 +28,8 @@ batch entity update
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart --noSplitEntities
-swBrokerStart -role CP1 --noSplitEntities
+swBrokerStart --noSplitEntities -dist
+swBrokerStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 

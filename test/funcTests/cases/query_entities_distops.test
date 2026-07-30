@@ -18,9 +18,9 @@ entity query
 swDbDrop
 swDbDrop -role CP1
 swDbDrop -role CP2
-swBrokerStart --noSplitEntities
-swBrokerStart -role CP1 --noSplitEntities
-swBrokerStart -role CP2 --noSplitEntities
+swBrokerStart --noSplitEntities -dist
+swBrokerStart -role CP1 --noSplitEntities -dist
+swBrokerStart -role CP2 --noSplitEntities -dist
 
 --RUN--
 
@@ -142,7 +142,7 @@ echo
 
 echo "11. Exclusive reg: CB→CP1 for Sensor → query Sensor returns CP1's data"
 echo "======================================================================="
-swBrokerStart -role CP2
+swBrokerStart -role CP2 -dist
 sleep 1
 # Re-seed CP2's V5 — ramdb wipes on restart, mongoc keeps it.
 swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}' > /dev/null 2>&1

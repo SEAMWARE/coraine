@@ -23,7 +23,7 @@ swDbDrop
 swDbDrop -db swBroker
 contextServerStart
 ftClientStart
-swBrokerStart
+swBrokerStart -dist
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {

@@ -19,7 +19,7 @@ csr-sub patch subscription
 --INIT--
 swDbDrop
 ftClientStart
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

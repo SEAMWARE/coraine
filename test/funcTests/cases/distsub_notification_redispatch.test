@@ -30,8 +30,8 @@ create distops subscription distsub notification
 swDbDrop
 swDbDrop -role CP1
 ftClientStart
-swBrokerStart
-swBrokerStart -role CP1
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
 
 --RUN--
 

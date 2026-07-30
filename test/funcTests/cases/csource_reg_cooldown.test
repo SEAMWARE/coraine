@@ -19,7 +19,7 @@ csource registration distops cooldown
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

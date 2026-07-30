@@ -8,7 +8,7 @@ PATCH ContextSourceRegistration — all individual fields
 registration
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 --RUN--
 echo "01. Create a minimal registration"
 echo "================================="

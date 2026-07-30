@@ -19,7 +19,7 @@ entity update distops registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

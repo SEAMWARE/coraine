@@ -21,7 +21,7 @@ context distop csr-reg forwarding jsonldcontext
 --INIT--
 swDbDrop
 ftClientStart --port 7711 --status 201
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

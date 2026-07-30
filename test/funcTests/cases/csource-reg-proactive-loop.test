@@ -14,8 +14,8 @@ registration
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart --csourceAlias cb-alias
-swBrokerStart -role CP1 --csourceAlias cp1-alias
+swBrokerStart --csourceAlias cb-alias -dist
+swBrokerStart -role CP1 --csourceAlias cp1-alias -dist
 
 --RUN--
 

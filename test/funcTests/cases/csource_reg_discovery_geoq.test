@@ -17,7 +17,7 @@ registration discovery geo
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

@@ -23,7 +23,7 @@ csr-sub subscription notification ldjson context
 swDbDrop
 contextServerStart
 ftClientStart
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

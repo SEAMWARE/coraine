@@ -15,7 +15,7 @@ DistOps — exclusive source's attribute wins over a newer inclusive copy (§ 4.
 distops registration
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 ftClientStart --port 7711 --status 200
 ftClientStart --port 7712 --status 200
 --RUN--

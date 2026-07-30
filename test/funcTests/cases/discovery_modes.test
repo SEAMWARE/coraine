@@ -9,7 +9,7 @@
 Discovery endpoints - ?local vs ?noForward vs default modes (§ 5.7.11)
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --TAGS--
 query

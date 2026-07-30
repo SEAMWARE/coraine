@@ -21,9 +21,9 @@ entity entitymap query
 swDbDrop
 swDbDrop -role CP1
 swDbDrop -role CP2
-swBrokerStart --noSplitEntities
-swBrokerStart -role CP1 --noSplitEntities
-swBrokerStart -role CP2 --noSplitEntities
+swBrokerStart --noSplitEntities -dist
+swBrokerStart -role CP1 --noSplitEntities -dist
+swBrokerStart -role CP2 --noSplitEntities -dist
 
 --RUN--
 

@@ -17,7 +17,7 @@ entity subscription registration batch atid attype alias error
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

@@ -29,8 +29,8 @@ retrieve linked-entities registration distops
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart
-swBrokerStart -role CP1
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
 
 --RUN--
 

@@ -23,7 +23,7 @@ registration discovery query
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

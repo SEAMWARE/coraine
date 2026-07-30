@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 --NAME--
-CLI usage output (-u with various plugin combinations)
+CLI usage output (-u and -U with various plugin combinations)
 
 --TAGS--
 usage
@@ -19,6 +19,13 @@ usage
 # 01. Usage with swRamDB plugin (no extra CLI args)
 # 02. Usage with mongoc plugin (shows DB connection args)
 # 03. Usage with non-existent plugin (error + usage)
+# 04. EXTENDED usage (-U)
+#
+# -U used to SEGFAULT before printing a single line: its column-width helper
+# ran strlen() over every longName, and a KARGS_SEPARATOR (the section headings
+# in the -u listing) legitimately has none. Separators are skipped here — they
+# head a section of the plain listing and have no columns to fill — and every
+# field is padded as a unit, so the columns actually line up.
 #
 
 echo "01. Usage with swRamDB plugin (no extra CLI args)"
@@ -42,6 +49,13 @@ echo
 echo
 
 
+echo "04. Extended usage (-U) - one aligned row per option, no separator rows"
+echo "======================================================================="
+$SW_BROKER -U -db swRamDB 2>&1
+echo
+echo
+
+
 --EXPECT--
 01. Usage with swRamDB plugin (no extra CLI args)
 ==================================================
@@ -56,7 +70,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--localOnly/-local (do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding))]
                  [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -64,6 +78,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
                  [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
+                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
                  [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
                  [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                  [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
@@ -90,7 +105,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--localOnly/-local (do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding))]
                  [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -98,6 +113,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
                  [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
+                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
                  [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
                  [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                  [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
@@ -135,7 +151,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--localOnly/-local (local-only mode (no distributed operations))]
+                 [--localOnly/-local (do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding))]
                  [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -143,6 +159,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: <exe>:<port>)>]
                  [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
                  [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
+                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
                  [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
                  [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                  [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
@@ -154,6 +171,39 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
 
                  Plugins are loaded from /opt/seamware/plugins
+
+
+04. Extended usage (-U) - one aligned row per option, no separator rows
+=======================================================================
+  --usage                 (-u)                                              Optional   Bool     Default Value  
+  --Usage                 (-U)                                              Optional   Bool     Short Option   
+  --verbose               (-v)               SWBROKER_VERBOSE               Optional   Bool     Default Value  
+  --debug                 (-d)               SWBROKER_DEBUG                 Optional   Bool     Default Value  
+  --traceLevels           (-t)               SWBROKER_TRACELEVELS           Optional   String   Default Value  
+  --port                  (-p)               SWBROKER_PORT                  Optional   UShort   Default Value  
+  --database              (-db)              SWBROKER_DATABASE              Optional   String   Short Option   
+  --troe                  (-troe)            SWBROKER_TROE                  Optional   String   Default Value  
+  --apiPlugins            (-api)             SWBROKER_APIPLUGINS            Optional   String   Default Value  
+  --pretty-print          (-pp)              SWBROKER_PRETTY_PRINT          Optional   UInt     Default Value  
+  --connectionPoolSize    (-cps)             SWBROKER_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
+  --localOnly             (-local)           SWBROKER_LOCALONLY             Optional   Bool     Default Value  
+  --notifyValueChangeOnly (-nvco)            SWBROKER_NOTIFYVALUECHANGEONLY Optional   Bool     Default Value  
+  --corsOrigin            (-corsOrigin)      SWBROKER_CORSORIGIN            Optional   String   Default Value  
+  --corsMaxAge            (-corsMaxAge)      SWBROKER_CORSMAXAGE            Optional   Int      Default Value  
+  --defaultUserContext    (-duc)             SWBROKER_DEFAULTUSERCONTEXT    Optional   String   Default Value  
+  --csourceAlias          (-csourceAlias)    SWBROKER_CSOURCEALIAS          Optional   String   Default Value  
+  --httpEndpoint          (-he)              SWBROKER_HTTPENDPOINT          Optional   String   Default Value  
+  --contextSourceExtras   (-csx)             SWBROKER_CONTEXTSOURCEEXTRAS   Optional   String   Default Value  
+  --distributed           (-dist)            SWBROKER_DISTRIBUTED           Optional   Bool     Default Value  
+  --noSplitEntities       (-noSplitEntities) SWBROKER_NOSPLITENTITIES       Optional   Bool     Default Value  
+  --high-precision        (-hp)              SWBROKER_HIGH_PRECISION        Optional   Bool     Default Value  
+  --asyncSnapshot         (-asyncSnapshot)   SWBROKER_ASYNCSNAPSHOT         Optional   Bool     Default Value  
+  --maxRequestSize        (-mrs)             SWBROKER_MAXREQUESTSIZE        Optional   Int      Default Value  
+  --subStatsFlushInterval (-ssfi)            SWBROKER_SUBSTATSFLUSHINTERVAL Optional   Int      Default Value  
+  --distOpTimeout         (-dtmo)            SWBROKER_DISTOPTIMEOUT         Optional   Int      Default Value  
+  --cooldownMillis        (-cms)             SWBROKER_COOLDOWNMILLIS        Optional   Int      Default Value  
+  --foreground            (-fg)              SWBROKER_FOREGROUND            Optional   Bool     Default Value  
+  --insecureNotif         (-insecureNotif)   SWBROKER_INSECURENOTIF         Optional   Bool     Default Value  
 
 
 --TEARDOWN--

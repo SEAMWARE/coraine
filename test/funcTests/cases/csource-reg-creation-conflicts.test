@@ -13,7 +13,7 @@ conflict registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 #

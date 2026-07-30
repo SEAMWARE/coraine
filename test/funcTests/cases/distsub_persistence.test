@@ -23,8 +23,8 @@ mongoc persist subscription distsub
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart
-swBrokerStart -role CP1
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
 
 --RUN--
 
@@ -71,7 +71,7 @@ echo
 echo "04. Restart CB (no DB drop) — _subordinates rehydrate from mongo"
 echo "================================================================"
 swBrokerStop
-swBrokerStart
+swBrokerStart -dist
 echo "restarted"
 echo
 echo

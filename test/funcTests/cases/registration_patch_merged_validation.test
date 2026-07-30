@@ -19,7 +19,7 @@ registration validation
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 echo "01. Seed an auxiliary registration (retrieve-only) -> 201"

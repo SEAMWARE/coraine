@@ -16,7 +16,7 @@ admin metrics
 
 --INIT--
 swDbDrop
-swBrokerStart --apiPlugins admin
+swBrokerStart --apiPlugins admin -dist
 
 --RUN--
 

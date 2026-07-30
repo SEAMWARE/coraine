@@ -21,7 +21,7 @@ csr-sub subscription notification receiverinfo
 --INIT--
 swDbDrop
 ftClientStart
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

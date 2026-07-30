@@ -27,10 +27,10 @@ swDbDrop
 swDbDrop -role CP1
 swDbDrop -role CP2
 swDbDrop -role CP3
-swBrokerStart
-swBrokerStart -role CP1
-swBrokerStart -role CP2
-swBrokerStart -role CP3
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
+swBrokerStart -role CP2 -dist
+swBrokerStart -role CP3 -dist
 
 --RUN--
 

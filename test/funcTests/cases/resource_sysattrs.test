@@ -21,7 +21,7 @@ subscription csr-sub registration sysattrs
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

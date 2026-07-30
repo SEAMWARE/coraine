@@ -1,0 +1,122 @@
+#
+# FILE            distops_off_by_default.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distributed operations are OPT-IN: --distributed / -dist, off by default,
+# for the same reason TRoE is off by default. Consulting the registration
+# cache on every entity operation costs, and most deployments hold all their
+# data locally and never register a Context Source.
+#
+# What the flag does NOT gate is the Registry API (§ 12): registrations can
+# still be created, retrieved, updated, discovered and deleted with the
+# feature off. They have to be — a broker restarting with registrations
+# already in its database must not lose them, and an operator must be able to
+# provision registrations before switching forwarding on.
+#
+# Every other test in this suite starts its broker with -dist, so this one is
+# the only place the default is exercised.
+#
+--NAME--
+DistOps are off by default (--distributed)
+
+--TAGS--
+distops registration validation local
+
+--INIT--
+swDbDrop
+ftClientStart --port 7701
+swBrokerStart
+
+--RUN--
+
+echo "01. The Registry API works with the feature OFF - create a CSR"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Off",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'7701'",
+  "mode": "inclusive",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ]
+}'
+echo
+echo
+
+
+echo "02. ...and it is discoverable"
+echo "============================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=Vehicle' | grep -E '"id"|"mode"'
+echo
+echo
+
+
+echo "03. GET /entities does NOT forward - nothing is asked of the source"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+echo "forwards-to-mock=$(ftClientDump --port 7701 | grep -c '\"verb\"')"
+echo
+echo
+
+
+echo "04. A retrieve by id is local too - 404, not a forward"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:V1 | head -1
+echo "forwards-to-mock=$(ftClientDump --port 7701 | grep -c '\"verb\"')"
+echo
+echo
+
+
+echo "05. The CSR can still be deleted"
+echo "================================"
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Off -X DELETE | head -1
+echo
+echo
+
+
+--EXPECT--
+01. The Registry API works with the feature OFF - create a CSR
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Off
+Content-Length: 0
+
+
+
+
+02. ...and it is discoverable
+=============================
+    "id": "urn:CSR:Off",
+    "mode": "inclusive",
+
+
+03. GET /entities does NOT forward - nothing is asked of the source
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+forwards-to-mock=0
+
+
+04. A retrieve by id is local too - 404, not a forward
+======================================================
+HTTP/1.1 404 Not Found
+forwards-to-mock=0
+
+
+05. The CSR can still be deleted
+================================
+HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop --port 7701
+swDbDrop

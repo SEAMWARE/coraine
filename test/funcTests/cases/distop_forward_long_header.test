@@ -9,7 +9,7 @@ DistOps forward — long header value survives intact
 distops registration
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 ftClientStart --port 7711 --status 200
 --RUN--
 LONG=$(printf 'X%.0s' {1..2000})

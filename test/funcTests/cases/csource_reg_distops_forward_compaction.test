@@ -25,7 +25,7 @@ csource registration distops context forward
 swDbDrop
 contextServerStart
 ftClientStart --port 7711 --status 204
-swBrokerStart
+swBrokerStart -dist
 
 contextServerPush /jsonldContexts/veh '{
   "@context": {

@@ -10,8 +10,8 @@ DistOps - Purge Entities forwarded to a CSR that supports purgeEntity (§ 5.6.21
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart
-swBrokerStart -role CP1
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
 
 --TAGS--
 distops purge registration

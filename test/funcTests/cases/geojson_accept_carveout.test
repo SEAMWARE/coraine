@@ -13,7 +13,7 @@ media query geojson error
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

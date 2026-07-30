@@ -15,7 +15,7 @@ url parse entity subscription registration error
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

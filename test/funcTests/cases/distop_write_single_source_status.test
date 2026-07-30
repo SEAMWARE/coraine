@@ -13,7 +13,7 @@ distops error registration patch delete
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 ftClientStart --port 7716 --status 200 --delay 2000
 ftClientStart --port 7717 --status 500
 ftClientStart --port 7718 --status 204

@@ -18,7 +18,7 @@ csr discovery
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

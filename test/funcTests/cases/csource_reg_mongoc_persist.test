@@ -18,7 +18,7 @@ mongoc persist registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 
@@ -60,7 +60,7 @@ echo
 echo "03. Restart broker"
 echo "=================="
 swBrokerStop
-swBrokerStart
+swBrokerStart -dist
 echo "restarted"
 echo
 echo
@@ -90,7 +90,7 @@ echo
 echo "07. Restart again, query - only R1 remains"
 echo "=========================================="
 swBrokerStop
-swBrokerStart
+swBrokerStart -dist
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
 echo
 echo

@@ -12,7 +12,7 @@ Subscription / registration / entity with only mandatory fields create cleanly
 subscription registration entity error
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 --RUN--
 
 echo "01. Create subscription (minimal fields)"

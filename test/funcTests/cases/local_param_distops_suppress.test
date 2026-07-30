@@ -18,8 +18,8 @@ url-param distops query temporal
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart --troe ramdb
-swBrokerStart -role CP1 --troe ramdb
+swBrokerStart --troe ramdb -dist
+swBrokerStart -role CP1 --troe ramdb -dist
 
 --RUN--
 

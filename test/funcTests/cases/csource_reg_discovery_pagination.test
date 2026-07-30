@@ -18,7 +18,7 @@ csr discovery pagination
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

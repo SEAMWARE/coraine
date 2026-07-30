@@ -27,7 +27,7 @@ distops query pick geo ftclient
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 ftClientStart --port 7711 --status 200
 
 --RUN--

@@ -26,8 +26,8 @@ swDbDrop
 swDbDrop -role CP1
 swTroeInit
 swTroeInit -role CP1
-swBrokerStart        --troe timescale
-swBrokerStart -role CP1 --troe timescale
+swBrokerStart        --troe timescale -dist
+swBrokerStart -role CP1 --troe timescale -dist
 
 --RUN--
 

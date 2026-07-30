@@ -13,7 +13,7 @@ create distops registration tenant
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

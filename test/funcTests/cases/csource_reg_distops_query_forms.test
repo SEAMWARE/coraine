@@ -23,7 +23,7 @@ csource registration distops query forward attrs
 --INIT--
 swDbDrop
 ftClientStart --port 7711 --status 200
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

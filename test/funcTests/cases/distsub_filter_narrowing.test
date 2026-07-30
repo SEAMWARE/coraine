@@ -25,8 +25,8 @@ create distops subscription distsub
 --INIT--
 swDbDrop
 swDbDrop -role CP1
-swBrokerStart
-swBrokerStart -role CP1
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
 
 --RUN--
 

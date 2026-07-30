@@ -21,7 +21,7 @@ registration discovery temporal
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

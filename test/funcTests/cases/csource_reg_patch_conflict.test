@@ -24,7 +24,7 @@ registration error validation
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

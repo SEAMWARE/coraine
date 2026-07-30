@@ -17,7 +17,7 @@ discovery types attributes registration
 
 --INIT--
 swDbDrop
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 

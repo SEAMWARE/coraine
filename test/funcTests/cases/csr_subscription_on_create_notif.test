@@ -18,7 +18,7 @@ create csr-sub subscription
 --INIT--
 swDbDrop
 ftClientStart
-swBrokerStart
+swBrokerStart -dist
 
 --RUN--
 
