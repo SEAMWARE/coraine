@@ -220,6 +220,44 @@ echo
 echo
 
 
+echo "15. A source Attribute already PAST its expiresAt is not frozen into a snapshot"
+echo "=============================================================================="
+echo "    CP2 re-seeded with colour expiring in 1970 + a live doors attribute;"
+echo "    the snapshot keeps doors and drops colour (§ 5.2.4), and the frozen"
+echo "    attributes carry the cascaded entity-level expiry (§ 4.5.5.2)"
+echo
+swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "expiresAt": "2150-01-01T00:00:00Z",
+  "colour": {
+    "type": "Property",
+    "value": "red",
+    "expiresAt": "1970-06-01T00:00:00Z"
+  },
+  "doors": {
+    "type": "Property",
+    "value": 5
+  }
+}'
+swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+swCurl --url /ngsi-ld/v1/snapshots --payload '{
+  "id": "urn:ngsi-ld:Snapshot:Exp2",
+  "type": "Snapshot",
+  "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "16. Snapshot read with sysAttrs - colour gone, doors present with its expiry"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp2'
+echo
+echo
+
+
 --EXPECT--
 01. Seed urn:V1 on CP1 - expiresAt 2099, speed
 ==============================================
@@ -460,12 +498,61 @@ Content-Length: REGEX(\d+)
 [
   {
     "colour": {
+      "expiresAt": "2150-01-01T00:00:00Z",
       "type": "Property",
       "value": "red"
     },
     "expiresAt": "2150-01-01T00:00:00Z",
     "id": "urn:V1",
     "speed": {
+      "expiresAt": "2099-01-01T00:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle",
+    "weight": {
+      "type": "Property",
+      "value": 900
+    }
+  }
+]
+
+
+
+15. A source Attribute already PAST its expiresAt is not frozen into a snapshot
+==============================================================================
+    CP2 re-seeded with colour expiring in 1970 + a live doors attribute;
+    the snapshot keeps doors and drops colour (§ 5.2.4), and the frozen
+    attributes carry the cascaded entity-level expiry (§ 4.5.5.2)
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+16. Snapshot read with sysAttrs - colour gone, doors present with its expiry
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "doors": {
+      "expiresAt": "2150-01-01T00:00:00Z",
+      "type": "Property",
+      "value": 5
+    },
+    "expiresAt": "2150-01-01T00:00:00Z",
+    "id": "urn:V1",
+    "speed": {
+      "expiresAt": "2099-01-01T00:00:00Z",
       "type": "Property",
       "value": 20
     },

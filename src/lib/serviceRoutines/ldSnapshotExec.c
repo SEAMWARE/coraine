@@ -31,6 +31,7 @@
 #include "swNgsild/ldRegCache.h"                         // ldRegCacheMatchForRetrieve
 #include "swNgsild/ldStripAtContext.h"                   // ldStripAtContext
 #include "swNgsild/ldApiEntityToDbModel.h"               // ldApiEntityToDbModel
+#include "swNgsild/ldExpiresAtPropagate.h"            // ldExpiresAtPropagate
 #include "swNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile
 #include "swNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
@@ -426,6 +427,64 @@ static KjNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryS
 
 
 //
+// snapshotExpiryApply - § 4.5.5.2 + § 5.2.4 on the way into a Snapshot
+//
+// A Snapshot is a frozen view that outlives the request, so what goes in has to
+// be worth keeping for the snapshot's whole lifetime:
+//
+//   - the Entity-level expiresAt cascades onto each Attribute instance (an
+//     Attribute of a transient Entity expires with it, § 4.5.5.2), and
+//   - an instance already past its expiresAt is dropped — freezing dead data
+//     would keep it readable long after it went invalid (§ 5.2.4). An Attribute
+//     whose every instance is expired goes with them.
+//
+// Order matters: the cascade runs first, so an instance that inherits an
+// earlier Entity-level expiry is caught by the drop too.
+//
+// The tree is in DB-model form here, so expiresAt is epoch-nanoseconds;
+// ldExpiresAtPropagate handles that shape and ldDistInstanceIsExpired reads
+// either. The Entity-level expiresAt itself stays: the snapshot read applies it
+// like any other read.
+//
+static void snapshotExpiryApply(KjNode* entityP, uint64_t nowNs)
+{
+  if (entityP == NULL || entityP->type != KjObject)
+    return;
+
+  ldExpiresAtPropagate(entityP, swRest.kjsonP);
+
+  KjNode* attrP = entityP->value.firstChildP;
+  while (attrP != NULL)
+  {
+    KjNode* nextAttr = attrP->next;
+
+    if ((attrP->name != NULL) && (attrP->name[0] != '@') && (attrP->type == KjObject) &&
+        (strcmp(attrP->name, "id")   != 0) &&
+        (strcmp(attrP->name, "_id")  != 0) &&
+        (strcmp(attrP->name, "type") != 0))
+    {
+      KjNode* instP = attrP->value.firstChildP;
+      while (instP != NULL)
+      {
+        KjNode* nextInst = instP->next;
+
+        if ((instP->type == KjObject) && ldDistInstanceIsExpired(instP, (int64_t) nowNs))
+          kjChildRemove(attrP, instP);
+
+        instP = nextInst;
+      }
+
+      if (attrP->value.firstChildP == NULL)
+        kjChildRemove(entityP, attrP);
+    }
+
+    attrP = nextAttr;
+  }
+}
+
+
+
+//
 // mergeFragmentInto - merge `srcDb` (DB-format entity from a CSR) into
 // `destDb` (the snap-tenant's existing DB-format entity for the same
 // id). Per-attr / per-datasetId conflict resolution follows § 4.5.5.3
@@ -512,6 +571,7 @@ static int streamRemoteEntitiesSplit(KjNode* arrayP, Tenant* snapTenantP)
 
     swldExpandTree(entityP, swNgsild.contextP, &swRest.kalloc);
     ldApiEntityToDbModel(entityP, &swRest.kalloc, 0);
+    snapshotExpiryApply(entityP, nowNs);
 
     KjNode* existing = NULL;
     int     rc       = db.entityRetrieve(snapTenantP, idP->value.s, &existing);
@@ -667,6 +727,7 @@ static int streamRemoteEntitiesIntoSnapshot(KjNode* arrayP, Tenant* snapTenantP)
     // into the broker's storage format that db.entityCreate expects.
     swldExpandTree(entityP, swNgsild.contextP, &swRest.kalloc);
     ldApiEntityToDbModel(entityP, &swRest.kalloc, 0);
+    snapshotExpiryApply(entityP, swRest.requestStartTime);
 
     int wr = db.entityCreate(snapTenantP, idP->value.s, entityP);
     if (wr == DB_OK || wr == DB_ALREADY_EXISTS)
