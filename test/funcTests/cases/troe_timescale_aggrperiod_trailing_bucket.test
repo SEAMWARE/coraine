@@ -1,0 +1,189 @@
+#
+# FILE            troe_timescale_aggrperiod_trailing_bucket.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.19.1 — element 3 of an aggregated tuple is "the end DateTime of the
+# CORRESPONDING PERIOD". A period is aggrPeriodDuration long; it does not end
+# where the samples happen to stop. So the trailing (partially filled) period
+# reports its NOMINAL end, even though there is no data in its second half.
+#
+# The distinction only shows up on a query with NO upper bound (timerel=after,
+# or a bare retrieve): there the broker derives the aggregation window from the
+# data itself in order to bound the number of periods, and that derived edge
+# must NOT leak into the reported period end. An EXPLICIT endTimeAt is a real
+# boundary the client asked for and still clips the last period — pinned by
+# troe_timescale_aggrperiodduration_forms / _calendar.
+#
+# ETSI TS 104-175 021_17_01..04 pin exactly this (they query timerel=after with
+# PT1H / P1D and expect the nominal trailing boundary).
+#
+--NAME--
+TRoE timescale - trailing period reports its nominal end (§ 4.5.19.1)
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 speed: 10@12:07, 20@13:07, 30@14:07 (each hour, at :07)"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T12:07:00Z"}}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T13:07:00Z"}' >/dev/null
+swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T14:07:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "02. timerel=after (no upper bound), PT1H anchored at 12:03"
+echo "========================================================="
+echo "    3 periods, each :03 to :03 — the LAST one ends 15:03 (nominal),"
+echo "    NOT 14:07 where the samples stop"
+echo
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT1H'
+echo
+echo
+
+
+echo "03. Same data, P1D — ONE period 12:03 -> next day 12:03"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z&format=aggregatedValues&aggrMethods=min,max&aggrPeriodDuration=P1D'
+echo
+echo
+
+
+echo "04. CONTROL - an EXPLICIT endTimeAt mid-period still clips to it"
+echo "==============================================================="
+echo "    timeAt 12:03 + endTimeAt 14:33 + PT1H -> 12:03..13:03, 13:03..14:03,"
+echo "    14:03..14:33 (the client's own upper bound, not a data edge)"
+echo
+swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T12:03:00Z&endTimeAt=2026-04-28T14:33:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT1H'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 speed: 10@12:07, 20@13:07, 30@14:07 (each hour, at :07)
+=======================================================================
+done
+
+
+02. timerel=after (no upper bound), PT1H anchored at 12:03
+=========================================================
+    3 periods, each :03 to :03 — the LAST one ends 15:03 (nominal),
+    NOT 14:07 where the samples stop
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        10,
+        "2026-04-28T12:03:00Z",
+        "2026-04-28T13:03:00Z"
+      ],
+      [
+        20,
+        "2026-04-28T13:03:00Z",
+        "2026-04-28T14:03:00Z"
+      ],
+      [
+        30,
+        "2026-04-28T14:03:00Z",
+        "2026-04-28T15:03:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+03. Same data, P1D — ONE period 12:03 -> next day 12:03
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 305
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "max": [
+      [
+        30,
+        "2026-04-28T12:03:00Z",
+        "2026-04-29T12:03:00Z"
+      ]
+    ],
+    "min": [
+      [
+        10,
+        "2026-04-28T12:03:00Z",
+        "2026-04-29T12:03:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. CONTROL - an EXPLICIT endTimeAt mid-period still clips to it
+===============================================================
+    timeAt 12:03 + endTimeAt 14:33 + PT1H -> 12:03..13:03, 13:03..14:03,
+    14:03..14:33 (the client's own upper bound, not a data edge)
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 378
+
+{
+  "id": "urn:V1",
+  "speed": {
+    "avg": [
+      [
+        10,
+        "2026-04-28T12:03:00Z",
+        "2026-04-28T13:03:00Z"
+      ],
+      [
+        20,
+        "2026-04-28T13:03:00Z",
+        "2026-04-28T14:03:00Z"
+      ],
+      [
+        30,
+        "2026-04-28T14:03:00Z",
+        "2026-04-28T14:33:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
