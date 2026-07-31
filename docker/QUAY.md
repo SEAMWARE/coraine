@@ -67,32 +67,33 @@ the container would exit immediately.
 
 ## Distributed operations
 
-A broker that must answer from *other* brokers (Context Source Registrations) needs
-three things right. Miss any of them and queries come back `200` with an empty result
-and nothing in the log — federation failures are silent by design.
+Answering from *other* brokers (Context Source Registrations) is **off by default** —
+switch it on with `--distributed`:
 
 ```sh
 docker run -d --name b1 --network ngsild -p 1026:1026 \
-    quay.io/seamware/broker --database swRamDB \
-    --distributed --httpEndpoint http://192.168.1.10:1026
+    quay.io/seamware/broker --database swRamDB --distributed
 ```
 
-1. **`--distributed`** — forwarding is **off by default**; without it registrations are
-   still stored and discoverable, but nothing is ever forwarded. Only the broker that
-   forwards needs the flag; the one holding the data does not.
+Without it, registrations are still stored and discoverable, but nothing is ever
+forwarded. Only the broker that forwards needs the flag; the one holding the data
+does not.
 
-2. **`--httpEndpoint`** — the address the broker believes is its own, auto-detected from
-   the host's interfaces when not given. Inside a container that guess is a
-   container-internal address. Set it to the address *peers* use to reach this broker.
+Two things to know when a forward doesn't happen — federation failures are silent by
+design, so a dropped forward looks like `200` with an empty result:
 
-3. **Distinct identities.** Loop detection compares a `contextSourceAlias`, which defaults
-   to the authority of `--httpEndpoint`. Several brokers that end up with the *same* alias
-   each take the others for themselves and refuse to forward. This bites when brokers run
-   as containers that all bind the same internal port and differ only in the published
-   port — give each one its own `--httpEndpoint` (or an explicit `--csourceAlias`).
+- **The registration's `endpoint` must be resolvable from the broker**, not from your
+  shell. Inside a container, `localhost` is that container.
 
-The registration's `endpoint` must be resolvable **from the broker**, not from your shell:
-inside a container `localhost` is that container.
+- **`--httpEndpoint`** is the address the broker advertises as its own. It is
+  auto-detected from the interfaces, which is fine for loop detection (each container
+  gets its own address), but the guess is container-internal — so set it whenever peers
+  need to reach *this* broker at a routable address, i.e. for distributed subscriptions
+  and the callbacks and `Link` headers it hands out.
+
+Loop detection identifies a broker by its `contextSourceAlias`, derived from that
+endpoint's authority. Two brokers that somehow end up with the *same* alias each take
+the other for themselves and refuse to forward; `--csourceAlias` sets it explicitly.
 
 To see why a registration was or wasn't forwarded to, run with `-t 227`:
 
