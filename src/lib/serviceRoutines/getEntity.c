@@ -37,7 +37,7 @@
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
-#include "swNgsild/ldDistMerge.h"                   // ldDistExpiresAtReconcile
+#include "swNgsild/ldDistMerge.h"                   // ldDistExpiresAtReconcile, ldDistScopeMerge
 #include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
@@ -188,6 +188,9 @@ static void mergeOneSourceInto(KjNode* destP, KjNode* srcP, int64_t nowNs)
   // The non-reified entity-level expiresAt is not an Attribute and so takes
   // its own § 4.5.5.3 route: unanimous across versions or gone.
   ldDistExpiresAtReconcile(destP, srcP);
+
+  // § 5.2.7 — and the Scopes of this version join those of the versions already assembled.
+  ldDistScopeMerge(destP, srcP, swRest.kjsonP);
 
   KjNode* srcAttrP = srcP->value.firstChildP;
   while (srcAttrP != NULL)

@@ -1,0 +1,386 @@
+#
+# FILE            distop_scope_merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.7 — "In case multiple representations of the same Entity have to be
+# merged, e.g. when combining the results of distributed queries, the values
+# of scope are merged."
+#
+# Every version of a distributed Entity - the local copy and one per Context
+# Source - knows the Scopes of the part it holds, so the assembled Entity is
+# in the UNION of them. Unlike the entity-level expiresAt (see
+# distop_expires_at_merge) no version can take a Scope away from another.
+#
+# A union that comes out as a single Scope renders as a bare String, an array
+# only when there is more than one Scope (§ 5.2.7).
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+DistOp § 5.2.7 — the Scopes of every version of an Entity are merged
+
+--TAGS--
+distops scope merge retrieve
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
+swBrokerStart -role CP2 -dist
+
+--RUN--
+
+echo "01. Seed urn:V1 on CP1 - scope /a, speed"
+echo "========================================"
+swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "scope": "/a",
+  "speed": {
+    "type": "Property",
+    "value": 20
+  }
+}' | head -1
+echo
+echo
+
+
+echo "02. Seed urn:V1 on CP2 - scope [/b, /c], colour"
+echo "==============================================="
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "scope": [ "/b", "/c" ],
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  }
+}' | head -1
+echo
+echo
+
+
+echo "03. Register CB->CP1 inclusive for Vehicle"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "04. Register CB->CP2 inclusive for Vehicle"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:CP2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type":"Vehicle"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "05. GET urn:V1 on CB - scope is the union [/a, /b, /c]"
+echo "====================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "06. Query /entities on CB - the same union on the list path"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+echo
+echo
+
+
+echo "07. Seed urn:V1 locally on CB too - scope /a and /d"
+echo "=================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "scope": [ "/a", "/d" ],
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}' | head -1
+echo
+echo
+
+
+echo "08. GET urn:V1 on CB - the local copy is a version too: [/a, /d, /b, /c]"
+echo "======================================================================="
+echo "  /a is seen twice (locally and on CP1) and appears once"
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "09. scopeQ=/b on CB - the merged Entity is in CP2's scope as well"
+echo "================================================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle&scopeQ=/b' | grep '"id"'
+echo
+echo
+
+
+echo "10. Seed urn:V2 on CP1 and on CP2 - the very same single scope /a on both"
+echo "========================================================================"
+swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "scope": "/a",
+  "speed": {
+    "type": "Property",
+    "value": 30
+  }
+}' | head -1
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "scope": "/a",
+  "colour": {
+    "type": "Property",
+    "value": "blue"
+  }
+}' | head -1
+echo
+echo
+
+
+echo "11. GET urn:V2 on CB - a union of one Scope renders as a bare String"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+echo "12. Re-seed urn:V2 on CP2 WITHOUT any scope"
+echo "==========================================="
+swCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V2
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "colour": {
+    "type": "Property",
+    "value": "blue"
+  }
+}' | head -1
+echo
+echo
+
+
+echo "13. GET urn:V2 on CB - a version without Scopes takes none away: /a"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 on CP1 - scope /a, speed
+========================================
+HTTP/1.1 201 Created
+
+
+02. Seed urn:V1 on CP2 - scope [/b, /c], colour
+===============================================
+HTTP/1.1 201 Created
+
+
+03. Register CB->CP1 inclusive for Vehicle
+==========================================
+HTTP/1.1 201 Created
+
+
+04. Register CB->CP2 inclusive for Vehicle
+==========================================
+HTTP/1.1 201 Created
+
+
+05. GET urn:V1 on CB - scope is the union [/a, /b, /c]
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "scope": [
+    "/a",
+    "/b",
+    "/c"
+  ],
+  "speed": {
+    "type": "Property",
+    "value": 20
+  },
+  "type": "Vehicle"
+}
+
+
+
+06. Query /entities on CB - the same union on the list path
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "colour": {
+      "type": "Property",
+      "value": "red"
+    },
+    "id": "urn:V1",
+    "scope": [
+      "/a",
+      "/b",
+      "/c"
+    ],
+    "speed": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Seed urn:V1 locally on CB too - scope /a and /d
+==================================================
+HTTP/1.1 201 Created
+
+
+08. GET urn:V1 on CB - the local copy is a version too: [/a, /d, /b, /c]
+=======================================================================
+  /a is seen twice (locally and on CP1) and appears once
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "scope": [
+    "/a",
+    "/d",
+    "/b",
+    "/c"
+  ],
+  "speed": {
+    "type": "Property",
+    "value": 20
+  },
+  "type": "Vehicle",
+  "weight": {
+    "type": "Property",
+    "value": 900
+  }
+}
+
+
+
+09. scopeQ=/b on CB - the merged Entity is in CP2's scope as well
+================================================================
+    "id": "urn:V1",
+
+
+10. Seed urn:V2 on CP1 and on CP2 - the very same single scope /a on both
+========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+11. GET urn:V2 on CB - a union of one Scope renders as a bare String
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "id": "urn:V2",
+  "scope": "/a",
+  "speed": {
+    "type": "Property",
+    "value": 30
+  },
+  "type": "Vehicle"
+}
+
+
+
+12. Re-seed urn:V2 on CP2 WITHOUT any scope
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+
+
+13. GET urn:V2 on CB - a version without Scopes takes none away: /a
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colour": {
+    "type": "Property",
+    "value": "blue"
+  },
+  "id": "urn:V2",
+  "scope": "/a",
+  "speed": {
+    "type": "Property",
+    "value": 30
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swBrokerStop -role CP1
+swBrokerStop -role CP2
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+

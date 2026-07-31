@@ -32,7 +32,7 @@
 #include "swNgsild/ldStripAtContext.h"                   // ldStripAtContext
 #include "swNgsild/ldApiEntityToDbModel.h"               // ldApiEntityToDbModel
 #include "swNgsild/ldExpiresAtPropagate.h"            // ldExpiresAtPropagate
-#include "swNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile
+#include "swNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile, ldDistScopeMerge
 #include "swNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
@@ -501,6 +501,9 @@ static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
   // The non-reified entity-level expiresAt is not an Attribute and so takes
   // its own § 4.5.5.3 route: unanimous across versions or gone.
   ldDistExpiresAtReconcile(destDb, srcDb);
+
+  // § 5.2.7 — the Scopes of every version are merged, here into the frozen copy
+  ldDistScopeMerge(destDb, srcDb, swRest.kjsonP);
 
   KjNode* srcAttrP = srcDb->value.firstChildP;
   while (srcAttrP != NULL)

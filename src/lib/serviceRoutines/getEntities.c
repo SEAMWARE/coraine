@@ -36,7 +36,7 @@
 #include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
 #include "swRest/SwRestIn.h"                 // swAcceptParse, SwMimeType
 #include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
-#include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired
+#include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistScopeMerge
 #include "swNgsild/ldQAttrs.h"                       // ldQAttrs
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
@@ -2186,6 +2186,9 @@ bool getEntities(void)
               // Attribute and so is reconciled separately from the instance
               // loop below: unanimous across versions or gone.
               ldDistExpiresAtReconcile(existingP, remoteEntity);
+
+              // § 5.2.7 — the Scopes of every version are merged
+              ldDistScopeMerge(existingP, remoteEntity, swRest.kjsonP);
 
               for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
               {
