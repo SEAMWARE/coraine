@@ -29,7 +29,6 @@
 #include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegCreate
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
-#include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -166,7 +165,7 @@ bool postCsourceRegistration(void)
   // a derived sub to the new CSR for every existing local sub whose
   // filter overlaps. Symmetrical to the create-time fanout that runs
   // when the sub is created BEFORE the CSR.
-  if (regItemP != NULL && tenantP->subCacheP != NULL && !ldLocalOnly)
+  if (regItemP != NULL && tenantP->subCacheP != NULL)
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
     ldDistSubOnRegCreate((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,

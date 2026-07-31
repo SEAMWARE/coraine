@@ -70,7 +70,6 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--localOnly/-local (do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding))]
                  [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -105,7 +104,6 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--localOnly/-local (do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding))]
                  [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -151,7 +149,6 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--apiPlugins/-api <admin>]
                  [--pretty-print/-pp <default JSON indentation (0=compact)>]
                  [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--localOnly/-local (do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding))]
                  [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                  [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                  [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -186,7 +183,6 @@ Usage: swBroker  [--usage/-u (usage)]
   --apiPlugins            (-api)             SWBROKER_APIPLUGINS            Optional   String   Default Value  
   --pretty-print          (-pp)              SWBROKER_PRETTY_PRINT          Optional   UInt     Default Value  
   --connectionPoolSize    (-cps)             SWBROKER_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
-  --localOnly             (-local)           SWBROKER_LOCALONLY             Optional   Bool     Default Value  
   --notifyValueChangeOnly (-nvco)            SWBROKER_NOTIFYVALUECHANGEONLY Optional   Bool     Default Value  
   --corsOrigin            (-corsOrigin)      SWBROKER_CORSORIGIN            Optional   String   Default Value  
   --corsMaxAge            (-corsMaxAge)      SWBROKER_CORSMAXAGE            Optional   Int      Default Value  

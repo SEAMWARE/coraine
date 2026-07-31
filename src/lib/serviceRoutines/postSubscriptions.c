@@ -398,9 +398,9 @@ bool postSubscriptions(void)
     //
     // § 5.8.1.4 — fan derived subs out to matching CSRs.
     // Skipped silently when --httpEndpoint is unset (ldBrokerHttpEndpoint == NULL),
-    // when the tenant has no reg cache, or when --localOnly is in effect.
+    // when the tenant has no reg cache, or with --distributed off.
     //
-    if (cachedP != NULL && tenantP->regCacheP != NULL && !ldLocalOnly)
+    if (cachedP != NULL && tenantP->regCacheP != NULL && ldDistributed)
     {
       const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
       ldDistSubFanout(cachedP, (LdRegCache*) tenantP->regCacheP, ownAlias,

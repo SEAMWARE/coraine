@@ -39,7 +39,7 @@
 #include "kjson/kjClone.h"                        // kjClone
 #include "kalloc/kaAlloc.h"                       // kaAlloc
 #include "kalloc/kaStrdup.h"                      // kaStrdup
-#include "swNgsild/swNgsild.h"                    // ldInit, ldLocalOnly, SWNGSILD_VERSION, ldParamsInit
+#include "swNgsild/swNgsild.h"                    // ldInit, SWNGSILD_VERSION, ldParamsInit
 #include "swNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "swNgsild/ldHooks.h"                      // ldAcceptPrecondition
 #include "swNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
@@ -197,7 +197,6 @@ char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
 unsigned int   prettySpaces = 0;
-bool           localOnly    = false;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
 int            poolSize     = 32;
@@ -226,7 +225,6 @@ static KArg kargV[] =
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
-  { "--localOnly",          "-local",       KaBool,   _vp &localOnly,    KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "do not notify csource-subscriptions when a registration is created/deleted (see --distributed for forwarding)" },
   { "--notifyValueChangeOnly", "-nvco",     KaBool,   _vp &notifyValueChangeOnly, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
@@ -780,7 +778,6 @@ int main(int argC, char* argV[])
     exit(1);
   }
 
-  ldLocalOnly           = localOnly;
   ldNotifyValueChangeOnly = notifyValueChangeOnly;
   ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
   ldDistributed         = distributed;      // default: false — every entity operation stays local until asked otherwise

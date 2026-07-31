@@ -21,7 +21,7 @@
 #include "swRest/SwRestVerb.h"                        // SwVerbGet
 
 #include "swNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
-#include "swNgsild/SwNgsild.h"                        // ldLocalOnly, swNgsild
+#include "swNgsild/SwNgsild.h"                        // ldDistributed, swNgsild
 #include "swNgsild/LdProj.h"                          // LdProjItem, ldProjectionFindChild, ldProjectionTopLevelNames
 #include "swNgsild/ldPickOmit.h"                      // ldPickOmit
 #include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode
@@ -210,7 +210,7 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
   // ---------------------------------------------------------------------------
   if (typedRemoteOnly)
   {
-    if (objectTypeV != NULL && !ldLocalOnly && tenantP->regCacheP != NULL)
+    if (objectTypeV != NULL && ldDistributed && tenantP->regCacheP != NULL)
     {
       DistRetrieveErr err     = {0};
       bool            matched = false;
@@ -245,7 +245,7 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
   // predicate on a split-off REMOTE attribute see it — a local-only fetch
   // would miss the remote half of a split target.
   // ---------------------------------------------------------------------------
-  if (!ldLocalOnly && tenantP->regCacheP != NULL)
+  if (ldDistributed && tenantP->regCacheP != NULL)
   {
     DistRetrieveErr err     = {0};
     bool            matched = false;

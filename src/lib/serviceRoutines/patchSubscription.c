@@ -27,7 +27,7 @@
 #include "swNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
 #include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/SwNgsild.h"                       // ldLocalOnly
+#include "swNgsild/SwNgsild.h"                       // ldDistributed
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -316,7 +316,7 @@ bool patchSubscription(void)
   // (PATCH still-matching derivatives, DELETE no-longer-overlapping ones, fan
   // out new matches). Touches the reg cache + remote I/O — lock-free, pinned.
   // Best-effort — remote failures don't roll back local state.
-  if (newItemP != NULL && tenantP->regCacheP != NULL && !ldLocalOnly)
+  if (newItemP != NULL && tenantP->regCacheP != NULL && ldDistributed)
   {
     const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
     ldDistSubReconcile(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias,

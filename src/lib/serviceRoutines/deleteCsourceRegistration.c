@@ -17,7 +17,6 @@
 #include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegDelete
 #include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegDelete
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/SwNgsild.h"                       // ldLocalOnly
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -96,7 +95,7 @@ bool deleteCsourceRegistration(void)
     // § 5.8.1.4 — drop any subordinate (derived) subs that were forwarded
     // to this CSR. Best-effort remote DELETE is sent before unlinking the
     // local mapping. Must run before ldRegCacheItemRemove.
-    if (regItemP != NULL && tenantP->subCacheP != NULL && !ldLocalOnly)
+    if (regItemP != NULL && tenantP->subCacheP != NULL)
     {
       const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
       ldDistSubOnRegDelete((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,
