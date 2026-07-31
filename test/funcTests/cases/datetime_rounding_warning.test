@@ -1,0 +1,172 @@
+#
+# FILE            datetime_rounding_warning.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.2.4 — a DateTime is stored as epoch NANOSECONDS, so nine fractional
+# digits survive intact and are merely RENDERED at six by default (nine under
+# --high-precision). Nothing is lost there, and nothing is said.
+#
+# Past the ninth digit the value really is rounded away, and the client is told
+# so with an NGSILD-Warning. IANA 214 "Transformation Applied" is the code for a
+# representation the broker itself altered; § 6.3.5's table covers distributed
+# operations only, and its 299 means "the registration endpoint returned an
+# error" — reusing that here would make a stored-precision notice look like a
+# federation failure.
+#
+# The warning fires only when something was ACTUALLY lost: a discarded digit
+# that is '0' rounds to the very same instant, so it stays quiet.
+#
+--NAME--
+DateTime fraction beyond nanosecond resolution warns with NGSILD-Warning 214
+
+--TAGS--
+datetime warning observedAt validation
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. 6 digits — well inside nanosecond resolution, no warning"
+echo "============================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.123456Z"}}'
+echo
+echo
+
+
+echo "02. 9 digits — stored whole, only rendered shorter, no warning"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D2","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.123456789Z"}}'
+echo
+echo
+
+
+echo "03. 10 digits ending in '0' — rounds to the same instant, still no warning"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D3","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567890Z"}}'
+echo
+echo
+
+
+echo "04. 10 digits ending in '1' — precision is lost, NGSILD-Warning 214"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D4","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567891Z"}}'
+echo
+echo
+
+
+echo "05. 14 digits, all discarded ones '0' — no loss, no warning"
+echo "==========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D5","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.12345678900000Z"}}'
+echo
+echo
+
+
+echo "06. 13 digits with non-zero tail — NGSILD-Warning 214, emitted once"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D6","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567891234Z"},"q":{"type":"Property","value":2,"observedAt":"2026-01-01T00:00:00.9876543219876Z"}}'
+echo
+echo
+
+
+echo "07. The stored instant, rounded to nanoseconds then rendered at 6 digits"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:D4?options=sysAttrs
+echo
+echo
+
+
+--EXPECT--
+01. 6 digits — well inside nanosecond resolution, no warning
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:D1
+Content-Length: 0
+
+
+
+
+02. 9 digits — stored whole, only rendered shorter, no warning
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:D2
+Content-Length: 0
+
+
+
+
+03. 10 digits ending in '0' — rounds to the same instant, still no warning
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:D3
+Content-Length: 0
+
+
+
+
+04. 10 digits ending in '1' — precision is lost, NGSILD-Warning 214
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Warning: 214 - "DateTime values were rounded to nanosecond resolution"
+Location: /ngsi-ld/v1/entities/urn:D4
+Content-Length: 0
+
+
+
+
+05. 14 digits, all discarded ones '0' — no loss, no warning
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:D5
+Content-Length: 0
+
+
+
+
+06. 13 digits with non-zero tail — NGSILD-Warning 214, emitted once
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Warning: 214 - "DateTime values were rounded to nanosecond resolution"
+Location: /ngsi-ld/v1/entities/urn:D6
+Content-Length: 0
+
+
+
+
+07. The stored instant, rounded to nanoseconds then rendered at 6 digits
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "createdAt": "REGEX(.*)",
+  "id": "urn:D4",
+  "modifiedAt": "REGEX(.*)",
+  "p": {
+    "createdAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(.*)",
+    "observedAt": "2026-01-01T00:00:00.123456Z",
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
