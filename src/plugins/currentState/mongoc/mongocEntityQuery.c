@@ -144,11 +144,17 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
     }
     else
     {
-      bson_t allDoc;
-      bson_t allArray;
+      //
+      // One $and element per pattern of the group.
+      //
+      // An entity carrying a single scope stores it as a string, not as an array of one, and
+      // $elemMatch never matches a string - so $all + $elemMatch would drop exactly those
+      // entities. A plain $regex on the field matches a string as well as any element of an
+      // array, which is also what the in-broker matcher does for the very same expression.
+      //
+      bson_t andArray;
 
-      bson_append_document_begin(&orElem, scopeKey, -1, &allDoc);
-      bson_append_array_begin(&allDoc, "$all", 4, &allArray);
+      bson_append_array_begin(&orElem, "$and", 4, &andArray);
 
       for (int six = 0; six < grp->count; six++)
       {
@@ -157,18 +163,17 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
 
         ldScopeToRegex(grp->scopeV[six], regexBuf, sizeof(regexBuf));
 
-        bson_t elemMatch;
-        bson_t elemMatchInner;
+        bson_t andElem;
+        bson_t regexDoc;
 
-        bson_append_document_begin(&allArray, skey, skeyLen, &elemMatch);
-        bson_append_document_begin(&elemMatch, "$elemMatch", 10, &elemMatchInner);
-        bson_append_regex(&elemMatchInner, "$regex", 6, regexBuf, "");
-        bson_append_document_end(&elemMatch, &elemMatchInner);
-        bson_append_document_end(&allArray, &elemMatch);
+        bson_append_document_begin(&andArray, skey, skeyLen, &andElem);
+        bson_append_document_begin(&andElem, scopeKey, -1, &regexDoc);
+        bson_append_regex(&regexDoc, "$regex", 6, regexBuf, "");
+        bson_append_document_end(&andElem, &regexDoc);
+        bson_append_document_end(&andArray, &andElem);
       }
 
-      bson_append_array_end(&allDoc, &allArray);
-      bson_append_document_end(&orElem, &allDoc);
+      bson_append_array_end(&orElem, &andArray);
     }
 
     bson_append_document_end(&orArray, &orElem);

@@ -1,0 +1,332 @@
+#
+# FILE            scopeq_hierarchy_and_conjunction.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Three scopeQ behaviours (TS 104-175 § 7.2.5), each of them a place where the two
+# implementations of the scope query - the one pushed down to the database and the one
+# evaluated inside the broker (subscriptions, registrations, temporal, ramdb) - used to
+# disagree:
+#
+#  1. The trailing "/#" wildcard matches "the given scope and the whole hierarchy of
+#     scopes below" it. Below starts at a scope level boundary, so "/Madrid/G/#" covers
+#     "/Madrid/G" and "/Madrid/G/Sub", but NOT "/Madrid/Gardens" - that is a different
+#     scope, not a scope below "/Madrid/G".
+#
+#  2. An AND group, "(scopeA;scopeB)", applies to the Entity's scopes whether the Entity
+#     carries a single scope (a string) or several (an array of strings) - two spellings
+#     of the same thing must give the same answer.
+#
+#  3. A scopeQ that isn't a scope query expression at all is a 400, both as a URL
+#     parameter and inside a Subscription.
+#
+--NAME--
+scopeQ: the "/#" hierarchy wildcard stops at a scope level, conjunctions see a single scope, malformed expressions are rejected
+
+--TAGS--
+entity query scope subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Create G   scope=\"/Madrid/Gardens\"  (a single scope, as a string)"
+echo "====================================================================="
+payload='{ "id": "urn:ngsi-ld:Z:G", "type": "Zone", "scope": "/Madrid/Gardens" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create GA  scope=[\"/Madrid/Gardens\"]  (the same scope, as an array)"
+echo "======================================================================="
+payload='{ "id": "urn:ngsi-ld:Z:GA", "type": "Zone", "scope": [ "/Madrid/Gardens" ] }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create N   scope=\"/Madrid/Gardens/ParqueNorte\""
+echo "=================================================="
+payload='{ "id": "urn:ngsi-ld:Z:N", "type": "Zone", "scope": "/Madrid/Gardens/ParqueNorte" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Create S   scope=\"/Madrid/G\"  (a scope the Gardens ones merely start with)"
+echo "============================================================================="
+payload='{ "id": "urn:ngsi-ld:Z:S", "type": "Zone", "scope": "/Madrid/G" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Create D   scope=[\"/Madrid/Districts\", \"/CompanyA\"]"
+echo "======================================================="
+payload='{ "id": "urn:ngsi-ld:Z:D", "type": "Zone", "scope": [ "/Madrid/Districts", "/CompanyA" ] }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. scopeQ=/Madrid/G/# → S only - /Madrid/Gardens is not a scope below /Madrid/G"
+echo "==============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/G/%23' | grep '"id"'
+echo
+echo
+
+
+echo "07. scopeQ=/Madrid/Gardens/# → G, GA and N"
+echo "=========================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23' | grep '"id"'
+echo
+echo
+
+
+echo "08. scopeQ=(/Madrid/#;/Madrid/Gardens) → G and GA - one scope satisfies both terms"
+echo "================================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=(/Madrid/%23;/Madrid/Gardens)' | grep '"id"'
+echo
+echo
+
+
+echo "09. scopeQ=(/Madrid/Districts;/CompanyA) → D - one term per scope of the array"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=(/Madrid/Districts;/CompanyA)' | grep '"id"'
+echo
+echo
+
+
+echo "10. scopeQ=((/Madrid - unbalanced parenthesis → 400"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=((/Madrid'
+echo
+echo
+
+
+echo "11. scopeQ=/Madrid)|/CompanyA - unbalanced parenthesis → 400"
+echo "==========================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid)|/CompanyA'
+echo
+echo
+
+
+echo "12. A Subscription with an unbalanced scopeQ → 400"
+echo "================================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Bad",
+  "type": "Subscription",
+  "entities": [ { "type": "Zone" } ],
+  "scopeQ": "((/Madrid",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "13. Subscribe with scopeQ=/Madrid/G/#"
+echo "====================================="
+payload='{
+  "id": "urn:ngsi-ld:Subscription:Scope",
+  "type": "Subscription",
+  "entities": [ { "type": "Zone" } ],
+  "scopeQ": "/Madrid/G/#",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "14. Create an Entity with scope=/Madrid/Gardens/ParqueSur → no notification"
+echo "=========================================================================="
+payload='{ "id": "urn:ngsi-ld:Z:PS", "type": "Zone", "scope": "/Madrid/Gardens/ParqueSur" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "15. Create an Entity with scope=/Madrid/G/Sub → notified"
+echo "======================================================="
+payload='{ "id": "urn:ngsi-ld:Z:GS", "type": "Zone", "scope": "/Madrid/G/Sub" }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "16. The notified Entities"
+echo "========================="
+sleep .5
+echo "notified: $(ftClientDump | grep '"id": "urn:ngsi-ld:Z' | sed 's/[ ",]//g')"
+echo
+echo
+
+
+--EXPECT--
+01. Create G   scope="/Madrid/Gardens"  (a single scope, as a string)
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:G
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create GA  scope=["/Madrid/Gardens"]  (the same scope, as an array)
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:GA
+Content-Length: REGEX(\d+)
+
+
+
+
+03. Create N   scope="/Madrid/Gardens/ParqueNorte"
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:N
+Content-Length: REGEX(\d+)
+
+
+
+
+04. Create S   scope="/Madrid/G"  (a scope the Gardens ones merely start with)
+=============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:S
+Content-Length: REGEX(\d+)
+
+
+
+
+05. Create D   scope=["/Madrid/Districts", "/CompanyA"]
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:D
+Content-Length: REGEX(\d+)
+
+
+
+
+06. scopeQ=/Madrid/G/# → S only - /Madrid/Gardens is not a scope below /Madrid/G
+===============================================================================
+    "id": "urn:ngsi-ld:Z:S",
+
+
+07. scopeQ=/Madrid/Gardens/# → G, GA and N
+==========================================
+    "id": "urn:ngsi-ld:Z:G",
+    "id": "urn:ngsi-ld:Z:GA",
+    "id": "urn:ngsi-ld:Z:N",
+
+
+08. scopeQ=(/Madrid/#;/Madrid/Gardens) → G and GA - one scope satisfies both terms
+=================================================================================
+    "id": "urn:ngsi-ld:Z:G",
+    "id": "urn:ngsi-ld:Z:GA",
+
+
+09. scopeQ=(/Madrid/Districts;/CompanyA) → D - one term per scope of the array
+=============================================================================
+    "id": "urn:ngsi-ld:Z:D",
+
+
+10. scopeQ=((/Madrid - unbalanced parenthesis → 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "unbalanced parenthesis in scopeQ expression",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. scopeQ=/Madrid)|/CompanyA - unbalanced parenthesis → 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "unbalanced parenthesis in scopeQ expression",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. A Subscription with an unbalanced scopeQ → 400
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "unbalanced parenthesis in scopeQ expression",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. Subscribe with scopeQ=/Madrid/G/#
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Scope
+Content-Length: REGEX(\d+)
+
+
+
+
+14. Create an Entity with scope=/Madrid/Gardens/ParqueSur → no notification
+==========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:PS
+Content-Length: REGEX(\d+)
+
+
+
+
+15. Create an Entity with scope=/Madrid/G/Sub → notified
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:GS
+Content-Length: REGEX(\d+)
+
+
+
+
+16. The notified Entities
+=========================
+notified: id:urn:ngsi-ld:Z:GS
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+swDbDrop
