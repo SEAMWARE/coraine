@@ -327,10 +327,14 @@ bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
   case LdGeoIntersects:  match = (GEOSIntersects_r(geosCtx, refGeom, entityGeom) == 1); break;
   case LdGeoDisjoint:    match = (GEOSDisjoint_r(geosCtx, refGeom, entityGeom) == 1); break;
   case LdGeoOverlaps:
-    // GEOSOverlaps requires same-dimension geometries; fall back to intersects
+    //
+    // § 7.2.4: "the target geometry shall overlap, as specified by [n.21]" —
+    // OGC 06-103r4 overlap, which GEOSOverlaps implements exactly: the two
+    // geometries must share the same dimension, their interiors must meet,
+    // and neither may contain the other. So a Point never overlaps a Polygon,
+    // and a geometry never overlaps one it is within, contains or equals.
+    //
     match = (GEOSOverlaps_r(geosCtx, refGeom, entityGeom) == 1);
-    if (!match)
-      match = (GEOSIntersects_r(geosCtx, refGeom, entityGeom) == 1);
     break;
   case LdGeoEquals:      match = (GEOSEquals_r(geosCtx, refGeom, entityGeom) == 1); break;
   default:               break;

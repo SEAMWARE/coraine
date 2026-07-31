@@ -907,8 +907,10 @@ static int geoRefGeometry(char* buf, int sz, int p, const char* geometry, const 
 //   within     → ST_Within   (entity within reference)
 //   contains   → ST_Contains (entity contains reference)
 //   intersects → ST_Intersects
-//   overlaps   → ST_Intersects (GEOS overlaps falls back to intersects, and the
-//                current-state store maps overlaps→$geoIntersects too)
+//   overlaps   → ST_Overlaps  (§ 7.2.4's OGC 06-103r4 overlap: equal dimension,
+//                interiors meeting, neither containing the other. The mongoc
+//                current-state store cannot express this and approximates it —
+//                see bsonAppendGeoFilter — so it is the looser one there)
 //   equals     → ST_Equals
 //   disjoint   → ST_Disjoint
 // The topological relations run on geo::geometry (planar) — the same plane GEOS
@@ -969,7 +971,7 @@ static const char* geoPredicateCorrelated(TroeQueryFilter* fP, const char* tCol,
       case LdGeoWithin:     fn = "ST_Within";     break;
       case LdGeoContains:   fn = "ST_Contains";   break;
       case LdGeoIntersects: fn = "ST_Intersects"; break;
-      case LdGeoOverlaps:   fn = "ST_Intersects"; break;  // GEOS overlaps→intersects
+      case LdGeoOverlaps:   fn = "ST_Overlaps";   break;
       case LdGeoEquals:     fn = "ST_Equals";     break;
       case LdGeoDisjoint:   fn = "ST_Disjoint";   break;
       default:                                    break;

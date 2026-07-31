@@ -798,7 +798,6 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
   }
 
   case LdGeoIntersects:
-  case LdGeoOverlaps:
   {
     bson_t fieldDoc;
     bson_t intersectsDoc;
@@ -810,8 +809,60 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
     break;
   }
 
+  case LdGeoOverlaps:
+  {
+    //
+    // § 7.2.4 overlap is the OGC 06-103r4 one: same dimension, interiors
+    // meeting, neither geometry containing the other. Mongo has no
+    // $geoOverlaps, so this is the closest pushdown: intersecting but not
+    // within the reference, which drops the "entity within reference" and
+    // "entity equals reference" cases.
+    //
+    // APPROXIMATION: an entity whose geometry CONTAINS the reference still
+    // matches here (Mongo cannot express containment in the other direction,
+    // see LdGeoContains below), and the same-dimension rule is not applied.
+    // The in-broker matcher (plugins/shared/geoMatch.c), which serves the
+    // swRamDB backend, subscriptions, snapshots and the temporal API, is
+    // exact — so the two backends deliberately differ for those cases.
+    //
+    // The negation goes in a top-level $nor rather than next to the
+    // $geoIntersects: Mongo lets no sibling share an operator document with a
+    // geo operator ("can't parse extra field"). $nor alone would also match
+    // Entities without the GeoProperty, but the $geoIntersects clause already
+    // requires it, keeping § 7.2.4's "no target GeoProperty ⇒ non-matching".
+    //
+    bson_t fieldDoc;
+    bson_t intersectsDoc;
+    bson_append_document_begin(filterP, fieldPath, -1, &fieldDoc);
+    bson_append_document_begin(&fieldDoc, "$geoIntersects", 14, &intersectsDoc);
+    bson_append_document(&intersectsDoc, "$geometry", 9, &geometry);
+    bson_append_document_end(&fieldDoc, &intersectsDoc);
+    bson_append_document_end(filterP, &fieldDoc);
+
+    bson_t norArray;
+    bson_t norElem;
+    bson_t norField;
+    bson_t withinDoc;
+    bson_append_array_begin(filterP, "$nor", 4, &norArray);
+    bson_append_document_begin(&norArray, "0", 1, &norElem);
+    bson_append_document_begin(&norElem, fieldPath, -1, &norField);
+    bson_append_document_begin(&norField, "$geoWithin", 10, &withinDoc);
+    bson_append_document(&withinDoc, "$geometry", 9, &geometry);
+    bson_append_document_end(&norField, &withinDoc);
+    bson_append_document_end(&norElem, &norField);
+    bson_append_document_end(&norArray, &norElem);
+    bson_append_array_end(filterP, &norArray);
+    break;
+  }
+
   case LdGeoDisjoint:
   {
+    //
+    // $exists is what keeps § 7.2.4's closing rule — "Entities which do not
+    // convey the target GeoProperty of the query shall be considered as
+    // non-matching" — true here. Mongo's $not matches a MISSING field, so
+    // without it every geoproperty-less Entity would come back as disjoint.
+    //
     bson_t fieldDoc;
     bson_t notDoc;
     bson_t intersectsDoc;
@@ -821,18 +872,34 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
     bson_append_document(&intersectsDoc, "$geometry", 9, &geometry);
     bson_append_document_end(&notDoc, &intersectsDoc);
     bson_append_document_end(&fieldDoc, &notDoc);
+    bson_append_bool(&fieldDoc, "$exists", 7, true);
     bson_append_document_end(filterP, &fieldDoc);
     break;
   }
 
   case LdGeoEquals:
   {
+    //
+    // APPROXIMATION: an exact match on the stored GeoJSON sub-document, not
+    // the geometric equality § 7.2.4 asks for. The same square written from
+    // another starting vertex, or with the opposite ring orientation, is the
+    // same geometry but a different document, so it is missed here. Mongo has
+    // no geometric-equality operator; geoMatch.c uses GEOSEquals and is exact.
+    //
     bson_append_document(filterP, fieldPath, -1, &geometry);
     break;
   }
 
   case LdGeoContains:
   {
+    //
+    // APPROXIMATION: § 7.2.4 asks for the ENTITY's geometry to contain the
+    // reference, and Mongo has no $geoContains — $geoWithin only tests the
+    // other direction. $geoIntersects is a superset of the right answer: it
+    // is exact when the reference is a Point (a polygon intersects a point
+    // iff it contains it, boundaries aside) and over-matches for anything
+    // larger. geoMatch.c uses GEOSContains and is exact.
+    //
     bson_t fieldDoc;
     bson_t intersectsDoc;
     bson_append_document_begin(filterP, fieldPath, -1, &fieldDoc);

@@ -30,7 +30,7 @@ swBrokerStart
 # 10. Create entity E4 with custom geoproperty "operationArea" (Polygon)
 # 11. GET entities with geoproperty=operationArea, georel=intersects
 # 12. GET entities near Madrid, minDistance=400000, maxDistance=600000 - E2 only (ring between 400-600km)
-# 13. GET entities with georel=overlaps with polygon overlapping Iberia+France - should get E1, E2, E3
+# 13. GET entities with georel=overlaps, polygon spanning Iberia+France - no match: a Point never overlaps a Polygon
 # 14. GET entities with georel=contains, operationArea contains Point [0,40] - should get E4
 # 15. Create entity E5 with custom geoproperty "observationPoint" (Point)
 # 16. GET entities with geoproperty=observationPoint, georel=near - should get E5 (tests dynamic index)
@@ -181,8 +181,8 @@ echo
 echo
 
 
-echo "13. GET entities with georel=overlaps, polygon spanning Iberia+France - should get E1, E2, E3"
-echo "============================================================================================="
+echo "13. GET entities with georel=overlaps, polygon spanning Iberia+France - no match (Point vs Polygon)"
+echo "==================================================================================================="
 swCurl --url '/ngsi-ld/v1/entities?type=City&georel=overlaps&geometry=Polygon&coordinates=\[\[\[-10,35\],\[10,35\],\[10,52\],\[-10,52\],\[-10,35\]\]\]'
 echo
 echo
@@ -604,58 +604,15 @@ Content-Length: REGEX(\d+)
 
 
 
-13. GET entities with georel=overlaps, polygon spanning Iberia+France - should get E1, E2, E3
-=============================================================================================
+13. GET entities with georel=overlaps, polygon spanning Iberia+France - no match (Point vs Polygon)
+===================================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
-[
-  {
-    "id": "urn:e1",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "coordinates": [
-          -3.703,
-          40.417
-        ],
-        "type": "Point"
-      }
-    },
-    "type": "City"
-  },
-  {
-    "id": "urn:e2",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "coordinates": [
-          2.154,
-          41.39
-        ],
-        "type": "Point"
-      }
-    },
-    "type": "City"
-  },
-  {
-    "id": "urn:e3",
-    "location": {
-      "type": "GeoProperty",
-      "value": {
-        "coordinates": [
-          2.349,
-          48.864
-        ],
-        "type": "Point"
-      }
-    },
-    "type": "City"
-  }
-]
+[]
 
 
 

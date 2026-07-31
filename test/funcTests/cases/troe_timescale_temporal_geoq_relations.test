@@ -106,8 +106,8 @@ swCurl --url "$BASE&georel=intersects" | grep '"id"'
 echo
 echo
 
-echo "05. georel=overlaps → A_in, C_equal, D_big, E_ovlp (overlaps≡intersects)"
-echo "======================================================================="
+echo "05. georel=overlaps → E_ovlp only (OGC overlap: neither geometry contains the other)"
+echo "==================================================================================="
 swCurl --url "$BASE&georel=overlaps" | grep '"id"'
 echo
 echo
@@ -157,11 +157,8 @@ done
     "id": "urn:E_ovlp",
 
 
-05. georel=overlaps → A_in, C_equal, D_big, E_ovlp (overlaps≡intersects)
-=======================================================================
-    "id": "urn:A_in",
-    "id": "urn:C_equal",
-    "id": "urn:D_big",
+05. georel=overlaps → E_ovlp only (OGC overlap: neither geometry contains the other)
+===================================================================================
     "id": "urn:E_ovlp",
 
 
