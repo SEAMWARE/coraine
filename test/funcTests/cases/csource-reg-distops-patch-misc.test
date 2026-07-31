@@ -165,7 +165,7 @@ echo "14. PATCH with own Via alias → forward skipped, local merge still runs"
 echo "======================================================================"
 # CB's local V3 now has color=red. The Via loop suppresses the
 # forward to CP1 but the local merge of brand=Ghost still lands.
-swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PATCH -H "Via: 1.1 swBroker:$CB_PORT" --payload '{"brand":{"type":"Property","value":"Ghost"}}'
+swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PATCH -H "Via: 1.1 localhost:$CB_PORT" --payload '{"brand":{"type":"Property","value":"Ghost"}}'
 echo
 echo
 

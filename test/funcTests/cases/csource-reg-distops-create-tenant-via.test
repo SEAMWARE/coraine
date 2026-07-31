@@ -30,17 +30,17 @@ swBrokerStart -dist
 # Client POSTs an entity on t1. CB-on-t1 matches the CSR, forwards to
 # http://localhost:$CB_PORT/entities with headers:
 #   - NGSILD-Tenant: t2
-#   - Via: 1.1 swBroker:$CB_PORT:t1
+#   - Via: 1.1 localhost:$CB_PORT:t1
 #
-# The receiver is CB on tenant t2. Its own alias is "swBroker:$CB_PORT:t2".
-# Via entry is "swBroker:$CB_PORT:t1" — no exact match → NO loop detected.
+# The receiver is CB on tenant t2. Its own alias is "localhost:$CB_PORT:t2".
+# Via entry is "localhost:$CB_PORT:t1" — no exact match → NO loop detected.
 # Forward succeeds, entity stored on t2.
 #
 # Verification:
 #   - ?local=true on t1 → 404 (nothing stored there)
 #   - ?local=true on t2 →  entity present
 #
-# If the alias were not tenant-scoped (just "swBroker:$CB_PORT"), both
+# If the alias were not tenant-scoped (just "localhost:$CB_PORT"), both
 # sides would match and the forward would have come back as 502 loop
 # detected.
 #

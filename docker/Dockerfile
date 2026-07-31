@@ -1,0 +1,152 @@
+# swBroker — NGSI-LD Context Broker (ETSI GS CIM 009 v1.9.1)
+#
+# Multi-stage: stage 1 builds the whole dependency stack and the broker, stage 2
+# ships only what is needed to run it.
+#
+# Build from the REPO ROOT (not from docker/), and stage the private libs first:
+#   ./docker/vendor-libs.sh
+#   docker build -f docker/Dockerfile -t swbroker:local .
+#
+# Run with no external services at all (in-memory DB):
+#   docker run --rm -p 1026:1026 swbroker:local --database swRamDB
+#
+# Run against MongoDB (the default backend) — see docker-compose.yml.
+#
+# The dependency pins below mirror bootstrap-swlibs.sh, which is the source of
+# truth for the dev-box stack. When those pins move, move these too.
+#
+# Copyright 2026 Seamware
+
+# --------------------------------------------------------------------------- #
+# Stage 1 — builder
+# --------------------------------------------------------------------------- #
+FROM ubuntu:26.04 AS builder
+
+# Both of these are source-built on the dev box, so the image matches it rather
+# than taking whatever apt has (apt's libmicrohttpd is a release behind, and
+# mongo-c v2 — which the mongoc plugin needs for mongoc2.pc — isn't packaged).
+ARG MONGOC_VERSION=2.2.2
+ARG MHD_VERSION=1.0.2
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    HOME=/root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake git pkg-config ca-certificates curl \
+      libssl-dev libgeos-dev libmosquitto-dev libpq-dev libicu-dev \
+      libsasl2-dev libzstd-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# libmicrohttpd — the HTTP server the REST layer sits on.
+RUN curl -fsSL "https://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-${MHD_VERSION}.tar.gz" -o /tmp/mhd.tar.gz \
+ && tar -xzf /tmp/mhd.tar.gz -C /tmp \
+ && cd "/tmp/libmicrohttpd-${MHD_VERSION}" \
+ && ./configure --disable-doc --disable-examples --disable-https \
+ && make -j"$(nproc)" && make install \
+ && ldconfig \
+ && rm -rf "/tmp/libmicrohttpd-${MHD_VERSION}" /tmp/mhd.tar.gz
+
+# mongo-c driver v2 — required by the mongoc DB plugin (pkg-config: mongoc2).
+RUN git clone --depth 1 --branch "${MONGOC_VERSION}" \
+      https://github.com/mongodb/mongo-c-driver.git /tmp/mongo-c \
+ && cmake -S /tmp/mongo-c -B /tmp/mongo-c/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF -DBUILD_TESTING=OFF \
+ && cmake --build /tmp/mongo-c/build -j"$(nproc)" \
+ && cmake --install /tmp/mongo-c/build \
+ && ldconfig \
+ && rm -rf /tmp/mongo-c
+
+# The lib stack. swBroker's makefile resolves its sibling libs through $HOME/git,
+# so the repos have to live there — same layout as a dev box.
+#
+# k-libs are public on GitLab, so they clone straight from their pinned release
+# branches — the pins stay authoritative.
+WORKDIR /root/git
+RUN set -eux; \
+    for spec in \
+      kbase:release/0.10 \
+      kalloc:release/0.10.1 \
+      klog:release/0.10 \
+      khash:release/0.10 \
+      kjson:release/0.11.1 \
+      kargs:release/0.10 \
+      ktrace:release/0.10 \
+      kprom:release/0.1.0 \
+    ; do \
+      repo="${spec%%:*}"; branch="${spec#*:}"; \
+      git clone --quiet --depth 1 --branch "${branch}" \
+        "https://gitlab.com/kzangeli/${repo}.git" "/root/git/${repo}"; \
+    done
+
+# sw-libs are PRIVATE on GitHub — a container cannot clone them. docker/vendor-libs.sh
+# exports each one's committed HEAD next to this Dockerfile; MANIFEST.txt records the
+# exact SHAs that went in. Build fails here with a clear message if you skipped it.
+COPY docker/vendor/ /tmp/vendor/
+RUN set -eux; \
+    test -f /tmp/vendor/MANIFEST.txt || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
+    for tar in /tmp/vendor/*.tar; do tar -xf "$tar" -C /root/git; done; \
+    cat /tmp/vendor/MANIFEST.txt; \
+    rm -rf /tmp/vendor
+
+# The umbrella builds every lib in dependency order and collects the artifacts.
+RUN make -C /root/git/swLibs di
+
+# The broker itself. .dockerignore keeps the host build trees out, so CMake
+# starts clean instead of inheriting a cache full of host paths.
+COPY . /root/git/swBroker
+WORKDIR /root/git/swBroker
+
+RUN make i
+
+# Stamp real provenance. etc/contextSourceExtras.json is committed AND older than the
+# makefile, so `make` never regenerates it — and .git is out of the build context, so
+# the makefile's `git rev-parse` would yield "unknown" regardless. Without this, the
+# image serves a months-old gitSha on sourceIdentity and bug reports land on the wrong
+# commit. Pass the values in:
+#   --build-arg GIT_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+ARG GIT_SHA=unknown
+ARG BUILD_AT=unknown
+ARG VERSION=0.2.0
+RUN printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
+      "${VERSION}" "${GIT_SHA}" "${BUILD_AT}" > /opt/seamware/etc/contextSourceExtras.json \
+ && cat /opt/seamware/etc/contextSourceExtras.json
+
+# --------------------------------------------------------------------------- #
+# Stage 2 — runtime
+# --------------------------------------------------------------------------- #
+FROM ubuntu:26.04
+
+LABEL org.opencontainers.image.title="swBroker" \
+      org.opencontainers.image.description="NGSI-LD Context Broker — ETSI GS CIM 009 v1.9.1" \
+      org.opencontainers.image.vendor="Seamware" \
+      org.opencontainers.image.licenses="Proprietary"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Runtime shared libraries only. curl is here for the healthcheck below.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libssl3t64 libgeos-c1t64 libmosquitto1 libpq5 libicu78 \
+      libsasl2-2 libzstd1 zlib1g curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/bin/swBroker /usr/local/bin/swBroker
+COPY --from=builder /opt/seamware/ /opt/seamware/
+COPY --from=builder /usr/local/lib/libmicrohttpd.so.12* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libmongoc* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libbson* /usr/local/lib/
+RUN ldconfig
+
+EXPOSE 1026
+
+# /ngsi-ld/v1/types needs no parameters and no data to answer 200, which makes it
+# the cheapest honest liveness signal.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -fsS http://localhost:1026/ngsi-ld/v1/types >/dev/null || exit 1
+
+# -fg is mandatory in a container: without it the broker daemonizes and PID 1 exits.
+ENTRYPOINT ["swBroker", "-fg"]
+
+# Overridable. Default is the Mongo backend, matching the dev/test default;
+# pass --database swRamDB to run with no external services.
+CMD ["--database", "mongoc", "--troe", "none", "--apiPlugins", "admin"]

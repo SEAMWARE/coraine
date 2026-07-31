@@ -1,0 +1,10 @@
+# Keep host build trees out of the image build context. A CMakeCache.txt full of
+# host paths is worse than useless inside the container — it makes the build fail
+# in confusing ways — and these directories are large.
+BUILD_RELEASE/
+BUILD_DEBUG/
+BUILD_COVERAGE/
+coverage/
+coverage-mongoc/
+coverage-etsi/
+.git/

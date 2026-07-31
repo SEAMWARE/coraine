@@ -41,3 +41,6 @@ ToDo
 CLAUDE
 
 .claude/scheduled_tasks.lock
+
+# Docker build staging: exported sw-lib sources (regenerate with docker/vendor-libs.sh)
+docker/vendor/

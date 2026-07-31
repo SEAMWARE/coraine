@@ -1,0 +1,94 @@
+# Two brokers + MongoDB — a distributed-operations smoke rig.
+#
+#   ./docker/vendor-libs.sh && docker build -f docker/Dockerfile -t swbroker:local .
+#   docker compose -f docker/docker-compose-distops.yml up -d
+#   ./docker/distops-smoke.sh
+#
+# Published on 2026/2027, NOT 1026/1027: those are the functest harness's own
+# broker ports, and a container holding 1026 makes the whole sw suite fail to
+# start its broker ("swRestInit failed on port 1026").
+#
+# broker-cp holds the data. broker-cb holds nothing and is told, via a Context
+# Source Registration, that Vehicles live at broker-cp. A query to broker-cb
+# must come back with broker-cp's entity.
+#
+# THREE THINGS THIS RIG EXISTS TO GET RIGHT, because each of them silently
+# produces "distributed operations don't work":
+#
+#   1. --distributed. Forwarding is OFF by default (it costs a registration
+#      lookup on every operation and most deployments never federate). Only the
+#      broker that FORWARDS needs it — broker-cp below runs without it and is
+#      perfectly able to answer.
+#
+#   2. --httpEndpoint. It is what the broker believes its own address to be,
+#      and it is auto-detected from the LAN interfaces when not given. Inside a
+#      container that guess is a container-internal address, which is both
+#      unreachable from peers and — worse — may collide with a registration's
+#      endpoint, at which point loop detection drops the forward and the query
+#      comes back empty with no error. Pin it to the name peers actually use.
+#
+#   3. The registration endpoint must be resolvable FROM THE BROKER, not from
+#      your shell: "http://broker-cp:1026", never "http://localhost:1027".
+#      localhost inside broker-cb is broker-cb.
+#
+# Copyright 2026 Seamware
+
+services:
+  mongo:
+    image: mongo:8
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # The Context Source: holds the Vehicles, forwards nothing, so no
+  # --distributed here. Published on 2027 so the smoke script can seed it.
+  broker-cp:
+    image: swbroker:local
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "2027:1026"
+    command:
+      - --database
+      - mongoc
+      - --dbHost
+      - mongo
+      - --dbName
+      - cp
+      - --troe
+      - none
+      - --apiPlugins
+      - admin
+      - --httpEndpoint
+      - http://broker-cp:1026
+      - -v
+
+  # The Context Broker the client talks to. Holds no data of its own; every
+  # answer about a Vehicle has to be forwarded, which is what --distributed
+  # switches on.
+  broker-cb:
+    image: swbroker:local
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "2026:1026"
+    command:
+      - --database
+      - mongoc
+      - --dbHost
+      - mongo
+      - --dbName
+      - cb
+      - --troe
+      - none
+      - --apiPlugins
+      - admin
+      - --httpEndpoint
+      - http://broker-cb:1026
+      - --distributed
+      - -v

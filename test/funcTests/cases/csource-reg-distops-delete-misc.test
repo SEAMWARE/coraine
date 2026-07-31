@@ -152,7 +152,7 @@ echo
 # --- 15: loop skip ---
 echo "15. DELETE with own Via alias, no local entity, no CSR → 404"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:NeverExisted -X DELETE -H "Via: 1.1 swBroker:$CB_PORT"
+swCurl --url /ngsi-ld/v1/entities/urn:NeverExisted -X DELETE -H "Via: 1.1 localhost:$CB_PORT"
 echo
 echo
 

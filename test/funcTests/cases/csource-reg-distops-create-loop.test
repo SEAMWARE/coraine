@@ -59,7 +59,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 42 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" --header "Via: 1.1 swBroker:$CB_PORT"
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" --header "Via: 1.1 localhost:$CB_PORT"
 echo
 echo
 

@@ -229,7 +229,7 @@ static KArg kargV[] =
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--defaultUserContext", "-duc",         KaString, _vp &defaultUserContext, KaOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
-  { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: <exe>:<port>)" },
+  { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: the advertised endpoint authority)" },
   { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
   { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
   { "--distributed",        "-dist",        KaBool,   _vp &distributed, KaOpt, _vp false, _vp false, _vp true, "enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way" },
@@ -786,25 +786,6 @@ int main(int argC, char* argV[])
   ldBrokerStartTimeSec  = (long long) time(NULL);
 
   //
-  // contextSourceAlias base for Via headers (NGSI-LD § 5.7.5).
-  // Default: "<argv0-basename>:<port>" — RFC 7230 pseudonym is 1*VCHAR,
-  // no hostname requirement, so the executable name is sufficient and
-  // sidesteps the multi-IP host-naming problem.
-  //
-  if (csourceAlias == NULL)
-  {
-    const char* basename = argV[0];
-    for (const char* p = argV[0]; *p != 0; p++)
-      if (*p == '/') basename = p + 1;
-
-    static char defaultAlias[128];
-    snprintf(defaultAlias, sizeof(defaultAlias), "%s:%u", basename, (unsigned) port);
-    ldCsourceAliasBase = defaultAlias;
-  }
-  else
-    ldCsourceAliasBase = csourceAlias;
-
-  //
   // Externally-reachable HTTP base URL — embedded in forwarded Link headers,
   // the callback root of derived (distributed) subscriptions (§ 5.8.1.4), and
   // served @context URLs. Peers on other hosts must be able to reach it, so the
@@ -829,6 +810,56 @@ int main(int argC, char* argV[])
       endpointSource = "fallback (no LAN interface found)";
     }
     ldBrokerHttpEndpoint = defaultEndpoint;
+  }
+
+  //
+  // contextSourceAlias base for Via headers and /info/sourceIdentity
+  // (NGSI-LD § 5.7.5, § 9.7). It has to be UNIQUE PER BROKER: loop detection
+  // treats a registration whose probed alias equals ours as pointing back at
+  // us, and drops the forward — silently, for an inclusive registration.
+  //
+  // It is therefore derived from the broker's own advertised endpoint, whose
+  // authority (host[:port]) is exactly "who I am on the network": an explicit
+  // --httpEndpoint when given, else the auto-detected LAN address.
+  //
+  // The old default was "<argv0-basename>:<port>", which is unique only when
+  // brokers differ by PORT. Two brokers on separate hosts or containers both
+  // listening on 1026 — the ordinary deployment — both called themselves
+  // "swBroker:1026", so neither would forward to the other. Ports differing is
+  // exactly the test topology, which is why no test ever caught it.
+  //
+  // --csourceAlias still wins, and the basename form remains the last resort.
+  //
+  if (csourceAlias != NULL)
+    ldCsourceAliasBase = csourceAlias;
+  else
+  {
+    static char defaultAlias[128];
+    const char* authority = strstr(ldBrokerHttpEndpoint, "://");
+
+    authority = (authority != NULL) ? authority + 3 : ldBrokerHttpEndpoint;
+
+    if (authority[0] != 0)
+    {
+      const char* slash = strchr(authority, '/');
+      int         len   = (slash != NULL) ? (int) (slash - authority) : (int) strlen(authority);
+
+      if (len > (int) sizeof(defaultAlias) - 1)
+        len = sizeof(defaultAlias) - 1;
+
+      memcpy(defaultAlias, authority, len);
+      defaultAlias[len] = 0;
+    }
+    else
+    {
+      const char* basename = argV[0];
+      for (const char* p = argV[0]; *p != 0; p++)
+        if (*p == '/') basename = p + 1;
+
+      snprintf(defaultAlias, sizeof(defaultAlias), "%s:%u", basename, (unsigned) port);
+    }
+
+    ldCsourceAliasBase = defaultAlias;
   }
 
 

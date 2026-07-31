@@ -193,7 +193,7 @@ Content-Length: REGEX(\d+)
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "params": {
       "id": "urn:R1",
@@ -239,7 +239,7 @@ Content-Length: REGEX(\d+)
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "params": {
       "id": "urn:R1",
@@ -269,7 +269,7 @@ Content-Length: REGEX(\d+)
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entityOperations/query",
     "verb": "POST"
@@ -307,7 +307,7 @@ Content-Length: REGEX(\d+)
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "params": {
       "id": "urn:R1",
@@ -337,7 +337,7 @@ Content-Length: REGEX(\d+)
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entityOperations/query",
     "verb": "POST"

@@ -296,7 +296,7 @@ Date: REGEX(.*)
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PATCH"
@@ -333,7 +333,7 @@ Date: REGEX(.*)
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PATCH"
@@ -354,7 +354,7 @@ Date: REGEX(.*)
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PUT"
@@ -397,7 +397,7 @@ Date: REGEX(.*)
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PATCH"
@@ -418,7 +418,7 @@ Date: REGEX(.*)
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PUT"
@@ -441,7 +441,7 @@ Date: REGEX(.*)
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
     "verb": "PATCH"
@@ -478,7 +478,7 @@ HTTP/1.1 204 No Content
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PATCH"
@@ -499,7 +499,7 @@ HTTP/1.1 204 No Content
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
     "verb": "PUT"
@@ -522,7 +522,7 @@ HTTP/1.1 204 No Content
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
     "verb": "PATCH"
@@ -533,7 +533,7 @@ HTTP/1.1 204 No Content
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "params": {
       "pick": "type,scope,velocidad",
@@ -564,7 +564,7 @@ HTTP/1.1 204 No Content
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "swRest/1.0",
-      "Via": "1.1 swBroker:1026"
+      "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entityOperations/upsert",
     "verb": "POST"

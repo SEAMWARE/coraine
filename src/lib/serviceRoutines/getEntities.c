@@ -41,6 +41,7 @@
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "swNgsild/ldTraceLevels.h"                  // LdTRegMatch
 #include "swNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop, ldDistOpForwardContext
 #include "swNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
 #include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
@@ -1896,13 +1897,23 @@ bool getEntities(void)
       {
         for (int i = 0; i < modeMatchN[m]; i++)
         {
-          LdRegCacheItem* csr = modeMatchV[m][i];
-          if (csr->endpoint == NULL) continue;
-          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+          LdRegCacheItem* csr   = modeMatchV[m][i];
+          const char*     regId = (csr->regId != NULL) ? csr->regId : "<no id>";
+
+          if (csr->endpoint == NULL)
+          {
+            KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration has no endpoint", regId);
+            continue;
+          }
+          if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;   // traces its own reason
 
           bool csrQE = ldRegOpSupported(csr, LdOpQueryEntities);
           bool csrQB = ldRegOpSupported(csr, LdOpBatchQuery);
-          if (!csrQE && !csrQB) continue;
+          if (!csrQE && !csrQB)
+          {
+            KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: 'operations' covers neither queryEntity nor batch query", regId);
+            continue;
+          }
           bool postForward = incomingBatch ? csrQB : !csrQE;
 
           if (swNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)

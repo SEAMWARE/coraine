@@ -158,7 +158,7 @@ echo
 # --- 14-15: loop skip ---
 echo "14. PUT with own Via alias → forward skipped, local replace still runs"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PUT -H "Via: 1.1 swBroker:$CB_PORT" --payload '{"id":"urn:V3","type":"Vehicle","brand":{"type":"Property","value":"Ghost"}}'
+swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PUT -H "Via: 1.1 localhost:$CB_PORT" --payload '{"id":"urn:V3","type":"Vehicle","brand":{"type":"Property","value":"Ghost"}}'
 echo
 echo
 
