@@ -545,7 +545,21 @@ bool getEntitiesTemporal(void)
   filter.limitGiven   = limitGiven;
 
   if (swNgsild.qExpr != NULL)
+  {
     filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);
+
+    //
+    // A q that cannot be turned into SQL must not simply be left out: the
+    // query would then run unfiltered and answer with Entities that do not
+    // match what was asked for. Silently wrong data is worse than an error.
+    //
+    if (filter.qSqlPredicate == NULL)
+    {
+      ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
+              "this 'q' cannot be evaluated against the temporal store");
+      return true;
+    }
+  }
 
   Tenant* tenantP = (snapItem != NULL)
                       ? (Tenant*) snapItem->snapTenantP

@@ -8,6 +8,7 @@
 
 #include <stddef.h>                                   // NULL
 #include <stdio.h>                                    // snprintf
+#include <time.h>                                      // gmtime_r, struct tm
 #include <string.h>                                   // strlen, memcpy, strchr, strrchr
 #include <stdbool.h>                                  // bool
 
@@ -59,82 +60,288 @@ static int escapeSqlLit(const char* s, char* dst, int max)
 
 // -----------------------------------------------------------------------------
 //
-// termToSql - one LdQTermNode → "EXISTS (SELECT 1 FROM troe_attrs WHERE
-// entity_id = $1 AND attr_name = '<iri>' AND <vCol> <op> <lit>)".
+// jsonbPath - render a JSONB path expression for a § 4.9 attrPath term.
 //
-// Returns NULL on unsupported value type / op / sub-path.
+// The row's own columns only describe the ATTRIBUTE. Everything below it lives
+// in the sub_attrs JSONB, which holds each sub-attribute verbatim in NGSI-LD
+// form:
+//
+//   {"accuracy": {"type": "Property", "value": 9},
+//    "meta":     {"type": "Property", "value": {"x": {"y": 7}}}}
+//
+// So a.b       → sub_attrs -> 'b' -> 'value'
+//    a.b.c     → sub_attrs -> 'b' -> 'c' -> 'value'    (c is a member of b)
+//    a[x.y]    → v_compound -> 'x' -> 'y'              (into the attr's value)
+//    a.b[x.y]  → sub_attrs -> 'b' -> 'value' -> 'x' -> 'y'
+//
+// Written with #> and a path array so a member name never has to be escaped
+// into the operator chain. Returns the number of chars written, or -1 if the
+// path does not fit.
+//
+static int jsonbPath(LdQTerm* tP, char* dst, int max)
+{
+  int  n    = 0;
+  bool sub  = (tP->subPathN > 0);
+
+  n += snprintf(dst + n, max - n, "%s #> '{", sub ? "sub_attrs" : "v_compound");
+
+  // Sub-attribute segments, then "value" to step from the NGSI-LD node into
+  // what it holds. A value path continues from there.
+  for (int i = 0; i < tP->subPathN; i++)
+    n += snprintf(dst + n, max - n, "%s\"%s\"", (i > 0) ? "," : "", tP->subPathV[i]);
+
+  if (sub)
+    n += snprintf(dst + n, max - n, ",\"value\"");
+
+  for (int i = 0; i < tP->valuePathN; i++)
+    n += snprintf(dst + n, max - n, "%s\"%s\"", (i > 0 || sub) ? "," : "", tP->valuePathV[i]);
+
+  n += snprintf(dst + n, max - n, "}'");
+
+  return (n >= max) ? -1 : n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// termToSql - one LdQTermNode → "EXISTS (SELECT 1 FROM troe_attrs WHERE
+// entity_id = $1 AND attr_name = '<iri>' AND <lhs> <op> <lit>)".
+//
+// Returns NULL when the term cannot be expressed in SQL. The caller must then
+// refuse the query rather than run it unfiltered — an ignored filter answers
+// with entities that do not match, which is worse than an error.
 //
 static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
 {
-  // Sub-attribute paths (a.b > 10) — skip for now.
-  // The expanded IRI itself contains dots ("etsi.org/..."); look only in
-  // the last path segment.
-  if (tP->attr != NULL)
-  {
-    const char* tail = strrchr(tP->attr, '/');
-    tail = (tail != NULL) ? tail + 1 : tP->attr;
-    if (strchr(tail, '.') != NULL)
-      return NULL;
-  }
+  char attrEsc[1024];
+  escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
+
+  bool deep = (tP->subPathN > 0) || (tP->valuePathN > 0);
+
+  //
+  // observedAt is NOT in sub_attrs — timescaleEvent.c lifts it into its own
+  // column on the way in. A path of exactly ".observedAt" is therefore a
+  // column comparison, and the only one of the timestamps that q can reach:
+  // createdAt/modifiedAt/datasetId are dropped from sub_attrs the same way,
+  // but § 4.9 does not put them in an attrPath.
+  //
+  bool observedAtPath = (tP->subPathN == 1) && (tP->valuePathN == 0) &&
+                        (strcmp(tP->subPathV[0], "observedAt") == 0);
 
   // Existence / non-existence check (no operator).
   if ((tP->op == LdQExists || tP->op == LdQNotExists) && tP->valueType == LdQNoValue)
   {
-    char attrEsc[1024];
-    escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
+    char  pathBuf[1024] = { 0 };
+    if (deep && !observedAtPath)
+    {
+      if (jsonbPath(tP, pathBuf, sizeof(pathBuf)) < 0)
+        return NULL;
+    }
 
-    int   sz  = (int) strlen(attrEsc) + 128;
+    int   sz  = (int) strlen(attrEsc) + (int) strlen(pathBuf) + 192;
     char* buf = (char*) kaAlloc(allocP, sz);
-    snprintf(buf, sz,
-             "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s')",
-             (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
+
+    if (observedAtPath)
+      snprintf(buf, sz,
+               "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s'"
+               " AND observed_at IS NOT NULL)",
+               (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
+    else if (deep)
+      snprintf(buf, sz,
+               "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s'"
+               " AND %s IS NOT NULL)",
+               (tP->op == LdQNotExists) ? "NOT " : "", attrEsc, pathBuf);
+    else
+      snprintf(buf, sz,
+               "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s')",
+               (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
     return buf;
   }
 
-  const char* opSym = opSqlSymbol(tP->op);
-  if (opSym == NULL)
-    return NULL;
+  //
+  // Left-hand side.
+  //
+  // A plain attribute compares against the typed column that its value was
+  // stored in. Anything deeper has to come back out of JSONB, and JSONB is
+  // untyped until it is cast — so each cast is guarded by jsonb_typeof(), both
+  // to make the comparison mean what it says and to keep a cast from erroring
+  // on a row where that member happens to hold something else.
+  //
+  char lhs[1200];
+  char guard[1200];
 
-  char  attrEsc[1024];
-  escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
+  guard[0] = 0;
 
-  // Pick value column + literal based on value type.
-  const char* vCol = NULL;
-  char        lit[320];
-  bool        haveLit = false;
+  if (observedAtPath)
+    snprintf(lhs, sizeof(lhs), "observed_at");
+  else if (deep)
+  {
+    char pathBuf[1024];
+    if (jsonbPath(tP, pathBuf, sizeof(pathBuf)) < 0)
+      return NULL;
 
-  if (tP->valueType == LdQNumber)
-  {
-    vCol = "v_number";
-    snprintf(lit, sizeof(lit), "%.17g", tP->value.n);
-    haveLit = true;
-  }
-  else if (tP->valueType == LdQString)
-  {
-    vCol = "v_text";
-    char esc[256];
-    escapeSqlLit(tP->value.s, esc, sizeof(esc));
-    snprintf(lit, sizeof(lit), "'%s'", esc);
-    haveLit = true;
-  }
-  else if (tP->valueType == LdQBool)
-  {
-    vCol = "v_bool";
-    snprintf(lit, sizeof(lit), "%s", tP->value.b ? "TRUE" : "FALSE");
-    haveLit = true;
+    const char* jType = NULL;
+    const char* cast  = NULL;
+
+    switch (tP->valueType)
+    {
+      case LdQNumber:
+      case LdQRange:      jType = "number";  cast = "::double precision"; break;
+      case LdQString:     jType = "string";  cast = "";                   break;
+      case LdQBool:       jType = "boolean"; cast = "::boolean";          break;
+      case LdQDateTime:
+      case LdQDateRange:  jType = "string";  cast = "::timestamptz";      break;
+      case LdQValueList:  jType = NULL;      cast = NULL;                 break;   // per-item below
+      default:            return NULL;
+    }
+
+    if (tP->valueType == LdQValueList)
+    {
+      // The list decides its own type; jsonb_typeof is applied per item type
+      // in the list branch, which needs the raw text either way.
+      snprintf(lhs, sizeof(lhs), "(%s #>> '{}')", pathBuf);
+      (void) jType;
+    }
+    else
+    {
+      snprintf(guard, sizeof(guard), "jsonb_typeof(%s) = '%s' AND ", pathBuf, jType);
+      snprintf(lhs, sizeof(lhs), "(%s #>> '{}')%s", pathBuf, cast);
+    }
   }
   else
   {
-    return NULL;  // datetime / range / list — follow-up
+    switch (tP->valueType)
+    {
+      case LdQNumber:
+      case LdQRange:      snprintf(lhs, sizeof(lhs), "v_number");   break;
+      case LdQString:     snprintf(lhs, sizeof(lhs), "v_text");     break;
+      case LdQBool:       snprintf(lhs, sizeof(lhs), "v_bool");     break;
+      case LdQDateTime:
+      case LdQDateRange:  snprintf(lhs, sizeof(lhs), "v_datetime"); break;
+      case LdQValueList:  snprintf(lhs, sizeof(lhs), "%s", "");     break;   // set in the list branch
+      default:            return NULL;
+    }
   }
 
-  if (!haveLit) return NULL;
+  //
+  // Right-hand side + operator.
+  //
+  char cond[4096];
 
-  int   sz  = (int) strlen(attrEsc) + (int) strlen(vCol) + (int) strlen(lit) + 128;
+  if ((tP->valueType == LdQRange) || (tP->valueType == LdQDateRange))
+  {
+    // § 4.9: a range is only meaningful for equality and its negation.
+    if ((tP->op != LdQEqual) && (tP->op != LdQUnequal))
+      return NULL;
+
+    const char* neg = (tP->op == LdQUnequal) ? "NOT " : "";
+
+    if (tP->valueType == LdQRange)
+      snprintf(cond, sizeof(cond), "%s%s BETWEEN %.17g AND %.17g",
+               neg, lhs, tP->value.numRange.lo, tP->value.numRange.hi);
+    else
+    {
+      char lo[256], hi[256];
+      escapeSqlLit(tP->value.dateRange.lo, lo, sizeof(lo));
+      escapeSqlLit(tP->value.dateRange.hi, hi, sizeof(hi));
+      snprintf(cond, sizeof(cond), "%s%s BETWEEN '%s'::timestamptz AND '%s'::timestamptz",
+               neg, lhs, lo, hi);
+    }
+  }
+  else if (tP->valueType == LdQValueList)
+  {
+    if ((tP->op != LdQEqual) && (tP->op != LdQUnequal))
+      return NULL;
+
+    // Every item is rendered as text and compared against the column that
+    // matches the list's item type, so "speed==10,77" stays numeric and
+    // "name=='a','b'" stays textual.
+    const char* col  = NULL;
+    bool        quot = false;
+
+    switch (tP->value.list.itemType)
+    {
+      case LdQNumber:   col = deep ? lhs : "v_number";   quot = false; break;
+      case LdQString:   col = deep ? lhs : "v_text";     quot = true;  break;
+      case LdQBool:     col = deep ? lhs : "v_bool";     quot = false; break;
+      case LdQDateTime: col = deep ? lhs : "v_datetime"; quot = true;  break;
+      default:          return NULL;
+    }
+
+    int p = snprintf(cond, sizeof(cond), "%s%s IN (",
+                     (tP->op == LdQUnequal) ? "NOT " : "", col);
+
+    for (int i = 0; i < tP->value.list.count; i++)
+    {
+      char esc[256];
+      escapeSqlLit(tP->value.list.values[i], esc, sizeof(esc));
+
+      if (quot)
+        p += snprintf(cond + p, sizeof(cond) - p, "%s'%s'%s", (i > 0) ? "," : "", esc,
+                      (tP->value.list.itemType == LdQDateTime) ? "::timestamptz" : "");
+      else
+        p += snprintf(cond + p, sizeof(cond) - p, "%s%s", (i > 0) ? "," : "", esc);
+
+      if (p >= (int) sizeof(cond) - 4)
+        return NULL;
+    }
+    snprintf(cond + p, sizeof(cond) - p, ")");
+  }
+  else if ((tP->op == LdQPattern) || (tP->op == LdQNotPattern))
+  {
+    // ~= is a POSIX regular expression, which is postgres' own ~ operator.
+    char esc[512];
+    escapeSqlLit(tP->value.s, esc, sizeof(esc));
+    snprintf(cond, sizeof(cond), "%s %s '%s'", lhs, (tP->op == LdQPattern) ? "~" : "!~", esc);
+  }
+  else
+  {
+    const char* opSym = opSqlSymbol(tP->op);
+    if (opSym == NULL)
+      return NULL;
+
+    char lit[512];
+
+    switch (tP->valueType)
+    {
+      case LdQNumber:   snprintf(lit, sizeof(lit), "%.17g", tP->value.n); break;
+      case LdQBool:     snprintf(lit, sizeof(lit), "%s", tP->value.b ? "TRUE" : "FALSE"); break;
+
+      case LdQString:
+      {
+        char esc[256];
+        escapeSqlLit(tP->value.s, esc, sizeof(esc));
+        snprintf(lit, sizeof(lit), "'%s'", esc);
+        break;
+      }
+
+      case LdQDateTime:
+      {
+        // Held as nanoseconds since the epoch; postgres wants an ISO literal.
+        long long  ns   = tP->value.ns;
+        time_t     secs = (time_t) (ns / 1000000000LL);
+        long       rest = (long) (ns % 1000000000LL);
+        struct tm  tmv;
+
+        gmtime_r(&secs, &tmv);
+        snprintf(lit, sizeof(lit), "'%04d-%02d-%02dT%02d:%02d:%02d.%06ldZ'::timestamptz",
+                 tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday,
+                 tmv.tm_hour, tmv.tm_min, tmv.tm_sec, rest / 1000);
+        break;
+      }
+
+      default: return NULL;
+    }
+
+    snprintf(cond, sizeof(cond), "%s %s %s", lhs, opSym, lit);
+  }
+
+  int   sz  = (int) strlen(attrEsc) + (int) strlen(guard) + (int) strlen(cond) + 128;
   char* buf = (char*) kaAlloc(allocP, sz);
   snprintf(buf, sz,
-           "EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s' AND %s %s %s)",
-           attrEsc, vCol, opSym, lit);
+           "EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s' AND %s%s)",
+           attrEsc, guard, cond);
   return buf;
 }
 

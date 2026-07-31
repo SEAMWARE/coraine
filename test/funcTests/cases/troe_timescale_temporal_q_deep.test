@@ -1,0 +1,457 @@
+#
+# FILE            troe_timescale_temporal_q_deep.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 q on the temporal API (§ 5.7.4 Query Temporal Evolution).
+#
+# The q-tree is compiled to SQL against troe_attrs. The row's own columns only
+# describe the ATTRIBUTE, so anything the § 4.9 attrPath reaches below it has to
+# come out of the sub_attrs JSONB — and a value component ("[...]") out of
+# v_compound. Getting that wrong is invisible: the filter still runs, just
+# against the parent attribute, and the answer is a set of Entities that do NOT
+# match what was asked for.
+#
+# Every case below is asked TWICE — once on the Core API, once on the temporal
+# API — because the Core API is the oracle: both must select the same Entities.
+#
+# Seed:
+#   urn:V1  speed 10, speed.accuracy 1, speed.meta.value {x:{y:3}}, observedAt 2026-01
+#   urn:V2  speed 99, speed.accuracy 9, speed.meta.value {x:{y:7}}, observedAt 2026-06
+#
+--NAME--
+TRoE timescale - temporal q reaches sub-attributes, value components, ranges, lists and DateTimes
+
+--TAGS--
+troe timescale postgres temporal q sub-attributes query
+
+--INIT--
+swDbDrop
+swTroeInit
+swBrokerStart --troe timescale
+
+--RUN--
+
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 10,
+    "observedAt": "2026-01-01T00:00:00Z",
+    "accuracy": { "type": "Property", "value": 1 },
+    "grade": { "type": "Property", "value": "low" },
+    "meta": { "type": "Property", "value": { "x": { "y": 3 } } }
+  }
+}'
+echo "01. Seed urn:V1"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 99,
+    "observedAt": "2026-06-01T00:00:00Z",
+    "accuracy": { "type": "Property", "value": 9 },
+    "grade": { "type": "Property", "value": "high" },
+    "meta": { "type": "Property", "value": { "x": { "y": 7 } } }
+  }
+}'
+echo "02. Seed urn:V2"
+echo "==============="
+swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Core API oracle: q=speed.accuracy>5 selects urn:V2"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed.accuracy>5&format=simplified'
+echo
+echo
+
+
+echo "04. Temporal: q=speed.accuracy>5 must select urn:V2 too, NOT filter on speed"
+echo "==========================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>5&format=temporalValues'
+echo
+echo
+
+
+echo "05. Temporal: q=speed.accuracy>50 — accuracy is 1 and 9, so nothing matches"
+echo "     (filtering on speed instead would wrongly return urn:V2, whose speed is 99)"
+echo "=============================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>50&format=temporalValues'
+echo
+echo
+
+
+echo "06. Temporal: sub-attribute string, q=speed.grade==\"high\" selects urn:V2"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.grade==%22high%22&format=temporalValues'
+echo
+echo
+
+
+echo "07. Temporal: value component, q=speed.meta[x.y]>5 selects urn:V2"
+echo "================================================================"
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.meta%5Bx.y%5D>5&format=temporalValues'
+echo
+echo
+
+
+echo "08. Temporal: range, q=speed==1..50 selects urn:V1"
+echo "=================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed==1..50&format=temporalValues'
+echo
+echo
+
+
+echo "09. Temporal: value list, q=speed==10,77 selects urn:V1"
+echo "======================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed==10,77&format=temporalValues'
+echo
+echo
+
+
+echo "10. Temporal: DateTime, q=speed.observedAt>2026-03-01T00:00:00Z selects urn:V2"
+echo "     (observedAt is lifted into its own column, not stored in sub_attrs)"
+echo "============================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.observedAt>2026-03-01T00:00:00Z&format=temporalValues'
+echo
+echo
+
+
+echo "11. Temporal: sub-attribute existence, q=speed.accuracy selects both"
+echo "===================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy&format=temporalValues'
+echo
+echo
+
+
+echo "12. Temporal: AND of two sub-attribute terms, q=speed.accuracy>5;speed.grade==\"high\""
+echo "===================================================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>5;speed.grade==%22high%22&format=temporalValues'
+echo
+echo
+
+
+echo "13. Temporal: negated range, q=speed!=1..50 selects urn:V2"
+echo "=========================================================="
+swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed!=1..50&format=temporalValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1
+===============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. Seed urn:V2
+===============
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+
+03. Core API oracle: q=speed.accuracy>5 selects urn:V2
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 71
+
+[
+  {
+    "id": "urn:V2",
+    "speed": 99,
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. Temporal: q=speed.accuracy>5 must select urn:V2 too, NOT filter on speed
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. Temporal: q=speed.accuracy>50 — accuracy is 1 and 9, so nothing matches
+     (filtering on speed instead would wrongly return urn:V2, whose speed is 99)
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+06. Temporal: sub-attribute string, q=speed.grade=="high" selects urn:V2
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+07. Temporal: value component, q=speed.meta[x.y]>5 selects urn:V2
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+08. Temporal: range, q=speed==1..50 selects urn:V1
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-01-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+09. Temporal: value list, q=speed==10,77 selects urn:V1
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-01-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+10. Temporal: DateTime, q=speed.observedAt>2026-03-01T00:00:00Z selects urn:V2
+     (observedAt is lifted into its own column, not stored in sub_attrs)
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+11. Temporal: sub-attribute existence, q=speed.accuracy selects both
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 387
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-01-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+12. Temporal: AND of two sub-attribute terms, q=speed.accuracy>5;speed.grade=="high"
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+13. Temporal: negated range, q=speed!=1..50 selects urn:V2
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          99,
+          "2026-06-01T00:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
+swTroeDrop

@@ -338,6 +338,8 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
         bson_t opDoc;
         bson_append_document_begin(docP, tsPath, -1, &opDoc);
         bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
+        if (term->op == LdQUnequal)
+        bson_append_bool(&opDoc, "$exists", 7, true);
         bson_append_document_end(docP, &opDoc);
       }
       return;
@@ -438,6 +440,8 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       bson_t opDoc;
       bson_append_document_begin(docP, path, -1, &opDoc);
       bson_append_double(&opDoc, mongoOp, -1, term->value.n);
+      if (term->op == LdQUnequal)
+        bson_append_bool(&opDoc, "$exists", 7, true);
       bson_append_document_end(docP, &opDoc);
     }
   }
@@ -452,6 +456,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       bson_t opDoc;
       bson_append_document_begin(docP, path, -1, &opDoc);
       bson_append_utf8(&opDoc, "$ne", 3, term->value.s, -1);
+      bson_append_bool(&opDoc, "$exists", 7, true);
       bson_append_document_end(docP, &opDoc);
     }
     else if (term->op == LdQPattern)
@@ -469,6 +474,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       bson_append_document_begin(&notDoc, "$not", 4, &regexDoc);
       bson_append_regex(&regexDoc, "$regex", 6, term->value.s, "");
       bson_append_document_end(&notDoc, &regexDoc);
+      bson_append_bool(&notDoc, "$exists", 7, true);
       bson_append_document_end(docP, &notDoc);
     }
     else
@@ -501,6 +507,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       bson_t opDoc;
       bson_append_document_begin(docP, path, -1, &opDoc);
       bson_append_bool(&opDoc, "$ne", 3, term->value.b);
+      bson_append_bool(&opDoc, "$exists", 7, true);
       bson_append_document_end(docP, &opDoc);
     }
   }
@@ -533,24 +540,48 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       bson_t opDoc;
       bson_append_document_begin(docP, path, -1, &opDoc);
       bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
+      if (term->op == LdQUnequal)
+        bson_append_bool(&opDoc, "$exists", 7, true);
       bson_append_document_end(docP, &opDoc);
     }
   }
-  else if (term->valueType == LdQRange)
+  else if ((term->valueType == LdQRange) || (term->valueType == LdQDateRange))
   {
-    bson_t rangeDoc;
-    bson_append_document_begin(docP, path, -1, &rangeDoc);
-    bson_append_double(&rangeDoc, "$gte", 4, term->value.numRange.lo);
-    bson_append_double(&rangeDoc, "$lte", 4, term->value.numRange.hi);
-    bson_append_document_end(docP, &rangeDoc);
-  }
-  else if (term->valueType == LdQDateRange)
-  {
-    bson_t rangeDoc;
-    bson_append_document_begin(docP, path, -1, &rangeDoc);
-    bson_append_utf8(&rangeDoc, "$gte", 4, term->value.dateRange.lo, -1);
-    bson_append_utf8(&rangeDoc, "$lte", 4, term->value.dateRange.hi, -1);
-    bson_append_document_end(docP, &rangeDoc);
+    //
+    // § 4.9: a range is only meaningful for == and !=, and the negation has to
+    // be built in — otherwise "p!=1..50" is assembled as the very same
+    // $gte/$lte as "p==1..50" and selects exactly the Entities it should
+    // exclude. Mongo's field-level $not takes an operator document, so the
+    // bounds are wrapped rather than re-derived.
+    //
+    bool    negated = (term->op == LdQUnequal);
+    bson_t  notDoc;
+    bson_t  rangeDoc;
+
+    if (negated)
+      bson_append_document_begin(docP, path, -1, &notDoc);
+
+    bson_append_document_begin(negated ? &notDoc : docP, negated ? "$not" : path,
+                               negated ? 4 : -1, &rangeDoc);
+
+    if (term->valueType == LdQRange)
+    {
+      bson_append_double(&rangeDoc, "$gte", 4, term->value.numRange.lo);
+      bson_append_double(&rangeDoc, "$lte", 4, term->value.numRange.hi);
+    }
+    else
+    {
+      bson_append_utf8(&rangeDoc, "$gte", 4, term->value.dateRange.lo, -1);
+      bson_append_utf8(&rangeDoc, "$lte", 4, term->value.dateRange.hi, -1);
+    }
+
+    bson_append_document_end(negated ? &notDoc : docP, &rangeDoc);
+
+    if (negated)
+    {
+      bson_append_bool(&notDoc, "$exists", 7, true);
+      bson_append_document_end(docP, &notDoc);
+    }
   }
   else if (term->valueType == LdQValueList)
   {
@@ -576,6 +607,9 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
     }
 
     bson_append_array_end(&inDoc, &array);
+
+    if (term->op != LdQEqual)
+      bson_append_bool(&inDoc, "$exists", 7, true);
     bson_append_document_end(docP, &inDoc);
   }
 }
