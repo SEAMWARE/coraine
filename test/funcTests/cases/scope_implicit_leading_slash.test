@@ -1,0 +1,275 @@
+#
+# FILE            scope_implicit_leading_slash.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.7 — the leading "/" of a Scope is optional in the grammar
+# (Scope = [%x2F] ScopeLevel *(%x2F ScopeLevel), and EXAMPLE 2 of the clause is
+# the slash-less "Madrid"). The slash is there, it is just implicit: "Madrid"
+# and "/Madrid" are one and the same Scope.
+#
+# The scope query language of § 7.2.5 has no such option - its grammar spells
+# the slash out - so the broker stores every Scope in the canonical, slashed
+# form, and reads a scope query the same way. Otherwise a Scope written without
+# the slash would be selectable by no query at all.
+#
+# Canonicalized on every payload that can carry Scopes: a single Entity, an
+# Entity fragment, a batch operation, and a Registration.
+#
+--NAME--
+scope: the leading "/" is implicit and stored canonically, on every write path and in scopeQ
+
+--TAGS--
+entity query scope registration batch
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create E1 with scope \"Madrid\" - no leading slash"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E1", "type": "Zone", "scope": "Madrid" }' | head -1
+echo
+echo
+
+
+echo "02. GET E1 - the Scope comes back canonical: /Madrid"
+echo "==================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1
+echo
+echo
+
+
+echo "03. Create E2 with the two spellings mixed in one array"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E2", "type": "Zone", "scope": [ "Madrid/Gardens", "/Madrid/Sur" ] }' | head -1
+echo
+echo
+
+
+echo "04. GET E2 - both are canonical, and they stay two Scopes"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E2
+echo
+echo
+
+
+echo "05. Batch-create E3 with scope \"Barcelona\""
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[ { "id": "urn:ngsi-ld:Z:E3", "type": "Zone", "scope": "Barcelona" } ]' | head -1
+echo
+echo
+
+
+echo "06. GET E3 - the batch path canonicalizes too: /Barcelona"
+echo "========================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E3
+echo
+echo
+
+
+echo "07. Register a Context Source with scope \"Madrid\""
+echo "================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:CSR:S1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:9999",
+  "mode": "inclusive",
+  "scope": "Madrid",
+  "information": [{"entities": [{"type":"Zone"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "08. GET the Registration - a Registration Scope is canonical as well"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:S1 | grep '"scope"'
+echo
+echo
+
+
+echo "09. scopeQ=/Madrid - E1"
+echo "======================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid' | grep '"id"'
+echo
+echo
+
+
+echo "10. scopeQ=Madrid - the same query, the same E1"
+echo "==============================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Madrid' | grep '"id"'
+echo
+echo
+
+
+echo "11. scopeQ=Madrid/%23 - the hierarchy wildcard on an implicit slash: E1, E2"
+echo "=========================================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Madrid/%23' | grep '"id"'
+echo
+echo
+
+
+echo "12. scopeQ=(Madrid/Gardens;/Madrid/Sur) - mixed spellings in one AND group: E2"
+echo "============================================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=(Madrid/Gardens;/Madrid/Sur)' | grep '"id"'
+echo
+echo
+
+
+echo "13. scopeQ=Barcelona,Madrid - and in an OR list: E1, E3"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Barcelona,Madrid' | grep '"id"'
+echo
+echo
+
+
+echo "14. Append a Scope to E1 through the fragment path (union, noOverwrite)"
+echo "======================================================================="
+swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1/attrs' --urlParams 'options=noOverwrite' --payload '{ "scope": "Barcelona" }' | head -1
+echo
+echo
+
+
+echo "15. GET E1 - the appended Scope is canonical too: [/Madrid, /Barcelona]"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with scope "Madrid" - no leading slash
+===================================================
+HTTP/1.1 201 Created
+
+
+02. GET E1 - the Scope comes back canonical: /Madrid
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Z:E1",
+  "scope": "/Madrid",
+  "type": "Zone"
+}
+
+
+
+03. Create E2 with the two spellings mixed in one array
+======================================================
+HTTP/1.1 201 Created
+
+
+04. GET E2 - both are canonical, and they stay two Scopes
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Z:E2",
+  "scope": [
+    "/Madrid/Gardens",
+    "/Madrid/Sur"
+  ],
+  "type": "Zone"
+}
+
+
+
+05. Batch-create E3 with scope "Barcelona"
+==========================================
+HTTP/1.1 201 Created
+
+
+06. GET E3 - the batch path canonicalizes too: /Barcelona
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Z:E3",
+  "scope": "/Barcelona",
+  "type": "Zone"
+}
+
+
+
+07. Register a Context Source with scope "Madrid"
+=================================================
+HTTP/1.1 201 Created
+
+
+08. GET the Registration - a Registration Scope is canonical as well
+===================================================================
+  "scope": "/Madrid",
+
+
+09. scopeQ=/Madrid - E1
+=======================
+    "id": "urn:ngsi-ld:Z:E1",
+
+
+10. scopeQ=Madrid - the same query, the same E1
+===============================================
+    "id": "urn:ngsi-ld:Z:E1",
+
+
+11. scopeQ=Madrid/%23 - the hierarchy wildcard on an implicit slash: E1, E2
+==========================================================================
+    "id": "urn:ngsi-ld:Z:E1",
+    "id": "urn:ngsi-ld:Z:E2",
+
+
+12. scopeQ=(Madrid/Gardens;/Madrid/Sur) - mixed spellings in one AND group: E2
+=============================================================================
+    "id": "urn:ngsi-ld:Z:E2",
+
+
+13. scopeQ=Barcelona,Madrid - and in an OR list: E1, E3
+======================================================
+    "id": "urn:ngsi-ld:Z:E1",
+    "id": "urn:ngsi-ld:Z:E3",
+
+
+14. Append a Scope to E1 through the fragment path (union, noOverwrite)
+=======================================================================
+HTTP/1.1 204 No Content
+
+
+15. GET E1 - the appended Scope is canonical too: [/Madrid, /Barcelona]
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Z:E1",
+  "scope": [
+    "/Madrid",
+    "/Barcelona"
+  ],
+  "type": "Zone"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
