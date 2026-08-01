@@ -1,0 +1,511 @@
+#
+# FILE            entity_member_delete_and_null.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The Entity members id, type and scope, and what may be done to them.
+#
+# § 10.2.7.4 (Delete Attribute): "If the target Attribute is scope, remove the
+# scope Attribute from the target Entity." Scope is deletable - id and type are
+# not: they are mandatory Entity members (§ 5.2.4), never Attributes, so the
+# request is refused with BadRequestData rather than answered with a 404 that
+# would read as "this Entity happens not to carry it".
+#
+# § 5.4.1 (Entity fragments): "A member ... with value equal to an NGSI-LD Null
+# shall cause for the member to be removed from the target NGSI-LD element."
+# That is how a scope is deleted through a fragment - on Merge Entity, on Update
+# Attributes and on Append. The Entity type is exempt: mandatory, and it can
+# only be added to.
+#
+# The NGSI-LD Null names no Scope of its own: as the value of the whole member
+# it deletes, inside the array it is refused (§ 5.2.7 - it "shall be only used
+# and only appear in case of deleted scopes").
+#
+# A merge that touches nothing but the Entity members is still a change to the
+# Entity: it has to reach the database, not just the response.
+#
+--NAME--
+Entity members: scope is deletable, id and type are not, and the NGSI-LD Null deletes only what may be deleted
+
+--TAGS--
+entity scope delete null
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create urn:E1 - type T, scope [/a, /b], attribute p"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E1", "type": "T", "scope": [ "/a", "/b" ], "p": { "type": "Property", "value": 1 } }' | head -1
+echo
+echo
+
+
+echo "02. DELETE /attrs/id -> 400, 'id' is not an Attribute"
+echo "====================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/id
+echo
+echo
+
+
+echo "03. DELETE /attrs/type -> 400, 'type' is not an Attribute"
+echo "========================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/type
+echo
+echo
+
+
+echo "04. The Entity is untouched by either refusal"
+echo "============================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+echo
+echo
+
+
+echo "05. DELETE /attrs/scope -> 204, the Scope is gone (§ 10.2.7.4)"
+echo "=============================================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+echo
+echo
+
+
+echo "06. DELETE /attrs/scope again -> 404, there is none left"
+echo "========================================================"
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
+echo
+echo
+
+
+echo "07. Merge a scope and nothing else - it has to reach the database"
+echo "================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/z" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"'
+echo
+echo
+
+
+echo "08. Merge a type and nothing else - union with the stored type"
+echo "=============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "type": "T2" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+echo
+echo
+
+
+echo "09. Merge scope = NGSI-LD Null -> the Scope is deleted (§ 5.4.1)"
+echo "================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+echo
+echo
+
+
+echo "10. Update Attributes with scope = NGSI-LD Null -> deleted, not stored"
+echo "======================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/again" }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+echo
+echo
+
+
+echo "11. Append with scope = NGSI-LD Null -> deleted, not stored"
+echo "==========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/again" }' | head -1
+swCurl -X POST --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+echo
+echo
+
+
+echo "12. Merge type = NGSI-LD Null -> 400, the type is mandatory"
+echo "==========================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "type": "urn:ngsi-ld:null" }'
+echo
+echo
+
+
+echo "13. Update Attributes with type = NGSI-LD Null -> 400 as well"
+echo "============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "type": "urn:ngsi-ld:null" }'
+echo
+echo
+
+
+echo "14. The NGSI-LD Null inside the scope array -> 400, it names no Scope"
+echo "===================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": [ "/x", "urn:ngsi-ld:null" ] }'
+echo
+echo
+
+
+echo "15. ... and on Create Entity it is refused too"
+echo "=============================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E2", "type": "T", "scope": "urn:ngsi-ld:null" }'
+echo
+echo
+
+
+echo "16. The Entity still has its id and its type, after all of it"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+echo
+echo
+
+
+echo "17. DELETE /attrs/createdAt -> 400, the broker owns it"
+echo "======================================================"
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/createdAt
+echo
+echo
+
+
+echo "18. DELETE /attrs/modifiedAt -> 400, likewise"
+echo "============================================="
+swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/modifiedAt
+echo
+echo
+
+
+echo "19. Create urn:E3, transient - and merge a later expiresAt onto it"
+echo "=================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E3", "type": "T", "expiresAt": "2099-01-01T00:00:00Z", "p": { "type": "Property", "value": 1 } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "2100-06-01T00:00:00Z" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+echo
+echo
+
+
+echo "20. Merge expiresAt = NGSI-LD Null -> the Entity is no longer transient"
+echo "======================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "urn:ngsi-ld:null" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"' || echo "no expiresAt"
+echo
+echo
+
+
+echo "21. Update Attributes sets it again, Append moves it once more"
+echo "=============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3/attrs --payload '{ "expiresAt": "2101-01-01T00:00:00Z" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+swCurl -X POST --url /ngsi-ld/v1/entities/urn:E3/attrs --payload '{ "expiresAt": "2102-01-01T00:00:00Z" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+echo
+echo
+
+
+echo "22. An expiresAt that is not a DateTime -> 400, on every path"
+echo "============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "not-a-datetime" }'
+echo
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": 5 }'
+echo
+echo
+
+
+echo "23. urn:E3 kept the last DateTime it was actually given"
+echo "======================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 - type T, scope [/a, /b], attribute p
+=======================================================
+HTTP/1.1 201 Created
+
+
+02. DELETE /attrs/id -> 400, 'id' is not an Attribute
+=====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'id' is a mandatory Entity member, not an Attribute - it cannot be deleted",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. DELETE /attrs/type -> 400, 'type' is not an Attribute
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'type' is a mandatory Entity member, not an Attribute - it cannot be deleted",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. The Entity is untouched by either refusal
+=============================================
+
+{
+  "id": "urn:E1",
+  "p": {
+    "type": "Property",
+    "value": 1
+  },
+  "scope": [
+    "/a",
+    "/b"
+  ],
+  "type": "T"
+}
+
+
+
+05. DELETE /attrs/scope -> 204, the Scope is gone (§ 10.2.7.4)
+==============================================================
+HTTP/1.1 204 No Content
+no scope
+
+
+06. DELETE /attrs/scope again -> 404, there is none left
+========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'scope' not found in entity 'urn:E1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. Merge a scope and nothing else - it has to reach the database
+================================================================
+HTTP/1.1 204 No Content
+  "scope": "/z",
+
+
+08. Merge a type and nothing else - union with the stored type
+==============================================================
+HTTP/1.1 204 No Content
+
+{
+  "id": "urn:E1",
+  "p": {
+    "type": "Property",
+    "value": 1
+  },
+  "scope": "/z",
+  "type": [
+    "T",
+    "T2"
+  ]
+}
+
+
+
+09. Merge scope = NGSI-LD Null -> the Scope is deleted (§ 5.4.1)
+================================================================
+HTTP/1.1 204 No Content
+no scope
+
+
+10. Update Attributes with scope = NGSI-LD Null -> deleted, not stored
+======================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+no scope
+
+
+11. Append with scope = NGSI-LD Null -> deleted, not stored
+===========================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+no scope
+
+
+12. Merge type = NGSI-LD Null -> 400, the type is mandatory
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'type' is mandatory and cannot be deleted with the NGSI-LD Null",
+  "status": 400,
+  "title": "Invalid Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. Update Attributes with type = NGSI-LD Null -> 400 as well
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'type' is mandatory and cannot be deleted with the NGSI-LD Null",
+  "status": 400,
+  "title": "Invalid Entity Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. The NGSI-LD Null inside the scope array -> 400, it names no Scope
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the NGSI-LD Null is not a Scope - as the value of 'scope' it deletes it, inside the array it means nothing",
+  "status": 400,
+  "title": "Invalid Scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+15. ... and on Create Entity it is refused too
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as a first-level value in Create Entity (field: 'scope')",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+16. The Entity still has its id and its type, after all of it
+=============================================================
+
+{
+  "id": "urn:E1",
+  "p": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": [
+    "T",
+    "T2"
+  ]
+}
+
+
+
+17. DELETE /attrs/createdAt -> 400, the broker owns it
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'createdAt' is a system-generated Entity member, not an Attribute - it cannot be deleted",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. DELETE /attrs/modifiedAt -> 400, likewise
+=============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'modifiedAt' is a system-generated Entity member, not an Attribute - it cannot be deleted",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. Create urn:E3, transient - and merge a later expiresAt onto it
+==================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+  "expiresAt": "2100-06-01T00:00:00Z",
+
+
+20. Merge expiresAt = NGSI-LD Null -> the Entity is no longer transient
+=======================================================================
+HTTP/1.1 204 No Content
+no expiresAt
+
+
+21. Update Attributes sets it again, Append moves it once more
+==============================================================
+HTTP/1.1 204 No Content
+  "expiresAt": "2101-01-01T00:00:00Z",
+HTTP/1.1 204 No Content
+  "expiresAt": "2102-01-01T00:00:00Z",
+
+
+22. An expiresAt that is not a DateTime -> 400, on every path
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'expiresAt' is not a valid DateTime ('not-a-datetime')",
+  "status": 400,
+  "title": "Invalid expiresAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "Entity 'expiresAt' must be a DateTime string",
+  "status": 400,
+  "title": "Invalid expiresAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+23. urn:E3 kept the last DateTime it was actually given
+=======================================================
+  "expiresAt": "2102-01-01T00:00:00Z",
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop

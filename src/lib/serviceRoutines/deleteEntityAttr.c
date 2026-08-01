@@ -156,9 +156,34 @@ bool deleteEntityAttr(void)
   if (attrIri == NULL) attrIri = attrWild;
 
   //
-  // § 5.6.5.4: "If the target Attribute is scope, remove the scope Attribute
+  // § 10.2.7.4: "If the target Attribute is scope, remove the scope Attribute
   // from the target Entity." No error — "scope" is a legitimate delete target.
   //
+  // id and type are not. They are mandatory Entity members (§ 5.2.4), never Attributes, so no
+  // Attribute by that name can be deleted and the request is refused outright — § 10.2.7.4's
+  // first bullet, "the target Attribute name is not a valid name". A 404 would be the wrong
+  // answer: it reads as "this Entity happens not to carry it", which invites a retry.
+  //
+  if ((strcmp(attrWild, "id")   == 0) || (strcmp(attrWild, "@id")   == 0) ||
+      (strcmp(attrWild, "type") == 0) || (strcmp(attrWild, "@type") == 0))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Attribute name",
+            "'%s' is a mandatory Entity member, not an Attribute - it cannot be deleted", attrWild);
+    return true;
+  }
+
+  //
+  // createdAt and modifiedAt are the broker's own (§ 5.2.4: "system generated"). A client cannot
+  // set them - ldCheckEntity drops them from every incoming payload - so it cannot delete them
+  // either, and saying so beats a 404 that suggests this Entity merely happens to lack one.
+  //
+  if ((strcmp(attrWild, LD_VOCAB_CREATED_AT) == 0) || (strcmp(attrWild, LD_VOCAB_MODIFIED_AT) == 0))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Attribute name",
+            "'%s' is a system-generated Entity member, not an Attribute - it cannot be deleted", attrWild);
+    return true;
+  }
+
   Tenant* tenantP = (Tenant*) swNgsild.tenantP;
 
   KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");

@@ -90,6 +90,28 @@ void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
       const char* reason   = reasonP->value.s;
       const char* escaped  = mongocEscapeDotsInKey(attrName);
 
+      //
+      // The Entity members type and scope are reported like any other change - the merge has to
+      // say it touched them or nothing would be written at all - but the refresh block below is
+      // their single writer. Appending them here too would put the same key in $set twice and
+      // mongo rejects the update with "conflict at 'type'" / "conflict at 'scope'".
+      //
+      // A deleted scope is the exception: only $unset removes it, and then the refresh block
+      // finds no scope on the merged Entity and leaves $set alone.
+      //
+      if ((strcmp(attrName, "type") == 0) || (strcmp(attrName, LD_VOCAB_SCOPE) == 0))
+      {
+        if (strcmp(reason, "attributeDeleted") == 0)
+        {
+          BSON_APPEND_INT32(&unsetDoc, escaped, 1);
+          hasUnset = true;
+        }
+        else
+          hasSet = true;
+
+        continue;
+      }
+
       if (strcmp(reason, "attributeDeleted") == 0)
       {
         BSON_APPEND_INT32(&unsetDoc, escaped, 1);

@@ -125,7 +125,24 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
       // mongo reject the bulk update with a "conflict at 'type'" /
       // "conflict at 'scope'" error.
       if (strcmp(attrName, "type")             == 0) { hasSet = true; continue; }
-      if (strcmp(attrName, LD_VOCAB_SCOPE)     == 0) { hasSet = true; continue; }
+
+      //
+      // ... with one exception: when the fragment deleted the scope (§ 5.4.1, the NGSI-LD Null),
+      // the merged Entity carries none, so the refresh block has nothing to write and only an
+      // $unset takes it out of the stored document.
+      //
+      if (strcmp(attrName, LD_VOCAB_SCOPE) == 0)
+      {
+        if (kjLookup(target, LD_VOCAB_SCOPE) == NULL)
+        {
+          BSON_APPEND_UTF8(&unsetDoc, mongocEscapeDotsInKey(attrName), "");
+          hasUnset = true;
+        }
+        else
+          hasSet = true;
+
+        continue;
+      }
 
       const char* escaped  = mongocEscapeDotsInKey(attrName);
 
