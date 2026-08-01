@@ -82,26 +82,13 @@
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/ldDistOp.h"                       // ldDistOp*
 #include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "swNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/postEntityBatchUpdate.h"   // Own interface
 
-
-// -----------------------------------------------------------------------------
-//
-// isEntityKeyword - reserved entity-level field name.
-//
-static bool isEntityKeyword(const char* name)
-{
-  if (name == NULL)                       return true;
-  if (name[0] == '@')                     return true;
-  if (strcmp(name, "id")             == 0) return true;
-  if (strcmp(name, "type")           == 0) return true;
-  if (strcmp(name, LD_VOCAB_SCOPE)   == 0) return true;
-  return false;
-}
 
 
 // -----------------------------------------------------------------------------
@@ -125,7 +112,7 @@ static int noOverwriteChopLocal(KjNode* fragment, KjNode* existing)
   while (fAttrP != NULL)
   {
     KjNode* nextAttr = fAttrP->next;
-    if (isEntityKeyword(fAttrP->name) || fAttrP->type != KjObject)
+    if (ldIsNotAttributeName(fAttrP->name) || fAttrP->type != KjObject)
     {
       fAttrP = nextAttr;
       continue;
@@ -797,7 +784,7 @@ bool postEntityBatchUpdate(void)
       for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
       {
         if (c->type != KjObject) continue;
-        if (isEntityKeyword(c->name)) continue;
+        if (ldIsNotAttributeName(c->name)) continue;
         realAttrsBefore++;
       }
 
@@ -857,7 +844,7 @@ bool postEntityBatchUpdate(void)
         for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
         {
           if (c->type != KjObject) continue;
-          if (isEntityKeyword(c->name)) continue;
+          if (ldIsNotAttributeName(c->name)) continue;
           realAttrsAfter++;
         }
         if (realAttrsAfter == 0)
@@ -898,7 +885,7 @@ bool postEntityBatchUpdate(void)
         for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
         {
           if (c->type != KjObject) continue;
-          if (isEntityKeyword(c->name)) continue;
+          if (ldIsNotAttributeName(c->name)) continue;
           anyAttrLeft = true;
           break;
         }

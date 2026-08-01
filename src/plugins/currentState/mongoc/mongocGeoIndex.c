@@ -25,6 +25,7 @@
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT
 #include "swNgsild/ldTypes.h"                        // ldAttrTypeFromString, LdAttrGeoProperty
+#include "swNgsild/ldIsEntityKeyword.h"           // ldIsNotAttributeName
 
 #include "db/Tenant.h"                                             // Tenant
 #include "currentState/mongoc/mongocDotEscape.h"                   // mongocEscapeDotsInKey
@@ -203,19 +204,17 @@ void mongocGeoIndexInit(Tenant* tenantP, mongoc_collection_t* collP)
 
 // -----------------------------------------------------------------------------
 //
-// isEntityKeyword - check if a field name is an entity-level keyword (not an attribute)
+// notAnAttribute - Entity members and the mongo document key, none of them Attributes
 //
-static bool isEntityKeyword(const char* name)
+// The NGSI-LD part of the answer comes from ldIsNotAttributeName - one list, shared - and
+// "_id" is added on top: that one is mongo's, not NGSI-LD's, and only this layer sees it.
+//
+static bool notAnAttribute(const char* name)
 {
-  if (strcmp(name, "_id")                 == 0)  return true;
-  if (strcmp(name, "id")                  == 0)  return true;
-  if (strcmp(name, "type")                == 0)  return true;
-  if (strcmp(name, "@context")            == 0)  return true;
-  if (strcmp(name, LD_VOCAB_SCOPE)        == 0)  return true;
-  if (strcmp(name, LD_VOCAB_CREATED_AT)   == 0)  return true;
-  if (strcmp(name, LD_VOCAB_MODIFIED_AT)  == 0)  return true;
+  if (strcmp(name, "_id") == 0)
+    return true;
 
-  return false;
+  return ldIsNotAttributeName(name);
 }
 
 
@@ -250,7 +249,7 @@ void mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collection_t*
 {
   for (KjNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
   {
-    if (childP->type != KjObject || childP->name == NULL || isEntityKeyword(childP->name))
+    if (childP->type != KjObject || childP->name == NULL || notAnAttribute(childP->name))
       continue;
 
     for (KjNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)

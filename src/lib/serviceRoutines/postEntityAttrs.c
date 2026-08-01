@@ -45,6 +45,7 @@
 #include "swNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpCsrWouldLoop
 #include "swNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
 #include "swNgsild/ldWriteResult.h"                   // LdWriteResult, ldWriteResultMerge, ldWriteResult*Add
+#include "swNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -53,22 +54,6 @@
 #include "swBrokerTraceLevels.h"                      // KtDistOpRequest
 
 #include "serviceRoutines/postEntityAttrs.h"          // Own interface
-
-
-
-// -----------------------------------------------------------------------------
-//
-// isEntityKeyword - top-level node names that are not attributes
-//
-static bool isEntityKeyword(const char* name)
-{
-  if (name == NULL)              return true;
-  if (name[0] == '@')            return true;
-  if (strcmp(name, "id")   == 0) return true;
-  if (strcmp(name, "type") == 0) return true;
-  if (strcmp(name, LD_VOCAB_SCOPE) == 0) return true;
-  return false;
-}
 
 
 
@@ -163,7 +148,7 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
   while (fAttrP != NULL)
   {
     KjNode* nextAttr = fAttrP->next;
-    if (isEntityKeyword(fAttrP->name) || fAttrP->type != KjObject)
+    if (ldIsNotAttributeName(fAttrP->name) || fAttrP->type != KjObject)
     {
       fAttrP = nextAttr;
       continue;

@@ -55,27 +55,12 @@
 #include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 #include "swNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpCsrWouldLoop
 #include "swNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
+#include "swNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
 
 #include "serviceRoutines/patchEntityAttrs.h"         // Own interface
-
-
-
-// -----------------------------------------------------------------------------
-//
-// isEntityKeyword -
-//
-static bool isEntityKeyword(const char* name)
-{
-  if (name == NULL)              return true;
-  if (name[0] == '@')            return true;
-  if (strcmp(name, "id")   == 0) return true;
-  if (strcmp(name, "type") == 0) return true;
-  if (strcmp(name, LD_VOCAB_SCOPE) == 0) return true;
-  return false;
-}
 
 
 
@@ -171,7 +156,7 @@ static void recordFragmentAttrsNotUpdated(KjNode* targetP, KjNode* fragP,
   if (fragP == NULL) return;
   for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
   {
-    if (isEntityKeyword(c->name)) continue;
+    if (ldIsNotAttributeName(c->name)) continue;
     addNotUpdated(targetP, c->name, reason, regId);
   }
 }
@@ -181,7 +166,7 @@ static void recordFragmentAttrsUpdated(KjNode* targetP, KjNode* fragP)
   if (fragP == NULL) return;
   for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
   {
-    if (isEntityKeyword(c->name)) continue;
+    if (ldIsNotAttributeName(c->name)) continue;
     addUpdatedUnique(targetP, c->name);
   }
 }
@@ -404,11 +389,18 @@ bool patchEntityAttrs(void)
   //
   bool localHasAttrs = false;
   for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
-    if (!isEntityKeyword(c->name)) { localHasAttrs = true; break; }
+    if (!ldIsNotAttributeName(c->name)) { localHasAttrs = true; break; }
 
-  bool hasTypeOrScope = (kjLookup(fragment, "type") != NULL ||
-                         kjLookup(fragment, LD_VOCAB_SCOPE) != NULL);
-  bool needLocalMerge = localHasAttrs || hasTypeOrScope;
+  //
+  // The Entity members ldEntityAttrsSet acts on - keep this in step with its first pass.
+  // "Is it an Attribute?" alone silently dropped a type-only or scope-only PATCH once
+  // (ETSI 011_06_*), and an expiresAt-only one the moment expiresAt stopped being
+  // mistaken for an Attribute.
+  //
+  bool hasEntityMember = (kjLookup(fragment, "type") != NULL ||
+                          kjLookup(fragment, LD_VOCAB_SCOPE) != NULL ||
+                          kjLookup(fragment, LD_VOCAB_EXPIRES_AT) != NULL);
+  bool needLocalMerge = localHasAttrs || hasEntityMember;
 
   KjNode* existing = NULL;
   int     rr       = DB_NOT_FOUND;
@@ -452,7 +444,7 @@ bool patchEntityAttrs(void)
     //
     for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
     {
-      if (isEntityKeyword(c->name)) continue;
+      if (ldIsNotAttributeName(c->name)) continue;
       addUpdatedUnique(updatedP, c->name);
     }
 
