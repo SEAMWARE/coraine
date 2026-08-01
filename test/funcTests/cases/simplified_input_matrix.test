@@ -1,0 +1,398 @@
+#
+# FILE            simplified_input_matrix.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Simplified input on the write paths - the shape that crashed the broker once
+# (a scalar merged against a stored value that was not an Attribute at all), so
+# it is walked here deliberately, type by type and path by path.
+#
+# 1. A GeoProperty needs no attribute type: a value carrying a GeoJSON "type"
+#    plus "coordinates" IS one, and is recognised as such on every write path.
+#
+# 2. A simplified scalar merged onto an existing Attribute keeps the Attribute's
+#    type and updates its value - Property.value, Relationship.object,
+#    GeoProperty.value. Three types refuse it, each for its own stated reason.
+#
+# 3. A SUB-attribute in simplified form is a Property, on every path. There is no
+#    ambiguity to defer at that level - only the Attribute's own type has to be
+#    resolved against the target - and Merge Entity used to be the one path that
+#    stored a bare "b": 2 inside an Attribute, which is not NGSI-LD.
+#
+# 4. ... while a JsonProperty's json value stays raw JSON, nested scalars and all.
+#    That is the counter-case: inside a JSON value nothing is a sub-attribute.
+#
+--NAME--
+Simplified input: untyped GeoProperty, scalars resolved against the target type, sub-attributes normalized
+
+--TAGS--
+entity simplified geoproperty merge attrs
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Create with an untyped GeoProperty - value shape alone identifies it"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "loc": { "type": "Point", "coordinates": [3, 4] } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 5 '"loc"'
+echo
+echo
+
+
+echo "02. Merge an untyped GeoProperty onto it"
+echo "========================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:G --payload '{ "loc": { "type": "Polygon", "coordinates": [[[0,0],[0,1],[1,1],[0,0]]] } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 3 '"value"' | head -4
+echo
+echo
+
+
+echo "03. Update Attributes with an untyped GeoProperty"
+echo "================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:G/attrs --payload '{ "loc": { "type": "LineString", "coordinates": [[0,0],[1,1]] } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:G | grep '"type"' | head -3
+echo
+echo
+
+
+echo "04. Append a NEW untyped GeoProperty - no stored type to lean on"
+echo "==============================================================="
+swCurl -X POST --url /ngsi-ld/v1/entities/urn:G/attrs --payload '{ "spot": { "type": "Point", "coordinates": [9, 9] } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 5 '"spot"'
+echo
+echo
+
+
+echo "05. Replace the whole Entity with an untyped GeoProperty"
+echo "======================================================="
+swCurl -X PUT --url /ngsi-ld/v1/entities/urn:G --payload '{ "id": "urn:G", "type": "T", "loc": { "type": "Point", "coordinates": [7, 8] } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:G
+echo
+echo
+
+
+echo "06. A simplified scalar keeps the target Attribute's type - Property"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P", "type": "T", "a": { "type": "Property", "value": 1 } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P --payload '{ "a": 7 }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:P | grep -A 3 '"a"'
+echo
+echo
+
+
+echo "07. ... Relationship - the scalar is the object, the type is untouched"
+echo "====================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:R", "type": "T", "a": { "type": "Relationship", "object": "urn:R:1" } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:R --payload '{ "a": "urn:R:9" }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:R | grep -A 3 '"a"'
+echo
+echo
+
+
+echo "08. A LanguageProperty refuses it without the 'lang' parameter"
+echo "=============================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:L", "type": "T", "a": { "type": "LanguageProperty", "languageMap": { "en": "hi" } } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:L --payload '{ "a": "hola" }'
+echo
+echo
+
+
+echo "09. A VocabProperty refuses it too - the broker states why"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V", "type": "T", "a": { "type": "VocabProperty", "vocab": "stop" } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V --payload '{ "a": "go" }'
+echo
+echo
+
+
+echo "10. A ListProperty reads the array as a Property value, and refuses the type change"
+echo "=================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:LP", "type": "T", "a": { "type": "ListProperty", "valueList": [1, 2] } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:LP --payload '{ "a": [9, 8] }'
+echo
+echo
+
+
+echo "11. The stored Attributes are untouched by all three refusals"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:L | grep -A 3 '"a"'
+swCurl --url /ngsi-ld/v1/entities/urn:V | grep -A 3 '"a"'
+swCurl --url /ngsi-ld/v1/entities/urn:LP | grep -A 4 '"a"'
+echo
+echo
+
+
+echo "12. A simplified SUB-attribute is a Property - on Merge Entity"
+echo "=============================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P --payload '{ "a": { "b": 2 } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:P | grep -A 7 '"a"'
+echo
+echo
+
+
+echo "13. ... on Update Attributes, on Append, and on Create - the same shape"
+echo "======================================================================"
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P/attrs --payload '{ "a": { "type": "Property", "value": 5, "c": 3 } }' | head -1
+swCurl -X POST --url /ngsi-ld/v1/entities/urn:P/attrs --payload '{ "d": { "type": "Property", "value": 5, "e": 4 } }' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:C", "type": "T", "a": { "type": "Property", "value": 1, "f": 6 } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:P
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:C | grep -A 7 '"a"'
+echo
+echo
+
+
+echo "14. Inside a JsonProperty's json value nothing is a sub-attribute"
+echo "================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:J", "type": "T", "a": { "type": "JsonProperty", "json": { "x": 1, "nested": { "deep": 3 } } } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:J --payload '{ "a": { "json": { "nested": { "deep": 9 }, "y": 2 } } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:J
+echo
+echo
+
+
+--EXPECT--
+01. Create with an untyped GeoProperty - value shape alone identifies it
+=======================================================================
+HTTP/1.1 201 Created
+  "loc": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        3,
+        4
+
+
+02. Merge an untyped GeoProperty onto it
+========================================
+HTTP/1.1 204 No Content
+    "value": {
+      "coordinates": [
+        [
+          [
+
+
+03. Update Attributes with an untyped GeoProperty
+=================================================
+HTTP/1.1 204 No Content
+    "type": "GeoProperty",
+      "type": "LineString"
+  "type": "T"
+
+
+04. Append a NEW untyped GeoProperty - no stored type to lean on
+===============================================================
+HTTP/1.1 204 No Content
+  "spot": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        9,
+        9
+
+
+05. Replace the whole Entity with an untyped GeoProperty
+=======================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:G",
+  "loc": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        7,
+        8
+      ],
+      "type": "Point"
+    }
+  },
+  "type": "T"
+}
+
+
+
+06. A simplified scalar keeps the target Attribute's type - Property
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+  "a": {
+    "type": "Property",
+    "value": 7
+  },
+
+
+07. ... Relationship - the scalar is the object, the type is untouched
+=====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+  "a": {
+    "object": "urn:R:9",
+    "type": "Relationship"
+  },
+
+
+08. A LanguageProperty refuses it without the 'lang' parameter
+==============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "simplified value for LanguageProperty 'https://uri.etsi.org/ngsi-ld/default-context/a' requires the 'lang' URL parameter",
+  "status": 400,
+  "title": "Missing lang",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. A VocabProperty refuses it too - the broker states why
+==========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/a' has a type that does not accept simplified scalar values",
+  "status": 400,
+  "title": "Unsupported simplified merge",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. A ListProperty reads the array as a Property value, and refuses the type change
+==================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/a' type from 'ListProperty' to 'Property' in a Merge Entity operation",
+  "status": 400,
+  "title": "Attribute Type Change",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. The stored Attributes are untouched by all three refusals
+=============================================================
+  "a": {
+    "languageMap": {
+      "en": "hi"
+    },
+  "a": {
+    "type": "VocabProperty",
+    "vocab": "stop"
+  },
+  "a": {
+    "type": "ListProperty",
+    "valueList": [
+      1,
+      2
+
+
+12. A simplified SUB-attribute is a Property - on Merge Entity
+==============================================================
+HTTP/1.1 204 No Content
+  "a": {
+    "b": {
+      "type": "Property",
+      "value": 2
+    },
+    "type": "Property",
+    "value": 7
+  },
+
+
+13. ... on Update Attributes, on Append, and on Create - the same shape
+======================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "c": {
+      "type": "Property",
+      "value": 3
+    },
+    "type": "Property",
+    "value": 5
+  },
+  "d": {
+    "e": {
+      "type": "Property",
+      "value": 4
+    },
+    "type": "Property",
+    "value": 5
+  },
+  "id": "urn:P",
+  "type": "T"
+}
+
+
+  "a": {
+    "f": {
+      "type": "Property",
+      "value": 6
+    },
+    "type": "Property",
+    "value": 1
+  },
+
+
+14. Inside a JsonProperty's json value nothing is a sub-attribute
+=================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": {
+    "json": {
+      "nested": {
+        "deep": 9
+      },
+      "x": 1,
+      "y": 2
+    },
+    "type": "JsonProperty"
+  },
+  "id": "urn:J",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+swDbDrop
