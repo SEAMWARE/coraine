@@ -42,6 +42,14 @@
                                    // layer's own validator (e.g. mongo's PCRE
                                    // regex rejects patterns that POSIX regcomp
                                    // accepted). Caller should respond 400, not 500.
+#define DB_GEO_TYPE_CONFLICT  -6   // an Attribute name is already established in
+                                   // this tenant as a GeoProperty and the write
+                                   // uses it as something else, or the reverse.
+                                   // A mongoc-only limit: its 2dsphere index is
+                                   // per attribute PATH and collection-wide, so
+                                   // one name cannot hold both kinds. Caller
+                                   // should respond 409 Conflict. (ramdb has no
+                                   // such index and accepts the mix.)
 
 
 

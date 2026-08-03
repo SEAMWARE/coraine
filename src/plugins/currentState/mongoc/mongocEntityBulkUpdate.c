@@ -27,6 +27,7 @@
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
 #include "currentState/mongoc/mongocKjTreeToBson.h"      // mongocKjTreeToBson
+#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkUpdate.h"  // Own interface
 
@@ -159,6 +160,28 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
       continue;
     }
 
+    int ix = 0;
+    KjNode* entityP = NULL;
+    for (KjNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, ix++)
+    {
+      if (ix == i) { entityP = e; break; }
+    }
+
+    //
+    // Ensure this entity's 2dsphere indexes BEFORE staging it. A name it declares
+    // a GeoProperty while the tenant already holds it as another type cannot be
+    // stored, so it is refused and left out of the batch, its siblings unaffected.
+    // Already-indexed attributes cost one string compare.
+    //
+    const char* geoClashP = mongocGeoIndexEnsure(tenantP, entityP, collP);
+    if (geoClashP != NULL)
+    {
+      KT_E("mongoc: entityBulkUpdate: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      swNgsild.geoConflictAttr = geoClashP;
+      resultsV[i] = DB_GEO_TYPE_CONFLICT;
+      continue;
+    }
+
     if (bulk == NULL)
     {
       bson_t bulkOpts = BSON_INITIALIZER;
@@ -170,13 +193,6 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     const char* id = entityIdAt(entitiesArr, i);
     bson_t selector = BSON_INITIALIZER;
     BSON_APPEND_UTF8(&selector, "_id", id);
-
-    int ix = 0;
-    KjNode* entityP = NULL;
-    for (KjNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, ix++)
-    {
-      if (ix == i) { entityP = e; break; }
-    }
 
     bson_t doc;
     mongocKjTreeToBson(entityP, &doc);
@@ -198,26 +214,36 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     if (!ok)
     {
       KT_E("mongoc: entityBulkUpdate execute failed: %s", error.message);
-      // Downgrade optimistic DB_OK to DB_ERR — we can't tell per-entry
-      // which one failed from the bulk reply, so mark all bulk-participants.
-      for (int i = 0; i < n; i++)
-        if (resultsV[i] == DB_OK)
+
+      //
+      // The bulk reply does not say WHICH entry failed, but for the one failure
+      // that has a better answer than 500 it does not have to: an entity of this
+      // batch holding a geo-indexed name as another type is a clash of Attribute
+      // kinds, and that is decided from our own payload plus the geo-index cache.
+      // Everything else stays DB_ERR, and only a failing batch pays for the walk.
+      //
+      bool geoClash = (strstr(error.message, "Can't extract geo keys") != NULL);
+      int  i        = 0;
+
+      for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
+      {
+        if (resultsV[i] != DB_OK)
+          continue;
+
+        const char* mixedP = geoClash ? mongocGeoIndexMixedName(tenantP, inP) : NULL;
+
+        if (mixedP != NULL)
+        {
+          KT_E("mongoc: entityBulkUpdate: '%s' is held as a GeoProperty here and updated to another type", mixedP);
+          swNgsild.geoConflictAttr = mixedP;
+          resultsV[i] = DB_GEO_TYPE_CONFLICT;
+        }
+        else
           resultsV[i] = DB_ERR;
+      }
     }
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk);
-  }
-
-  //
-  // Geo-index ensure for updated entities (idempotent).
-  //
-  {
-    int i = 0;
-    for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
-    {
-      if (resultsV[i] == DB_OK)
-        mongocGeoIndexEnsure(tenantP, inP, collP);
-    }
   }
 
   bson_free(existsV);

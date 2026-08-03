@@ -899,6 +899,12 @@ bool postEntityBatchCreate(void)
                         LD_ERROR_ALREADY_EXISTS, "Already Exists",
                         "entity already exists", NULL);
           break;
+        case DB_GEO_TYPE_CONFLICT:
+          addBatchError(errorsP, eid, 409,
+                        LD_ERROR_CONFLICT, "Attribute Type Conflict",
+                        "an Attribute name is already in use with a conflicting Attribute type in this tenant "
+                        "(a GeoProperty and another type cannot share one Attribute name here)", NULL);
+          break;
         default:
           addBatchError(errorsP, eid, 500,
                         LD_ERROR_INTERNAL_ERROR, "Internal Error",

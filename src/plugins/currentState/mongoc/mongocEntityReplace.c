@@ -15,6 +15,7 @@
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjTreeToBson
 #include "currentState/mongoc/mongocBsonToKjTree.h"   // mongocBsonToKjTree
+#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityReplace.h"  // Own interface
 
@@ -59,16 +60,65 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
   mongoc_find_and_modify_opts_t* opts = mongoc_find_and_modify_opts_new();
   mongoc_find_and_modify_opts_set_update(opts, &replacement);
 
+  //
+  // A replacement may introduce a GeoProperty attribute — ensure its 2dsphere index
+  // BEFORE replacing, so a name already held as another type is refused with the
+  // Entity untouched. Cached field paths cost a string compare. (Removal of now
+  // stale indexes is not tracked here, as it is not anywhere else in the codebase.)
+  //
+  const char* geoClashP = mongocGeoIndexEnsure(tenantP, newEntityP, collP);
+
   bson_t       reply;
   bson_error_t error;
-  bool         ok = mongoc_collection_find_and_modify_with_opts(collP, &filter, opts, &reply, &error);
+  bool         ok     = false;
+  int          result = DB_OK;
 
-  int result = DB_OK;
-
-  if (!ok)
+  if (geoClashP != NULL)
   {
-    KT_E("mongoc: entityReplace failed: %s", error.message);
-    result = DB_ERR;
+    KT_E("mongoc: entityReplace: '%s' is a GeoProperty here but already held as another type", geoClashP);
+    swNgsild.geoConflictAttr = geoClashP;
+    bson_init(&reply);
+    result = DB_GEO_TYPE_CONFLICT;
+  }
+  else
+    ok = mongoc_collection_find_and_modify_with_opts(collP, &filter, opts, &reply, &error);
+
+  if (result == DB_GEO_TYPE_CONFLICT)
+  {
+    if (oldEntityPP != NULL)
+      *oldEntityPP = NULL;
+  }
+  else if (!ok)
+  {
+    //
+    // Same two causes as everywhere else, told apart only on the failing path: a
+    // name geo-indexed here but replaced with another type is a clash of Attribute
+    // kinds (→ 409); otherwise S2 refused the geometry itself (→ 400). Replace used
+    // to lump both in with DB_ERR, which is where the 500 came from.
+    //
+    if (strstr(error.message, "Can't extract geo keys") != NULL)
+    {
+      const char* mixedP = mongocGeoIndexMixedName(tenantP, newEntityP);
+      if (mixedP != NULL)
+      {
+        KT_E("mongoc: entityReplace: '%s' is held as a GeoProperty here and replaced with another type", mixedP);
+        swNgsild.geoConflictAttr = mixedP;
+        result = DB_GEO_TYPE_CONFLICT;
+      }
+      else
+      {
+        KT_E("mongoc: entityReplace rejected by 2dsphere: %s", error.message);
+        result = DB_INVALID_GEOMETRY;
+      }
+    }
+    else
+    {
+      KT_E("mongoc: entityReplace failed: %s", error.message);
+      result = DB_ERR;
+    }
+
+    if (oldEntityPP != NULL)
+      *oldEntityPP = NULL;
   }
   else
   {
@@ -101,14 +151,6 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
         *oldEntityPP = NULL;
     }
   }
-
-  //
-  // Refresh geo indexes for any GeoProperty attributes in the new entity.
-  // A replacement may introduce or remove them; only ensure-on-present is done
-  // (removal of stale indexes is not tracked anywhere else in the codebase).
-  //
-  if (result == DB_OK)
-    mongocGeoIndexEnsure(tenantP, newEntityP, collP);
 
   bson_destroy(&reply);
   bson_destroy(&replacement);

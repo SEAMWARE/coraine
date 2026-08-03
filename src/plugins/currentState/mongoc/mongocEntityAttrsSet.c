@@ -29,6 +29,7 @@
 #include "currentState/mongoc/mongocBsonToKjTree.h"    // mongocBsonToKjTree
 #include "currentState/mongoc/mongocKjTreeToBson.h"    // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"       // mongocEscapeDotsInKey
+#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"        // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityAttrsSet.h"  // Own interface
 
@@ -198,18 +199,41 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
     if (hasSet)   BSON_APPEND_DOCUMENT(&update, "$set",   &setDoc);
     if (hasUnset) BSON_APPEND_DOCUMENT(&update, "$unset", &unsetDoc);
 
-    bson_error_t err;
-    bool ok = mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err);
+    //
+    // A set can introduce a new GeoProperty attribute — ensure its 2dsphere index
+    // BEFORE the update, so a later georel=near / dist-sort query over it does not
+    // fail for want of an index, and so a name already held as another type is
+    // refused with the Entity untouched. Cached field paths cost a string compare.
+    //
+    const char* geoClashP = mongocGeoIndexEnsure(tenantP, fragmentDb, collP);
 
-    if (!ok)
+    bson_error_t err;
+    if (geoClashP != NULL)
     {
-      // "Can't extract geo keys" — a set GeoProperty value is well-formed JSON
-      // but not a valid geometry. Surface as a client error (→ 400) rather than
-      // a misleading 500. Mirrors mongocEntityCreate.
+      KT_E("mongoc: entityAttrsSet: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      swNgsild.geoConflictAttr = geoClashP;
+      result = DB_GEO_TYPE_CONFLICT;
+    }
+    else if (!mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err))
+    {
+      // "Can't extract geo keys" has two causes, separated only now that the write
+      // has failed, so no ordinary append/set pays for the distinction: a name that
+      // is geo-indexed here but set to another type is a clash of Attribute kinds
+      // (→ 409); otherwise the geometry itself is one S2 will not take (→ 400).
       if (strstr(err.message, "Can't extract geo keys") != NULL)
       {
-        KT_E("mongoc: entityAttrsSet rejected by 2dsphere: %s", err.message);
-        result = DB_INVALID_GEOMETRY;
+        const char* mixedP = mongocGeoIndexMixedName(tenantP, fragmentDb);
+        if (mixedP != NULL)
+        {
+          KT_E("mongoc: entityAttrsSet: '%s' is held as a GeoProperty here and set to another type", mixedP);
+          swNgsild.geoConflictAttr = mixedP;
+          result = DB_GEO_TYPE_CONFLICT;
+        }
+        else
+        {
+          KT_E("mongoc: entityAttrsSet rejected by 2dsphere: %s", err.message);
+          result = DB_INVALID_GEOMETRY;
+        }
       }
       else
       {
@@ -217,12 +241,6 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
         result = DB_ERR;
       }
     }
-
-    // A set can introduce a new GeoProperty attribute — ensure its 2dsphere
-    // index so a later georel=near / dist-sort query over it does not fail for
-    // want of an index (idempotent; cached field paths are skipped).
-    if (result == DB_OK)
-      mongocGeoIndexEnsure(tenantP, fragmentDb, collP);
   }
 
   bson_destroy(&update);

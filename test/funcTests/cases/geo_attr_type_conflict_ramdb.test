@@ -1,0 +1,165 @@
+#
+# FILE            geo_attr_type_conflict_ramdb.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The counterpart of geo_attr_type_conflict: what mongoc refuses with 409, ramdb
+# stores, because the refusal is a MongoDB limit and not an NGSI-LD rule.
+#
+# § 5.2.6.6's `attributeTypes` ("List of attribute types (e.g. Property,
+# Relationship, GeoProperty) for which entity instances exist, which contain an
+# attribute with this name") says an Attribute name may be held with several
+# Attribute types at once. ramdb has no per-path geospatial index, so it does
+# exactly that. mongoc indexes each GeoProperty path with a collection-wide
+# 2dsphere index and cannot - see spec-doubt #119.
+#
+# This divergence is deliberate and this test is what keeps it honest: if the
+# two backends are ever reconciled, one of these two tests has to change and
+# whoever changes it will find the other.
+#
+# REQUIRE_DB: ramdb
+#
+--NAME--
+A GeoProperty may share an Attribute name with another type on ramdb (§ 5.2.6.6)
+
+--TAGS--
+entity geoproperty conflict validation attrs
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. 'a' as a GeoProperty, then 'a' as a Property on another Entity - both stored"
+echo "================================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:P
+echo
+echo
+
+
+echo "02. ... and the other order too"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P2", "type": "OTHER", "b": { "type": "Property", "value": "indoors" } }' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G2", "type": "T", "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:G2
+echo
+echo
+
+
+echo "03. GET /attributes/a reports the union, which is what § 5.2.6.6 is for"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/attributes/a
+echo
+echo
+
+
+echo "04. ... and georel=near still finds the geometry, ignoring the non-geo namesake"
+echo "=============================================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&georel=near%3BmaxDistance==100000&geometry=Point&coordinates=%5B1%2C2%5D&geoproperty=a'
+
+
+--EXPECT--
+01. 'a' as a GeoProperty, then 'a' as a Property on another Entity - both stored
+================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
+
+{
+  "a": {
+    "type": "Property",
+    "value": "indoors"
+  },
+  "id": "urn:P",
+  "type": "OTHER"
+}
+
+
+
+02. ... and the other order too
+===============================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 173
+
+{
+  "b": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        3,
+        4
+      ],
+      "type": "Point"
+    }
+  },
+  "id": "urn:G2",
+  "type": "T"
+}
+
+
+
+03. GET /attributes/a reports the union, which is what § 5.2.6.6 is for
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 235
+
+{
+  "attributeCount": 2,
+  "attributeName": "a",
+  "attributeTypes": [
+    "GeoProperty",
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/a",
+  "type": "Attribute",
+  "typeNames": [
+    "T",
+    "OTHER"
+  ]
+}
+
+
+
+04. ... and georel=near still finds the geometry, ignoring the non-geo namesake
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 226
+
+[
+  {
+    "a": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "geoDistance": 0,
+    "id": "urn:G",
+    "type": "T"
+  }
+]
+

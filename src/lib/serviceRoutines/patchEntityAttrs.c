@@ -464,6 +464,12 @@ bool patchEntityAttrs(void)
     int r = db.entityAttrsSet(tenantP, entityId, fragment, true,
                                swRest.requestStartTime, &report);
 
+    if (r == DB_GEO_TYPE_CONFLICT)
+    {
+      ldGeoTypeConflict();
+      return true;
+    }
+
     if (r == DB_INVALID_GEOMETRY)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",

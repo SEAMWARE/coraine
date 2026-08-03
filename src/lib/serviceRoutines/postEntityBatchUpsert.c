@@ -1061,6 +1061,12 @@ bool postEntityBatchUpsert(void)
                         LD_ERROR_ALREADY_EXISTS, "Already Exists",
                         "entity appeared between retrieve and bulk create", NULL);
           break;
+        case DB_GEO_TYPE_CONFLICT:
+          addBatchError(errorsP, eid, 409,
+                        LD_ERROR_CONFLICT, "Attribute Type Conflict",
+                        "an Attribute name is already in use with a conflicting Attribute type in this tenant "
+                        "(a GeoProperty and another type cannot share one Attribute name here)", NULL);
+          break;
         default:
           addBatchError(errorsP, eid, 500,
                         LD_ERROR_INTERNAL_ERROR, "Internal Error",
@@ -1095,6 +1101,12 @@ bool postEntityBatchUpsert(void)
           addBatchError(errorsP, eid, 404,
                         LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                         "entity vanished between retrieve and bulk update", NULL);
+          break;
+        case DB_GEO_TYPE_CONFLICT:
+          addBatchError(errorsP, eid, 409,
+                        LD_ERROR_CONFLICT, "Attribute Type Conflict",
+                        "an Attribute name is already in use with a conflicting Attribute type in this tenant "
+                        "(a GeoProperty and another type cannot share one Attribute name here)", NULL);
           break;
         default:
           addBatchError(errorsP, eid, 500,

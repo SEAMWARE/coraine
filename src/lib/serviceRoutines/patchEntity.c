@@ -425,6 +425,12 @@ bool patchEntity(void)
         return true;
 
       int car = db.entityChangesApply(tenantP, entityId, mergedEntity, &report);
+      if (car == DB_GEO_TYPE_CONFLICT)
+      {
+        ldGeoTypeConflict();
+        return true;
+      }
+
       if (car == DB_INVALID_GEOMETRY)
       {
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",

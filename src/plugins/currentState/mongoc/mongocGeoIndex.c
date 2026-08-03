@@ -88,7 +88,7 @@ static void geoIndexCacheAdd(Tenant* tenantP, const char* fieldPath)
 //
 // geoIndexCreate - create a 2dsphere index on a specific field path and cache it
 //
-static void geoIndexCreate(Tenant* tenantP, mongoc_collection_t* collP, const char* fieldPath)
+static bool geoIndexCreate(Tenant* tenantP, mongoc_collection_t* collP, const char* fieldPath)
 {
   bson_t geoKeys;
   bson_init(&geoKeys);
@@ -96,8 +96,9 @@ static void geoIndexCreate(Tenant* tenantP, mongoc_collection_t* collP, const ch
 
   bson_error_t           error;
   mongoc_index_model_t*  indexP = mongoc_index_model_new(&geoKeys, NULL);
+  bool                   ok     = mongoc_collection_create_indexes_with_opts(collP, &indexP, 1, NULL, NULL, &error);
 
-  if (mongoc_collection_create_indexes_with_opts(collP, &indexP, 1, NULL, NULL, &error))
+  if (ok)
     KT_I("mongoc: ensured 2dsphere index on '%s' for db '%s'", fieldPath, tenantP->dbName);
   else
     KT_E("mongoc: failed to create 2dsphere index on '%s' for db '%s': %s", fieldPath, tenantP->dbName, error.message);
@@ -105,7 +106,17 @@ static void geoIndexCreate(Tenant* tenantP, mongoc_collection_t* collP, const ch
   mongoc_index_model_destroy(indexP);
   bson_destroy(&geoKeys);
 
-  geoIndexCacheAdd(tenantP, fieldPath);
+  //
+  // Cache ONLY on success. Caching a failed build is what made the reverse
+  // conflict silent: the index was absent but the cache claimed it was there, so
+  // nothing ever retried and the first georel=near on that attribute answered
+  // 500 "unable to find index for $geoNear query" — long after the write that
+  // caused it, and with nothing pointing back at it.
+  //
+  if (ok)
+    geoIndexCacheAdd(tenantP, fieldPath);
+
+  return ok;
 }
 
 
@@ -245,7 +256,7 @@ static bool isGeoPropertyInstance(KjNode* instP)
 // Called after entity insertion. Creates 2dsphere indexes for any (attr, datasetKey)
 // combinations not yet in the cache.
 //
-void mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collection_t* collP)
+const char* mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collection_t* collP)
 {
   for (KjNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
   {
@@ -265,10 +276,81 @@ void mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collection_t*
       char fieldPath[1024];
       snprintf(fieldPath, sizeof(fieldPath), "%s.%s.value", escapedAttrBuf, escapedDsKey);
 
+      //
+      // The cached case is the steady state and costs one string compare: this
+      // attribute is already a GeoProperty here, nothing to decide. Only the
+      // FIRST appearance of a name as a GeoProperty in a tenant reaches
+      // geoIndexCreate — which is exactly what happened before, one step later.
+      //
       if (geoIndexCacheLookup(tenantP, fieldPath))
         continue;
 
-      geoIndexCreate(tenantP, collP, fieldPath);
+      //
+      // Building the index is how we learn, at no cost to any other request,
+      // that some existing Entity already holds a NON-geo value under this name:
+      // mongo cannot extract geo keys from it and refuses to build. The caller
+      // runs this before its write, so the Entity is not stored and there is
+      // nothing to roll back.
+      //
+      if (geoIndexCreate(tenantP, collP, fieldPath) == false)
+        return childP->name;
     }
   }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocGeoIndexMixedName - which Attribute of this payload is geo-indexed but
+//                           not written as a GeoProperty?
+//
+// The AFTER-THE-FACT half. Mongo has already refused the write with "Can't
+// extract geo keys", which has two quite different causes:
+//
+//   - a GeoProperty whose geometry S2 will not accept (self-intersecting or
+//     degenerate polygon) — the client's geometry is at fault, 400
+//   - a perfectly ordinary Property landing on a name that some other Entity
+//     already uses as a GeoProperty, so the collection-wide 2dsphere index at
+//     that path cannot key it — a type conflict, 409
+//
+// Only the failing request pays for telling them apart, and it is told apart
+// from OUR OWN payload plus the geo-index cache rather than by reading mongo's
+// message: an attribute that is geo-indexed here and is not a GeoProperty in
+// this payload is the conflict, and its name is what the error should name.
+//
+// Returns the (long) Attribute name, or NULL when no attribute fits — in which
+// case the rejection really was about the geometry.
+//
+const char* mongocGeoIndexMixedName(Tenant* tenantP, KjNode* entityP)
+{
+  if (entityP == NULL || entityP->type != KjObject)
+    return NULL;
+
+  for (KjNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
+  {
+    if (childP->type != KjObject || childP->name == NULL || notAnAttribute(childP->name))
+      continue;
+
+    for (KjNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
+    {
+      if (instP->type != KjObject || isGeoPropertyInstance(instP))
+        continue;
+
+      char escapedAttrBuf[512];
+      snprintf(escapedAttrBuf, sizeof(escapedAttrBuf), "%s", mongocEscapeDotsInKey(childP->name));
+
+      const char* escapedDsKey = mongocEscapeDotsInKey(instP->name);
+
+      char fieldPath[1024];
+      snprintf(fieldPath, sizeof(fieldPath), "%s.%s.value", escapedAttrBuf, escapedDsKey);
+
+      if (geoIndexCacheLookup(tenantP, fieldPath))
+        return childP->name;
+    }
+  }
+
+  return NULL;
 }

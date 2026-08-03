@@ -477,6 +477,20 @@ bool postEntityAttrs(void)
     int r = db.entityAttrsSet(tenantP, entityId, fragment, overwriteScope,
                                swRest.requestStartTime, &report);
 
+    if (r == DB_GEO_TYPE_CONFLICT)
+    {
+      ldGeoTypeConflict();
+      return true;
+    }
+
+    if (r == DB_INVALID_GEOMETRY)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",
+              "GeoProperty rejected by storage geometry validator (likely "
+              "self-intersecting or degenerate polygon)");
+      return true;
+    }
+
     if (r != DB_OK && r != DB_NOT_FOUND)
     {
       ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",

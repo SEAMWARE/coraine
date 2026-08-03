@@ -1,0 +1,346 @@
+#
+# FILE            geo_attr_type_conflict.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# NGSI-LD lets one Attribute name be a GeoProperty on one Entity and something
+# else on another - § 5.2.6.6's `attributeTypes` exists precisely to report that
+# ("List of attribute types (e.g. Property, Relationship, GeoProperty) for which
+# entity instances exist, which contain an attribute with this name").
+#
+# The mongoc backend cannot store it. It indexes every GeoProperty Attribute PATH
+# with a 2dsphere index, and a Mongo index belongs to the COLLECTION - one per
+# tenant - so a geometry and a non-geometry cannot both live at that path. Rather
+# than let the mix in and have georel=near / maxDistance quietly stop working on
+# that Attribute later, the write is refused at once with 409 Conflict naming the
+# Attribute, so the name can be changed while it is still cheap. Spec-doubt #119.
+#
+# Both orders are refused, and each for its own reason:
+#   geo first, then non-geo  - Mongo rejects the write ("Can't extract geo keys")
+#   non-geo first, then geo  - the 2dsphere index cannot be built at all
+#
+# The second used to be SILENT: the write was accepted, the index never built, and
+# the first georel=near answered 500 long afterwards.
+#
+# ramdb has no such index and stores the mix exactly as the spec describes - see
+# geo_attr_type_conflict_ramdb, which pins that deliberate divergence.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+A GeoProperty and another Attribute type cannot share one Attribute name (mongoc)
+
+--TAGS--
+entity geoproperty conflict validation attrs
+
+--INIT--
+swDbDrop
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed 'a' as a GeoProperty"
+echo "============================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+echo
+echo
+
+
+echo "02. Every write path then refuses 'a' as a Property - 409, naming the Attribute"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P1", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }'
+echo
+echo
+
+
+echo "03. ... and the same on create, batch-create, batch-upsert, append, merge, update-attrs, replace"
+echo "==============================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{ "id": "urn:P2", "type": "OTHER", "a": { "type": "Property", "value": "x" } }]' | head -1
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{ "id": "urn:P3", "type": "OTHER", "a": { "type": "Property", "value": "x" } }]' | head -1
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:H", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
+swCurl -X POST  --url /ngsi-ld/v1/entities/urn:H/attrs --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:H       --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:H/attrs --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
+swCurl -X PUT   --url /ngsi-ld/v1/entities/urn:H       --payload '{ "id": "urn:H", "type": "T", "a": { "type": "Property", "value": "x" } }' | head -1
+echo
+echo
+
+
+echo "04. Nothing was stored by any of them"
+echo "====================================="
+swCurl --url /ngsi-ld/v1/entities/urn:H
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:P1 | head -1
+echo
+echo
+
+
+echo "05. The other order - 'b' as a Property first, then as a GeoProperty (tenant t2)"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B0", "type": "T", "b": { "type": "Property", "value": "indoors" } }' | head -1
+swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B1", "type": "T", "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
+echo
+echo
+
+
+echo "06. ... on the other write paths too, and the Property survives untouched"
+echo "========================================================================"
+swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B2", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
+swCurl -X POST  --url /ngsi-ld/v1/entities/urn:B2/attrs -H 'NGSILD-Tenant: t2' --payload '{ "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:B2       -H 'NGSILD-Tenant: t2' --payload '{ "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:B0 -H 'NGSILD-Tenant: t2'
+echo
+echo
+
+
+echo "07. The conflict stops at the tenant - 'a' is free again in tenant t3"
+echo "===================================================================="
+swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t3' --payload '{ "id": "urn:T3", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }' | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:T3 -H 'NGSILD-Tenant: t3'
+echo
+echo
+
+
+echo "08. A GeoProperty on a name nobody else uses still indexes, and georel=near still works"
+echo "======================================================================================"
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:N1", "type": "W", "spot": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=W&georel=near%3BmaxDistance==100000&geometry=Point&coordinates=%5B1%2C2%5D&geoproperty=spot'
+echo
+echo
+
+
+echo "09. A geometry S2 refuses is still a 400 about the geometry, not a 409 about the name"
+echo "===================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:BadP", "type": "W", "spot": { "type": "GeoProperty", "value": { "type": "Polygon", "coordinates": [[[0,0],[2,2],[2,0],[0,2],[0,0]]] } } }'
+echo
+echo
+
+
+echo "10. Batch upsert of an EXISTING Entity takes the update branch - also 409, not 500"
+echo "================================================================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:U", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
+swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]'
+echo
+echo
+
+
+echo "11. Batch update and batch merge reach it the same way, and a clean sibling still goes in"
+echo "========================================================================================="
+swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]' | head -1
+swCurl --url /ngsi-ld/v1/entityOperations/merge  --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]' | head -1
+swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{ "id": "urn:S1", "type": "T", "z": { "type": "Property", "value": 2 } }, { "id": "urn:S2", "type": "T", "a": { "type": "Property", "value": "x" } }]'
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:S1 | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:S2 | head -1
+
+
+--EXPECT--
+01. Seed 'a' as a GeoProperty
+=============================
+HTTP/1.1 201 Created
+
+
+02. Every write path then refuses 'a' as a Property - 409, naming the Attribute
+===============================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 396
+
+{
+  "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/a",
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/a' is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
+  "status": 409,
+  "title": "Attribute Type Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+03. ... and the same on create, batch-create, batch-upsert, append, merge, update-attrs, replace
+===============================================================================================
+HTTP/1.1 409 Conflict
+HTTP/1.1 409 Conflict
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+HTTP/1.1 409 Conflict
+HTTP/1.1 409 Conflict
+HTTP/1.1 409 Conflict
+
+
+04. Nothing was stored by any of them
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 88
+
+{
+  "id": "urn:H",
+  "type": "T",
+  "z": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+HTTP/1.1 404 Not Found
+
+
+05. The other order - 'b' as a Property first, then as a GeoProperty (tenant t2)
+===============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Content-Length: 396
+
+{
+  "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/b",
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/b' is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
+  "status": 409,
+  "title": "Attribute Type Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+06. ... on the other write paths too, and the Property survives untouched
+========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+HTTP/1.1 409 Conflict
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 97
+
+{
+  "b": {
+    "type": "Property",
+    "value": "indoors"
+  },
+  "id": "urn:B0",
+  "type": "T"
+}
+
+
+
+07. The conflict stops at the tenant - 'a' is free again in tenant t3
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t3
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 101
+
+{
+  "a": {
+    "type": "Property",
+    "value": "indoors"
+  },
+  "id": "urn:T3",
+  "type": "OTHER"
+}
+
+
+
+08. A GeoProperty on a name nobody else uses still indexes, and georel=near still works
+======================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 230
+
+[
+  {
+    "geoDistance": 0,
+    "id": "urn:N1",
+    "spot": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "W"
+  }
+]
+
+
+
+09. A geometry S2 refuses is still a 400 about the geometry, not a 409 about the name
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 233
+
+{
+  "detail": "GeoProperty rejected by storage geometry validator (likely self-intersecting or degenerate polygon)",
+  "status": 400,
+  "title": "Invalid GeoProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Batch upsert of an EXISTING Entity takes the update branch - also 409, not 500
+=================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 122
+
+{
+  "entityId": "urn:U",
+  "title": "Attribute Type Conflict",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+}
+
+
+
+11. Batch update and batch merge reach it the same way, and a clean sibling still goes in
+=========================================================================================
+HTTP/1.1 409 Conflict
+HTTP/1.1 409 Conflict
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 426
+
+{
+  "errors": [
+    {
+      "entityId": "urn:S2",
+      "error": {
+        "detail": "an Attribute name is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
+        "status": 409,
+        "title": "Attribute Type Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      }
+    }
+  ],
+  "success": [
+    "urn:S1"
+  ]
+}
+
+
+HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found

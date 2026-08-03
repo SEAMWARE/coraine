@@ -40,6 +40,7 @@
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/mongoc/mongocBsonToKjTree.h"      // mongocBsonToKjTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
+#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkMerge.h"   // Own interface
 
@@ -210,6 +211,22 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
       continue;
     }
 
+    //
+    // Ensure the merged entity's 2dsphere indexes BEFORE staging it. A name the
+    // merge turns into a GeoProperty while the tenant already holds it as another
+    // type cannot be stored, so it is refused and left out of the batch, its
+    // siblings unaffected. Already-indexed attributes cost one string compare.
+    //
+    const char* geoClashP = mongocGeoIndexEnsure(tenantP, mergedTargetsV[i], collP);
+    if (geoClashP != NULL)
+    {
+      KT_E("mongoc: entityBulkChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      swNgsild.geoConflictAttr = geoClashP;
+      resultsV[i] = DB_GEO_TYPE_CONFLICT;
+      bson_destroy(&update);
+      continue;
+    }
+
     if (bulk == NULL)
     {
       // ordered=true so multi-instance same-id fragments apply in array order.
@@ -240,20 +257,34 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
     if (!ok)
     {
       KT_E("mongoc: entityBulkChangesApply execute failed: %s", error.message);
+
+      //
+      // Same as the single-entity merge, decided per staged fragment from the
+      // merged tree plus the geo-index cache: a name geo-indexed in this tenant
+      // and merged as another type is a clash of Attribute kinds, not a 500.
+      //
+      bool geoClash = (strstr(error.message, "Can't extract geo keys") != NULL);
+
       for (int i = 0; i < n; i++)
-        if (staged[i])
+      {
+        if (!staged[i])
+          continue;
+
+        const char* mixedP = geoClash ? mongocGeoIndexMixedName(tenantP, mergedTargetsV[i]) : NULL;
+
+        if (mixedP != NULL)
+        {
+          KT_E("mongoc: entityBulkChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
+          swNgsild.geoConflictAttr = mixedP;
+          resultsV[i] = DB_GEO_TYPE_CONFLICT;
+        }
+        else
           resultsV[i] = DB_ERR;
+      }
     }
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk);
   }
-
-  // A merge can introduce a new GeoProperty attribute — ensure its 2dsphere
-  // index for each applied fragment so a later georel=near / dist-sort query
-  // over it does not fail for want of an index (idempotent; cached paths skip).
-  for (int i = 0; i < n; i++)
-    if (staged[i] && (resultsV[i] == DB_OK) && (mergedTargetsV[i] != NULL))
-      mongocGeoIndexEnsure(tenantP, mergedTargetsV[i], collP);
 
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);

@@ -14,6 +14,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocKjTreeToBson.h"               // mongocKjTreeToBson
+#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityCreate.h"               // Own interface
 
@@ -40,6 +41,21 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
   bson_t                bson;
 
+  //
+  // Ensure the 2dsphere indexes this entity's GeoProperties need, BEFORE inserting:
+  // the build is what discovers that the name is already in use as something else,
+  // and doing it first means the failing case stores nothing.
+  //
+  const char* geoClashP = mongocGeoIndexEnsure(tenantP, entityP, collP);
+  if (geoClashP != NULL)
+  {
+    mongoc_collection_destroy(collP);
+    mongoc_client_pool_push(poolP, clientP);
+    KT_E("mongoc: entityCreate: '%s' is a GeoProperty here but already held as another type", geoClashP);
+    swNgsild.geoConflictAttr = geoClashP;
+    return DB_GEO_TYPE_CONFLICT;
+  }
+
   mongocKjTreeToBson(entityP, &bson);
 
   //
@@ -64,6 +80,20 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
     // than a generic 500, so the caller can map it to 400 BadRequestData.
     if (strstr(error.message, "Can't extract geo keys") != NULL)
     {
+      //
+      // Two causes, told apart only now that the write has failed — the ordinary
+      // write pays nothing for this. An Attribute of this payload that is
+      // geo-indexed in the tenant but is NOT a GeoProperty here is a clash of
+      // Attribute kinds (409); anything else really is a geometry S2 refuses (400).
+      //
+      const char* mixedP = mongocGeoIndexMixedName(tenantP, entityP);
+      if (mixedP != NULL)
+      {
+        KT_E("mongoc: entityCreate: '%s' is held as a GeoProperty here and written as another type", mixedP);
+        swNgsild.geoConflictAttr = mixedP;
+        return DB_GEO_TYPE_CONFLICT;
+      }
+
       KT_E("mongoc: entityCreate rejected by 2dsphere: %s", error.message);
       return DB_INVALID_GEOMETRY;
     }
@@ -72,10 +102,6 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
     return DB_ERR;
   }
 
-  //
-  // Ensure 2dsphere indexes for any GeoProperty attributes
-  //
-  mongocGeoIndexEnsure(tenantP, entityP, collP);
 
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);

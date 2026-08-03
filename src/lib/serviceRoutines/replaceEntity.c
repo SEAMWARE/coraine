@@ -436,6 +436,12 @@ bool replaceEntity(void)
     KjNode* replacedOld = NULL;
     int     r           = db.entityReplace(tenantP, entityId, entityP, &replacedOld);
 
+    if (r == DB_GEO_TYPE_CONFLICT)
+    {
+      ldGeoTypeConflict();
+      return true;
+    }
+
     if (r == DB_OK)
     {
       anySucceeded = true;

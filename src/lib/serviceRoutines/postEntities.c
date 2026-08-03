@@ -720,6 +720,11 @@ bool postEntities(void)
       tevP->entitySnapshot = entityP;
       troeDeferEntityEvent(tevP);
     }
+    else if (r == DB_GEO_TYPE_CONFLICT)
+    {
+      ldGeoTypeConflict();
+      return true;
+    }
     else if (r == DB_INVALID_GEOMETRY)
     {
       // GeoProperty payload is valid JSON but the storage layer's geo
