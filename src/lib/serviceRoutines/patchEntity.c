@@ -87,10 +87,57 @@ static char* mergeUrl(const char* endpoint, const char* entityId)
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);
   int         idLen   = strlen(entityId);
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1);
-  strcpy(url, endpoint);
-  strcpy(url + baseLen, path);
-  strcpy(url + baseLen + pathLen, entityId);
+
+  //
+  // The three URL parameters of § 10.2.9.3 that change how the BODY is read —
+  // format, lang, observedAt — must travel with it. The forwarded fragment is
+  // the caller's own, and under ?format=simplified its bare values are still
+  // bare: only the flag tells the receiving broker to resolve them against the
+  // Attribute types IT holds (§ 10.2.9.4). Dropping the flag would hand a remote
+  // a body meaning one thing and a request saying it means another — the value
+  // would be read as a concise Property and refused as an Attribute type change.
+  //
+  // Attributes forwarded under an exclusive or redirect registration are exactly
+  // the ones the local broker does NOT hold, so there is no local type to
+  // pre-resolve them against; the flag is the only thing that can carry the
+  // intent across.
+  //
+  const char* fmt  = (swNgsild.format == LdFormatSimplified) ? "format=simplified" : NULL;
+  const char* lang = (swNgsild.lang       != NULL && swNgsild.lang[0]       != 0) ? swNgsild.lang       : NULL;
+  const char* obs  = (swNgsild.observedAt != NULL && swNgsild.observedAt[0] != 0) ? swNgsild.observedAt : NULL;
+
+  int qLen = 0;
+  if (fmt  != NULL)  qLen += 1 + strlen(fmt);
+  if (lang != NULL)  qLen += 1 + 5 + strlen(lang);          // "&lang=" + value
+  if (obs  != NULL)  qLen += 1 + 11 + strlen(obs);          // "&observedAt=" + value
+
+  char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qLen + 1);
+  char* p   = url;
+
+  memcpy(p, endpoint, baseLen);  p += baseLen;
+  memcpy(p, path,     pathLen);  p += pathLen;
+  memcpy(p, entityId, idLen);    p += idLen;
+
+  char sep = '?';
+  if (fmt != NULL)
+  {
+    *p++ = sep;  sep = '&';
+    int len = strlen(fmt);  memcpy(p, fmt, len);  p += len;
+  }
+  if (lang != NULL)
+  {
+    *p++ = sep;  sep = '&';
+    memcpy(p, "lang=", 5);  p += 5;
+    int len = strlen(lang);  memcpy(p, lang, len);  p += len;
+  }
+  if (obs != NULL)
+  {
+    *p++ = sep;
+    memcpy(p, "observedAt=", 11);  p += 11;
+    int len = strlen(obs);  memcpy(p, obs, len);  p += len;
+  }
+  *p = 0;
+
   return url;
 }
 

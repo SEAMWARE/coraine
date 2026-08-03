@@ -189,10 +189,10 @@ Date: REGEX(.*)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 222
+Content-Length: 240
 
 {
-  "detail": "JSON null is not allowed in NGSI-LD (field: 'https://uri.etsi.org/ngsi-ld/default-context/P9')",
+  "detail": "JSON null is not allowed in NGSI-LD (attribute 'https://uri.etsi.org/ngsi-ld/default-context/P9', field 'value')",
   "status": 400,
   "title": "Invalid Value",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -200,5 +200,3 @@ Content-Length: 222
 
 
 
---TEARDOWN--
-swBrokerStop

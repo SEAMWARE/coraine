@@ -649,7 +649,7 @@ bool postEntityBatchCreate(void)
       continue;
     }
 
-    ldNormalizeInput(inP, &swRest.kalloc, false);
+    ldNormalizeInput(inP, &swRest.kalloc, false, false);
 
     if (ldCheckEntity(inP, LdOpCreateEntity, NULL, &swRest.kalloc) == false)
     {

@@ -619,7 +619,7 @@ bool postEntityBatchUpdate(void)
       continue;
     }
 
-    ldNormalizeInput(inP, &swRest.kalloc, false);
+    ldNormalizeInput(inP, &swRest.kalloc, false, false);
 
     if (ldCheckEntity(inP, LdOpUpdateAttrs, NULL, &swRest.kalloc) == false)
     {

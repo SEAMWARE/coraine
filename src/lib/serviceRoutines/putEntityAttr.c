@@ -39,6 +39,7 @@
 #include "swNgsild/LdOp.h"                           // LdOpAppendAttrs
 #include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
 #include "swNgsild/ldNameContentCheck.h"             // ldIsValidName
+#include "swNgsild/LdNormalizeInput.h"               // ldNormalizeInput
 #include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
@@ -160,6 +161,26 @@ bool putEntityAttr(void)
   KjNode* entityFrag = kjObject(swRest.kjsonP, NULL);
   bodyP->name = (char*) attrIri;
   kjChildAdd(entityFrag, bodyP);
+
+  //
+  // § 5.4.2 — an Attribute Fragment may arrive concise or simplified, and both
+  // forms drop the "type" member: {"object": "urn:x"} is a Relationship, and a
+  // GeoJSON object standing alone is a GeoProperty. The request hook skips
+  // ldNormalizeInput for every /attrs/{attrId} route (there the top level is an
+  // Attribute, not an Entity, so entity-level normalization would read the
+  // sub-attributes as attributes) — but now that the fragment is wrapped as the
+  // single attribute of an entity fragment, that is exactly the tree
+  // ldNormalizeInput expects. Without this, Replace Attribute stored the
+  // fragment verbatim: no "type" at all, and object/vocab/valueList/objectList/
+  // json quietly renamed to a Property's "value". Partial Attribute Update
+  // (PATCH) never showed the bug because its RFC 7396 merge inherits "type"
+  // from the target instance; PUT replaces wholesale, so nothing supplies it.
+  //
+  // mergeMode=false: Replace Attribute is not a merge — there is no pre-existing
+  // instance whose type could be preserved, so a simplified scalar is a Property
+  // per § 5.3.2.3.
+  //
+  ldNormalizeInput(entityFrag, &swRest.kalloc, false, false);
 
   if (ldCheckEntity(entityFrag, LdOpAppendAttrs, NULL, &swRest.kalloc) == false)
     return true;

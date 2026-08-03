@@ -469,7 +469,7 @@ bool postEntityBatchMerge(void)
       continue;
     }
 
-    ldNormalizeInput(inP, &swRest.kalloc, false);
+    ldNormalizeInput(inP, &swRest.kalloc, false, false);
 
     if (ldCheckEntity(inP, LdOpBatchMerge, NULL, &swRest.kalloc) == false)
     {

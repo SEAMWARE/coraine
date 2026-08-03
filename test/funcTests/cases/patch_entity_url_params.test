@@ -23,16 +23,27 @@ swBrokerStart
 #   - LanguageProperty (name → languageMap{en,fr})
 #   - Property with observedAt sub-attribute (temp → 20 @ 2026-01-01)
 #
+# Simplified input is a DECLARED format, not a guessed one. § 10.2.9.3 lists "a flag
+# indicating whether the JSON-LD document contains a simplified representation" among
+# Merge Entity's input data, and the HTTP binding binds that flag to ?format=simplified
+# (?options=keyValues being the deprecated spelling). Only under the flag does
+# § 10.2.9.4 apply — "the type of any pre-existing Attribute in the target entity shall
+# be preserved". Undeclared, the body is concise, and § 5.3.2.3 step 3 is unconditional:
+# a JSON primitive is a Property, so it lands on a Relationship as a type change.
+#
 # 01. Create the entity
-# 02. PATCH owner with simplified scalar "urn:bob" — Relationship type preserved, object updated
+# 02. PATCH owner with simplified scalar "urn:bob" + format=simplified — Relationship type preserved, object updated
 # 03. GET — verify owner.object == "urn:bob", type still Relationship
-# 04. PATCH name with simplified string "Hola" and ?lang=es — only languageMap.es added/updated, en+fr preserved
+# 04. PATCH name with simplified string "Hola" and ?format=simplified&lang=es — only languageMap.es added/updated, en+fr preserved
 # 05. GET — verify languageMap has en, fr, es
 # 06. PATCH temp with simplified scalar 25 and ?observedAt=2026-06-01T12:00:00Z — observedAt sub-attr updated from URL param
 # 07. GET with sysAttrs — verify temp.value=25 and temp.observedAt=2026-06-01...
 # 08. PATCH temp with simplified scalar 30 and no observedAt URL param — observedAt should stay (not reset)
 # 09. GET sysAttrs — temp.value=30, temp.observedAt still at 2026-06-01
-# 10. Simplified PATCH on LanguageProperty without lang URL param — 400 Missing lang
+# 10. Simplified PATCH on LanguageProperty with the flag but no lang URL param — 400 Missing lang
+# 11. The SAME scalar onto the Relationship without the flag — 400 Attribute Type Change
+# 12. options=keyValues is the deprecated spelling of the same flag — preserved again
+# 13. GET — the two refusals left the Entity exactly as step 12 wrote it
 #
 
 echo "01. Create entity with Relationship, LanguageProperty, and Property with observedAt"
@@ -64,7 +75,7 @@ echo
 
 echo "02. PATCH owner with simplified URI — Relationship type must be preserved"
 echo "========================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"owner":"urn:bob"}'
+swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified' --payload '{"owner":"urn:bob"}'
 echo
 echo
 
@@ -78,7 +89,7 @@ echo
 
 echo "04. PATCH name with lang=es — add Spanish entry, preserve en/fr"
 echo "==============================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?lang=es' --payload '{"name":"Hola"}'
+swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified&lang=es' --payload '{"name":"Hola"}'
 echo
 echo
 
@@ -120,7 +131,28 @@ echo
 
 echo "10. Simplified PATCH on LanguageProperty without lang URL param — 400"
 echo "====================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"name":"nope"}'
+swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified' --payload '{"name":"nope"}'
+echo
+echo
+
+
+echo "11. The same scalar WITHOUT the flag — a concise body, so it is a Property"
+echo "=========================================================================="
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"owner":"urn:carol"}'
+echo
+echo
+
+
+echo "12. options=keyValues is the deprecated spelling of the same flag"
+echo "================================================================="
+swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?options=keyValues' --payload '{"owner":"urn:dave"}'
+echo
+echo
+
+
+echo "13. GET — neither refusal touched the Entity, and step 12 did"
+echo "============================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
@@ -150,7 +182,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 324
 
 {
   "id": "urn:e1",
@@ -166,7 +198,7 @@ Content-Length: REGEX(\d+)
     "type": "Relationship"
   },
   "temp": {
-    "observedAt": "REGEX(.*)",
+    "observedAt": "2026-01-01T00:00:00Z",
     "type": "Property",
     "value": 20
   },
@@ -189,7 +221,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 344
 
 {
   "id": "urn:e1",
@@ -206,7 +238,7 @@ Content-Length: REGEX(\d+)
     "type": "Relationship"
   },
   "temp": {
-    "observedAt": "REGEX(.*)",
+    "observedAt": "2026-01-01T00:00:00Z",
     "type": "Property",
     "value": 20
   },
@@ -254,7 +286,7 @@ Content-Length: REGEX(\d+)
   "temp": {
     "createdAt": "REGEX(.*)",
     "modifiedAt": "REGEX(.*)",
-    "observedAt": "REGEX(.*)",
+    "observedAt": "2026-06-01T12:00:00Z",
     "type": "Property",
     "value": 25
   },
@@ -302,7 +334,7 @@ Content-Length: REGEX(\d+)
   "temp": {
     "createdAt": "REGEX(.*)",
     "modifiedAt": "REGEX(.*)",
-    "observedAt": "REGEX(.*)",
+    "observedAt": "2026-06-01T12:00:00Z",
     "type": "Property",
     "value": 30
   },
@@ -327,6 +359,59 @@ Content-Length: 250
 
 
 
---TEARDOWN--
-swBrokerStop
-swDbDrop
+11. The same scalar WITHOUT the flag — a concise body, so it is a Property
+==========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 279
+
+{
+  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner' type from 'Relationship' to 'Property' in a Merge Entity operation",
+  "status": 400,
+  "title": "Attribute Type Change",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. options=keyValues is the deprecated spelling of the same flag
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+13. GET — neither refusal touched the Entity, and step 12 did
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 345
+
+{
+  "id": "urn:e1",
+  "name": {
+    "languageMap": {
+      "en": "Hello",
+      "es": "Hola",
+      "fr": "Bonjour"
+    },
+    "type": "LanguageProperty"
+  },
+  "owner": {
+    "object": "urn:dave",
+    "type": "Relationship"
+  },
+  "temp": {
+    "observedAt": "2026-06-01T12:00:00Z",
+    "type": "Property",
+    "value": 30
+  },
+  "type": "E"
+}
+
+
+
