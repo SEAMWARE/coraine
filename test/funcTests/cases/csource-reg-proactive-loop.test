@@ -54,7 +54,7 @@ echo
 
 echo "03. GET /info/sourceIdentity on CB with tenant t1"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/info/sourceIdentity --tenant t1
+swCurl --url /ngsi-ld/v1/info/sourceIdentity -H 'NGSILD-Tenant: t1'
 echo
 echo
 
@@ -178,7 +178,7 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "contextSourceAlias": "cb-alias",
+  "contextSourceAlias": "cb-alias:t1",
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
@@ -188,7 +188,7 @@ Content-Length: REGEX(\d+)
   "contextSourceTimeAt": "REGEX(.*)",
   "contextSourceUptime": "REGEX(.*)",
   "contextSourceVersion": "0.3",
-  "id": "urn:ngsi-ld:ContextSource:cb-alias",
+  "id": "urn:ngsi-ld:ContextSource:cb-alias:t1",
   "type": "ContextSourceIdentity"
 }
 
