@@ -151,12 +151,31 @@ swBrokerStart() {
 
 # -----------------------------------------------------------------------------
 #
-# swBrokerStop [-role <role>]
+# swBrokerStop [-role <role>] [-all]
+#
+# No argument stops the CB, as it always has. -all stops every role in SW_ROLES,
+# for teardowns that would otherwise have to name each secondary they started -
+# forgetting one leaks a broker onto its port, which is the orphan flakiness in
+# swTestFunctions' own stop helpers.
 #
 swBrokerStop() {
   local role="CB"
+  local all=0
 
-  if [ "$1" == "-role" ]; then role="$2"; fi
+  while [ $# -gt 0 ]; do
+    if   [ "$1" == "-role" ]; then role="$2"; shift
+    elif [ "$1" == "-all" ];  then all=1
+    fi
+    shift
+  done
+
+  if [ $all == 1 ]; then
+    local r
+    for r in $(echo "$SW_ROLES" | awk '{print $1}'); do
+      swBrokerStop -role "$r"
+    done
+    return 0
+  fi
 
   swRoleLookup "$role" || return 1
 
