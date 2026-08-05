@@ -280,6 +280,154 @@ static void bsonAppendLangWildcard(bson_t* docP, const char* langPath, LdQTerm* 
 
 // -----------------------------------------------------------------------------
 //
+// bsonAppendMultiInstanceTerm - one q term against EVERY instance of an Attribute
+//
+// Clause 7: with several instances and no datasetId addressed, the target value
+// is "any Value of such instances". The field path we would otherwise build is
+// <attr>.@none.value, which only ever reaches the DEFAULT instance - so a value
+// living on a datasetId instance was invisible to q, and an Attribute with no
+// default instance at all could not be matched by any comparison term.
+//
+// Instance keys are datasetIds, i.e. arbitrary and unknown at query-build time,
+// and Mongo cannot wildcard object keys in a field path. That is the same
+// obstacle the "[*]" languageMap term already has, so the same answer:
+// $objectToArray over the attribute, then $anyElementTrue over a per-instance
+// predicate. Sub-attribute and value-path segments just extend that predicate.
+//
+// Positive operators take ANY instance; the negative ones need EVERY instance to
+// satisfy them, which is "no instance satisfies the positive form" - exactly how
+// bsonAppendLangWildcard negates, and what the in-broker matcher does.
+//
+// Returns false when the term shape is not handled here, and the caller falls
+// back to the plain field path.
+//
+static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQTerm* term)
+{
+  //
+  // Where the value sits INSIDE one instance: $$kv.v[.sub...].value[.member...]
+  // (the DB model renames every value key to "value" whatever the Attribute
+  // type, so this one spelling covers a Relationship's object too).
+  //
+  char vexpr[1024];
+  int  vp = snprintf(vexpr, sizeof(vexpr), "$$kv.v");
+
+  for (int i = 0; i < term->subPathN; i++)
+    vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
+
+  vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".value");
+
+  for (int i = 0; i < term->valuePathN; i++)
+  {
+    if (strcmp(term->valuePathV[i], "*") == 0)
+      return false;                                  // "[*]" keeps its own handling
+    vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".%s", mongocEscapeDotsInKey(term->valuePathV[i]));
+  }
+
+  //
+  // The per-instance POSITIVE predicate. Negative operators reuse it and negate
+  // the whole $anyElementTrue, so this only ever builds the positive form.
+  //
+  char        pred[8192];
+  bool        pattern = (term->op == LdQPattern) || (term->op == LdQNotPattern);
+  const char* relOp   = NULL;
+
+  switch (term->op)
+  {
+  case LdQGreater:   relOp = "$gt";  break;
+  case LdQLess:      relOp = "$lt";  break;
+  case LdQGreaterEq: relOp = "$gte"; break;
+  case LdQLessEq:    relOp = "$lte"; break;
+  default:                           break;
+  }
+
+  if (term->valueType == LdQString)
+  {
+    if (term->value.s == NULL)
+      return false;
+
+    char esc[1024];
+    jsonStrEscape(esc, sizeof(esc), term->value.s);
+
+    if (pattern)
+      snprintf(pred, sizeof(pred),
+        "{\"$and\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},{\"$regexMatch\":{\"input\":\"%s\",\"regex\":\"%s\"}}]}",
+        vexpr, vexpr, esc);
+    else if (relOp != NULL)
+      // Guard the type: Mongo orders ACROSS BSON types, so an unguarded $gt
+      // would let a number satisfy a string comparison.
+      snprintf(pred, sizeof(pred),
+        "{\"$and\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},{\"%s\":[\"%s\",\"%s\"]}]}",
+        vexpr, relOp, vexpr, esc);
+    else
+      snprintf(pred, sizeof(pred),
+        "{\"$or\":[{\"$eq\":[\"%s\",\"%s\"]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[\"%s\",\"%s\"]}]}]}",
+        vexpr, esc, vexpr, esc, vexpr);
+  }
+  else if (term->valueType == LdQNumber)
+  {
+    if (pattern)
+      return false;
+
+    char num[64];
+    snprintf(num, sizeof(num), "%.17g", term->value.n);
+
+    if (relOp != NULL)
+      snprintf(pred, sizeof(pred),
+        "{\"$and\":[{\"$in\":[{\"$type\":\"%s\"},[\"double\",\"int\",\"long\",\"decimal\"]]},{\"%s\":[\"%s\",%s]}]}",
+        vexpr, relOp, vexpr, num);
+    else
+      snprintf(pred, sizeof(pred),
+        "{\"$or\":[{\"$eq\":[\"%s\",%s]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[%s,\"%s\"]}]}]}",
+        vexpr, num, vexpr, num, vexpr);
+  }
+  else if (term->valueType == LdQBool)
+  {
+    if (pattern || (relOp != NULL))
+      return false;
+
+    const char* b = term->value.b ? "true" : "false";
+    snprintf(pred, sizeof(pred),
+      "{\"$or\":[{\"$eq\":[\"%s\",%s]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[%s,\"%s\"]}]}]}",
+      vexpr, b, vexpr, b, vexpr);
+  }
+  else
+    return false;                                    // ranges / value-lists keep the old path
+
+  bool negative = (term->op == LdQUnequal) || (term->op == LdQNotPattern);
+
+  char any[16384];
+  snprintf(any, sizeof(any),
+    "{\"$and\":["
+      "{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},"
+      "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\",\"in\":%s}}}"
+    "]}",
+    attrPath, attrPath, pred);
+
+  char cond[16640];
+  if (negative)
+    // EVERY instance must satisfy != / notPattern, i.e. none satisfies the
+    // positive form - but the Attribute must still be present, since an Entity
+    // without it does not "have a value different from X".
+    snprintf(cond, sizeof(cond),
+      "{\"$and\":[{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},{\"$not\":[%s]}]}", attrPath, any);
+  else
+    snprintf(cond, sizeof(cond), "%s", any);
+
+  bson_error_t error;
+  bson_t*      condP = bson_new_from_json((const uint8_t*) cond, -1, &error);
+  if (condP == NULL)
+    return false;
+
+  bson_append_document(docP, "$expr", 5, condP);
+  bson_destroy(condP);
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bsonAppendQTerm - build BSON filter for a single Q term
 //
 static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
@@ -375,8 +523,19 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   }
 
   //
-  // Value leaf: plain terms compare inside the default instance.
+  // Value leaf. Before falling back to the fixed <attr>.@none.value path — which
+  // sees the default instance and nothing else — try the any-instance form
+  // (§ 8.5 + clause 7). It handles the ordinary comparison operators; anything
+  // it declines (ranges, value-lists, "[*]") drops through unchanged.
   //
+  {
+    char attrPath[1024];
+    snprintf(attrPath, sizeof(attrPath), "%s", mongocEscapeDotsInKey(term->attr));
+
+    if (bsonAppendMultiInstanceTerm(docP, attrPath, term) == true)
+      return;
+  }
+
   pos += snprintf(path + pos, sizeof(path) - pos, "%s.value", (term->subPathN > 0) ? "" : ".@none");
 
   //
