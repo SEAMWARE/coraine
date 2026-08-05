@@ -1,0 +1,478 @@
+#
+# FILE            multi_attribute_concise_simplified.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A multi-attribute (§ 8.5 — several instances of one Attribute name, told apart
+# by datasetId) renders differently in each of the two lossless/lossy formats,
+# and BOTH rules were being skipped because the renderers only looked at objects
+# and a multi-attribute is an array.
+#
+#   § 5.3.2.3 Normalized-to-Concise, step 1: "In the multi-attribute case (see
+#   clause 8.5), this becomes a series of values (an array of JSON objects) and
+#   the operation shall be run on each element of the array."
+#   -> every instance compacts exactly like a single-instance Attribute would:
+#      `type` goes (step 2), and an instance left holding only `value` collapses
+#      to the bare value (step 3). `datasetId` is a defined member of the type,
+#      so it stays (step 4).
+#
+#   § 5.3.2.4 "Multi-Attribute Representation" (+ annex C.2.2.4.2): simplified is
+#   NOT the bare value but a `dataset` map keyed by datasetId, the default
+#   instance under the JSON-LD keyword "@none".
+#
+# The concise half is checked as a ROUND TRIP, because concise is defined as
+# lossless: what the broker prints has to be something the broker accepts, and
+# step 3's bare-value instance is exactly the shape the input side used to
+# refuse with "each instance must be a JSON object".
+#
+# Finally the same entity is fetched AND notified in both formats: there used to
+# be two independent copies of these renderers (GET vs notification) and they
+# had drifted apart, which is how one of the four came to be right and three
+# wrong. Same entity, same format, same bytes — that is what keeps them merged.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Multi-attribute rendering: concise per-instance (§ 5.3.2.3) and simplified dataset map (§ 5.3.2.4)
+
+--TAGS--
+format concise simplified multi-attr datasetId subscription
+
+--INIT--
+swDbDrop
+ftClientStart
+swBrokerStart
+
+--RUN--
+
+echo "01. Seed an Entity with multi-attributes of several types"
+echo "========================================================="
+payload='{
+  "id": "urn:MA:1",
+  "type": "T",
+  "single": { "type": "Property", "value": "one" },
+  "speed":  [ { "type": "Property", "value": 55, "datasetId": "urn:ds:1" },
+              { "type": "Property", "value": 54.5 } ],
+  "held":   [ { "type": "Relationship", "object": "urn:o:1", "datasetId": "urn:ds:1" },
+              { "type": "Relationship", "object": "urn:o:2" } ],
+  "greet":  [ { "type": "LanguageProperty", "languageMap": { "en": "hi" }, "datasetId": "urn:ds:1" },
+              { "type": "LanguageProperty", "languageMap": { "es": "hola" } } ],
+  "withSub":[ { "type": "Property", "value": 1, "datasetId": "urn:ds:1",
+                "note": { "type": "Property", "value": "n" } },
+              { "type": "Property", "value": 2 } ]
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. concise - every instance compacts: type gone, a value-only instance becomes the bare value"
+echo "=============================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=concise'
+echo
+echo
+
+
+echo "03. simplified - a dataset map keyed by datasetId, the default instance under @none"
+echo "==================================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=simplified'
+echo
+echo
+
+
+echo "04. The query and single-attribute paths render it the same way"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&format=concise'
+echo
+swCurl --url /ngsi-ld/v1/entities/urn:MA:1/attrs/speed --urlParams 'format=simplified'
+echo
+echo
+
+
+echo "05. Concise is LOSSLESS - feeding step 02's output back reproduces the same Entity"
+echo "=================================================================================="
+# The bare-value instance ("54.5") is the shape the input side used to refuse.
+payload='{ "id": "urn:MA:2", "type": "T",
+  "single": "one",
+  "speed":  [ { "value": 55, "datasetId": "urn:ds:1" }, 54.5 ],
+  "held":   [ { "object": "urn:o:1", "datasetId": "urn:ds:1" }, { "object": "urn:o:2" } ] }'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+swCurl --url /ngsi-ld/v1/entities/urn:MA:2
+echo
+echo
+
+
+echo "06. Subscribe in both formats, then touch the Entity"
+echo "===================================================="
+payload='{ "id": "urn:S:concise", "type": "Subscription", "entities": [{"type": "T"}],
+           "notification": { "format": "concise",
+                             "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+payload='{ "id": "urn:S:simplified", "type": "Subscription", "entities": [{"type": "T"}],
+           "notification": { "format": "simplified",
+                             "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:MA:1/attrs --payload '{ "single": { "type": "Property", "value": "two" } }' | head -1
+echo
+echo
+
+
+echo "07. The notification renders the multi-attributes exactly as the GET did"
+echo "======================================================================="
+ftClientDump
+
+
+--TEARDOWN--
+swBrokerStop
+ftClientStop
+
+--EXPECT--
+01. Seed an Entity with multi-attributes of several types
+=========================================================
+HTTP/1.1 201 Created
+
+
+02. concise - every instance compacts: type gone, a value-only instance becomes the bare value
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 553
+
+{
+  "greet": [
+    {
+      "datasetId": "urn:ds:1",
+      "languageMap": {
+        "en": "hi"
+      }
+    },
+    {
+      "languageMap": {
+        "es": "hola"
+      }
+    }
+  ],
+  "held": [
+    {
+      "datasetId": "urn:ds:1",
+      "object": "urn:o:1"
+    },
+    {
+      "object": "urn:o:2"
+    }
+  ],
+  "id": "urn:MA:1",
+  "single": "one",
+  "speed": [
+    {
+      "datasetId": "urn:ds:1",
+      "value": 55
+    },
+    54.5
+  ],
+  "type": "T",
+  "withSub": [
+    {
+      "datasetId": "urn:ds:1",
+      "note": "n",
+      "value": 1
+    },
+    2
+  ]
+}
+
+
+
+03. simplified - a dataset map keyed by datasetId, the default instance under @none
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 524
+
+{
+  "greet": {
+    "dataset": {
+      "@none": {
+        "languageMap": {
+          "es": "hola"
+        }
+      },
+      "urn:ds:1": {
+        "languageMap": {
+          "en": "hi"
+        }
+      }
+    }
+  },
+  "held": {
+    "dataset": {
+      "@none": "urn:o:2",
+      "urn:ds:1": "urn:o:1"
+    }
+  },
+  "id": "urn:MA:1",
+  "single": "one",
+  "speed": {
+    "dataset": {
+      "@none": 54.5,
+      "urn:ds:1": 55
+    }
+  },
+  "type": "T",
+  "withSub": {
+    "dataset": {
+      "@none": 2,
+      "urn:ds:1": 1
+    }
+  }
+}
+
+
+
+04. The query and single-attribute paths render it the same way
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 641
+
+[
+  {
+    "greet": [
+      {
+        "datasetId": "urn:ds:1",
+        "languageMap": {
+          "en": "hi"
+        }
+      },
+      {
+        "languageMap": {
+          "es": "hola"
+        }
+      }
+    ],
+    "held": [
+      {
+        "datasetId": "urn:ds:1",
+        "object": "urn:o:1"
+      },
+      {
+        "object": "urn:o:2"
+      }
+    ],
+    "id": "urn:MA:1",
+    "single": "one",
+    "speed": [
+      {
+        "datasetId": "urn:ds:1",
+        "value": 55
+      },
+      54.5
+    ],
+    "type": "T",
+    "withSub": [
+      {
+        "datasetId": "urn:ds:1",
+        "note": "n",
+        "value": 1
+      },
+      2
+    ]
+  }
+]
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "dataset": {
+    "@none": 54.5,
+    "urn:ds:1": 55
+  }
+}
+
+
+
+05. Concise is LOSSLESS - feeding step 02's output back reproduces the same Entity
+==================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 449
+
+{
+  "held": [
+    {
+      "datasetId": "urn:ds:1",
+      "object": "urn:o:1",
+      "type": "Relationship"
+    },
+    {
+      "object": "urn:o:2",
+      "type": "Relationship"
+    }
+  ],
+  "id": "urn:MA:2",
+  "single": {
+    "type": "Property",
+    "value": "one"
+  },
+  "speed": [
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 55
+    },
+    {
+      "type": "Property",
+      "value": 54.5
+    }
+  ],
+  "type": "T"
+}
+
+
+
+06. Subscribe in both formats, then touch the Entity
+====================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+07. The notification renders the multi-attributes exactly as the GET did
+=======================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "greet": [
+            {
+              "datasetId": "urn:ds:1",
+              "languageMap": {
+                "en": "hi"
+              }
+            },
+            {
+              "languageMap": {
+                "es": "hola"
+              }
+            }
+          ],
+          "held": [
+            {
+              "datasetId": "urn:ds:1",
+              "object": "urn:o:1"
+            },
+            {
+              "object": "urn:o:2"
+            }
+          ],
+          "id": "urn:MA:1",
+          "single": "two",
+          "speed": [
+            {
+              "datasetId": "urn:ds:1",
+              "value": 55
+            },
+            54.5
+          ],
+          "type": "T",
+          "withSub": [
+            {
+              "datasetId": "urn:ds:1",
+              "note": "n",
+              "value": 1
+            },
+            2
+          ]
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:concise",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "Ngsild-Attribute-Format": "concise",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "greet": {
+            "dataset": {
+              "@none": {
+                "languageMap": {
+                  "es": "hola"
+                }
+              },
+              "urn:ds:1": {
+                "languageMap": {
+                  "en": "hi"
+                }
+              }
+            }
+          },
+          "held": {
+            "dataset": {
+              "@none": "urn:o:2",
+              "urn:ds:1": "urn:o:1"
+            }
+          },
+          "id": "urn:MA:1",
+          "single": "two",
+          "speed": {
+            "dataset": {
+              "@none": 54.5,
+              "urn:ds:1": 55
+            }
+          },
+          "type": "T",
+          "withSub": {
+            "dataset": {
+              "@none": 2,
+              "urn:ds:1": 1
+            }
+          }
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:simplified",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "Ngsild-Attribute-Format": "simplified",
+      "User-Agent": "REGEX(swBroker/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
