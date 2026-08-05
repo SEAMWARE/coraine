@@ -403,7 +403,7 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
     "]}",
     attrPath, attrPath, pred);
 
-  char cond[16640];
+  char cond[24576];   // must hold `any` (16K) plus the negation wrapper
   if (negative)
     // EVERY instance must satisfy != / notPattern, i.e. none satisfies the
     // positive form - but the Attribute must still be present, since an Entity
