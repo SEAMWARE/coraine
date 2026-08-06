@@ -1,0 +1,290 @@
+#
+# FILE            context_relative_reference.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A string inside an @context array is an IRI REFERENCE, not necessarily an
+# absolute URL. It resolves against the base IRI (RFC 3986 § 5), and when the
+# @context being processed was downloaded, the base is the URL it came from.
+#
+# So a compound @context served at
+#   http://localhost:7080/jsonldContexts/relCompound
+# that references "relSub" resolves it to
+#   http://localhost:7080/jsonldContexts/relSub
+#
+# Nothing outside the context server is involved, and the test does not depend
+# on any @context published elsewhere.
+#
+--NAME--
+Relative reference in an @context array resolves against the URL it appears in
+
+--TAGS--
+context entity
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/relSub '{
+  "@context": {
+    "R1": "https://example.org/rel/R1",
+    "R2": "https://example.org/rel/R2"
+  }
+}'
+
+contextServerPush /jsonldContexts/relCompound '{
+  "@context": [
+    "relSub",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld"
+  ]
+}'
+
+contextServerPush /jsonldContexts/relDotCompound '{
+  "@context": [
+    "./relSub",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld"
+  ]
+}'
+
+contextServerPush /jsonldContexts/relBroken '{
+  "@context": [
+    "noSuchContextHere",
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld"
+  ]
+}'
+
+--RUN--
+
+#
+# 01. Create urn:E1 via relCompound — "relSub" resolves against the compound's own URL
+# 02. GET urn:E1 with the core context only — R1 is expanded per relSub, so it resolved
+# 03. GET urn:E1 via relCompound — R1 compacts back, through the relative reference
+# 04. Create urn:E2 via relDotCompound — "./relSub" resolves the same way
+# 05. GET urn:E2 with the core context only — R2 expanded per relSub
+# 06. Create urn:E3 via relCompound, naming the SUB context absolutely in the Link header —
+#     it is already cached, under the resolved URL
+# 07. GET urn:E3 with the core context only — expanded per relSub
+# 08. Create urn:E4 via relBroken — the reference resolves, but nothing is served there,
+#     so the whole @context fails: 504 LdContextNotAvailable
+# 09. GET urn:E4 — never created, the write was refused
+#
+
+echo "01. Create urn:E1 via relCompound"
+echo "=================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "R1": {"type": "Property", "value": 1}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/relCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "02. GET urn:E1 with the core context only"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. GET urn:E1 via relCompound"
+echo "==============================="
+swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/relCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. Create urn:E2 via relDotCompound"
+echo "====================================="
+payload='{
+  "id": "urn:E2",
+  "type": "T",
+  "R2": {"type": "Property", "value": 2}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/relDotCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "05. GET urn:E2 with the core context only"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E2
+echo
+echo
+
+
+echo "06. Create urn:E3, naming the SUB context absolutely in the Link header"
+echo "======================================================================="
+payload='{
+  "id": "urn:E3",
+  "type": "T",
+  "R1": {"type": "Property", "value": 3}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/relSub>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+echo
+echo
+
+
+echo "07. GET urn:E3 with the core context only"
+echo "=========================================="
+swCurl --url /ngsi-ld/v1/entities/urn:E3
+echo
+echo
+
+
+echo "08. Create urn:E4 via relBroken - the reference resolves but there is nothing there"
+echo "==================================================================================="
+payload='{
+  "id": "urn:E4",
+  "type": "T",
+  "R1": {"type": "Property", "value": 4}
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/relBroken>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' 
+echo
+echo
+
+
+echo "09. GET urn:E4 - never created, the write was refused"
+echo "======================================================"
+swCurl --url /ngsi-ld/v1/entities/urn:E4
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 via relCompound
+==================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:E1 with the core context only
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+{
+  "https://example.org/rel/R1": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+03. GET urn:E1 via relCompound
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/relCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 90
+
+{
+  "R1": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+04. Create urn:E2 via relDotCompound
+=====================================
+HTTP/1.1 201 Created
+
+
+05. GET urn:E2 with the core context only
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+{
+  "https://example.org/rel/R2": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+06. Create urn:E3, naming the SUB context absolutely in the Link header
+=======================================================================
+HTTP/1.1 201 Created
+
+
+07. GET urn:E3 with the core context only
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+{
+  "https://example.org/rel/R1": {
+    "type": "Property",
+    "value": 3
+  },
+  "id": "urn:E3",
+  "type": "T"
+}
+
+
+
+08. Create urn:E4 via relBroken - the reference resolves but there is nothing there
+===================================================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "unable to retrieve @context from 'http://localhost:7080/jsonldContexts/relBroken'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+09. GET urn:E4 - never created, the write was refused
+======================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:E4' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop

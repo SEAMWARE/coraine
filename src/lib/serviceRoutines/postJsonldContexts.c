@@ -101,7 +101,7 @@ bool postJsonldContexts(void)
       // and referenced) or an inline object. swldContextFromTree builds
       // a wrapper SwldContext with isArray=true and contextV[] populated.
       //
-      contextP = swldContextFromTree(atContextP, storeP);
+      contextP = swldContextFromTree(atContextP, storeP, NULL);  // Hosted @context - identified by localId, no URL of its own to resolve against
 
     if (contextP == NULL)
     {

@@ -280,7 +280,7 @@ bool postSubscriptions(void)
         if (swNgsild.userContextBody->type == KjObject)
           implicitP = swldContextFromObject(swNgsild.userContextBody, storeP, NULL);
         else
-          implicitP = swldContextFromTree(swNgsild.userContextBody, storeP);
+          implicitP = swldContextFromTree(swNgsild.userContextBody, storeP, NULL);  // @context from the request - no URL of its own
 
         int   bodyLen = kjFastRenderSize(swNgsild.userContextBody) + 32;
         char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);

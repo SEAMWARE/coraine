@@ -35,6 +35,7 @@
 #include "swJsonld/SwldContextCache.h"                 // SwldContextCache
 #include "swJsonld/swldCache.h"                        // swldCacheLookup, swldCacheInsert
 #include "swJsonld/swldContextParse.h"                 // swldContextFromObject, swldContextFromTree
+#include "swJsonld/swldUrlResolve.h"                   // swldUrlResolve
 #include "swJsonld/swldDownload.h"                     // swldContextFromUrl, swldIsCoreContextUrl
 #include "swJsonld/swldInit.h"                         // swldCoreContext
 #include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
@@ -137,9 +138,11 @@ static SwldContext* loadFromDb(const char* contextId)
   if (atContextP->type == KjObject)
     contextP = swldContextFromObject(atContextP, storeP, row.url);
   else if (atContextP->type == KjArray)
-    contextP = swldContextFromTree(atContextP, storeP);
+    // row.url is the base any RELATIVE reference inside resolves against - it is
+    // set for a Cached @context, and NULL for a Hosted one, which has no URL
+    contextP = swldContextFromTree(atContextP, storeP, row.url);
   else if (atContextP->type == KjString)
-    contextP = swldContextFromUrl(atContextP->value.s, storeP);
+    contextP = swldContextFromUrl(swldUrlResolve(row.url, atContextP->value.s, storeP), storeP);
   if (contextP == NULL)
     return NULL;
 
