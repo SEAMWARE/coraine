@@ -46,6 +46,8 @@
 
 #include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ
+#include "swNgsild/ldTraceLevels.h"                  // LdTRegMatch
 #include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 
@@ -314,6 +316,21 @@ bool purgeEntities(void)
         LdRegCacheItem* csr = groups[g][i];
         if (csr->endpoint == NULL)                  continue;
         if (ldDistOpCsrWouldLoop(csr, ownAlias))    continue;
+
+        //
+        // § 5.2.23 csf — the Context Source Filter picks the registrations the
+        // purge reaches. It is matched against the registration itself, never
+        // against the Entities, so a registration we cannot inspect is out.
+        //
+        if (swNgsild.csfExpr != NULL)
+        {
+          if ((csr->regTree == NULL) || !ldEntityMatchQ(csr->regTree, swNgsild.csfExpr))
+          {
+            KT_T(LdTRegMatch, "%s: matched, but NOT purged: the registration does not match csf '%s'",
+                 (csr->regId != NULL) ? csr->regId : "<no id>", swNgsild.csf);
+            continue;
+          }
+        }
 
         if (!ldRegOpSupported(csr, swRest.serviceP->ldOp))
         {

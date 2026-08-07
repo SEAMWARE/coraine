@@ -71,6 +71,22 @@
 
 // -----------------------------------------------------------------------------
 //
+// csfCsrMatch - § 5.2.23 Context Source Filter: may this registration serve the
+// query? The filter addresses the registration's own Properties, never the
+// Entities it holds, so a registration we cannot inspect cannot satisfy it.
+//
+static bool csfCsrMatch(LdRegCacheItem* csr)
+{
+  if (swNgsild.csfExpr == NULL)
+    return true;
+
+  return (csr->regTree != NULL) && ldEntityMatchQ(csr->regTree, swNgsild.csfExpr);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // stripInfoAttrsFromEntity - drop a RegistrationInfo's covered attrs from one
 // EntityTemporal (KjArray-of-instances per attr). Wildcard (no propertyNames /
 // relationshipNames) strips all non-keyword children.
@@ -619,6 +635,7 @@ bool getEntitiesTemporal(void)
           if (csr->endpoint == NULL) continue;
           if (!ldRegOpSupported(csr, LdOpQueryTemporal)) continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+          if (!csfCsrMatch(csr)) continue;
           for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
             stripInfoAttrsFromArray(result, riP);
         }
@@ -643,6 +660,7 @@ bool getEntitiesTemporal(void)
           if (csr->endpoint == NULL) continue;
           if (!ldRegOpSupported(csr, LdOpQueryTemporal)) continue;
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
+          if (!csfCsrMatch(csr)) continue;
 
           int baseLen = strlen(csr->endpoint);
           char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);

@@ -7,7 +7,8 @@
 #
 # § 5.10.2 GET /csourceRegistrations — additional discovery filters:
 #   scopeQ  → match against CSR's scope
-#   csf     → alias of q (filters CSR's own user-Properties)
+#   csf     → filters the CSR's own user-Properties; on THIS route q
+#             addresses the same thing, so the two apply conjunctively
 #   omit    → strip listed members from each response item
 #   lang    → language reduction on user-Properties
 #
@@ -66,6 +67,7 @@ echo
 echo "04. ?type=Vehicle&csf=organization%3D%3D%22Acme%22 → only CSR:North"
 echo "==================================================================="
 echo "    csf is the spec-correct name for 'filter on CSR user-Properties'."
+echo "    On this route q addresses the registrations too, so both apply."
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&csf=organization%3D%3D%22Acme%22'
 echo
 echo
@@ -74,6 +76,13 @@ echo
 echo "05. ?type=Vehicle&omit=secret → 'secret' stripped from each item"
 echo "================================================================"
 swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&omit=secret'
+echo
+echo
+
+
+echo "06. ?q=organization==Acme&csf=organization==Beta → conjunctive, so empty"
+echo "========================================================================"
+swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&q=organization%3D%3D%22Acme%22&csf=organization%3D%3D%22Beta%22'
 echo
 echo
 
@@ -142,6 +151,7 @@ Content-Length: 428
 04. ?type=Vehicle&csf=organization%3D%3D%22Acme%22 → only CSR:North
 ===================================================================
     csf is the spec-correct name for 'filter on CSR user-Properties'.
+    On this route q addresses the registrations too, so both apply.
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -224,6 +234,18 @@ Content-Length: 711
     "type": "ContextSourceRegistration"
   }
 ]
+
+
+
+06. ?q=organization==Acme&csf=organization==Beta → conjunctive, so empty
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
 
 
 

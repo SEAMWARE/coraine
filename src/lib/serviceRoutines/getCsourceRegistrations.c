@@ -210,6 +210,7 @@ bool getCsourceRegistrations(void)
   bool hasAttrs = (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL);
   bool hasPick  = (swNgsild.pickV  != NULL && swNgsild.pickV[0]  != NULL);
   bool hasQ     = (swNgsild.q      != NULL && swNgsild.q[0]      != 0);
+  bool hasCsf   = (swNgsild.csf    != NULL && swNgsild.csf[0]    != 0);
 
   // § 6.8.3.2 Table 6.8.3.2-1: `attrs` is a deprecated synonym for
   // `pick + q`. Accept either, but never both at once.
@@ -241,10 +242,10 @@ bool getCsourceRegistrations(void)
   bool hasId   = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL);
   bool hasIdPattern = (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0);
   bool hasGeo       = (swNgsild.georel != NULL && swNgsild.georel[0] != 0);
-  if (!hasType && !hasAttrs && !hasPick && !hasQ && !hasId && !hasIdPattern && !hasGeo)
+  if (!hasType && !hasAttrs && !hasPick && !hasQ && !hasCsf && !hasId && !hasIdPattern && !hasGeo)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Too Wide Query",
-            "at least one of 'type', 'attrs', 'pick', 'q', 'id', 'idPattern' or the geo-query quadruple is required");
+            "at least one of 'type', 'attrs', 'pick', 'q', 'csf', 'id', 'idPattern' or the geo-query quadruple is required");
     return true;
   }
 
@@ -254,7 +255,12 @@ bool getCsourceRegistrations(void)
   // host object, so CSRs with user-Properties work out of the box.
   // swNgsild.qExpr is already parsed (with attrs expanded via the request
   // @context) by ldUrlParams at pre-service time — just reuse it.
-  LdQNode* qExpr = hasQ ? swNgsild.qExpr : NULL;
+  //
+  // On THIS route q and csf address the same thing (the registrations), so
+  // both are honoured, conjunctively. Everywhere else csf selects the CSRs
+  // to consult while q filters the Entities they return.
+  LdQNode* regFilterV[2] = { hasQ   ? swNgsild.qExpr   : NULL,
+                             hasCsf ? swNgsild.csfExpr : NULL };
 
   Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
   LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
@@ -279,12 +285,14 @@ bool getCsourceRegistrations(void)
     // conjunctive conditions on the regs.
     int passN = matchN;
 
-    if (qExpr != NULL)
+    for (int f = 0; f < 2; f++)
     {
+      if (regFilterV[f] == NULL) continue;
+
       int n = 0;
       for (int i = 0; i < passN; i++)
       {
-        if (matchV[i]->regTree != NULL && ldEntityMatchQ(matchV[i]->regTree, qExpr))
+        if (matchV[i]->regTree != NULL && ldEntityMatchQ(matchV[i]->regTree, regFilterV[f]))
           matchV[n++] = matchV[i];
       }
       passN = n;

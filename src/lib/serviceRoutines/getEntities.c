@@ -1916,6 +1916,21 @@ bool getEntities(void)
           }
           bool postForward = incomingBatch ? csrQB : !csrQE;
 
+          //
+          // § 5.2.23 csf — the Context Source Filter selects which Context
+          // Source Registrations may serve the query. It is matched against
+          // the registration itself (its user-Properties), never against the
+          // Entities; a registration we cannot inspect cannot satisfy it.
+          //
+          if (swNgsild.csfExpr != NULL)
+          {
+            if ((csr->regTree == NULL) || !ldEntityMatchQ(csr->regTree, swNgsild.csfExpr))
+            {
+              KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration does not match csf '%s'", regId, swNgsild.csf);
+              continue;
+            }
+          }
+
           if (swNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
           {
             const char* prop = swNgsild.geoproperty;

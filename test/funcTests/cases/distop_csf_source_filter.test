@@ -1,0 +1,256 @@
+#
+# FILE            distop_csf_source_filter.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.23 csf — the Context Source Filter. It is a q-shaped query, but it
+# selects the Context Source REGISTRATIONS a distributed operation reaches;
+# it is matched against the registration's own Properties and NEVER against
+# the queried Entities. So:
+#   - local Entities are unaffected by csf (they are not behind a CSR)
+#   - a request may carry both q and csf; they filter different things
+#   - csf alone does not make a query narrow enough (§ 5.7.2.4 / § 5.6.21.4
+#     list type/attrs/q/geoquery/local — csf is not among them)
+#
+# The same rules apply to the body form (POST /entityOperations/query) and to
+# Purge Entities, where csf picks the sources the purge is forwarded to while
+# the local deletion proceeds on the query filters alone.
+#
+--NAME--
+DistOps csf — the Context Source Filter selects sources, never Entities
+
+--TAGS--
+distops registration query csf
+
+--INIT--
+swDbDrop
+swDbDrop -role CP1
+swDbDrop -role CP2
+swBrokerStart -dist
+swBrokerStart -role CP1 -dist
+swBrokerStart -role CP2 -dist
+
+--RUN--
+
+echo "01. Seed urn:V:1 on CP1 (speed 10) and urn:V:2 on CP2 (speed 20)"
+echo "================================================================"
+swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{"id":"urn:V:1","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{"id":"urn:V:2","type":"Vehicle","speed":{"type":"Property","value":20}}' | head -1
+echo
+echo
+
+
+echo "02. Seed urn:V:0 locally on CB (speed 30)"
+echo "========================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V:0","type":"Vehicle","speed":{"type":"Property","value":30}}' | head -1
+echo
+echo
+
+
+echo "03. Register CP1 as organization=Acme, CP2 as organization=Beta"
+echo "==============================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Acme",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "organization": {"type": "Property", "value": "Acme"},
+  "operations": ["federationOps", "purgeEntity"],
+  "information": [{"entities": [{"type": "Vehicle"}, {"type": "Bike"}]}]
+}' | head -1
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:Beta",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP2_PORT'",
+  "mode": "inclusive",
+  "organization": {"type": "Property", "value": "Beta"},
+  "operations": ["federationOps", "purgeEntity"],
+  "information": [{"entities": [{"type": "Vehicle"}, {"type": "Bike"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "04. No csf — all three Entities"
+echo "==============================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' | grep '"id"' | sort
+echo
+echo
+
+
+echo "05. csf=organization==\"Acme\" — local V:0 + Acme's V:1"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&csf=organization%3D%3D%22Acme%22' | grep '"id"' | sort
+echo
+echo
+
+
+echo "06. csf=organization==\"Beta\" — local V:0 + Beta's V:2"
+echo "======================================================"
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&csf=organization%3D%3D%22Beta%22' | grep '"id"' | sort
+echo
+echo
+
+
+echo "07. csf matching no registration — the local Entity still answers"
+echo "================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&csf=organization%3D%3D%22Nobody%22' | grep '"id"' | sort
+echo
+echo
+
+
+echo "08. q and csf are independent: q=speed>15 keeps V:0(30) and V:2(20)"
+echo "==================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&csf=organization%3D%3D%22Beta%22' | grep '"id"' | sort
+echo
+echo
+
+
+echo "09. Same q, csf=Acme — V:1 has speed 10, so only local V:0 survives q"
+echo "====================================================================="
+swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&csf=organization%3D%3D%22Acme%22' | grep '"id"' | sort
+echo
+echo
+
+
+echo "10. csf alone is not a narrow enough query — 400"
+echo "================================================"
+swCurl --url '/ngsi-ld/v1/entities?csf=organization%3D%3D%22Acme%22'
+echo
+echo
+
+
+echo "11. Body form: POST /entityOperations/query with csf — same as step 05"
+echo "======================================================================"
+swCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
+  "type": "Query",
+  "entities": [{"type": "Vehicle"}],
+  "csf": "organization==\"Acme\""
+}' | grep '"id"' | sort
+echo
+echo
+
+
+echo "12. Seed a Bike on CB, CP1 and CP2"
+echo "=================================="
+swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:B:0","type":"Bike"}' | head -1
+swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{"id":"urn:B:1","type":"Bike"}' | head -1
+swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{"id":"urn:B:2","type":"Bike"}' | head -1
+echo
+echo
+
+
+echo "13. Purge ?type=Bike&csf=organization==\"Acme\" — forwarded to Acme only"
+echo "======================================================================="
+swCurl -X DELETE --url '/ngsi-ld/v1/entities?type=Bike&csf=organization%3D%3D%22Acme%22' | head -1
+echo
+echo
+
+
+echo "14. CB local: gone. CP1 (Acme): purged. CP2 (Beta): untouched"
+echo "=============================================================="
+echo -n "CB:  "; swCurl --url '/ngsi-ld/v1/entities?type=Bike&local=true' | grep -c '"id"'
+echo -n "CP1: "; swCurl --port "$CP1_PORT" --url '/ngsi-ld/v1/entities?type=Bike&local=true' | grep -c '"id"'
+echo -n "CP2: "; swCurl --port "$CP2_PORT" --url '/ngsi-ld/v1/entities?type=Bike&local=true' | grep -c '"id"'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V:1 on CP1 (speed 10) and urn:V:2 on CP2 (speed 20)
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Seed urn:V:0 locally on CB (speed 30)
+=========================================
+HTTP/1.1 201 Created
+
+
+03. Register CP1 as organization=Acme, CP2 as organization=Beta
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+04. No csf — all three Entities
+===============================
+    "id": "urn:V:0",
+    "id": "urn:V:1",
+    "id": "urn:V:2",
+
+
+05. csf=organization=="Acme" — local V:0 + Acme's V:1
+======================================================
+    "id": "urn:V:0",
+    "id": "urn:V:1",
+
+
+06. csf=organization=="Beta" — local V:0 + Beta's V:2
+======================================================
+    "id": "urn:V:0",
+    "id": "urn:V:2",
+
+
+07. csf matching no registration — the local Entity still answers
+=================================================================
+    "id": "urn:V:0",
+
+
+08. q and csf are independent: q=speed>15 keeps V:0(30) and V:2(20)
+===================================================================
+    "id": "urn:V:0",
+    "id": "urn:V:2",
+
+
+09. Same q, csf=Acme — V:1 has speed 10, so only local V:0 survives q
+=====================================================================
+    "id": "urn:V:0",
+
+
+10. csf alone is not a narrow enough query — 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 279
+
+{
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery, 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. Body form: POST /entityOperations/query with csf — same as step 05
+======================================================================
+    "id": "urn:V:0",
+    "id": "urn:V:1",
+
+
+12. Seed a Bike on CB, CP1 and CP2
+==================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+13. Purge ?type=Bike&csf=organization=="Acme" — forwarded to Acme only
+=======================================================================
+HTTP/1.1 204 No Content
+
+
+14. CB local: gone. CP1 (Acme): purged. CP2 (Beta): untouched
+==============================================================
+CB:  0
+CP1: 0
+CP2: 1
+
+
+--TEARDOWN--
+swBrokerStop -all
