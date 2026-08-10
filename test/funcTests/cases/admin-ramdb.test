@@ -204,7 +204,7 @@ Content-Length: REGEX(\d+)
   "kalloc": "0.10.1",
   "kargs": "0.10.0",
   "kbase": "0.10.0",
-  "kjson": "0.11.2",
+  "kjson": "0.12.0",
   "ktrace": "0.10.0",
   "swBroker version": "0.2.0",
   "swJsonld": "0.1.0",

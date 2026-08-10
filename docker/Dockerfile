@@ -69,7 +69,7 @@ RUN set -eux; \
       kalloc:release/0.10.1 \
       klog:release/0.10 \
       khash:release/0.10 \
-      kjson:release/0.11.2 \
+      kjson:release/0.12.0 \
       kargs:release/0.10 \
       ktrace:release/0.10 \
       kprom:release/0.1.0 \
