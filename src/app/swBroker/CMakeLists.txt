@@ -2,7 +2,7 @@ ADD_EXECUTABLE(swBroker swBroker.c ngsildServices.c)
 
 SET_TARGET_PROPERTIES(swBroker PROPERTIES ENABLE_EXPORTS TRUE)
 
-SET(SW_BROKER_LIBS serviceRoutines linkedEntities db troe plugin)
+SET(SW_BROKER_LIBS serviceRoutines linkedEntities db ha troe plugin)
 IF (SW_FEATURE_METRICS)
   LIST(APPEND SW_BROKER_LIBS metrics)
 ENDIF()

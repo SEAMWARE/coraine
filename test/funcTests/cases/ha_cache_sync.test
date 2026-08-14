@@ -1,0 +1,594 @@
+#
+# FILE            ha_cache_sync.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: mongoc
+# REQUIRE_HA: yes
+#
+--NAME--
+HA - a second instance learns what the first one wrote (--ha mongo)
+
+--TAGS--
+ha mongoc subscription registration context tenant
+
+--INIT--
+swDbDrop
+swDbDrop -role CB2
+swDbDrop -db swBroker
+swDbDrop -tenant t1
+ftClientStart
+swBrokerStart --ha mongo -dist
+swBrokerStart -role CB2 --dbName swTest --ha mongo -dist
+
+--RUN--
+
+#
+# Two brokers, ONE database (CB2 is started with CB's --dbName), both with
+# --ha mongo. Everything below is created on CB and read back from CB2 - and
+# what CB2 answers with comes from its CACHE, not from the database:
+# GET /subscriptions walks the sub cache, GET /csourceRegistrations walks the
+# reg cache and GET /jsonldContexts is served from the @context cache. So a
+# subscription visible on CB2 is a subscription CB2 can notify from.
+#
+# 01. Create a subscription on CB
+# 02. CB2 has it too
+# 03. PATCH the subscription on CB
+# 04. CB2 has the patched version
+# 05. Delete the subscription on CB
+# 06. CB2 no longer has it
+# 07. Create a registration on CB
+# 08. CB2 has it too
+# 09. Delete the registration on CB
+# 10. CB2 no longer has it
+# 11. Host an @context on CB
+# 12. CB2 serves it too
+# 13. Create a subscription on a tenant CB2 has never heard of
+# 14. CB2 has the tenant, and the subscription in it
+# 15. A registration + a CSR-subscription on CB - ONE initial notification
+# 16. CB2 has the CSR-subscription too
+# 17. PATCH the CSR-subscription on CB - ONE more initial notification
+# 18. CB2 has the patched CSR-subscription, and STILL only two notifications
+#
+
+#
+# haAwait <port> <url> <needle> <present|absent> [extra swCurl args...]
+#
+# The sync is fast (tens of milliseconds) but it is not synchronous, so the
+# reading broker is POLLED to a deadline rather than slept at: a fixed sleep is
+# either a flake or a waste, and usually both. Nothing is printed - the step
+# after it does the reading that the expected output is matched against.
+#
+haAwait()
+{
+  local port="$1" url="$2" needle="$3" want="$4"
+  shift 4
+  local i out
+
+  for i in $(seq 1 500)   # 500 x 20 ms = 10 s
+  do
+    out=$(curl -s "$@" "http://localhost:${port}${url}")
+
+    if echo "$out" | grep -q "$needle"
+    then
+      [ "$want" == "present" ] && return 0
+    elif [ "$want" == "absent" ]
+    then
+      return 0
+    fi
+
+    sleep 0.02
+  done
+
+  echo "haAwait: '$needle' never became $want on port $port$url"
+  return 1
+}
+
+
+echo "01. Create a subscription on CB"
+echo "==============================="
+payload='{
+  "id": "urn:ngsi-ld:subscription:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "watchedAttributes": [ "a" ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9788/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. CB2 has it too"
+echo "=================="
+haAwait $CB2_PORT /ngsi-ld/v1/subscriptions "urn:ngsi-ld:subscription:S1" present
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
+echo
+echo
+
+
+echo "03. PATCH the subscription on CB"
+echo "================================"
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 -X PATCH --payload '{"watchedAttributes": ["a", "b"]}'
+echo
+echo
+
+
+echo "04. CB2 has the patched version"
+echo "==============================="
+haAwait $CB2_PORT /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 '"b"' present
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
+echo
+echo
+
+
+echo "05. Delete the subscription on CB"
+echo "================================="
+swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 -X DELETE
+echo
+echo
+
+
+echo "06. CB2 no longer has it"
+echo "========================"
+haAwait $CB2_PORT /ngsi-ld/v1/subscriptions "urn:ngsi-ld:subscription:S1" absent
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "07. Create a registration on CB"
+echo "==============================="
+payload='{
+  "id": "urn:ngsi-ld:registration:R1",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "T" } ] } ],
+  "endpoint": "http://localhost:'$CP1_PORT'"
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "08. CB2 has it too"
+echo "=================="
+haAwait $CB2_PORT /ngsi-ld/v1/csourceRegistrations?type=T "urn:ngsi-ld:registration:R1" present
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=T'
+echo
+echo
+
+
+echo "09. Delete the registration on CB"
+echo "================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:registration:R1 -X DELETE
+echo
+echo
+
+
+echo "10. CB2 no longer has it"
+echo "========================"
+haAwait $CB2_PORT /ngsi-ld/v1/csourceRegistrations?type=T "urn:ngsi-ld:registration:R1" absent
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=T'
+echo
+echo
+
+
+echo "11. Host an @context on CB"
+echo "=========================="
+swCurl --url /ngsi-ld/v1/jsonldContexts --payload '{"@context":{"haTerm":"https://example.org/ha/term"}}'
+echo
+echo
+
+
+echo "12. CB2 serves it too"
+echo "====================="
+haAwait $CB2_PORT /ngsi-ld/v1/jsonldContexts "urn:ngsi-ld:Context:" present
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "13. Create a subscription on a tenant CB2 has never heard of"
+echo "==========================================================="
+payload='{
+  "id": "urn:ngsi-ld:subscription:T1S",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9788/notify"
+    }
+  }
+}'
+swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "14. CB2 has the tenant, and the subscription in it"
+echo "=================================================="
+haAwait $CB2_PORT /ngsi-ld/v1/subscriptions "urn:ngsi-ld:subscription:T1S" present -H"NGSILD-Tenant: t1"
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "15. A registration + a CSR-subscription on CB - ONE initial notification"
+echo "======================================================================="
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:registration:R2","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"inclusive","information":[{"entities":[{"type":"Truck"}]}]}'
+echo
+swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:ngsi-ld:subscription:CS1","type":"Subscription","entities":[{"type":"Truck"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+echo
+echo
+
+
+echo "16. CB2 has the CSR-subscription too"
+echo "===================================="
+haAwait $CB2_PORT /ngsi-ld/v1/csourceSubscriptions "urn:ngsi-ld:subscription:CS1" present
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
+echo
+#
+# ⭐ ONE notification, from CB - the broker the request landed on. CB2 learned the
+# very same CSR-subscription over HA and must NEVER notify for it: an initial
+# notification belongs to the instance that was asked, and a deployment of five
+# brokers would otherwise send the subscriber five copies of it.
+#
+# The count is safe to take here and needs no settling: step 16 waited until CB2
+# had APPLIED the subscription, so if applying it notified, the notification is
+# already in. The sync's own completion is the barrier.
+#
+echo "notifications so far:"
+ftClientCount
+echo
+echo
+
+
+echo "17. PATCH the CSR-subscription on CB - ONE more initial notification"
+echo "==================================================================="
+swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1 -X PATCH --payload '{"entities":[{"type":"Truck"},{"type":"Trailer"}]}'
+echo
+echo
+
+
+echo "18. CB2 has the patched CSR-subscription, and STILL only two notifications"
+echo "=========================================================================="
+haAwait $CB2_PORT /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1 "Trailer" present
+swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
+echo
+echo "notifications so far:"
+ftClientCount
+echo
+echo
+
+
+--TEARDOWN--
+ftClientStop
+swBrokerStop -all
+swDbDrop
+swDbDrop -db swBroker
+swDbDrop -tenant t1
+
+--EXPECT--
+01. Create a subscription on CB
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
+Content-Length: 0
+
+
+
+
+02. CB2 has it too
+==================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 351
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:ngsi-ld:subscription:S1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9788/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription",
+  "watchedAttributes": [
+    "a"
+  ]
+}
+
+
+
+03. PATCH the subscription on CB
+================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. CB2 has the patched version
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 360
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:ngsi-ld:subscription:S1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9788/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription",
+  "watchedAttributes": [
+    "a",
+    "b"
+  ]
+}
+
+
+
+05. Delete the subscription on CB
+=================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. CB2 no longer has it
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+07. Create a registration on CB
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:registration:R1
+Content-Length: 0
+
+
+
+
+08. CB2 has it too
+==================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 258
+
+[
+  {
+    "endpoint": "http://localhost:1027",
+    "id": "urn:ngsi-ld:registration:R1",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "T"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+09. Delete the registration on CB
+=================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+10. CB2 no longer has it
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+11. Host an @context on CB
+==========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: REGEX(/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:1-[0-9]+)
+Content-Length: 0
+
+
+
+
+12. CB2 serves it too
+=====================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 159
+
+[
+REGEX(  "http://localhost:1032/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:1-[0-9]+",)
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+
+13. Create a subscription on a tenant CB2 has never heard of
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:T1S
+Content-Length: 0
+
+
+
+
+14. CB2 has the tenant, and the subscription in it
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 356
+
+[
+  {
+    "entities": [
+      {
+        "type": "T"
+      }
+    ],
+    "id": "urn:ngsi-ld:subscription:T1S",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:9788/notify"
+      }
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+15. A registration + a CSR-subscription on CB - ONE initial notification
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:registration:R2
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
+Content-Length: 0
+
+
+
+
+16. CB2 has the CSR-subscription too
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 239
+
+{
+  "entities": [
+    {
+      "type": "Truck"
+    }
+  ],
+  "id": "urn:ngsi-ld:subscription:CS1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+notifications so far:
+1
+
+
+17. PATCH the CSR-subscription on CB - ONE more initial notification
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+18. CB2 has the patched CSR-subscription, and STILL only two notifications
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 276
+
+{
+  "entities": [
+    {
+      "type": "Truck"
+    },
+    {
+      "type": "Trailer"
+    }
+  ],
+  "id": "urn:ngsi-ld:subscription:CS1",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    }
+  },
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+notifications so far:
+2
+
+

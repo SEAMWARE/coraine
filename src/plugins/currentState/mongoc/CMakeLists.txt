@@ -21,6 +21,7 @@ SET(SOURCES
   mongocAttrList.c
   mongocGeoIndex.c
   mongocTenantSetup.c
+  mongocHaWatch.c
   mongocVersion.c
   mongocKjTreeToBson.c
   mongocBsonToKjTree.c

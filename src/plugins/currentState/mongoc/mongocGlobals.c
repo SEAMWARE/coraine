@@ -33,6 +33,19 @@ char*           mongocGlobalDb  = "swBroker";
 
 // -----------------------------------------------------------------------------
 //
+// mongocUriString - the connection URI, as built by mongocInit
+//
+// Kept so a client can be created outside the pool: the HA watch holds one for
+// the lifetime of the broker, and a pool slot taken away from the request
+// threads forever would be a poor trade for a thread that spends its life
+// blocked on a cursor.
+//
+char            mongocUriString[512] = { 0 };
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocArgV - plugin-contributed CLI args
 //
 KArg mongocArgV[] =

@@ -69,6 +69,8 @@ int mongocInit(void)
     snprintf(uriStr, sizeof(uriStr), "mongodb://%s:%u", mongocDbHost, mongocDbPort);
   }
 
+  snprintf(mongocUriString, sizeof(mongocUriString), "%s", uriStr);
+
   //
   // Parse URI
   //

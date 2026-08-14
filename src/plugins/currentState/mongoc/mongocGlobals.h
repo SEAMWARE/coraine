@@ -24,6 +24,7 @@ extern char*           mongocDbPwd;
 extern char*           mongocDbURI;
 extern unsigned short  mongocDbTimeout;
 extern char*           mongocGlobalDb;
+extern char            mongocUriString[512];   // the connection URI as built by mongocInit
 
 
 

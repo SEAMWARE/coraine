@@ -30,6 +30,7 @@
 #include "currentState/mongoc/mongocTypeList.h"                     // mongocTypeList
 #include "currentState/mongoc/mongocAttrList.h"                     // mongocAttrList
 #include "currentState/mongoc/mongocContext.h"                      // mongocContext*
+#include "currentState/mongoc/mongocHaWatch.h"                   // mongocHaWatchStart
 #include "currentState/mongoc/mongocTenantSetup.h"                  // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                     // mongocVersionInfo
 #include "currentState/mongoc/mongocSubscriptionCreate.h"           // mongocSubscriptionCreate
@@ -109,6 +110,7 @@ void dbRegister(DbDriver* driverP)
   driverP->typeList        = mongocTypeList;
   driverP->attrList        = mongocAttrList;
   driverP->tenantSetup     = mongocTenantSetup;
+  driverP->haWatchStart    = mongocHaWatchStart;
   driverP->versionInfo     = mongocVersionInfo;
 
   driverP->subscriptionCreate    = mongocSubscriptionCreate;

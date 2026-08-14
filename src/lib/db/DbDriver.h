@@ -22,6 +22,7 @@
 
 #include "db/DbQueryFilter.h"                             // DbQueryFilter
 #include "db/Tenant.h"                                    // Tenant
+#include "ha/HaEvent.h"                                   // HaApplyFunc
 
 
 
@@ -284,6 +285,21 @@ typedef int  (*DbTenantDropFunc)(Tenant* tenantP);
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
 typedef void (*DbVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
+//
+// DbHaWatchStartFunc - start watching the store for what OTHER broker instances
+// write, turning each change into an HaEvent + haEventApply() (see src/lib/ha).
+//
+// The watch is the store's own mechanism, which is why it lives in the driver
+// and not in the broker: mongo has change streams, another store would have
+// something else, and a store that is not shared with the other instances (a
+// process-local one) has nothing to report at all. NULL means exactly that, and
+// '--ha mongo' then refuses to start.
+//
+// Called once, after init(), only when --ha names this channel. Returns once the
+// watch is running - it does its work in a thread of its own.
+//
+typedef int  (*DbHaWatchStartFunc)(HaApplyFunc applyF);
+
 
 
 // -----------------------------------------------------------------------------
@@ -332,6 +348,7 @@ typedef struct DbDriver
   DbTenantDropFunc           tenantDrop;           // NULL-allowed
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
+  DbHaWatchStartFunc      haWatchStart;    // NULL-allowed (e.g. ramdb) — see the typedef
   LdGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
   LdCsrGeoMatchFunc    csrGeoMatchFunc; // geoQ ↔ CSR geo-coverage match (§ 5.10.2.4 / dispatch)
 

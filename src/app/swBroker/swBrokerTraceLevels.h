@@ -17,7 +17,8 @@
 //
 enum SwBrokerTraceLevel
 {
-  KtDistOpRequest = 400   // Outbound distributed-operation request URL
+  KtDistOpRequest = 400,  // Outbound distributed-operation request URL
+  KtHa            = 401   // Cache sync with the other broker instances
 };
 
 #endif  // SWBROKER_SW_BROKER_TRACE_LEVELS_H_

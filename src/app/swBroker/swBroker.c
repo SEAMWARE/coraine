@@ -63,6 +63,8 @@
 #include "db/dbInit.h"                            // dbStart
 #include "db/dbClose.h"                           // dbClose
 #include "db/Tenant.h"                            // tenantPreServiceHook
+#include "db/contextCache.h"                      // contextCacheReload
+#include "ha/haInit.h"                            // haInit, haChannel
 #include "serviceRoutines/ldSnapshotRead.h"       // ldSnapshotWriteGuard
 
 #include "troe/TroeDriver.h"                      // troe
@@ -116,70 +118,6 @@ static char* contextDownload(const char* url, int* statusCodeP)
 
   swRestClientResponseCleanup(&resp);
   return copy;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// swldCacheGet - internal accessor in swJsonld/swldInit.c (cache allocator)
-//
-extern SwldContextCache* swldCacheGet(void);
-
-
-
-// -----------------------------------------------------------------------------
-//
-// contextCacheReload - re-populate the JSON-LD cache from the persisted
-// "swBroker" database. Called once at startup, after dbStart().
-//
-static void contextCacheReload(void)
-{
-  if (db.contextList == NULL)
-    return;
-
-  KAlloc* storeP = swldCacheGet()->kaP;
-
-  DbContextRow* rows  = NULL;
-  int           count = 0;
-
-  if (db.contextList(storeP, &rows, &count) != DB_OK)
-    return;
-
-  for (int i = 0; i < count; i++)
-  {
-    DbContextRow* r = &rows[i];
-
-    if (r->id == NULL || r->body == NULL)
-      continue;
-
-    //
-    // Parse the body (a stand-alone JSON-LD context document) into a tree
-    // and pull out @context. We use the cache allocator so the resulting
-    // SwldContext outlives this call.
-    //
-    char*  bodyForParse = kaStrdup(storeP, r->body);  // kjParse is destructive
-    Kjson  kjson;
-    Kjson* kjsonP = kjBufferCreate(&kjson, storeP);
-
-    KjNode* treeP = kjParse(kjsonP, bodyForParse);
-    if (treeP == NULL)
-      continue;
-
-    KjNode* atContextP = kjLookup(treeP, "@context");
-    if (atContextP == NULL || atContextP->type != KjObject)
-      continue;
-
-    SwldContext* contextP = swldContextFromObject(atContextP, storeP, r->url);
-    if (contextP == NULL)
-      continue;
-
-    contextP->id   = kaStrdup(storeP, r->id);
-    contextP->body = kaStrdup(storeP, r->body);
-    contextP->kind = (r->kind == DB_CONTEXT_KIND_HOSTED) ? SwldKindHosted : SwldKindCached;
-
-    swldCacheInsert(contextP);
-  }
 }
 
 
@@ -242,6 +180,7 @@ static KArg kargV[] =
   { "--cooldownMillis",     "-cms",         KaInt,    _vp &cooldownMillis, KaOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   { "--insecureNotif",      "-insecureNotif",KaBool,  _vp &insecureNotif, KaOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
+  { "--ha",                 "-ha",          KaString, _vp &haChannel,    KaOpt, _vp NULL,      NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
   KARGS_END
 };
 
@@ -452,7 +391,13 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
   }
   else
   {
-    kaBufferReset(&swRest.kalloc, KFALSE);
+    //
+    // KTRUE = reuse. KFALSE frees the extra blocks and leaves the list that
+    // holds them dangling, so the NEXT cycle frees them a second time - a
+    // double free that only shows up once a cycle has outgrown the inline
+    // buffer twice.
+    //
+    kaBufferReset(&swRest.kalloc, KTRUE);
   }
 
   // Build a minimal filter from the pernot item's entity selectors
@@ -949,10 +894,21 @@ int main(int argC, char* argV[])
   static char startupKallocBuf[16384];
   kaBufferInit(&swRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
   swRest.kjsonP = kjBufferCreate(&swRest.kjson, &swRest.kalloc);
+  //
+  // --ha: from here on, what another broker instance writes reaches our caches
+  // too. BEFORE the reload below, not after - see haInit.h: listening only after
+  // reading the database leaves a window whose changes are missed for good.
+  // Nothing is applied until haApplyEnable() below.
+  //
+  if (haInit() == false)
+    KT_X(1, "unable to start the HA channel '%s'", haChannel);
+
   tenantSubCacheReload();
   tenantRegCacheReload();
   tenantSnapshotCacheReload();
   contextCacheReload();
+
+  haApplyEnable();
 
   contextSourceExtrasLoad(contextSourceExtras);
 

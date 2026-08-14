@@ -108,6 +108,7 @@ endif()
 # Subdirectories
 #
 ADD_SUBDIRECTORY(src/lib/db)
+ADD_SUBDIRECTORY(src/lib/ha)
 ADD_SUBDIRECTORY(src/lib/troe)
 ADD_SUBDIRECTORY(src/lib/plugin)
 if (SW_FEATURE_METRICS)

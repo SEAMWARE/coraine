@@ -8,6 +8,7 @@
 #include <ctype.h>                                       // tolower
 #include <stdlib.h>                                      // malloc
 #include <string.h>                                      // strcmp, strncpy, snprintf
+#include <pthread.h>                                     // pthread_mutex_t
 
 #include "ktrace/kTrace.h"                               // KT_I
 #include "swRest/SwRestState.h"                          // swRest
@@ -41,6 +42,9 @@
 static char     dbPrefix[128];
 Tenant          tenant0;
 Tenant*         tenantList = NULL;
+
+// Serialises tenant CREATION - see tenantGetOrCreate
+static pthread_mutex_t tenantMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 
@@ -118,6 +122,17 @@ Tenant* tenantLookup(const char* name)
 //
 // tenantGetOrCreate - find or allocate a new tenant
 //
+// Double-checked under tenantMutex: the tenant list is prepended to here and
+// walked lock-free by every request. Two threads creating the same tenant at the
+// same time would otherwise end up with two Tenant structs - two sets of caches,
+// only one of them reachable - and a request landing on the losing one would
+// find its subscriptions and registrations missing. The HA channel is one such
+// thread: a tenant another instance invented is created from its thread.
+//
+// The lock covers the CREATE only. A reader walking the list concurrently is
+// safe as it stands: a new tenant is fully built before it becomes the head, and
+// a tenant is never removed from the list.
+//
 Tenant* tenantGetOrCreate(const char* name)
 {
   Tenant* tP = tenantLookup(name);
@@ -125,9 +140,23 @@ Tenant* tenantGetOrCreate(const char* name)
   if (tP != NULL)
     return tP;
 
+  pthread_mutex_lock(&tenantMutex);
+
+  // Somebody else may have created it while we were waiting for the lock
+  tP = tenantLookup(name);
+
+  if (tP != NULL)
+  {
+    pthread_mutex_unlock(&tenantMutex);
+    return tP;
+  }
+
   tP = (Tenant*) malloc(sizeof(Tenant));
   if (tP == NULL)
+  {
+    pthread_mutex_unlock(&tenantMutex);
     return NULL;
+  }
 
   memset(tP, 0, sizeof(Tenant));
 
@@ -138,6 +167,7 @@ Tenant* tenantGetOrCreate(const char* name)
   if (nameLen >= (int) sizeof(tP->name) || prefixLen + 1 + nameLen >= (int) sizeof(tP->dbName))
   {
     free(tP);
+    pthread_mutex_unlock(&tenantMutex);
     return NULL;
   }
 
@@ -168,6 +198,8 @@ Tenant* tenantGetOrCreate(const char* name)
   tenantList = tP;
 
   KT_I("tenant: created tenant '%s' (db: '%s')", tP->name, tP->dbName);
+
+  pthread_mutex_unlock(&tenantMutex);
 
   return tP;
 }
@@ -302,6 +334,211 @@ bool tenantPreServiceHook(void)
 
 // -----------------------------------------------------------------------------
 //
+// tenantSubCacheItemKind - which of the three sub caches owns this document?
+//
+// All three kinds live in ONE collection: entity subscriptions, periodic ones
+// (a numeric timeInterval) and CSR-subs (§ 5.11), the last tagged _subKind="csr"
+// at insert. Deciding it in one place is what keeps the startup load and the HA
+// apply from drifting — two copies of this routing is how a subscription ends up
+// cached twice, or in the cache that never looks at it.
+//
+static int tenantSubCacheItemKind(KjNode* subP)
+{
+  KjNode* kindP = kjLookup(subP, "_subKind");
+
+  if (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0)
+    return TENANT_SUB_KIND_CSR;
+
+  KjNode* tiP = kjLookup(subP, "timeInterval");
+
+  if (tiP != NULL && (tiP->type == KjInt || tiP->type == KjFloat))
+    return TENANT_SUB_KIND_PERNOT;
+
+  return TENANT_SUB_KIND_ENTITY;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemIdGet - the document's id, whichever name it carries
+//
+static const char* tenantSubCacheItemIdGet(KjNode* subP)
+{
+  KjNode* idP = kjLookup(subP, "id");
+
+  if ((idP == NULL) || (idP->type != KjString))
+    idP = kjLookup(subP, "_id");
+
+  return ((idP != NULL) && (idP->type == KjString))? idP->value.s : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemStore - put one subscription document in the cache that owns it
+//
+// 'replace' is for the callers that may be overwriting a subscription already
+// cached (the HA apply); the startup load knows the cache is empty and skips the
+// lookup, which would otherwise make loading N subscriptions O(N²).
+//
+// Returns the TENANT_SUB_KIND_* the document was routed to, or
+// TENANT_SUB_KIND_NONE if the cache it belongs in does not exist.
+//
+int tenantSubCacheItemStore(Tenant* tP, KjNode* subP, bool replace)
+{
+  int         kind  = tenantSubCacheItemKind(subP);
+  const char* subId = tenantSubCacheItemIdGet(subP);
+
+  //
+  // A subscription can MOVE between caches - a PATCH that adds or removes
+  // timeInterval makes a periodic subscription of an entity one, and back. The
+  // copy in the cache it left has to go, or it keeps notifying on its own terms.
+  //
+  if (replace && (subId != NULL))
+  {
+    if ((kind != TENANT_SUB_KIND_PERNOT) && (tP->pernotCacheP != NULL))
+      ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
+
+    if ((kind != TENANT_SUB_KIND_ENTITY) && (tP->subCacheP != NULL))
+    {
+      ldSubCacheWrLock((LdSubCache*) tP->subCacheP);
+      ldSubCacheItemRemove((LdSubCache*) tP->subCacheP, subId);
+      ldSubCacheUnlock((LdSubCache*) tP->subCacheP);
+    }
+
+    if ((kind != TENANT_SUB_KIND_CSR) && (tP->regSubCacheP != NULL))
+    {
+      ldSubCacheWrLock((LdSubCache*) tP->regSubCacheP);
+      ldSubCacheItemRemove((LdSubCache*) tP->regSubCacheP, subId);
+      ldSubCacheUnlock((LdSubCache*) tP->regSubCacheP);
+    }
+  }
+
+  if (kind == TENANT_SUB_KIND_PERNOT)
+  {
+    if (tP->pernotCacheP == NULL)
+      return TENANT_SUB_KIND_NONE;
+
+    if (replace && (subId != NULL))
+      ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
+
+    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, NULL, tP);
+    return TENANT_SUB_KIND_PERNOT;
+  }
+
+  LdSubCache* cacheP = (LdSubCache*) ((kind == TENANT_SUB_KIND_CSR)? tP->regSubCacheP : tP->subCacheP);
+
+  if (cacheP == NULL)
+    return TENANT_SUB_KIND_NONE;
+
+  //
+  // One lock hold for remove+add: a reader walking the cache in between would
+  // find the subscription missing and skip a notification it should have sent.
+  //
+  ldSubCacheWrLock(cacheP);
+
+  LdSubSubordinate* savedSubordinateP     = NULL;
+  int               savedSubordinateRunNo = 0;
+  int               unflushedSent         = 0;
+  int               unflushedFailed       = 0;
+
+  if (replace && (subId != NULL))
+  {
+    LdSubCacheItem* oldP = ldSubCacheItemLookup(cacheP, subId);
+
+    if (oldP != NULL)
+    {
+      //
+      // Two things the stored document cannot tell us, both lost if the item
+      // is simply thrown away:
+      //
+      //   o the derived subscriptions this broker has on remote Context
+      //     Sources (§ 5.8.1.4). The live mapping is the authoritative one -
+      //     the same rule the local PATCH path follows - so it is carried
+      //     over unless the document brings one of its own.
+      //   o the notifications sent since the last stats flush. They are
+      //     counted as a delta against lastFlushed*, so dropping them means
+      //     they are never $inc'd into the database at all.
+      //
+      savedSubordinateP     = oldP->subordinateP;
+      savedSubordinateRunNo = oldP->subordinateRunNo;
+      oldP->subordinateP    = NULL;   // detached: the item release must not free it
+
+      unflushedSent   = oldP->timesSent   - oldP->lastFlushedSent;
+      unflushedFailed = oldP->timesFailed - oldP->lastFlushedFailed;
+
+      ldSubCacheItemRemove(cacheP, subId);
+    }
+  }
+
+  LdSubCacheItem* newP = ldSubCacheItemAdd(cacheP, subP, NULL, LdFormatUnset);
+
+  if (newP != NULL)
+  {
+    if (savedSubordinateP != NULL)
+    {
+      ldSubCacheSubordinatesFree(newP->subordinateP);
+      newP->subordinateP     = savedSubordinateP;
+      newP->subordinateRunNo = savedSubordinateRunNo;
+      savedSubordinateP      = NULL;   // ownership transferred
+    }
+
+    // lastFlushed* stays as read from the document, so this is exactly what the
+    // next flush will $inc.
+    newP->timesSent   += unflushedSent;
+    newP->timesFailed += unflushedFailed;
+  }
+
+  ldSubCacheUnlock(cacheP);
+
+  // The add bailed out - the detached mapping has no owner left to free it.
+  if (savedSubordinateP != NULL)
+    ldSubCacheSubordinatesFree(savedSubordinateP);
+
+  return kind;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemDrop - remove a subscription from whichever cache holds it
+//
+// The kind cannot be derived here - the document is gone. All three are tried,
+// and all three are tried even after a hit: a PATCH that added or removed
+// timeInterval moves a subscription between caches, so an id in two of them is
+// not impossible, and leaving a stale copy behind would keep notifying.
+//
+bool tenantSubCacheItemDrop(Tenant* tP, const char* subId)
+{
+  bool removed = false;
+
+  if (tP->subCacheP != NULL)
+  {
+    ldSubCacheWrLock((LdSubCache*) tP->subCacheP);
+    removed |= ldSubCacheItemRemove((LdSubCache*) tP->subCacheP, subId);
+    ldSubCacheUnlock((LdSubCache*) tP->subCacheP);
+  }
+
+  if (tP->regSubCacheP != NULL)
+  {
+    ldSubCacheWrLock((LdSubCache*) tP->regSubCacheP);
+    removed |= ldSubCacheItemRemove((LdSubCache*) tP->regSubCacheP, subId);
+    ldSubCacheUnlock((LdSubCache*) tP->regSubCacheP);
+  }
+
+  if (tP->pernotCacheP != NULL)
+    removed |= ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
+
+  return removed;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // tenantSubCacheLoad - load subscriptions for a single tenant
 //
 static void tenantSubCacheLoad(Tenant* tP)
@@ -321,31 +558,11 @@ static void tenantSubCacheLoad(Tenant* tP)
 
   for (KjNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
   {
-    // CSR-subs (§ 5.11) are persisted in the same collection, tagged
-    // with _subKind="csr". Route them to regSubCacheP and skip the
-    // entity-sub paths.
-    KjNode* kindP = kjLookup(subP, "_subKind");
-    bool    isCsr = (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0);
-
-    if (isCsr && tP->regSubCacheP != NULL)
+    switch (tenantSubCacheItemStore(tP, subP, false))
     {
-      ldSubCacheItemAdd((LdSubCache*) tP->regSubCacheP, subP, NULL, LdFormatUnset);
-      csrCount++;
-      continue;
-    }
-
-    KjNode* tiP = kjLookup(subP, "timeInterval");
-    bool isPernot = (tiP != NULL && (tiP->type == KjInt || tiP->type == KjFloat));
-
-    if (isPernot && tP->pernotCacheP != NULL)
-    {
-      ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, NULL, tP);
-      pernotCount++;
-    }
-    else if (!isPernot && tP->subCacheP != NULL)
-    {
-      ldSubCacheItemAdd((LdSubCache*) tP->subCacheP, subP, NULL, LdFormatUnset);
-      normalCount++;
+    case TENANT_SUB_KIND_ENTITY:  normalCount++;  break;
+    case TENANT_SUB_KIND_PERNOT:  pernotCount++;  break;
+    case TENANT_SUB_KIND_CSR:     csrCount++;     break;
     }
   }
 
@@ -413,6 +630,97 @@ void tenantRegCacheReload(void)
 
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
     tenantRegCacheLoad(tP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemRefresh - re-read one subscription from the DB into the cache
+//
+// For a caller that knows only that the row changed - the HA apply, told so by
+// another broker instance. Reading it back and running it through the very
+// function the startup load uses is what makes a subscription that arrived over
+// HA identical to one created locally; a second, hand-written conversion here is
+// how the two copies would drift.
+//
+// A row that is gone is not an error: a create and a delete can both have
+// happened before either was applied. Dropping the cached copy is then exactly
+// right - it is what the (already queued) delete would do anyway, and doing it
+// now means the cache is never left holding a subscription the database does not
+// have.
+//
+bool tenantSubCacheItemRefresh(Tenant* tP, const char* subId)
+{
+  if (db.subscriptionRetrieve == NULL)
+    return false;
+
+  KjNode* subP = NULL;
+  int     r    = db.subscriptionRetrieve(tP, subId, &subP);
+
+  if ((r == DB_NOT_FOUND) || ((r == DB_OK) && (subP == NULL)))
+  {
+    tenantSubCacheItemDrop(tP, subId);
+    return true;
+  }
+
+  if (r != DB_OK)
+    return false;
+
+  return (tenantSubCacheItemStore(tP, subP, true) != TENANT_SUB_KIND_NONE);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantRegCacheItemDrop - remove a registration from the cache
+//
+bool tenantRegCacheItemDrop(Tenant* tP, const char* regId)
+{
+  if (tP->regCacheP == NULL)
+    return false;
+
+  ldRegCacheWrLock((LdRegCache*) tP->regCacheP);
+  bool removed = ldRegCacheItemRemove((LdRegCache*) tP->regCacheP, regId);
+  ldRegCacheUnlock((LdRegCache*) tP->regCacheP);
+
+  return removed;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantRegCacheItemRefresh - re-read one registration from the DB into the cache
+//
+// Same shape as the subscription refresh. The reg cache has no update-in-place,
+// so the old item must go first - a registration cached twice is matched twice,
+// and the same request is forwarded twice to the same Context Source.
+//
+bool tenantRegCacheItemRefresh(Tenant* tP, const char* regId)
+{
+  if ((tP->regCacheP == NULL) || (db.registrationRetrieve == NULL))
+    return false;
+
+  KjNode* regP = NULL;
+  int     r    = db.registrationRetrieve(tP, regId, &regP);
+
+  if ((r == DB_NOT_FOUND) || ((r == DB_OK) && (regP == NULL)))
+  {
+    tenantRegCacheItemDrop(tP, regId);
+    return true;
+  }
+
+  if (r != DB_OK)
+    return false;
+
+  ldRegCacheWrLock((LdRegCache*) tP->regCacheP);
+  ldRegCacheItemRemove((LdRegCache*) tP->regCacheP, regId);
+  ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP, &swRest.kalloc);
+  ldRegCacheUnlock((LdRegCache*) tP->regCacheP);
+
+  return true;
 }
 
 

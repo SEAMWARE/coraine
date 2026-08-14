@@ -10,6 +10,23 @@
 //
 #include <stdbool.h>                                     // bool
 
+#include "kjson/KjNode.h"                                // KjNode
+
+
+
+// -----------------------------------------------------------------------------
+//
+// TENANT_SUB_KIND_* - which of the three subscription caches owns a document
+//
+// One collection holds all three kinds (entity subs, periodic subs, CSR-subs),
+// so every path that caches a subscription has to route it. See
+// tenantSubCacheItemStore.
+//
+#define TENANT_SUB_KIND_NONE    0
+#define TENANT_SUB_KIND_ENTITY  1
+#define TENANT_SUB_KIND_PERNOT  2
+#define TENANT_SUB_KIND_CSR     3
+
 
 
 // -----------------------------------------------------------------------------
@@ -131,5 +148,54 @@ extern void tenantRegCacheReload(void);
 // new snapshots can't collide with one that's still on disk.
 //
 extern void tenantSnapshotCacheReload(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemStore - cache one subscription document, in the cache that
+// owns it (entity / periodic / CSR-sub). Returns the TENANT_SUB_KIND_* it was
+// routed to, TENANT_SUB_KIND_NONE if that cache does not exist.
+//
+// 'replace' drops a copy already cached under the same id first — needed by any
+// caller that may be overwriting (the HA apply), skipped by the startup load,
+// where it would make loading N subscriptions O(N²).
+//
+extern int tenantSubCacheItemStore(Tenant* tP, KjNode* subP, bool replace);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemDrop - remove a subscription from whichever cache holds it
+//
+extern bool tenantSubCacheItemDrop(Tenant* tP, const char* subId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantSubCacheItemRefresh - re-read one subscription from the DB into the cache
+//
+// Returns false only when the read itself failed. A row that is gone counts as
+// success: the cached copy is dropped, which is the correct end state.
+//
+extern bool tenantSubCacheItemRefresh(Tenant* tP, const char* subId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantRegCacheItemDrop - remove a registration from the cache
+//
+extern bool tenantRegCacheItemDrop(Tenant* tP, const char* regId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantRegCacheItemRefresh - re-read one registration from the DB into the cache
+//
+extern bool tenantRegCacheItemRefresh(Tenant* tP, const char* regId);
 
 #endif  // DB_TENANT_H_

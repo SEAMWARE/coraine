@@ -87,6 +87,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
                  [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
+                 [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
                  Plugins are loaded from /opt/seamware/plugins
 
@@ -121,6 +122,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
                  [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
+                 [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
                  Database (mongoc) plugin options:
                  [--dbHost/-dbHost <database server host>]
@@ -166,6 +168,7 @@ Usage: swBroker  [--usage/-u (usage)]
                  [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                  [--foreground/-fg (run in foreground (don't daemonize))]
                  [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
+                 [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
                  Plugins are loaded from /opt/seamware/plugins
 
@@ -200,6 +203,7 @@ Usage: swBroker  [--usage/-u (usage)]
   --cooldownMillis        (-cms)             SWBROKER_COOLDOWNMILLIS        Optional   Int      Default Value  
   --foreground            (-fg)              SWBROKER_FOREGROUND            Optional   Bool     Default Value  
   --insecureNotif         (-insecureNotif)   SWBROKER_INSECURENOTIF         Optional   Bool     Default Value  
+  --ha                    (-ha)              SWBROKER_HA                    Optional   String   Default Value  
 
 
 --TEARDOWN--
