@@ -18,8 +18,14 @@
 # The companion test startup_cyclic_persisted_context covers the other road into
 # a cycle - a persisted cache seeded with one.
 #
+# The answer is 400 and not "unable to retrieve": both documents downloaded
+# perfectly well, they are simply unusable together. JSON-LD 1.1 draws the same
+# line - the 'remote contexts' array of the Context Processing Algorithm is there
+# to detect cyclical inclusions, and that is a different error from a context
+# that could not be loaded.
+#
 --NAME--
-Cyclic @context - refused at once, not after the download deadline
+Cyclic @context - 400 Cyclic @context, at once and not after the download deadline
 
 --TAGS--
 context jsonldcontext
@@ -47,12 +53,12 @@ contextServerPush /jsonldContexts/plain '{
 --RUN--
 
 #
-# 01. POST an entity with the cyclic @context - refused, and refused AT ONCE
+# 01. POST an entity with the cyclic @context - 400 Cyclic @context, at once
 # 02. POST an entity with an ordinary @context - still works
 #
 
-echo "01. POST an entity with the cyclic @context - refused, and refused AT ONCE"
-echo "=========================================================================="
+echo "01. POST an entity with the cyclic @context - 400 Cyclic @context, at once"
+echo "==========================================================================="
 #
 # Raw curl, and not swCurl, for the one thing swCurl cannot express: a bound on
 # how long this may take. Detecting the cycle takes microseconds; NOT detecting
@@ -81,16 +87,16 @@ echo
 
 
 --EXPECT--
-01. POST an entity with the cyclic @context - refused, and refused AT ONCE
-==========================================================================
+01. POST an entity with the cyclic @context - 400 Cyclic @context, at once
+===========================================================================
 {
-  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable",
-  "title": "Context Not Available",
-  "status": 504,
-  "detail": "unable to retrieve @context from 'http://localhost:7080/jsonldContexts/cycleA'"
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Cyclic @context",
+  "status": 400,
+  "detail": "http://localhost:7080/jsonldContexts/cycleA"
 }
 
-HTTP 504
+HTTP 400
 
 
 02. POST an entity with an ordinary @context - still works

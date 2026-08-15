@@ -57,6 +57,8 @@
 #include "swNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "swNgsild/SwNgsild.h"                    // swNgsild, ldCsourceAliasBase
+#include "swNgsild/ldError.h"                     // ldError
+#include "swNgsild/LdProblem.h"                    // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 
 #include "db/DbDriver.h"                          // db, DB_OK
 #include "db/DbQueryFilter.h"                     // DbQueryFilter
@@ -118,6 +120,28 @@ static char* contextDownload(const char* url, int* statusCodeP)
 
   swRestClientResponseCleanup(&resp);
   return copy;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// contextError - SwldErrorFunction callback: an @context the library can NAME
+//
+// swldContextFromUrl answers NULL for everything, and its callers turn that into
+// "unable to retrieve @context" - true for a download that failed, wrong for one
+// that downloaded perfectly and is unusable. The library reports the ones it can
+// name here, and this turns them into the ProblemDetails the client sees.
+//
+// swNgsild.contextError is what stops the caller from then overwriting it with
+// its own generic answer.
+//
+static void contextError(int status, const char* title, const char* detail)
+{
+  const char* type = (status == 400)? LD_ERROR_BAD_REQUEST_DATA : LD_ERROR_LD_CONTEXT_NOT_AVAILABLE;
+
+  ldError(status, type, title, "%s", detail);
+  swNgsild.contextError = true;
 }
 
 
@@ -842,7 +866,7 @@ int main(int argC, char* argV[])
   // pernot/swRest convention for "ample headroom for normal growth".
   kaBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
 
-  if (swldInit(&contextAlloc, NULL, contextDownload) != 0)
+  if (swldInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
     KT_X(1, "swldInit failed");
 
   if (ldInit() != 0)
