@@ -1,0 +1,110 @@
+#
+# FILE            context_cyclic_download.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A cyclic @context downloaded at REQUEST time: A is an array @context whose one
+# member is B, and B's one member is A. Resolving A therefore recurses back into
+# A while A is still being downloaded by this very thread.
+#
+# The broker keeps a list of the URLs being downloaded so two threads never
+# download the same @context twice - the second waits for the first. A cycle
+# lands in that same list, but the download it would be waiting for is the call
+# that is now waiting, so the wait can only ever end in its deadline: three
+# seconds of a request thread, and the same failure at the end of it.
+#
+# The companion test startup_cyclic_persisted_context covers the other road into
+# a cycle - a persisted cache seeded with one.
+#
+--NAME--
+Cyclic @context - refused at once, not after the download deadline
+
+--TAGS--
+context jsonldcontext
+
+--INIT--
+swDbDrop
+swDbDrop -db swBroker
+contextServerStart
+swBrokerStart
+
+contextServerPush /jsonldContexts/cycleA '{
+  "@context": [ "http://localhost:7080/jsonldContexts/cycleB" ]
+}'
+
+contextServerPush /jsonldContexts/cycleB '{
+  "@context": [ "http://localhost:7080/jsonldContexts/cycleA" ]
+}'
+
+contextServerPush /jsonldContexts/plain '{
+  "@context": {
+    "Building": "https://example.org/Building"
+  }
+}'
+
+--RUN--
+
+#
+# 01. POST an entity with the cyclic @context - refused, and refused AT ONCE
+# 02. POST an entity with an ordinary @context - still works
+#
+
+echo "01. POST an entity with the cyclic @context - refused, and refused AT ONCE"
+echo "=========================================================================="
+#
+# Raw curl, and not swCurl, for the one thing swCurl cannot express: a bound on
+# how long this may take. Detecting the cycle takes microseconds; NOT detecting
+# it takes the full three-second wait, and the two are otherwise indistinguishable
+# in the output - the request fails either way. '-m 2' turns that timing
+# difference into an output difference, with a 250x margin against a loaded host.
+#
+curl -s -m 2 \
+     -H 'Content-Type: application/json' \
+     -H 'Link: <http://localhost:7080/jsonldContexts/cycleA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+     -d '{"id":"urn:E1","type":"Building"}' \
+     -w '\nHTTP %{http_code}\n' \
+     http://localhost:$CB_PORT/ngsi-ld/v1/entities \
+  || echo "TIMED OUT (over 2 seconds) - the cycle was not detected, the broker waited for itself"
+echo
+echo
+
+
+echo "02. POST an entity with an ordinary @context - still works"
+echo "=========================================================="
+swCurl --url /ngsi-ld/v1/entities \
+       -H 'Link: <http://localhost:7080/jsonldContexts/plain>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+       --payload '{"id":"urn:E2","type":"Building"}'
+echo
+echo
+
+
+--EXPECT--
+01. POST an entity with the cyclic @context - refused, and refused AT ONCE
+==========================================================================
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable",
+  "title": "Context Not Available",
+  "status": 504,
+  "detail": "unable to retrieve @context from 'http://localhost:7080/jsonldContexts/cycleA'"
+}
+
+HTTP 504
+
+
+02. POST an entity with an ordinary @context - still works
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+swBrokerStop
+contextServerStop
+swDbDrop
+swDbDrop -db swBroker
