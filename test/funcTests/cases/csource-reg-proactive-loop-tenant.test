@@ -1,0 +1,196 @@
+#
+# FILE            csource-reg-proactive-loop-tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+DistOps - the proactive self-loop skip is tenant-scoped (§ 5.7.5)
+
+--TAGS--
+distops registration tenant metrics
+
+--INIT--
+swDbDrop
+swBrokerStart --csourceAlias cb-alias --apiPlugins admin -dist
+
+--RUN--
+
+#
+# csource-reg-proactive-loop.test covers the self-pointing CSR on the DEFAULT tenant.
+# This one covers a NAMED tenant, where the two aliases being compared are built
+# differently:
+#
+#   ownAlias            "cb-alias:t1"   ldCsourceAliasForTenant, per request
+#   csr->csourceAlias   "cb-alias"      probed once, at CSR-create time
+#
+# The registration carries no § 5.2.9 tenant rewrite, so it was probed WITHOUT an
+# NGSILD-Tenant header and answered with the endpoint's default-tenant alias — while the
+# forward it would produce carries OUR tenant, t1. Comparing those two verbatim never
+# matches, so the CSR is not skipped: the broker forwards to itself and only the reactive
+# check (ldDistOpLoopDetected) catches it, on arrival. Right answer, wasted work.
+#
+# The client sees 404 either way, so the oracle is ngsild_entity_retrieve_total: the
+# forwarded request is a second GET /entities/*, so it counts a second retrieve. One
+# client GET must move the counter by exactly ONE.
+#
+# Steps 05-07 are the counterweight: a self-pointing CSR that DOES rewrite the tenant is
+# a different data space, not a loop, and must still forward — asserted on the DATA (the
+# entity comes back from t2), not on a counter. Without it, "skip everything" would pass.
+#
+
+echo "01. Register self-pointing CSR on tenant t1, no tenant rewrite"
+echo "=============================================================="
+payload='{
+  "id": "urn:CSR:SelfT1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "02. Baseline retrieve counter"
+echo "============================="
+swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"
+echo
+echo
+
+
+echo "03. GET urn:V1 on t1 -> the CSR is skipped -> 404"
+echo "================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "04. Counter moved by ONE - no forward back to ourselves"
+echo "======================================================="
+swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"
+echo
+echo
+
+
+echo "05. Seed urn:V2 directly on tenant t2"
+echo "====================================="
+payload='{
+  "id": "urn:V2",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42 }
+}'
+swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "06. Register self-pointing CSR on t1 that rewrites the tenant to t2"
+echo "==================================================================="
+payload='{
+  "id": "urn:CSR:RewriteT2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CB_PORT'",
+  "mode": "exclusive",
+  "tenant": "t2",
+  "operations": ["retrieveEntity"],
+  "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]
+}'
+swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "07. GET urn:V2 on t1 -> same broker, other tenant, NOT a loop -> forwarded, 200"
+echo "==============================================================================="
+swCurl --url /ngsi-ld/v1/entities/urn:V2 -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+--EXPECT--
+01. Register self-pointing CSR on tenant t1, no tenant rewrite
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfT1
+Content-Length: 0
+
+
+
+
+02. Baseline retrieve counter
+=============================
+ngsild_entity_retrieve_total 0
+
+
+03. GET urn:V1 on t1 -> the CSR is skipped -> 404
+=================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. Counter moved by ONE - no forward back to ourselves
+=======================================================
+ngsild_entity_retrieve_total 1
+
+
+05. Seed urn:V2 directly on tenant t2
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t2
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+
+06. Register self-pointing CSR on t1 that rewrites the tenant to t2
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:RewriteT2
+Content-Length: 0
+
+
+
+
+07. GET urn:V2 on t1 -> same broker, other tenant, NOT a loop -> forwarded, 200
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 100
+
+{
+  "id": "urn:V2",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+swBrokerStop
