@@ -332,3 +332,5 @@ Content-Length: 250
   ]
 }
 
+--TEARDOWN--
+swBrokerStop

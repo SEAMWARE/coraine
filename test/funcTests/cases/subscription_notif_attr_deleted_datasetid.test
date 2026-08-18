@@ -306,3 +306,6 @@ Date: REGEX(.*)
 ]
 
 
+--TEARDOWN--
+ftClientStop
+swBrokerStop

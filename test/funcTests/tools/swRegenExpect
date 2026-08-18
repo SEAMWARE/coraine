@@ -208,10 +208,16 @@ def update_test(base):
     test = test_path.read_text()
 
     new_expect = normalize(out)
-    if new_expect.endswith('\n'):
-        new_expect = new_expect[:-1]
 
-    pattern = re.compile(r'(--EXPECT--\n)(.*?)(?=\n--[A-Z]+--|\Z)', re.DOTALL)
+    #
+    # The lookahead anchors on a section marker at the START OF A LINE, and does not
+    # eat the newline before it - so an EMPTY --EXPECT-- block (what --regen is handed)
+    # sitting directly above --TEARDOWN-- ends where it should. With '\n--[A-Z]+--' the
+    # zero-length match was impossible and '.*?' ran on to \Z, silently swallowing every
+    # section below EXPECT: the regenerated test lost its --TEARDOWN-- and from then on
+    # leaked a running broker into the next test.
+    #
+    pattern = re.compile(r'(--EXPECT--\n)(.*?)(?=^--[A-Z]+--|\Z)', re.DOTALL | re.MULTILINE)
     if not pattern.search(test):
         print(f"SKIP {base}: no --EXPECT-- block")
         return False
