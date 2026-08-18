@@ -15,7 +15,8 @@ swCliParamAdd "-troeDb" "SW_TROE_DB_TYPE" "NONE" "TRoE DB: postgres|mongo|..."  
 # replica set, and a standalone mongod cannot run those tests at all. That is a
 # property of the environment and not a choice, so it is DETECTED rather than
 # defaulted: on a replica set the HA tests run without anyone having to remember
-# a flag, and on a standalone they are skipped instead of failing. Override with
+# a flag, and on a standalone they simply do not apply - they leave the run set
+# rather than being reported as skipped, which they never were. Override with
 # -ha yes|no.
 #
 swCliParamAdd "-ha" "SW_HA" \
