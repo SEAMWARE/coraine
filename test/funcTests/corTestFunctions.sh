@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 #
 # corTestFunctions.sh - repo-specific test functions for coraine
 #
@@ -600,12 +601,6 @@ corHttpsCertGen() {
 #
 CONTEXT_SERVER_PORT=${COR_CONTEXT_SERVER_PORT:-7080}
 
-# Set when THIS run started the container, so teardown only stops what it
-# started. A server that was already up - someone's own, or one provided by the
-# environment - is left exactly as it was found.
-CONTEXT_SERVER_OURS=0
-
-
 # contextServerReady - does something already answer on the context-server port?
 #
 # curl exit 0 means a response came back, whatever the HTTP code.
@@ -639,7 +634,6 @@ contextServerStart() {
   local running=$(docker ps --filter name='^context-server$' -q 2>/dev/null)
   if [ -z "$running" ]; then
     docker run --rm -d --name context-server -p $CONTEXT_SERVER_PORT:8080 -e MEMORY_ENABLED=true wistefan/context-server > /dev/null 2>&1
-    CONTEXT_SERVER_OURS=1
   fi
 
   # Poll until the server actually accepts connections — a fixed sleep is racy:
@@ -658,15 +652,23 @@ contextServerStart() {
 }
 
 
-# contextServerStop - stop the context server, if this run started it
+# contextServerStop - stop the context server we manage, if there is one
 #
-# Leaving someone else's server running is correct: we did not start it, and in
-# CI it belongs to the job, not to the suite.
+# The decision is made from OBSERVABLE STATE, never from a variable: every
+# section of a test (INIT, RUN, TEARDOWN) is extracted to its own script and
+# executed as a separate process, so nothing set in INIT survives to here. A
+# flag saying "we started it" is silently always false, the container is never
+# stopped, and it accumulates every @context pushed by every test - which then
+# leak into later tests as compaction that should not happen.
+#
+# So: a container of ours is one docker can see. If there is no docker (a CI
+# job where the server is a service container) there is nothing of ours to
+# stop, and the environment's server is left alone.
 #
 contextServerStop() {
-  [ "$CONTEXT_SERVER_OURS" = 1 ] || return 0
+  command -v docker > /dev/null 2>&1 || return 0
   docker kill context-server > /dev/null 2>&1
-  CONTEXT_SERVER_OURS=0
+  return 0
 }
 
 
