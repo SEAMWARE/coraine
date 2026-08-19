@@ -1,7 +1,7 @@
 #
 # FILE            url_param_datasetid_validation.test
 # Copyright 2026 Seamware
-# Ported from orion-ld ngsild_datasetId_error_handling. A datasetId URL param is
+# A datasetId URL param is
 # a URI (§ 4.5.5) — a non-URI value (or a comma-list with one) is rejected 400,
 # validated before the entity lookup; a valid URI is accepted.
 #

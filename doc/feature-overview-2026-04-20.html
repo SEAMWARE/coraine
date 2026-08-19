@@ -331,7 +331,7 @@ mongoc persistence, concurrent-download dedup.</p>
 <hr>
 
 <!-- ─── Performance ─── -->
-<h2 id="perf">Performance &mdash; coraine vs Orion-LD</h2>
+<h2 id="perf">Performance</h2>
 <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">
   Measured 2026-04-15 &middot; 20-core laptop &middot;
   <code>wrk -t4 -c50 -d5s</code> &middot; median of 3 runs &middot;
@@ -343,44 +343,38 @@ mongoc persistence, concurrent-download dedup.</p>
     <th>Scenario</th>
     <th>Coraine ramdb</th>
     <th>Coraine mongoc</th>
-    <th>Orion-LD</th>
   </tr>
   <tr>
     <td>CREATE</td>
-    <td class="winner">73 k</td>
-    <td class="winner">35 k</td>
-    <td>20 k</td>
+    <td>73 k</td>
+    <td>35 k</td>
   </tr>
   <tr>
     <td>PATCH</td>
-    <td class="winner">289 k</td>
+    <td>289 k</td>
     <td>30 k</td>
-    <td>123 k</td>
   </tr>
   <tr>
     <td>GET (ent/s)</td>
-    <td class="winner">7.5 M</td>
+    <td>7.5 M</td>
     <td>745 k</td>
-    <td>1.2 M</td>
   </tr>
   <tr>
     <td>DELETE</td>
-    <td class="winner">355 k</td>
+    <td>355 k</td>
     <td>16 k</td>
-    <td>56 k</td>
   </tr>
   <tr>
     <td>NOTIFY (rps)</td>
     <td>4.6 k</td>
     <td>5.1 k</td>
-    <td class="winner">17.3 k</td>
   </tr>
 </table>
 
 <div class="takeaway">
-  <p><strong>In-memory (ramdb):</strong> 3.5&ndash;6&times; faster than Orion-LD on CREATE / GET / DELETE</p>
-  <p><strong>GET throughput:</strong> 7.5 M entities/s (ramdb) vs 1.2 M (Orion-LD)</p>
-  <p><strong>MongoDB:</strong> CREATE on par or ahead; PATCH/DELETE behind Orion-LD's heavily optimized mongoc path (no batch pipeline yet)</p>
+  <p><strong>In-memory (ramdb):</strong> the fast path &mdash; several times the mongoc figures on CREATE / GET / DELETE</p>
+  <p><strong>GET throughput:</strong> 7.5 M entities/s (ramdb)</p>
+  <p><strong>MongoDB:</strong> PATCH/DELETE are the weak spots (no batch pipeline yet)</p>
   <p><strong>NOTIFY:</strong> gap under investigation</p>
 </div>
 
@@ -393,7 +387,7 @@ mongoc persistence, concurrent-download dedup.</p>
   protocol eliminates all four layers and transmits the in-memory entity
   tree directly.</p>
   <p>Estimated improvement for the <strong>forwarding path</strong>: <strong>3&ndash;5&times;</strong>
-  compared to HTTP-based forwarding (as used by Orion-LD today).
+  compared to HTTP-based forwarding.
   End-to-end improvement for a distributed retrieveEntity depends on
   the ratio of forwarding cost to local DB + merge cost, but for
   multi-hop or multi-source queries the forwarding overhead dominates

@@ -9,10 +9,8 @@
 # of Strings are preserved as arrays (no reduction), and lang reduction yields the
 # array for the selected language.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-as-array-create-and-get-entity.test.
-# orion-ld's mongoCmd2 DB-dump step dropped.
 #
-# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+# NOTE: expects authored offline against the spec — NOT yet confirmed
 #       against a live run.
 #
 --NAME--

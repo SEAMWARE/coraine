@@ -11,7 +11,7 @@
 # datasetIds must be UNIQUE. The § 8.5.3 tiebreaker ("processing of
 # conflicting Attributes") is for instances assembled from MULTIPLE
 # registered Context Sources — not a single user payload, which must be
-# well-formed. Orion-LD rejects the same way.
+# well-formed.
 #
 --NAME--
 Multi-instance attribute with conflicting identities in one payload is rejected

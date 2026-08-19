@@ -12,13 +12,11 @@
 # attributes (Sub-P, Sub-R) and observedAt on the LanguageProperty are carried
 # through.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-create-and-get-entity.test.
-# orion-ld's mongoCmd2 DB-dump step (02) dropped.
 #
-# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+# NOTE: expects authored offline against the spec — NOT yet confirmed
 #       against a live run. Read-side lang reduction is IMPLEMENTED in Coraine
 #       (corNgsild/ldLangReduce.c), so high-confidence parity; Content-Length left
-#       as REGEX since byte counts differ from orion-ld. VERIFY key-sort order in
+#       as REGEX since byte counts are volatile. VERIFY key-sort order in
 #       the L object and the lang=ex first-key fallback on first run.
 #
 --NAME--

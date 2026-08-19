@@ -5,8 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_issue_0109 (a ParkingSpot payload that crashed
-# orion). Made hermetic: the FIWARE data-models terms are hosted on the local
+# A ParkingSpot payload that is a historical crash case. Made hermetic: the FIWARE data-models terms are hosted on the local
 # context server. The payload mixes a Property with observedAt, an array-valued
 # Property, a Relationship, a GeoProperty, and a 2-element @context array — must
 # be accepted (201) and round-trip, broker alive.

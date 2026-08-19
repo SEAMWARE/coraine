@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_issue_1899_cyclic_context_startup. The persisted
+# The persisted
 # context cache (DB "coraine", collection "contexts") is seeded with two array
 # @contexts that reference each other (cycle: A -> [B], B -> [A]); the broker must
 # still start (no hang re-resolving the cycle). Coraine is immune by design:

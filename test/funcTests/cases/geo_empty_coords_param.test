@@ -8,7 +8,7 @@
 # A geoquery whose coordinates= URI-param has an empty right-hand side, and one
 # that supplies geometry/georel but no coordinates at all, must each be rejected
 # with a clean 400 Invalid geo-query. A follow-up GET confirms ordinary queries
-# still work. (Ported from an orion-ld geoquery validation case.)
+# still work.
 #
 --NAME--
 GeoQuery with empty or missing coordinates URI-param — 400

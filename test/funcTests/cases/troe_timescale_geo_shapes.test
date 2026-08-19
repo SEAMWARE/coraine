@@ -10,7 +10,7 @@
 # geometry column per shape, lossy WKT round-trips), the timescale plugin keeps
 # the GeoProperty value as verbatim JSONB in troe_attrs.v_compound, so Point /
 # LineString / Polygon / Multi* and their 2D/3D forms all travel the same code
-# path. One test therefore covers what orion-ld split across a file per shape:
+# path, so ONE test covers every shape rather than a file per shape:
 # the geometry — altitude included — must survive storage AND retrieval
 # unchanged, both as a top-level GeoProperty (v_compound) and as a geo
 # sub-property (sub_attrs).

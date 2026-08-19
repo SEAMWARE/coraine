@@ -5,8 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_subscription-and-patches-makes-a-crash (an AWS
-# crash report): a subscription plus 100 rapid PATCH /attrs updates, each
+# A subscription plus 100 rapid PATCH /attrs updates, each
 # provoking a notification, must NOT crash the broker. Asserted as a crash guard
 # — the broker stays alive and all 100 updates are applied (final temperature
 # 105). The exact rapid-fire notification COUNT is not asserted here: the

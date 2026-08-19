@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# @vocab is core-context-only — BY DESIGN (matches orion-ld): a term
+# @vocab is core-context-only — BY DESIGN: a term
 # with no explicit mapping expands via the core's @vocab (the default
 # context), NEVER via a @vocab the user context may carry (§ 4.3.4.3
 # describes core @vocab as the fallback; with the core in last position

@@ -5,11 +5,9 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_issue_1050-part7 (a PATCH of an invalid
-# GeoProperty). Coraine diverges from orion-ld on the ERROR: orion rejects "Poinxt"
-# as a bad attribute type; Coraine treats a simplified-format GeoProperty
-# ({type,coordinates} only) as a GeoProperty attempt and rejects "Poinxt" as a
-# bad GEOMETRY. Steps 04-06 lock in the normalized-vs-simplified disambiguation:
+# A PATCH of an invalid GeoProperty. Coraine treats a simplified-format
+# GeoProperty ({type,coordinates} only) as a GeoProperty attempt, so "Poinxt"
+# is rejected as a bad GEOMETRY rather than as a bad attribute type. Steps 04-06 lock in the normalized-vs-simplified disambiguation:
 #   - {type,coordinates} with an INVALID geometry name  -> simplified GeoProperty -> Invalid GeoJSON
 #   - {type:Property,coordinates}                        -> normalized format     -> Missing value
 #   - {type:Point,coordinates}                           -> simplified GeoProperty -> accepted

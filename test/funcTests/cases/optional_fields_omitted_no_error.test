@@ -1,10 +1,9 @@
 #
 # FILE            optional_fields_omitted_no_error.test
 # Copyright 2026 Seamware
-# Ported from orion-ld ngsild_new-false-error-for-optional-field-not-present.
 # Creating a subscription / registration / entity with ONLY the mandatory
-# fields succeeds (no false error) and each is retrievable. (Orion's final
-# logfile-grep step is Orion-internal and dropped — the API success is the oracle.)
+# fields succeeds (no false error) and each is retrievable — the API success
+# is the oracle.
 #
 --NAME--
 Subscription / registration / entity with only mandatory fields create cleanly

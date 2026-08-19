@@ -5,8 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_issue_0737. Multi-byte (here fullwidth) characters
-# in an attribute name must round-trip on create/GET and be usable in a q-filter.
+# Multi-byte (here fullwidth) characters in an attribute name must round-trip
+# on create/GET and be usable in a q-filter.
 #
 --NAME--
 Multi-byte characters in an attribute name round-trip and work in a q-filter

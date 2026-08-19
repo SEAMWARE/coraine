@@ -352,9 +352,8 @@ static void chopForMode(Tenant*      tenantP,
 //
 // purgeRedirAttrsFromFragment - strip from `fragP` every attribute
 // that any redirect-matched CSR claims, AFTER the redirect chopForMode
-// call has run with detach=false. Mirrors orion-ld's
-// purgeRedirectedAttributes — we have to defer the detach until all
-// redirect CSRs covering this entity have been served, otherwise the
+// call has run with detach=false. The detach has to be deferred until
+// all redirect CSRs covering this entity have been served, otherwise the
 // second-and-onwards ones find an empty fragment (D008_01_red-class
 // bug for the batch-merge path).
 //

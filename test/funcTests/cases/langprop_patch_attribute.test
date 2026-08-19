@@ -9,8 +9,6 @@
 # attribute's languageMap (object form, no ?lang needed). Plus validation:
 # languageMap must be an Object, and each item a String / Array-of-String.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-patch-attribute.test.
-# orion-ld mongoCmd2 DB-dump steps dropped.
 #
 # NOTE: expects authored offline. Happy path high-confidence (object-form update,
 #       no ?lang). The two error steps assert a structural 400/BadRequestData with

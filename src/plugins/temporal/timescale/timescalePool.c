@@ -33,7 +33,7 @@
 //
 // Seconds a thread waits for a free connection before giving up. The pool is
 // bounded (--troePoolSize); under sustained overload a request fails fast
-// rather than hanging forever (orion-ld's pool blocked indefinitely here).
+// rather than hanging forever.
 //
 #define TIMESCALE_POOL_WAIT_SECS  10
 

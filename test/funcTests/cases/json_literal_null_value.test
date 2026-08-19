@@ -5,15 +5,14 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_json_literal_null-as-attribute-key-value.
 # A JSON null literal {"@type":"@json","@value":null} is a PERMITTED attribute
 # value (TS 104-175 clause 5: "JSON literals are not to be expanded in JSON-LD
 # and thus the respective element is not removed during JSON-LD expansion").
 # In simplified form the whole literal is the Property value and is kept as-is
 # (it is NOT a bare null to drop). A PATCH/merge that sets the value to the
 # literal must REPLACE the value, not splice @type/@value onto the old value.
-# (Coraine renders the normalized {type:Property, value:<literal>}; this differs from
-# orion-ld which renders the bare literal as the attribute.)
+# (Coraine renders the normalized {type:Property, value:<literal>}, not the
+# bare literal as the attribute.)
 #
 --NAME--
 JSON null literal {@type:@json,@value:null} is a valid value; merge replaces it

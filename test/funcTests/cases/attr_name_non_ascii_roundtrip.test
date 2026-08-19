@@ -5,8 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_entity_creation_strange_chars_in_attr_names. A
-# non-ASCII attribute name (Straße) round-trips on create / GET-by-id / query.
+# A non-ASCII attribute name (Straße) round-trips on create / GET-by-id / query.
 #
 --NAME--
 Non-ASCII characters in an attribute name round-trip

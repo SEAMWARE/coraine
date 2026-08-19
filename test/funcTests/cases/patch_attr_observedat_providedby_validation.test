@@ -5,9 +5,9 @@
 #
 # Copyright 2026 Seamware
 #
-# Crash-guard ported from orion-ld ngsild_issue_1050-part6 (steps 01-07).
-# The original tail (08-09) checked compaction via a remote github @context —
-# dropped here as non-hermetic; the crash guard is steps 01-07.
+# Crash guard: observedAt / providedBy validation on a PATCH must reject
+# cleanly rather than take the broker down. Compaction via a remote @context is
+# deliberately not exercised here — it would make the test non-hermetic.
 #
 --NAME--
 PATCH attribute observedAt / providedBy validation

@@ -5,9 +5,9 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_issue_1050-part1 (a PATCH that turns a Property
-# value into a String[] array must not corrupt the user @context — the original
-# orion bug destroyed a @context item during PATCH). Made hermetic: the FIWARE
+# A PATCH that turns a Property value into a String[] array must not corrupt
+# the user @context — a historical bug destroyed a @context item during PATCH.
+# Made hermetic: the FIWARE
 # tutorials ngsi-context is hosted locally. The custom context must keep working
 # across the create → concise GET → PATCH → concise GET sequence.
 # (options=concise is deprecated → format=concise.)

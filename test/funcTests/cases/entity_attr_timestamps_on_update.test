@@ -5,11 +5,10 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_new_entity_timestamps. createdAt/modifiedAt are
+# createdAt/modifiedAt are
 # sub-second precision, and on an attribute update only the touched attribute's
 # modifiedAt (and the entity's) advances — createdAt of all, and the untouched
-# attribute's modifiedAt, stay put. (orion compared via the DB; here the sysAttrs
-# GET is the source, with jq extracting the timestamps; absolute values are
+# attribute's modifiedAt, stay put. (The sysAttrs GET is the source, with jq extracting the timestamps; absolute values are
 # volatile so only the changed/unchanged relationships are asserted.)
 #
 --NAME--

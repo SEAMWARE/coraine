@@ -1,9 +1,8 @@
 #
 # FILE            entity_no_context_roundtrip.test
 # Copyright 2026 Seamware
-# Ported from orion-ld ngsild_content-len. Create an entity with no @context,
-# then query it by type — it round-trips. (Orion's exact Content-Length header
-# assertions are Orion-internal and dropped; the body round-trip is the oracle.)
+# Create an entity with no @context, then query it by type — it round-trips.
+# (The body round-trip is the oracle; exact Content-Length is not asserted.)
 #
 --NAME--
 Entity created without @context round-trips on a type query

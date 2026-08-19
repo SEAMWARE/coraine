@@ -843,8 +843,8 @@ int main(int argC, char* argV[])
   signal(SIGTERM, onSignal);
   signal(SIGSEGV, onCrash);
 
-  // User-Agent format follows the orionld/<version> convention — bare
-  // product names (e.g. "coraine") are blocked by some @context CDNs
+  // User-Agent uses the <product>/<version> form — a bare
+  // product name (e.g. "coraine") is blocked by some @context CDNs
   // (uri.etsi.org via Cloudflare) but slash-versioned tokens pass.
   if (corRestClientInit(4, 60, "Coraine/" CORAINE_VERSION) != 0)
     KT_X(1, "corRestClientInit failed");

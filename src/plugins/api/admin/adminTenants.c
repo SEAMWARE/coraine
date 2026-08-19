@@ -21,7 +21,7 @@
 // adminGetTenants -
 //
 // Returns a JSON array of tenant names (strings).
-// The default tenant is not included (same as Orion-LD).
+// The default tenant is not included.
 //
 bool adminGetTenants(void)
 {

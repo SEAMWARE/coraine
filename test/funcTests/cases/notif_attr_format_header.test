@@ -9,8 +9,8 @@
 # notification.format makes the broker add an "Ngsild-Attribute-Format" header to
 # the notification, carrying the lowercase NGSI-LD format value. The v2 synonym
 # "keyValues" is normalised to "simplified". The default (normalized) carries NO
-# such header (covered by the other notification tests). (Orion-LD extension;
-# pending addition to TS 104-176.)
+# such header (covered by the other notification tests). (A non-standard
+# extension; pending addition to TS 104-176.)
 #
 --NAME--
 Notification Ngsild-Attribute-Format header (keyValues -> simplified)

@@ -10,11 +10,10 @@
 # term is @vocab-expanded against the @context on storage and compacted back on
 # retrieval.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_patch_entity_attr_vocab.test.
-# orion-ld's mongoCmd2 DB-dump steps (01b, 02b) dropped — the IRI expansion they
-# assert is implicitly verified by the GET round-trip in step 03.
+# The IRI expansion is verified implicitly by the GET round-trip in step 03;
+# the DB is not inspected directly.
 #
-# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+# NOTE: expects authored offline against the spec — NOT yet confirmed
 #       against a live run.
 #
 --NAME--

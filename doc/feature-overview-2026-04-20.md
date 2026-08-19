@@ -90,27 +90,27 @@ Health, version, log control, tenant listing, plugin listing.
 
 ---
 
-## Performance (coraine vs Orion-LD)
+## Performance
 
 Measured 2026-04-15 on 20-core laptop. wrk -t4 -c50 -d5s, median of 3
 runs. 5-attr Vehicle entity (~600B). GET returns 20 entities per page.
 
 ### Requests/second (higher is better)
 
-| Scenario | Coraine ramdb | Coraine mongoc | Orion-LD |
-|----------|-------------:|--------------:|---------:|
-| CREATE | 73k | 35k | 20k |
-| PATCH | 289k | 30k | 123k |
-| GET (ent/s) | 7.5M | 745k | 1.2M |
-| DELETE | 355k | 16k | 56k |
-| NOTIFY (rps) | 4.6k | 5.1k | 17.3k |
+| Scenario | Coraine ramdb | Coraine mongoc |
+|----------|-------------:|--------------:|
+| CREATE | 73k | 35k |
+| PATCH | 289k | 30k |
+| GET (ent/s) | 7.5M | 745k |
+| DELETE | 355k | 16k |
+| NOTIFY (rps) | 4.6k | 5.1k |
 
 **Key takeaways:**
-- **In-memory (ramdb)**: 3.5–6× faster than Orion-LD on CREATE/GET/DELETE
-- **MongoDB**: CREATE on par or ahead; PATCH/DELETE behind Orion-LD's
-  heavily optimized mongoc path (no batch pipeline yet)
-- **GET throughput**: 7.5M entities/s (ramdb) vs 1.2M (Orion-LD)
-- **NOTIFY**: gap under investigation
+- **In-memory (ramdb)**: the fast path — CREATE/GET/DELETE all run several
+  times the mongoc figures
+- **MongoDB**: PATCH/DELETE are the weak spots (no batch pipeline yet)
+- **GET throughput**: 7.5M entities/s on ramdb
+- **NOTIFY**: under investigation
 
 ### Projected: binary forwarding protocol for distributed ops
 
@@ -122,7 +122,7 @@ eliminates all four layers and transmits the in-memory entity tree
 directly.
 
 Estimated improvement for the **forwarding path**: **3–5x** compared to
-HTTP-based forwarding (as used by Orion-LD today). End-to-end
+HTTP-based forwarding. End-to-end
 improvement for a distributed retrieveEntity depends on the ratio of
 forwarding cost to local DB + merge cost, but for multi-hop or
 multi-source queries the forwarding overhead dominates — making the

@@ -11,7 +11,6 @@
 # input is invalid against the API data type definitions, so 10.2.3.4's
 # pre-update validation raises BadRequestData for the whole request (not a
 # per-attribute 207). The error names both the wrong field and the right one.
-# (Ported from an orion-ld attribute-validation case.)
 #
 --NAME--
 PATCH /attrs — Relationship with "value" instead of "object" — 400

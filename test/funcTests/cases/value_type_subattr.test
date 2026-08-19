@@ -10,8 +10,6 @@
 # (renders alongside type/value, not as a nested Property), is valid for
 # Properties only, and must be a JSON String.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_valueType.test.
-# orion-ld's mongoCmd2 DB-dump step (01b) dropped.
 #
 # valueType is a structural attribute member (not a sub-attribute): it renders as
 # a bare string alongside type/value, is valid for the Property family only (400

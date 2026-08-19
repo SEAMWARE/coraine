@@ -5,7 +5,6 @@
 #
 # Copyright 2026 Seamware
 #
-# Ported from orion-ld ngsild_batch_upsert_over_1000_entities (issue #1951).
 # A batch upsert of more than 1000 entities must not hit a hidden 1000-entity
 # cap: all 1101 are created, and a re-upsert updates them in place (no dups).
 #

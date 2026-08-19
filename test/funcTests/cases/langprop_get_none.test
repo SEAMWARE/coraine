@@ -11,10 +11,8 @@
 # and the rendered "lang" annotation is "@none". Exercised on GET (single +
 # list) and inside a notification fired from a lang-bearing subscription.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-get-with-@none.test
-# (accumulator -> ftClient).
 #
-# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+# NOTE: expects authored offline against the spec — NOT yet confirmed
 #       against a live run. @none fallback is IMPLEMENTED (ldLangReduce.c) and the
 #       notify path applies lang reduction (ldSubscriptionNotify.c), so high-
 #       confidence parity. VERIFY the notification body shape on first run.

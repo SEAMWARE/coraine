@@ -10,10 +10,8 @@
 # (en:["one"] -> en:"one"), so it round-trips as a String in every format and
 # under lang reduction.
 #
-# Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_langprop-as-array-of-one.test.
-# orion-ld's mongoCmd2 DB-dump step dropped.
 #
-# NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
+# NOTE: expects authored offline against the spec — NOT yet confirmed
 #       against a live run. VERIFY the array-of-one -> scalar reduction actually
 #       happens on the Coraine write path (audit confirmed read-side lang handling but
 #       not this intake reduction); if Coraine keeps ["one"], that is the diff to judge.
