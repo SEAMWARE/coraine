@@ -10,8 +10,8 @@
 //
 // Per-tenant Postgres connection pool for the timescale TRoE plugin.
 //
-// Each tenant owns its own physical database ("sw_troe" for the default
-// tenant, "sw_troe_<tenant>" otherwise) and its own bounded pool of
+// Each tenant owns its own physical database ("corh" for the default
+// tenant, "corh_<tenant>" otherwise) and its own bounded pool of
 // connections. The pool hangs off Tenant.troePoolP — there is no global
 // registry to search or lock, only a single create-mutex guarding the
 // lazy first-create of a tenant's pool.

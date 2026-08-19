@@ -106,7 +106,7 @@ swBrokerStart() {
   esac
 
   # Timescale TRoE convenience: when a test asks for "--troe timescale" without
-  # naming the DB, derive the role-keyed name (sw_troe_<role>) — the same name
+  # naming the DB, derive the role-keyed name (corh_<role>) — the same name
   # swTroeInit/swTroeDrop create/drop — and add --troeUser. Tests that pass an
   # explicit --troeName keep full control.
   if printf '%s\n' "${extraParams[@]}" | grep -qx 'timescale' && \
@@ -276,7 +276,7 @@ swDbInit() {
 #
 # TRoE (timescale/postgres) database helpers — the postgres counterpart of
 # swDbDrop/swDbInit. Role-keyed like the mongo helpers: the TRoE DB for a role
-# is "sw_troe_<role>" (lowercased), so CB -> sw_troe_cb, CP1 -> sw_troe_cp1.
+# is "corh_<role>" (lowercased), so CB -> corh_cb, CP1 -> corh_cp1.
 # swBrokerStart derives the same name for "--troe timescale".
 #
 #   swTroeDbName [role]            # echo the derived DB name (default CB)
@@ -285,7 +285,7 @@ swDbInit() {
 #
 swTroeDbName() {
   local role="${1:-CB}"
-  echo "sw_troe_${role,,}"
+  echo "corh_${role,,}"
 }
 
 swTroeInit() {

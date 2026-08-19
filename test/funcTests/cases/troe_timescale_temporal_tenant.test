@@ -182,8 +182,8 @@ HTTP/1.1 404 Not Found
 
 10. Physical isolation — t1 and t2 own separate TRoE databases
 ==============================================================
-sw_troe_cb_t1
-sw_troe_cb_t2
+corh_cb_t1
+corh_cb_t2
 
 
 --TEARDOWN--

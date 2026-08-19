@@ -54,7 +54,7 @@ int              timescaleInstanceCap = 1000000;  // § 6.3.10 default temporal-
 KArg timescaleArgV[] =
 {
   { "--troeHost", "-troeHost", KaString, _vp &timescaleDbHost, KaOpt, _vp "localhost", NULL, NULL, "TRoE postgres host" },
-  { "--troeName", "-troeName", KaString, _vp &timescaleDbName, KaOpt, _vp "sw_troe",   NULL, NULL, "TRoE postgres database name" },
+  { "--troeName", "-troeName", KaString, _vp &timescaleDbName, KaOpt, _vp "corh",   NULL, NULL, "TRoE postgres database name" },
   { "--troeUser", "-troeUser", KaString, _vp &timescaleDbUser, KaOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
   { "--troePwd",  "-troePwd",  KaString, _vp &timescaleDbPwd,  KaOpt, _vp NULL,        NULL, NULL, "TRoE postgres password" },
   { "--troePort", "-troePort", KaInt,    _vp &timescaleDbPort, KaOpt, _vp 5432,        _vp 1, _vp 65535, "TRoE postgres port" },

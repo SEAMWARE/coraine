@@ -16,7 +16,7 @@
 // DB connection variables (owned by the plugin)
 //
 char*           mongocDbHost = "localhost";
-char*           mongocDbName = "sw";
+char*           mongocDbName = "cor";
 unsigned short  mongocDbPort = 27017;
 char*           mongocDbUser = NULL;
 char*           mongocDbPwd  = NULL;
@@ -51,7 +51,7 @@ char            mongocUriString[512] = { 0 };
 KArg mongocArgV[] =
 {
   { "--dbHost", "-dbHost", KaString, _vp &mongocDbHost, KaOpt, _vp "localhost", NULL,  NULL,      "database server host"  },
-  { "--dbName", "-dbName", KaString, _vp &mongocDbName, KaOpt, _vp "sw",  NULL,  NULL,      "database name"         },
+  { "--dbName", "-dbName", KaString, _vp &mongocDbName, KaOpt, _vp "cor",  NULL,  NULL,      "database name"         },
   { "--globalDb", "-globalDb", KaString, _vp &mongocGlobalDb, KaOpt, _vp "swBroker", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
   { "--dbPort", "-dbPort", KaUShort, _vp &mongocDbPort, KaOpt, _vp 27017,       _vp 1, _vp 65535, "database server port"  },
   { "--dbUser", "-dbUser", KaString, _vp &mongocDbUser, KaOpt, NULL,            NULL,  NULL,      "database user"         },

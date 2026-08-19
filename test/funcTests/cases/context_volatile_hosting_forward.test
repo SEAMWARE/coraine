@@ -111,7 +111,7 @@ HTTP/1.1 201 Created
       "Host": "localhost:7711",
 REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:v[0-9a-f]+>.*)
       "NGSILD-Volatile-Context": "true",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities",

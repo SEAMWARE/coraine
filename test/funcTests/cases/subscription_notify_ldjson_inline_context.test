@@ -161,7 +161,7 @@ HTTP/1.1 201 Created
       "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/ld+json",
       "Host": "localhost:7701",
-      "User-Agent": "REGEX(swBroker/.*)"
+      "User-Agent": "REGEX(Coraine/.*)"
     },
     "url": "/notify",
     "verb": "POST"

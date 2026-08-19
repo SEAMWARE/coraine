@@ -14,7 +14,7 @@ Volatility rules:
   Link:                       deterministic per broker config         → keep exact
   Content-Length (HTTP hdr):  drifts only when body has timestamp
                               fields with stripped trailing zeros    → REGEX(\\d+) iff body volatile
-  User-Agent (in body):       carries broker version string           → REGEX("swBroker/.*")
+  User-Agent (in body):       carries broker version string           → REGEX("Coraine/.*")
   Notification id (body):     fixed length, value varies per process  → REGEX inside quotes
   ISO timestamp fields (body):variable length (zero-stripping)        → REGEX inside quotes
   Embedded "Content-Length"   inside ftClient body dumps tracks
@@ -54,7 +54,7 @@ EM_RE = re.compile(r'urn:ngsi-ld:EntityMap:[0-9a-fA-F]+')
 CSR_RE = re.compile(r'urn:ngsi-ld:ContextSourceRegistration:[0-9a-fA-F]+:\d+')
 
 # User-Agent in ftClient body dumps carries the broker version
-UA_RE = re.compile(r'("User-Agent"\s*:\s*)"swBroker[^"]*"')
+UA_RE = re.compile(r'("User-Agent"\s*:\s*)"Coraine[^"]*"')
 
 # Next File Descriptor in /admin/version — host- and run-volatile
 FD_RE = re.compile(r'("Next File Descriptor"\s*:\s*)\d+')
@@ -96,7 +96,7 @@ def line_normalize(line, has_volatile_so_far):
         if has_esc_ts:
             sets_volatile = True
         if UA_RE.search(line):
-            line = UA_RE.sub(r'\1"REGEX(swBroker/.*)"', line)
+            line = UA_RE.sub(r'\1"REGEX(Coraine/.*)"', line)
         return line, sets_volatile
 
     if NID_RE.search(line):
@@ -122,7 +122,7 @@ def line_normalize(line, has_volatile_so_far):
         line = TS_RE.sub(r'\1"REGEX(.*)"', line)
         sets_volatile = True
     if UA_RE.search(line):
-        line = UA_RE.sub(r'\1"REGEX(swBroker/.*)"', line)
+        line = UA_RE.sub(r'\1"REGEX(Coraine/.*)"', line)
     if FD_RE.search(line):
         line = FD_RE.sub(r'\1REGEX(\\d+)', line)
         sets_volatile = True

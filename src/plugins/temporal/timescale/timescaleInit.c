@@ -41,7 +41,7 @@ int timescaleInit(void)
   KT_I("timescale: ready (%s:%d, base db '%s', pool size %d)",
        timescaleDbHost ? timescaleDbHost : "localhost",
        timescaleDbPort,
-       timescaleDbName ? timescaleDbName : "sw_troe",
+       timescaleDbName ? timescaleDbName : "corh",
        timescalePoolSize);
 
   return TROE_OK;

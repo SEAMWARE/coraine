@@ -130,7 +130,7 @@ Content-Length: 0
       "Content-Type": "application/geo+json",
       "Host": "localhost:7701",
       "Ngsild-Attribute-Format": "concise",
-      "User-Agent": "REGEX(swBroker/.*)"
+      "User-Agent": "REGEX(Coraine/.*)"
     },
     "url": "/notify",
     "verb": "POST"

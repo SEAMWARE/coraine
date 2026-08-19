@@ -846,7 +846,7 @@ int main(int argC, char* argV[])
   // User-Agent format follows the orionld/<version> convention — bare
   // product names (e.g. "swBroker") are blocked by some @context CDNs
   // (uri.etsi.org via Cloudflare) but slash-versioned tokens pass.
-  if (swRestClientInit(4, 60, "swBroker/" SWBROKER_VERSION) != 0)
+  if (swRestClientInit(4, 60, "Coraine/" SWBROKER_VERSION) != 0)
     KT_X(1, "swRestClientInit failed");
 
   // --insecureNotif → notifications/forwards to TLS endpoints accept self-signed
@@ -896,7 +896,7 @@ int main(int argC, char* argV[])
   }
 
   apiPluginsInit();
-  tenantInit("sw");
+  tenantInit("cor");
   metricsInit();
   ldNotifyStatsHookSet(brokerNotifyStatsHook);
   ldLinkedEntitiesHookSet(brokerLinkedEntitiesHook);

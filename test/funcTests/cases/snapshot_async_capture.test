@@ -175,7 +175,7 @@ Content-Length: REGEX(\d+)
       "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
-      "User-Agent": "REGEX(swBroker/.*)"
+      "User-Agent": "REGEX(Coraine/.*)"
     },
     "url": "/bg",
     "verb": "POST"

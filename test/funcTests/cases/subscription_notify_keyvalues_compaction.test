@@ -103,7 +103,7 @@ HTTP/1.1 201 Created
       "Host": "localhost:7701",
       "Link": "<http://localhost:7080/jsonldContexts/ctxSub>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "Ngsild-Attribute-Format": "simplified",
-      "User-Agent": "REGEX(swBroker/.*)"
+      "User-Agent": "REGEX(Coraine/.*)"
     },
     "url": "/notify",
     "verb": "POST"

@@ -106,7 +106,7 @@ Content-Length: 0
       "Authorization": "Bearer tok-xyz",
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "params": {
@@ -137,7 +137,7 @@ Content-Length: 0
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "NGSILD-Tenant": "acme",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026:acme"
     },
     "params": {
@@ -167,7 +167,7 @@ Content-Length: 0
       "Host": "localhost:7711",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "NGSILD-Tenant": "backend",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026:beta"
     },
     "params": {

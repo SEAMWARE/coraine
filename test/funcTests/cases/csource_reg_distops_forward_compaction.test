@@ -295,7 +295,7 @@ Date: REGEX(.*)
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -332,7 +332,7 @@ Date: REGEX(.*)
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -353,7 +353,7 @@ Date: REGEX(.*)
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -396,7 +396,7 @@ Date: REGEX(.*)
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -417,7 +417,7 @@ Date: REGEX(.*)
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -440,7 +440,7 @@ Date: REGEX(.*)
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
@@ -477,7 +477,7 @@ HTTP/1.1 204 No Content
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -498,7 +498,7 @@ HTTP/1.1 204 No Content
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
@@ -521,7 +521,7 @@ HTTP/1.1 204 No Content
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
@@ -532,7 +532,7 @@ HTTP/1.1 204 No Content
       "Accept": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "params": {
@@ -563,7 +563,7 @@ HTTP/1.1 204 No Content
       "Content-Type": "application/json",
       "Host": "localhost:7711",
       "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "swRest/1.0",
+      "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
     },
     "url": "/ngsi-ld/v1/entityOperations/upsert",

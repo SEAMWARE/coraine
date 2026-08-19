@@ -53,7 +53,7 @@ static pthread_mutex_t  poolCreateMutex = PTHREAD_MUTEX_INITIALIZER;
 //
 // timescaleDbNameFor - physical database name for a tenant.
 //
-// Default tenant (empty name) → the configured base name (e.g. "sw_troe").
+// Default tenant (empty name) → the configured base name (e.g. "corh").
 // Otherwise base + "_" + sanitised-tenant. The tenant name is already
 // lowercased by the broker; every run of characters outside [a-z0-9] becomes
 // a single '_', and leading/trailing separators are trimmed, so the result
@@ -62,7 +62,7 @@ static pthread_mutex_t  poolCreateMutex = PTHREAD_MUTEX_INITIALIZER;
 //
 void timescaleDbNameFor(Tenant* tenantP, char* buf, int bufSize)
 {
-  const char* base = (timescaleDbName != NULL) ? timescaleDbName : "sw_troe";
+  const char* base = (timescaleDbName != NULL) ? timescaleDbName : "corh";
 
   if (tenantP == NULL || tenantP->name[0] == 0)
   {
