@@ -4,7 +4,7 @@
 #
 # WHY THIS EXISTS: the k-libs (gitlab.com/kzangeli) are public and the image
 # clones them directly at their pinned release branches. The Cor-Libs
-# (github.com/kzangeli) are PRIVATE, so a container has no way to clone them.
+# (github.com/SEAMWARE) are PRIVATE, so a container has no way to clone them.
 # Rather than bake a token into the image or make the repos public, we export
 # each one's committed HEAD from the local clone and copy that into the build.
 #
