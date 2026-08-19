@@ -10,10 +10,10 @@
 # type/unknown/duplicate, georel syntax), and datasetId members as URIs. Cases
 # 01-29 are malformed and must be rejected 400 BadRequestData (never a crash or
 # 200); cases 30-31 are valid Queries (200) guarding against over-rejection —
-# case 30 carries join/joinLevel (linked-entity retrieval). EXPECT carries sw's
+# case 30 carries join/joinLevel (linked-entity retrieval). EXPECT carries Coraine's
 # own ProblemDetails wording. Validation runs in pCheckQuery before the service
 # routine, so nothing malformed reaches the query handler. The local=true param
-# suppresses the query-breadth gate so each structural error surfaces (sw checks
+# suppresses the query-breadth gate so each structural error surfaces (Coraine checks
 # breadth before body structure).
 #
 --NAME--

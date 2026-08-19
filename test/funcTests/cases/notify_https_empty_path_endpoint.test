@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 # Ported from orion-ld ngsild_issue_1615 (orion crashed on an HTTPS notification
-# endpoint whose URL has an empty path, "https://host:port/"). sw must accept the
+# endpoint whose URL has an empty path, "https://host:port/"). Coraine must accept the
 # subscription, attempt the notification, and stay healthy — the delivery itself
 # fails (nothing listens on the endpoint) but the broker must not be affected.
 #

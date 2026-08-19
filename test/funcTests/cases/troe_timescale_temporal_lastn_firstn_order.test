@@ -9,7 +9,7 @@
 #   - lastN  → the most-recent N, in DESCENDING order (clause 14: "last n
 #              timestamps in descending ordering")
 #   - firstN → the earliest N, in ASCENDING order (clause 7)
-#   - neither → instances are an "unordered JSON array" (clause 5); sw emits
+#   - neither → instances are an "unordered JSON array" (clause 5); Coraine emits
 #              ascending (chronological).
 # Raw output (no post-processing) so the instance order is asserted directly.
 #
@@ -50,7 +50,7 @@ echo
 echo
 
 
-echo "03. neither — all 4, sw default ascending (10,20,30,40)"
+echo "03. neither — all 4, Coraine default ascending (10,20,30,40)"
 echo "======================================================="
 corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
 echo
@@ -140,7 +140,7 @@ Content-Length: REGEX(\d+)
 
 
 
-03. neither — all 4, sw default ascending (10,20,30,40)
+03. neither — all 4, Coraine default ascending (10,20,30,40)
 =======================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)

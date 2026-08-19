@@ -5,7 +5,7 @@
 # URL-parsing robustness across every resource collection/member endpoint. The
 # entity-id wildcard must capture a full http:// URL (embedded slashes and all)
 # as the entity id; non-URI subscription/registration ids are rejected 400; an
-# unknown service path is 404. EXPECT carries sw's own ProblemDetails wording.
+# unknown service path is 404. EXPECT carries Coraine's own ProblemDetails wording.
 #
 --NAME--
 URL parsing — URL-as-entity-id, non-URI ids, unknown path

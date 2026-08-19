@@ -15,7 +15,7 @@
 # NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
 #       against a live run.
 # VERIFY: orion-ld reduces an array-of-one "json" value to a scalar (V3 below);
-#         for a JsonProperty a one-element JSON array is itself valid JSON, so sw
+#         for a JsonProperty a one-element JSON array is itself valid JSON, so Coraine
 #         may legitimately KEEP ["json"]. Decide broker-vs-expect on first run.
 #
 --NAME--

@@ -14,8 +14,8 @@
 #
 # NOTE: expects authored offline. Happy path high-confidence (object-form update,
 #       no ?lang). The two error steps assert a structural 400/BadRequestData with
-#       REGEX title/detail — sw's exact wording is unknown offline; TIGHTEN on the
-#       verifying run. If sw does NOT 400 on the bad languageMap, that is an
+#       REGEX title/detail — Coraine's exact wording is unknown offline; TIGHTEN on the
+#       verifying run. If Coraine does NOT 400 on the bad languageMap, that is an
 #       unmasked write-side validation gap (record it).
 #
 --NAME--

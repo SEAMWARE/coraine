@@ -9,7 +9,7 @@
 # round-trips and filters on the deep dot-path: q=a.b.c.d.e==4 matches, ==5 does
 # not. With sysAttrs, createdAt/modifiedAt render as ISO strings at EVERY level
 # — both on a GET and inside a notification (sysAttrs subscription firing on the
-# create). sw is not bound by a fixed metadata layout, so depth is arbitrary.
+# create). Coraine is not bound by a fixed metadata layout, so depth is arbitrary.
 #
 --NAME--
 Deep sub-attribute nesting (5 levels): q on a.b.c.d.e + sysAttrs timestamps on GET and notification

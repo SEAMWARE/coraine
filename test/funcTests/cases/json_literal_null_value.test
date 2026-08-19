@@ -12,7 +12,7 @@
 # In simplified form the whole literal is the Property value and is kept as-is
 # (it is NOT a bare null to drop). A PATCH/merge that sets the value to the
 # literal must REPLACE the value, not splice @type/@value onto the old value.
-# (sw renders the normalized {type:Property, value:<literal>}; this differs from
+# (Coraine renders the normalized {type:Property, value:<literal>}; this differs from
 # orion-ld which renders the bare literal as the attribute.)
 #
 --NAME--

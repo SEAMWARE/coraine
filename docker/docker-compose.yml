@@ -24,7 +24,7 @@ services:
 
   broker:
     # Published image; swap for coraine:local to use a locally built one.
-    image: quay.io/seamware/broker:latest
+    image: quay.io/seamware/coraine:latest
     depends_on:
       mongo:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
       - --dbHost
       - mongo
       - --dbName
-      - sw
+      - cor
       - --troe
       - none
       - --apiPlugins

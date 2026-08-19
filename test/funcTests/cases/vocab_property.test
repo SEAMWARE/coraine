@@ -13,7 +13,7 @@
 # to match the stored IRI).
 #
 # Ported from orion-ld test/functionalTest/cases/0000_ld/ngsild/ngsild_vocab-property.test.
-# The orion-ld DB-dump steps (mongoCmd2) are dropped: sw does not inspect the DB
+# The orion-ld DB-dump steps (mongoCmd2) are dropped: Coraine does not inspect the DB
 # directly in functests, and the IRI-expansion they assert is implicitly verified
 # by the GET round-trip + the q==expanded-value match in steps 10-12.
 #

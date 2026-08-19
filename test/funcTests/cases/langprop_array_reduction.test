@@ -15,8 +15,8 @@
 #
 # NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
 #       against a live run. VERIFY the array-of-one -> scalar reduction actually
-#       happens on the sw write path (audit confirmed read-side lang handling but
-#       not this intake reduction); if sw keeps ["one"], that is the diff to judge.
+#       happens on the Coraine write path (audit confirmed read-side lang handling but
+#       not this intake reduction); if Coraine keeps ["one"], that is the diff to judge.
 #
 --NAME--
 LanguageProperty - languageMap array-of-one reduced to scalar

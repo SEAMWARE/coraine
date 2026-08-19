@@ -8,7 +8,7 @@
 # Ported from orion-ld ngsild_new_subattr-timestamps-batch-create. Batch-create
 # entities whose attribute carries a sub-attribute (MD1); a sysAttrs GET must
 # show createdAt/modifiedAt on BOTH the attribute and its sub-attribute.
-# (Orion's mongo-dump inspection steps are dropped — sw's DB schema differs;
+# (Orion's mongo-dump inspection steps are dropped — Coraine's DB schema differs;
 # the API GET with sysAttrs is the portable oracle.)
 #
 --NAME--

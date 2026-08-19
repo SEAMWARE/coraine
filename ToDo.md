@@ -14,8 +14,8 @@ temporal+§ 5.16+§ 5.15, ch4/ch6/ch7), grepping `coraine/src/` and
 
 | # | § | Gap | Status |
 |---|---|-----|--------|
-| 1 | 5.7.2 / 6.4.3.2 | `?containedBy=` URL param silently ignored (join cycle prevention, 0..1 optional) | ✅ done 2026-05-01 (fwNgsild f172679, fwBroker eb18127); sw test `url_param_contained_by`, fw test `url-param-contained-by` |
-| 2 | 5.7.2 / 6.23.3.1 | `?expandValues=` URL param not implemented (JSON-LD type-coercion expansion, MAY-not-MUST) | ✅ already implemented (sw+fw `ldQParse.c:531-548`); audit was wrong. fw functest mirror added 2026-05-01 (fwBroker 20b1b1d) |
+| 1 | 5.7.2 / 6.4.3.2 | `?containedBy=` URL param silently ignored (join cycle prevention, 0..1 optional) | ✅ done 2026-05-01 (fwNgsild f172679, fwBroker eb18127); Coraine test `url_param_contained_by`, fw test `url-param-contained-by` |
+| 2 | 5.7.2 / 6.23.3.1 | `?expandValues=` URL param not implemented (JSON-LD type-coercion expansion, MAY-not-MUST) | ✅ already implemented (Coraine+fw `ldQParse.c:531-548`); audit was wrong. fw functest mirror added 2026-05-01 (fwBroker 20b1b1d) |
 | 3 | 5.2.12 | `ngsildConformance` member on Subscription accepted but not applied — TODO already at `ldDistOp.c:220` (back-compat path for older brokers) | ✅ done 2026-05-02 (corNgsild + fwNgsild). New `ldConformanceDowngrade` module implements § 4.3.6.8 Tables 4.3.6.8-1/2/3 transformations: < 1.9 strips entity+attr expiresAt and attr valueType; < 1.8 reformats Json/Vocab/List/ListRelationship to Property/Relationship; < 1.4 strips scope and reformats LanguageProperty; < 1.3 strips datasetId/observedAt/unitCode and collapses multi-instance arrays + multi-type arrays. Validated as `M.m`; applied to subscription notification body before render. Distop forward back-compat (`ldDistOp.c:220` TODO) still pending — separate scope. Functests `subscription_ngsild_conformance` / `subscription-ngsild-conformance` |
 | 4 | 5.10.2 | Discovery `GET /csourceRegistrations` returns full RegistrationInfo even when only a subset matches the filter — § 5.10.2.5 wants the response filtered | ✅ done 2026-05-01 (fwNgsild d52bee7, fwBroker 0268e48); functest `csource_reg_discovery_filtered_info` / `csource-reg-discovery-filtered-info` |
 | 5 | 5.10.2 / 6.3.10 | Discovery returns 200 even when results > limit — should emit Link rel=next/prev/first (audit's "206 + Content-Range" was overstated; per § 6.3.10 that's temporal-only). Also `NGSILD-Results-Count` on `?count=true`. | ✅ done 2026-05-01 (fwBroker 95faee7); functest `csource_reg_discovery_pagination` / `csource-reg-discovery-pagination` |
@@ -28,9 +28,9 @@ temporal+§ 5.16+§ 5.15, ch4/ch6/ch7), grepping `coraine/src/` and
 
 | # | Gap | Status |
 |---|-----|--------|
-| 9 | `notifierInfo.MQTT-Version` ignored — hardcoded; spec default mqtt5.0 | ✅ done 2026-05-02 (fwNgsild + corNgsild). sw stack honors mqtt5.0 / mqtt3.1.1 via libmosquitto's `MOSQ_OPT_PROTOCOL_VERSION`; both stacks validate notifierInfo (rejects bad QoS / Version values). fw's `fwMqtt` library is still 3.1.1-only — accepted at API surface, downgraded by publisher; documented in `fwMqtt.h`. Functests `subscription_notify_mqtt_validation` / `subscription-notify-mqtt-validation` |
+| 9 | `notifierInfo.MQTT-Version` ignored — hardcoded; spec default mqtt5.0 | ✅ done 2026-05-02 (fwNgsild + corNgsild). Coraine honors mqtt5.0 / mqtt3.1.1 via libmosquitto's `MOSQ_OPT_PROTOCOL_VERSION`; both stacks validate notifierInfo (rejects bad QoS / Version values). fw's `fwMqtt` library is still 3.1.1-only — accepted at API surface, downgraded by publisher; documented in `fwMqtt.h`. Functests `subscription_notify_mqtt_validation` / `subscription-notify-mqtt-validation` |
 | 10 | ~~`notifierInfo.MQTT-Retain` ignored — hardcoded `false`~~ | ❌ retracted 2026-05-02 — phantom; not in v1.9.1 (Table 7.2-1 lists only QoS and Version) |
-| 11 | MQTT QoS=1 / QoS=2 + MQTT-Version round-trip functest | ✅ done 2026-05-02 (sw only — fwMqtt is QoS-0-only). Functest `subscription_notify_mqtt_qos_version` exercises QoS=1+mqtt3.1.1 and QoS=2+mqtt5.0 |
+| 11 | MQTT QoS=1 / QoS=2 + MQTT-Version round-trip functest | ✅ done 2026-05-02 (Coraine only — fwMqtt is QoS-0-only). Functest `subscription_notify_mqtt_qos_version` exercises QoS=1+mqtt3.1.1 and QoS=2+mqtt5.0 |
 
 
 ## Tier C — distributed ops loose ends
@@ -72,6 +72,6 @@ temporal+§ 5.16+§ 5.15, ch4/ch6/ch7), grepping `coraine/src/` and
 
 ## Working order
 
-Process Tier A in numbered order (1 → 8). Each item: sw first, fw mirror,
+Process Tier A in numbered order (1 → 8). Each item: Coraine first, fw mirror,
 functest both stacks, commit + push fw. After Tier A, reassess priorities
 for B / C / D against real-world demand.

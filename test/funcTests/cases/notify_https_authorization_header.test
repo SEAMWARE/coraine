@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 # Ported from orion-ld ngsild_issue_1495 (orion crashed sending a notification to
-# an HTTPS endpoint when an Authorization header was carried). sw must accept the
+# an HTTPS endpoint when an Authorization header was carried). Coraine must accept the
 # subscription, attempt the HTTPS notification, and stay healthy. The delivery
 # fails (nothing listens) but the broker must not be affected.
 #

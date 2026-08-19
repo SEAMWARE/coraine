@@ -7,7 +7,7 @@
 #
 # Ported from orion-ld ngsild_new_issue_1593. A batch upsert in REPLACE mode may
 # change an existing entity's type. (Orion noted a mongoc driver limitation here;
-# sw — also on mongoc — performs the replace cleanly.)
+# Coraine — also on mongoc — performs the replace cleanly.)
 #
 --NAME--
 Batch upsert (replace) may change an existing entity's type

@@ -1,4 +1,4 @@
-# NGSI-LD Context Broker
+# Coraine — NGSI-LD Context Broker
 
 A lightweight NGSI-LD context broker written in C, targeting **ETSI GS CIM 009 v1.9.1**.
 Plugin-driven: storage backends, temporal history and extra API surfaces are all `.so`
@@ -14,7 +14,7 @@ The broker ships with an in-memory storage backend, so a single container is a c
 working NGSI-LD endpoint. Nothing to install, nothing to connect:
 
 ```sh
-docker run --rm -p 1026:1026 quay.io/seamware/broker --database corRamDB
+docker run --rm -p 1026:1026 quay.io/seamware/coraine --database corRamDB
 ```
 
 ```sh
@@ -40,7 +40,7 @@ container means the container itself, so it has to be pointed at the database:
 docker network create ngsild
 docker run -d --name mongo --network ngsild mongo:8
 docker run -d --name broker --network ngsild -p 1026:1026 \
-    quay.io/seamware/broker --database mongoc --dbHost mongo --dbName sw
+    quay.io/seamware/coraine --database mongoc --dbHost mongo --dbName cor
 ```
 
 ## Common options
@@ -48,7 +48,7 @@ docker run -d --name broker --network ngsild -p 1026:1026 \
 `--usage` lists everything, including the arguments of whichever plugins are loaded:
 
 ```sh
-docker run --rm quay.io/seamware/broker --database mongoc --apiPlugins admin --usage
+docker run --rm quay.io/seamware/coraine --database mongoc --apiPlugins admin --usage
 ```
 
 - `--port` / `-p` — TCP listen port (default 1026)
@@ -72,7 +72,7 @@ switch it on with `--distributed`:
 
 ```sh
 docker run -d --name b1 --network ngsild -p 1026:1026 \
-    quay.io/seamware/broker --database corRamDB --distributed
+    quay.io/seamware/coraine --database corRamDB --distributed
 ```
 
 Without it, registrations are still stored and discoverable, but nothing is ever

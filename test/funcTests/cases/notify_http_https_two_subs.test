@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 # Ported from orion-ld ngsild_issue_1322 (orion crashed when an entity update
-# matched two subscriptions at once — one HTTP, one HTTPS — under a tenant). sw
+# matched two subscriptions at once — one HTTP, one HTTPS — under a tenant). Coraine
 # must deliver/attempt both notifications and stay healthy (neither endpoint is
 # listening here; the point is that the HTTP+HTTPS pair does not affect the broker).
 #

@@ -8,7 +8,7 @@
 # Ported from orion-ld ngsild_issue_1899_cyclic_context_startup. The persisted
 # context cache (DB "coraine", collection "contexts") is seeded with two array
 # @contexts that reference each other (cycle: A -> [B], B -> [A]); the broker must
-# still start (no hang re-resolving the cycle). sw is immune by design:
+# still start (no hang re-resolving the cycle). Coraine is immune by design:
 # contextCacheReload only rehydrates OBJECT @contexts and skips array @contexts,
 # so it never recursively re-downloads on startup. This pins that behaviour.
 #

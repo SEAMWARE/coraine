@@ -13,7 +13,7 @@ ENDIF()
 # The broker's own component libs are whole-archived: many of their symbols are
 # referenced only via the dispatch table, constructor-registered hooks, or by
 # dlopen'd plugins resolving against the (rdynamic) broker — a plain static link
-# would strip those. The sw/k libs are whole-archived for the same reason.
+# would strip those. The cor/k libs are whole-archived for the same reason.
 TARGET_LINK_LIBRARIES(coraine
   -Wl,--whole-archive ${COR_BROKER_LIBS} ${COR_STATIC_LIBS} -Wl,--no-whole-archive
   ${COR_DYNAMIC_LIBS}

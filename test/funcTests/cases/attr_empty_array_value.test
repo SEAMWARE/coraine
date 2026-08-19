@@ -8,7 +8,7 @@
 # An empty array as an attribute value depends on the attribute type:
 #   - Property (and the other JSON-LD-processed types): the value is subject to
 #     JSON-LD pre-processing, where an empty array is equivalent to null and the
-#     member is dropped — leaving the attribute with no value. sw rejects this
+#     member is dropped — leaving the attribute with no value. Coraine rejects this
 #     up front as an empty structure → 400 BadRequestData.
 #   - JsonProperty: the "json" member is OPAQUE (kept verbatim, not JSON-LD
 #     processed), so an empty array is a perfectly valid value and round-trips.

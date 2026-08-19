@@ -7,7 +7,7 @@
 # Inside an attribute, @type / @value are JSON-LD typed-value literals and are
 # left untouched. This matrix exercises invalid / missing @id / @type across
 # entity, subscription, registration and the batch operations; case 24 is a valid
-# @id/@type entity (201) guarding the alias. EXPECT carries sw's own wording.
+# @id/@type entity (201) guarding the alias. EXPECT carries Coraine's own wording.
 #
 --NAME--
 @id / @type alias validation across entity, subscription, registration, batch

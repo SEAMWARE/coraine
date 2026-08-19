@@ -97,8 +97,8 @@ runs. 5-attr Vehicle entity (~600B). GET returns 20 entities per page.
 
 ### Requests/second (higher is better)
 
-| Scenario | sw ramdb | sw mongoc | Orion-LD |
-|----------|--------:|---------:|---------:|
+| Scenario | Coraine ramdb | Coraine mongoc | Orion-LD |
+|----------|-------------:|--------------:|---------:|
 | CREATE | 73k | 35k | 20k |
 | PATCH | 289k | 30k | 123k |
 | GET (ent/s) | 7.5M | 745k | 1.2M |

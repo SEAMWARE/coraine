@@ -5,7 +5,7 @@
 #   ./docker/distops-smoke.sh
 #
 # Published on 2026/2027, NOT 1026/1027: those are the functest harness's own
-# broker ports, and a container holding 1026 makes the whole sw suite fail to
+# broker ports, and a container holding 1026 makes the whole Coraine suite fail to
 # start its broker ("corRestInit failed on port 1026").
 #
 # broker-cp holds the data. broker-cb holds nothing and is told, via a Context
