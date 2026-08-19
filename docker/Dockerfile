@@ -57,27 +57,25 @@ RUN git clone --depth 1 --branch "${MONGOC_VERSION}" \
  && ldconfig \
  && rm -rf /tmp/mongo-c
 
-# The lib stack. coraine's makefile resolves its sibling libs through $HOME/git,
-# so the repos have to live there — same layout as a dev box.
+# The lib stack. Every lib resolves its dependencies as ../<name>, so they all
+# have to be siblings — the same layout as a dev box. The directory itself is
+# free to be anywhere; /root/git is simply this image's choice.
 #
 # k-libs are public on GitLab, so they clone straight from their pinned release
-# branches — the pins stay authoritative.
+# branches. The pins are NOT restated here: docker/vendor-libs.sh stages
+# corLibs/klib-pins next to the tarballs and it is the single source of truth,
+# shared with corLibs/bootstrap.sh. Copied on its own, and before the tarballs,
+# so a lib commit does not invalidate this clone layer.
 WORKDIR /root/git
+COPY docker/vendor/klib-pins /tmp/klib-pins
 RUN set -eux; \
-    for spec in \
-      kbase:release/0.10 \
-      kalloc:release/0.10.1 \
-      klog:release/0.10 \
-      khash:release/0.10 \
-      kjson:release/0.12.0 \
-      kargs:release/0.10 \
-      ktrace:release/0.10 \
-      kprom:release/0.1.0 \
-    ; do \
-      repo="${spec%%:*}"; branch="${spec#*:}"; \
-      git clone --quiet --depth 1 --branch "${branch}" \
+    test -f /tmp/klib-pins || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
+    sed 's/#.*//' /tmp/klib-pins | while read -r repo ref; do \
+      [ -n "${repo:-}" ] || continue; \
+      git clone --quiet --depth 1 --branch "${ref}" \
         "https://gitlab.com/kzangeli/${repo}.git" "/root/git/${repo}"; \
-    done
+    done; \
+    ls -d /root/git/k*
 
 # Cor-Libs are PRIVATE on GitHub — a container cannot clone them. docker/vendor-libs.sh
 # exports each one's committed HEAD next to this Dockerfile; MANIFEST.txt records the
@@ -107,10 +105,15 @@ RUN make i
 #   --build-arg GIT_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ARG GIT_SHA=unknown
 ARG BUILD_AT=unknown
-ARG VERSION=0.2.0
-RUN printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
-      "${VERSION}" "${GIT_SHA}" "${BUILD_AT}" > /opt/seamware/etc/contextSourceExtras.json \
- && cat /opt/seamware/etc/contextSourceExtras.json
+# VERSION defaults to the header the broker itself compiles in, so the image can
+# never announce a version the binary disagrees with. Three hand-kept copies had
+# already drifted once.
+RUN set -eux; \
+    VERSION="${VERSION:-$(sed -n 's/^#define CORAINE_VERSION "\(.*\)"/\1/p' \
+                          /root/git/coraine/src/app/coraine/coraineVersion.h)}"; \
+    printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
+      "${VERSION}" "${GIT_SHA}" "${BUILD_AT}" > /opt/seamware/etc/contextSourceExtras.json; \
+    cat /opt/seamware/etc/contextSourceExtras.json
 
 # --------------------------------------------------------------------------- #
 # Stage 2 — runtime

@@ -59,5 +59,16 @@ for lib in "${LIBS[@]}"; do
     printf '%-10s %-24s %s%s\n' "$lib" "$branch" "$sha" "$note" >> "$MANIFEST"
 done
 
-echo "vendored $(printf '%s ' "${LIBS[@]}")-> $OUT"
+#
+# The k-lib pins live in corLibs and are the single source of truth. Stage a
+# plain copy next to the tarballs so the Dockerfile can COPY it on its own,
+# EARLY, without unpacking corLibs first: the pins change rarely and the
+# vendored libs change constantly, so keeping them separate layers is what
+# stops every lib commit from re-cloning the whole k-lib set.
+#
+git -C "$BASE/corLibs" show HEAD:klib-pins > "$OUT/klib-pins"
+
+echo "vendored $(printf '%s ' "${LIBS[@]}")+ klib-pins -> $OUT"
 cat "$MANIFEST"
+echo
+cat "$OUT/klib-pins"

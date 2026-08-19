@@ -15,9 +15,16 @@ COV_DIR        = coverage
 COV_REPORT     = $(COV_DIR)/index.html
 COV_ETSI_DIR   = coverage-etsi
 COV_LIBS       = corRest corNgsild corJsonld
-CORTEST         = $(HOME)/git/corLibs/bin/corTest
+
+# The sibling repos live NEXT TO this one - the CMake references and every lib
+# include path resolve as ../<name>, so the layout is part of the build
+# contract. Derive the parent from this makefile's own location rather than
+# assuming a fixed path: that is what lets a checkout anywhere, CI included,
+# build itself. All three stay overridable.
+SIBLING_DIR   ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))..)
+CORTEST       ?= $(SIBLING_DIR)/corLibs/bin/corTest
 # gcovr lives in the ETSI test-suite venv (gcov-15-aware). Override if needed.
-GCOVR         ?= $(HOME)/git/ngsi-ld-test-suite/.venv/bin/gcovr
+GCOVR         ?= $(SIBLING_DIR)/ngsi-ld-test-suite/.venv/bin/gcovr
 
 ifndef CPU_COUNT
 	CPU_COUNT := $(shell nproc)
@@ -29,7 +36,10 @@ ETC_DIR    = /opt/seamware/etc
 # contextSourceExtras (§ 5.2.40) — default opaque JSON config rendered on
 # /info/sourceIdentity. Regenerated on every build with current version, git
 # SHA and build timestamp; override at runtime via --contextSourceExtras.
-CORAINE_VERSION   = 0.2.0
+# Read from the header the broker itself compiles in - two hand-maintained
+# copies had already drifted (the binary said 0.3, this said 0.2.0, and the
+# 0.2.0 is what /info/sourceIdentity was publishing).
+CORAINE_VERSION   = $(shell sed -n 's/^#define CORAINE_VERSION "\(.*\)"/\1/p' src/app/coraine/coraineVersion.h)
 CORAINE_GIT_SHA   = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 CORAINE_BUILD_AT  = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -41,7 +51,6 @@ all:        release
 # leaves the broker linking against a stale .a (silent — link succeeds
 # against last-installed copy).
 SIBLING_LIBS = corRest corNgsild corJsonld
-SIBLING_DIR  = $(HOME)/git
 
 libs:
 	@for lib in $(SIBLING_LIBS); do \
@@ -59,7 +68,7 @@ debug: libs
 clean:
 	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) $(COV_DIR) $(COV_ETSI_DIR)
 
-etc/contextSourceExtras.json: makefile
+etc/contextSourceExtras.json: makefile src/app/coraine/coraineVersion.h
 	@mkdir -p etc
 	@printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
 	  "$(CORAINE_VERSION)" "$(CORAINE_GIT_SHA)" "$(CORAINE_BUILD_AT)" > $@
@@ -128,15 +137,15 @@ coverage-etsi:
 	 fi
 	@echo ">>> [6/6] Generating coverage report..."
 	@mkdir -p $(COV_ETSI_DIR)
-	@$(GCOVR) --root $(HOME)/git --gcov-executable gcov \
+	@$(GCOVR) --root $(SIBLING_DIR) --gcov-executable gcov \
 	      --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
 	      -f '$(CURDIR)/src/lib/' -f '$(CURDIR)/src/app/' \
 	      -f '$(CURDIR)/src/plugins/currentState/mongoc/' \
 	      -f '$(CURDIR)/src/plugins/temporal/timescale/' \
 	      -f '$(CURDIR)/src/plugins/shared/' \
-	      -f '$(HOME)/git/corRest/' -f '$(HOME)/git/corNgsild/' -f '$(HOME)/git/corJsonld/' \
+	      -f '$(SIBLING_DIR)/corRest/' -f '$(SIBLING_DIR)/corNgsild/' -f '$(SIBLING_DIR)/corJsonld/' \
 	      --html-details $(COV_ETSI_DIR)/index.html --html-title "coraine ETSI Coverage" \
-	      $(BUILD_COVERAGE) $(addprefix $(HOME)/git/,$(COV_LIBS))
+	      $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS))
 	@echo ""
 	@echo "ETSI coverage report: file://$(CURDIR)/$(COV_ETSI_DIR)/index.html"
 
