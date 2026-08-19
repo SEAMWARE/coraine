@@ -200,9 +200,17 @@ system libraries. The repos must sit as **siblings** under one parent (default
 
 ### Fastest path — bootstrap script
 
-If you're starting from scratch, the `bootstrap-corlibs.sh` script (kept next to
-the repos under `~/git`) clones every dependency at pinned versions and builds the
-whole lib stack via the `corLibs` umbrella. Then:
+If you're starting from scratch, clone the `corLibs` umbrella and run its
+`bootstrap.sh`: it clones every dependency as a sibling at its pinned version and
+builds the whole lib stack. It works wherever you put it - the layout is derived
+from the umbrella's own location, not from a fixed path.
+
+```sh
+git clone git@github.com:SEAMWARE/corLibs.git
+./corLibs/bootstrap.sh
+```
+
+Then:
 
 ```sh
 cd ~/git/coraine
