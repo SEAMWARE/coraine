@@ -9,7 +9,7 @@
 #include <string.h>                               // strcmp
 
 #include "kjson/kjBuilder.h"                      // kjObject, kjString, kjBoolean, kjChildAdd
-#include "swRest/SwRestState.h"                   // swRest
+#include "corRest/CorRestState.h"                   // corRest
 #include "ktrace/ktGlobals.h"                     // ktVerbose, ktDebug, ktInfo
 #include "ktrace/ktTraceLevelGet.h"               // ktTraceLevelGet
 #include "ktrace/ktTraceLevelSet.h"               // ktTraceLevelSet
@@ -21,9 +21,9 @@
 
 // -----------------------------------------------------------------------------
 //
-// kvLookup - look up a value by key in a SwRestKeyValue array
+// kvLookup - look up a value by key in a CorRestKeyValue array
 //
-static const char* kvLookup(SwRestKeyValue* kvV, int kvCount, const char* key)
+static const char* kvLookup(CorRestKeyValue* kvV, int kvCount, const char* key)
 {
   for (int i = 0; i < kvCount; i++)
   {
@@ -55,7 +55,7 @@ static int boolFromOnOff(const char* s)
 //
 bool adminGetLog(void)
 {
-  Kjson*      kjsonP = swRest.kjsonP;
+  Kjson*      kjsonP = corRest.kjsonP;
   KjNode*     root   = kjObject(kjsonP, NULL);
   const char* levels = ktTraceLevelGet();
 
@@ -64,7 +64,7 @@ bool adminGetLog(void)
   kjChildAdd(root, kjBoolean(kjsonP, "info",    ktInfo));
   kjChildAdd(root, kjString(kjsonP,  "traceLevels", levels ? levels : ""));
 
-  swRest.out.responseTree = root;
+  corRest.out.responseTree = root;
   return true;
 }
 
@@ -78,7 +78,7 @@ static void adminLogApplyFlags(void)
 {
   const char* v;
 
-  v = kvLookup(swRest.in.uriParamV, swRest.in.uriParamCount, "verbose");
+  v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "verbose");
   if (v != NULL)
   {
     int b = boolFromOnOff(v);
@@ -86,7 +86,7 @@ static void adminLogApplyFlags(void)
       ktVerbose = (b == 1);
   }
 
-  v = kvLookup(swRest.in.uriParamV, swRest.in.uriParamCount, "debug");
+  v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "debug");
   if (v != NULL)
   {
     int b = boolFromOnOff(v);
@@ -94,7 +94,7 @@ static void adminLogApplyFlags(void)
       ktDebug = (b == 1);
   }
 
-  v = kvLookup(swRest.in.uriParamV, swRest.in.uriParamCount, "info");
+  v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "info");
   if (v != NULL)
   {
     int b = boolFromOnOff(v);
@@ -113,7 +113,7 @@ bool adminPutLog(void)
 {
   adminLogApplyFlags();
 
-  const char* levels = kvLookup(swRest.in.uriParamV, swRest.in.uriParamCount, "traceLevels");
+  const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
   if (levels != NULL)
     ktTraceLevelSet(levels, KTRUE);   // replace=true
 
@@ -130,7 +130,7 @@ bool adminPostLog(void)
 {
   adminLogApplyFlags();
 
-  const char* levels = kvLookup(swRest.in.uriParamV, swRest.in.uriParamCount, "traceLevels");
+  const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
   if (levels != NULL)
     ktTraceLevelSet(levels, KFALSE);  // replace=false (additive)
 
@@ -158,7 +158,7 @@ bool adminDeleteLog(void)
 {
   adminLogApplyFlags();
 
-  const char* levels = kvLookup(swRest.in.uriParamV, swRest.in.uriParamCount, "traceLevels");
+  const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
   if (levels != NULL)
     ktTraceLevelReset(levels);
 

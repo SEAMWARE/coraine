@@ -8,7 +8,7 @@
 #include <stddef.h>                               // NULL
 
 #include "kjson/kjBuilder.h"                      // kjObject, kjArray, kjString, kjChildAdd
-#include "swRest/SwRestState.h"                   // swRest
+#include "corRest/CorRestState.h"                   // corRest
 
 #include "db/DbDriver.h"                         // db
 #include "plugin/ApiPlugin.h"                     // apiPlugins, apiPluginCount
@@ -29,7 +29,7 @@
 //
 bool adminGetPlugins(void)
 {
-  Kjson*  kjsonP = swRest.kjsonP;
+  Kjson*  kjsonP = corRest.kjsonP;
   KjNode* root   = kjObject(kjsonP, NULL);
 
   // DB plugin
@@ -41,6 +41,6 @@ bool adminGetPlugins(void)
     kjChildAdd(apiArray, kjString(kjsonP, NULL, apiPlugins[i].alias ? apiPlugins[i].alias : "?"));
   kjChildAdd(root, apiArray);
 
-  swRest.out.responseTree = root;
+  corRest.out.responseTree = root;
   return true;
 }

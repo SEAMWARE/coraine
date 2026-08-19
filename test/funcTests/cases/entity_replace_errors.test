@@ -18,8 +18,8 @@ PUT /entities/{id} - payload validation errors
 entity error replace
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -45,28 +45,28 @@ swBrokerStart
 
 echo "01. Payload not a JSON object (array)"
 echo "====================================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '[1, 2, 3]'
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '[1, 2, 3]'
 echo
 echo
 
 
 echo "02. Empty JSON object"
 echo "====================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{}'
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{}'
 echo
 echo
 
 
 echo "03. id not a string"
 echo "==================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{"id":14,"type":"T"}'
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{"id":14,"type":"T"}'
 echo
 echo
 
 
 echo "04. id not a valid URI"
 echo "======================"
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{"id":"not-a-uri","type":"T"}'
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload '{"id":"not-a-uri","type":"T"}'
 echo
 echo
 
@@ -78,7 +78,7 @@ payload='{
   "id": "urn:ngsi-ld:Vehicle:V2",
   "type": "Vehicle"
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -89,7 +89,7 @@ payload='{
   "id": "urn:ngsi-ld:Vehicle:V1",
   "type": 42
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -101,7 +101,7 @@ payload='{
   "type": "Vehicle",
   "type": "Motorcycle"
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -113,7 +113,7 @@ payload='{
   "type": "Vehicle",
   "scope": 42
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -125,7 +125,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property" }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -141,7 +141,7 @@ payload='{
     "object": "urn:bad"
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -156,7 +156,7 @@ payload='{
     "object": 42
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -172,7 +172,7 @@ payload='{
     "observedAt": "not-a-date"
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -188,7 +188,7 @@ payload='{
     "unitCode": 42
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -204,7 +204,7 @@ payload='{
     "datasetId": "not-a-uri"
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -219,7 +219,7 @@ payload='{
     "value": "not an object"
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -234,7 +234,7 @@ payload='{
     "value": { "type": "Point" }
   }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -249,7 +249,7 @@ payload='{
     { "type": "Property", "value": 200, "datasetId": "urn:ds1" }
   ]
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -528,5 +528,5 @@ Content-Length: 231
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

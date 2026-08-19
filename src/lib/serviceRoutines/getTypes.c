@@ -16,21 +16,21 @@
 #include <stddef.h>                                   // NULL
 #include <string.h>                                   // strcmp
 
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjBuilder.h"                          // kjArray, kjObject, kjString, kjChildAdd
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjClone.h"                            // kjClone
 
-#include "swJsonld/swldCompact.h"                     // swldCompact
-#include "swJsonld/swldInit.h"                        // swldCoreContext
+#include "corJsonld/corLdCompact.h"                     // corLdCompact
+#include "corJsonld/corLdInit.h"                        // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdVocab.h"                         // LD_VOCAB_*
-#include "swNgsild/LdRegCache.h"                      // LdRegCache
-#include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
-#include "swNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardTypes, ldDiscoveryShouldForward
-#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdVocab.h"                         // LD_VOCAB_*
+#include "corNgsild/LdRegCache.h"                      // LdRegCache
+#include "corNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
+#include "corNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardTypes, ldDiscoveryShouldForward
+#include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -43,9 +43,9 @@
 //
 // shortOrSelf -
 //
-static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
+static const char* shortOrSelf(CorLdContext* ctxP, const char* iri)
 {
-  const char* compact = swldCompact(ctxP, iri);
+  const char* compact = corLdCompact(ctxP, iri);
   return (compact != NULL) ? compact : iri;
 }
 
@@ -57,7 +57,7 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 //
 bool getTypes(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   if (db.typeList == NULL)
   {
@@ -66,7 +66,7 @@ bool getTypes(void)
     return true;
   }
 
-  bool details = swNgsild.details;
+  bool details = corNgsild.details;
 
   KjNode* aggregated = NULL;
   int r = db.typeList(tenantP, details, &aggregated);
@@ -81,43 +81,43 @@ bool getTypes(void)
   // Mode 2 (?noForward=true) or default (mode 3): augment with
   // CSR-declared types/attrs. Mode 1 (?local=true) stops at local data.
   //
-  if (!swNgsild.local && tenantP->regCacheP != NULL)
+  if (!corNgsild.local && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentTypes(aggregated, (LdRegCache*) tenantP->regCacheP, details);
 
   //
   // Mode 3 only (default — !local && !noForward): forward the query to
   // every CSR supporting retrieveEntityType(s) and merge the results.
   //
-  if (!swNgsild.local && !swNgsild.noForward &&
+  if (!corNgsild.local && !corNgsild.noForward &&
       tenantP->regCacheP != NULL &&
       ldDiscoveryShouldForward())
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     ldDiscoveryForwardTypes(aggregated, (LdRegCache*) tenantP->regCacheP, details, ownAlias);
   }
 
-  SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+  CorLdContext* ctxP = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
 
   if (!details)
   {
     //
     // EntityTypeList (§ 5.2.24): { id, type:"EntityTypeList", typeList:[short names] }
     //
-    KjNode* body = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(body, kjString(swRest.kjsonP, "id",   "urn:ngsi-ld:EntityTypeList:local"));
-    kjChildAdd(body, kjString(swRest.kjsonP, "type", "EntityTypeList"));
+    KjNode* body = kjObject(corRest.kjsonP, NULL);
+    kjChildAdd(body, kjString(corRest.kjsonP, "id",   "urn:ngsi-ld:EntityTypeList:local"));
+    kjChildAdd(body, kjString(corRest.kjsonP, "type", "EntityTypeList"));
 
-    KjNode* typeList = kjArray(swRest.kjsonP, "typeList");
+    KjNode* typeList = kjArray(corRest.kjsonP, "typeList");
     for (KjNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
     {
       KjNode* iriP = kjLookup(entry, "typeIri");
       if (iriP == NULL || iriP->type != KjString) continue;
-      kjChildAdd(typeList, kjString(swRest.kjsonP, NULL, shortOrSelf(ctxP, iriP->value.s)));
+      kjChildAdd(typeList, kjString(corRest.kjsonP, NULL, shortOrSelf(ctxP, iriP->value.s)));
     }
     kjChildAdd(body, typeList);
 
-    swRest.out.responseTree   = body;
-    swRest.out.httpStatusCode = 200;
+    corRest.out.responseTree   = body;
+    corRest.out.httpStatusCode = 200;
     return true;
   }
 
@@ -125,32 +125,32 @@ bool getTypes(void)
   // Details: EntityType[] (§ 5.2.25) — array of
   //   { id: <IRI>, type:"EntityType", typeName:<short>, attributeNames:[<short>] }
   //
-  KjNode* body = kjArray(swRest.kjsonP, NULL);
+  KjNode* body = kjArray(corRest.kjsonP, NULL);
 
   for (KjNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
   {
     KjNode* iriP = kjLookup(entry, "typeIri");
     if (iriP == NULL || iriP->type != KjString) continue;
 
-    KjNode* et = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(et, kjString(swRest.kjsonP, "id",       iriP->value.s));
-    kjChildAdd(et, kjString(swRest.kjsonP, "type",     "EntityType"));
-    kjChildAdd(et, kjString(swRest.kjsonP, "typeName", shortOrSelf(ctxP, iriP->value.s)));
+    KjNode* et = kjObject(corRest.kjsonP, NULL);
+    kjChildAdd(et, kjString(corRest.kjsonP, "id",       iriP->value.s));
+    kjChildAdd(et, kjString(corRest.kjsonP, "type",     "EntityType"));
+    kjChildAdd(et, kjString(corRest.kjsonP, "typeName", shortOrSelf(ctxP, iriP->value.s)));
 
-    KjNode* attrNames = kjArray(swRest.kjsonP, "attributeNames");
+    KjNode* attrNames = kjArray(corRest.kjsonP, "attributeNames");
     KjNode* attrsAgg  = kjLookup(entry, "attrs");
     if (attrsAgg != NULL)
     {
       for (KjNode* aN = attrsAgg->value.firstChildP; aN != NULL; aN = aN->next)
         if (aN->type == KjString)
-          kjChildAdd(attrNames, kjString(swRest.kjsonP, NULL, shortOrSelf(ctxP, aN->value.s)));
+          kjChildAdd(attrNames, kjString(corRest.kjsonP, NULL, shortOrSelf(ctxP, aN->value.s)));
     }
     kjChildAdd(et, attrNames);
 
     kjChildAdd(body, et);
   }
 
-  swRest.out.responseTree   = body;
-  swRest.out.httpStatusCode = 200;
+  corRest.out.responseTree   = body;
+  corRest.out.httpStatusCode = 200;
   return true;
 }

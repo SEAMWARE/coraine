@@ -16,10 +16,10 @@ Batch Entity Delete — inclusive CSR, local + forwarded
 batch delete entity
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -28,38 +28,38 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1 on both CB and CP1"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "02. Register CB→CP1 inclusive (Vehicle, deleteBatch)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["deleteBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["deleteBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "03. Batch Delete [V1] → 204 (local + mirrored to CP1)"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1"]'
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1"]'
 echo
 echo
 
 
 echo "04. GET CB V1 → 404 (deleted locally)"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "05. GET CP1 V1 → 404 (deleted on remote too)"
 echo "============================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -134,7 +134,7 @@ Content-Length: 151
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -18,8 +18,8 @@ Subscription notification - pick/omit target Entity members id/type (§ 5.2.6.7.
 subscription notification format pick
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -35,7 +35,7 @@ payload='{
     "pick": ["id","type","speed"]
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -51,7 +51,7 @@ payload='{
     "omit": ["id"]
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -63,7 +63,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type":"Property","value":80}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 sleep 0.4
 echo
@@ -167,5 +167,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

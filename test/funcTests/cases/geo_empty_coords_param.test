@@ -17,8 +17,8 @@ GeoQuery with empty or missing coordinates URI-param — 400
 geo query validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,28 +33,28 @@ payload='{
     "P1": { "type": "Property", "value": 2 }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Geoquery with empty coordinates= RHS — 400"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?geometry=Point&coordinates=&georel=near;maxDistance==10&type=Building'
+corCurl --url '/ngsi-ld/v1/entities?geometry=Point&coordinates=&georel=near;maxDistance==10&type=Building'
 echo
 echo
 
 
 echo "03. Geoquery with geometry+georel but no coordinates at all — 400"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?geometry=Point&georel=near;maxDistance==10&type=Building'
+corCurl --url '/ngsi-ld/v1/entities?geometry=Point&georel=near;maxDistance==10&type=Building'
 echo
 echo
 
 
 echo "04. Ordinary query still works"
 echo "=============================="
-swCurl --url '/ngsi-ld/v1/entities?type=T_Query'
+corCurl --url '/ngsi-ld/v1/entities?type=T_Query'
 echo
 echo
 
@@ -131,4 +131,4 @@ Content-Length: 245
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

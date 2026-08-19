@@ -19,45 +19,45 @@ DateTime --high-precision renders full 9-digit (ns) fractions (§ 5.2.2.4)
 datetime attribute validation
 
 --INIT--
-swDbDrop
-swBrokerStart --high-precision
+corDbDrop
+coraineStart --high-precision
 
 --RUN--
 
 echo "01. seed 7/8/9-digit and >9-digit observedAt values — all 201"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H8","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.12345678Z"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H9","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789Z"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Hround","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567895Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H8","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.12345678Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:H9","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Hround","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567895Z"}}' | head -1
 echo
 echo
 
 
 echo "02. GET H7 — 7 digits round-trip exactly under -hp"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H7
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H7
 echo
 echo
 
 
 echo "03. GET H8 — 8 digits round-trip exactly under -hp"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H8
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H8
 echo
 echo
 
 
 echo "04. GET H9 — 9 digits (full ns) round-trip exactly under -hp"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H9
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:H9
 echo
 echo
 
 
 echo "05. GET Hround — a 10th digit of 5 rounds the ns up (.1234567895 -> .12345679)"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Hround
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Hround
 echo
 echo
 
@@ -152,5 +152,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

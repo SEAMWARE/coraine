@@ -9,14 +9,14 @@
 //
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemRemove, ldRegCacheItemLookup
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegDelete
-#include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegDelete
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheItemRemove, ldRegCacheItemLookup
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegDelete
+#include "corNgsild/ldDistSub.h"                      // ldDistSubOnRegDelete
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -36,7 +36,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
   if (fragP == NULL)
     return;
 
@@ -51,7 +51,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 bool deleteCsourceRegistration(void)
 {
-  const char* regId = swRest.in.wildcard[0];
+  const char* regId = corRest.in.wildcard[0];
 
   if (db.registrationDelete == NULL)
   {
@@ -59,7 +59,7 @@ bool deleteCsourceRegistration(void)
     return true;
   }
 
-  int r = db.registrationDelete((Tenant*) swNgsild.tenantP, regId);
+  int r = db.registrationDelete((Tenant*) corNgsild.tenantP, regId);
 
   if (r == DB_NOT_FOUND)
   {
@@ -73,7 +73,7 @@ bool deleteCsourceRegistration(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   //
   // § 5.11.7 — fan out "noLongerMatching" CsourceNotifications to
@@ -97,7 +97,7 @@ bool deleteCsourceRegistration(void)
     // local mapping. Must run before ldRegCacheItemRemove.
     if (regItemP != NULL && tenantP->subCacheP != NULL)
     {
-      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
       ldDistSubOnRegDelete((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,
                            distSubPersist, tenantP);
     }
@@ -106,6 +106,6 @@ bool deleteCsourceRegistration(void)
   }
   ldRegCacheUnlock(regCacheP);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

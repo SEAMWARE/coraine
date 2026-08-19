@@ -32,120 +32,120 @@ Subscription field validation (idPattern, notificationTrigger, timeInterval/thro
 error subscription validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 EP='"notification":{"endpoint":{"uri":"http://localhost:9999/x"}}'
 
 echo "01. idPattern is an invalid regex -> 400"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"idPattern\":\"foo[ba\"}],$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"idPattern\":\"foo[ba\"}],$EP}"
 echo
 echo
 
 
 echo "02. idPattern is a valid regex -> 201"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"idPattern\":\"urn:.*\"}],$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"idPattern\":\"urn:.*\"}],$EP}" | grep HTTP
 echo
 echo
 
 
 echo "03. notificationTrigger with an unknown token -> 400"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":[\"bogusTrigger\"],$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":[\"bogusTrigger\"],$EP}"
 echo
 echo
 
 
 echo "04. notificationTrigger as a scalar string (not an array) -> 400"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":\"entityCreated\",$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":\"entityCreated\",$EP}"
 echo
 echo
 
 
 echo "05. notificationTrigger with valid tokens -> 201"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":[\"entityCreated\",\"attributeDeleted\"],$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notificationTrigger\":[\"entityCreated\",\"attributeDeleted\"],$EP}" | grep HTTP
 echo
 echo
 
 
 echo "06. timeInterval is 0 -> 400 (spec: Greater than 0)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"timeInterval\":0,$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"timeInterval\":0,$EP}"
 echo
 echo
 
 
 echo "07. throttling is 0 -> 400 (spec: Greater than 0)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"throttling\":0,$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"throttling\":0,$EP}"
 echo
 echo
 
 
 echo "08. throttling is fractional 0.5 -> 201 (fractions allowed)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"throttling\":0.5,$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"throttling\":0.5,$EP}" | grep HTTP
 echo
 echo
 
 
 echo "09. geoQ.georel is not a valid geo-relationship -> 400"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"bogusRel\"},$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"bogusRel\"},$EP}"
 echo
 echo
 
 
 echo "10. geoQ.georel near;maxDistance -> 201"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
 echo
 echo
 
 
 echo "11. notification.endpoint.accept is an unsupported MIME type -> 400"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"text/html\"}}}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"text/html\"}}}"
 echo
 echo
 
 
 echo "12. notification.endpoint.accept application/geo+json -> 201"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"application/geo+json\"}}}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"application/geo+json\"}}}" | grep HTTP
 echo
 echo
 
 
 echo "13. notification.endpoint.accept application/merge-patch+json is not a valid notification format -> 400"
 echo "======================================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"application/merge-patch+json\"}}}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:9999/x\",\"accept\":\"application/merge-patch+json\"}}}"
 echo
 echo
 
 
 echo "14. entities item selects only by id, no type -> 400 (EntitySelector type is mandatory)"
 echo "======================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"id\":\"urn:ngsi-ld:E:1\"}],$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"id\":\"urn:ngsi-ld:E:1\"}],$EP}"
 echo
 echo
 
 
 echo "15. entities item selects only by idPattern, no type -> 400"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"idPattern\":\".*\"}],$EP}"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"idPattern\":\".*\"}],$EP}"
 echo
 echo
 
 
 echo "16. entities item with type and id -> 201"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"id\":\"urn:ngsi-ld:E:1\"}],$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\",\"id\":\"urn:ngsi-ld:E:1\"}],$EP}" | grep HTTP
 echo
 echo
 
@@ -342,4 +342,4 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -21,8 +21,8 @@ Subscription q rendering — long-name encoding (body) + re-compaction per @cont
 subscription q context jsonldcontext
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 contextServerStart
 
 --RUN--
@@ -46,7 +46,7 @@ payload='{
   "q": "temp==5",
   "notification": { "endpoint": {"uri":"http://localhost:7701/notify"} }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H "Link: <http://localhost:7080/jsonldContexts/ctxTemp>; $LH" | head -1
 echo
 echo
@@ -54,14 +54,14 @@ echo
 
 echo "02. GET under core context — uncompactable IRI, q-grammar chars encoded, : / raw"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR
 echo
 echo
 
 
 echo "03. GET under ctxTemp — q re-compacts to 'temp'"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR \
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR \
   -H "Link: <http://localhost:7080/jsonldContexts/ctxTemp>; $LH"
 echo
 echo
@@ -69,7 +69,7 @@ echo
 
 echo "04. GET under ctxCelsius — same IRI, q re-compacts to a DIFFERENT term 'celsius'"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR \
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Sub:QR \
   -H "Link: <http://localhost:7080/jsonldContexts/ctxCelsius>; $LH"
 echo
 echo
@@ -175,6 +175,6 @@ Content-Length: 325
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 contextServerStop

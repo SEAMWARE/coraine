@@ -12,8 +12,8 @@ GET responses compact user-vocabulary terms using the Link header @context
 context routing http retrieve
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,7 +28,7 @@ payload='{
   "name": { "type": "Property", "value": "Eiffel Tower" },
   "@context": "https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
 echo
 echo
 
@@ -38,7 +38,7 @@ echo
 #
 echo "02. GET with Link header — terms compacted"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1 \
        -H 'Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -49,7 +49,7 @@ echo
 #
 echo "03. GET without Link — user terms remain expanded"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1
 echo
 echo
 
@@ -103,4 +103,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

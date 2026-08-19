@@ -15,14 +15,14 @@ CSourceRegistration validation — datasetId (§ 5.2.9 / § 4.5.5)
 registration error validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. datasetId: not an array → 400"
 echo "================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-not-array",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -35,7 +35,7 @@ echo
 
 echo "02. datasetId: empty array → 400"
 echo "================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-empty",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -48,7 +48,7 @@ echo
 
 echo "03. datasetId: non-string item → 400"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-nonstring",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -61,7 +61,7 @@ echo
 
 echo "04. datasetId: invalid URI → 400"
 echo "================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-bad-uri",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -74,7 +74,7 @@ echo
 
 echo "05. datasetId: [\"urn:ds:1\", \"urn:ds:2\"] → 201"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-good",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -87,7 +87,7 @@ echo
 
 echo "06. datasetId: [\"@none\"] (default-instance sentinel) → 201"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-none",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -100,7 +100,7 @@ echo
 
 echo "07. datasetId: mix of @none and URIs → 201"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:dsi-mixed",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -207,5 +207,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

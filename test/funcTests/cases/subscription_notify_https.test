@@ -19,22 +19,22 @@ Subscription notification over HTTPS (self-signed endpoint) — delivered and co
 subscription notification https
 
 --INIT--
-swDbDrop
-swHttpsCertGen
-swBrokerStart --insecureNotif
-ftClientStart --httpsKey /tmp/swFtClient.key --httpsCertificate /tmp/swFtClient.pem
+corDbDrop
+corHttpsCertGen
+coraineStart --insecureNotif
+ftClientStart --httpsKey /tmp/corFtClient.key --httpsCertificate /tmp/corFtClient.pem
 
 --RUN--
 
 echo "01. Subscribe to T with an https endpoint, then create + update to trigger"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:ngsi-ld:S1",
   "type": "Subscription",
   "entities": [{"type": "T"}],
   "notification": {"endpoint": {"uri": "https://localhost:7701/notify", "accept": "application/json"}}
 }' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | grep HTTP
 echo
 echo
 
@@ -49,7 +49,7 @@ echo
 
 echo "03. Subscription counters reflect the successful HTTPS delivery"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S1 | grep -E "\"status\"|timesSent|notificationTrigger|\"success\""
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S1 | grep -E "\"status\"|timesSent|notificationTrigger|\"success\""
 echo
 
 
@@ -75,5 +75,5 @@ HTTP/1.1 201 Created
   "status": "active",
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

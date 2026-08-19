@@ -25,9 +25,9 @@ JsonProperty - create, GET normalized + simplified, notification
 json-property entity subscription notification
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -58,7 +58,7 @@ payload='{
     "showChanges": true
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -73,7 +73,7 @@ payload='{
     "type": "JsonProperty"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -91,21 +91,21 @@ payload='{
     "json": [ "json" ]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET urn:E1 - V1 normalized"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "05. GET urn:E2 - V2 (array kept), V3 (array-of-one reduced)"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E2
+corCurl --url /ngsi-ld/v1/entities/urn:E2
 echo
 echo
 
@@ -120,7 +120,7 @@ echo
 
 echo "07. GET urn:E2 simplified"
 echo "========================="
-swCurl --url '/ngsi-ld/v1/entities/urn:E2?format=simplified'
+corCurl --url '/ngsi-ld/v1/entities/urn:E2?format=simplified'
 echo
 echo
 
@@ -299,6 +299,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

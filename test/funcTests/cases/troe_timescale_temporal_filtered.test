@@ -14,9 +14,9 @@ TRoE timescale - temporal GET with filtering (timerel/attrs/lastN)
 troe timescale postgres temporal lastN
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -27,12 +27,12 @@ swBrokerStart --troe timescale
 
 echo "01. Seed urn:V1 with speed history (observedAt: 09:00, 10:00, 11:00, 12:00) + color (10:30, 11:30)"
 echo "================================================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"color":{"type":"Property","value":"red","observedAt":"2026-04-28T10:30:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color -X PATCH --payload '{"value":"blue","observedAt":"2026-04-28T11:30:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"color":{"type":"Property","value":"red","observedAt":"2026-04-28T10:30:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color -X PATCH --payload '{"value":"blue","observedAt":"2026-04-28T11:30:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -40,7 +40,7 @@ echo
 
 echo "02. timerel=between 09:30..11:30 → speed[20,30] + color[red]"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:30:00Z&endTimeAt=2026-04-28T11:30:00Z' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:30:00Z&endTimeAt=2026-04-28T11:30:00Z' | python3 -c "
 import sys, json, re
 hdr = ''; body = ''
 for line in sys.stdin:
@@ -59,7 +59,7 @@ echo
 
 echo "03. timerel=after 11:00 + attrs=speed → speed[30,40], no color"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T11:00:00Z&attrs=speed' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T11:00:00Z&attrs=speed' | python3 -c "
 import sys, json, re
 hdr = ''; body = ''
 for line in sys.stdin:
@@ -80,7 +80,7 @@ echo
 
 echo "04. lastN=2 (no time filter) → 2 most recent of each attr"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=2' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=2' | python3 -c "
 import sys, json, re
 hdr = ''; body = ''
 for line in sys.stdin:
@@ -99,7 +99,7 @@ echo
 
 echo "05. timerel=before with no timeAt → 400 Bad Request"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=before' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=before' | head -1
 echo
 echo
 
@@ -134,6 +134,6 @@ HTTP/1.1 400 Bad Request
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

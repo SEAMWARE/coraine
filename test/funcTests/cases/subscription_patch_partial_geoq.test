@@ -24,57 +24,57 @@ Partial geoQ fragment merges on Update Subscription (not wrongly rejected)
 subscription geo validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 EP='"notification":{"endpoint":{"uri":"http://localhost:9999/x"}}'
 
 echo "01. Seed S1 with a complete geoQ -> 201"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"id\":\"urn:ngsi-ld:Subscription:S1\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"id\":\"urn:ngsi-ld:Subscription:S1\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],\"geoQ\":{\"geometry\":\"Point\",\"coordinates\":[1,2],\"georel\":\"near;maxDistance==1000\"},$EP}" | grep HTTP
 echo
 echo
 
 
 echo "02. Seed S2 with NO geoQ -> 201"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload "{\"id\":\"urn:ngsi-ld:Subscription:S2\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],$EP}" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "{\"id\":\"urn:ngsi-ld:Subscription:S2\",\"type\":\"Subscription\",\"entities\":[{\"type\":\"T\"}],$EP}" | grep HTTP
 echo
 echo
 
 
 echo "03. PATCH S1 with a partial geoQ {georel:within} -> 204 (merges)"
 echo "==============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"within"}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"within"}}' | grep HTTP
 echo
 echo
 
 
 echo "04. GET S1 — georel updated, geometry/coordinates preserved"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
 
 echo "05. PATCH S1 with a partial geoQ {coordinates:[5,6]} -> 204 (merges)"
 echo "==================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"coordinates":[5,6]}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"coordinates":[5,6]}}' | grep HTTP
 echo
 echo
 
 
 echo "06. PATCH S1 with a partial geoQ carrying an invalid georel -> 400"
 echo "================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"bogusRel"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"bogusRel"}}'
 echo
 echo
 
 
 echo "07. PATCH S2 (no stored geoQ) with a partial geoQ -> 400 (merged is incomplete)"
 echo "==============================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"geoQ":{"georel":"within"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"geoQ":{"georel":"within"}}'
 echo
 echo
 
@@ -171,4 +171,4 @@ Content-Length: 213
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

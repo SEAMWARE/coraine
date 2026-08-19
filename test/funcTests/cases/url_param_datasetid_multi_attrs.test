@@ -12,8 +12,8 @@ datasetId filter on entity with multiple attributes - partial match and no-defau
 datasetid multi-attr url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -48,42 +48,42 @@ payload='{
     "datasetId": "urn:paint:factory"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Filter datasetId=urn:sensor:radar - speed kept (radar only), color dropped (no match)"
 echo "========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar'
 echo
 echo
 
 
 echo "03. Filter datasetId=@none - speed kept (default only), color dropped (no default)"
 echo "=================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none'
 echo
 echo
 
 
 echo "04. Filter datasetId=urn:paint:factory - speed dropped, color kept"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:paint:factory'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:paint:factory'
 echo
 echo
 
 
 echo "05. Filter datasetId=@none,urn:paint:factory - speed default + color factory"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none,urn:paint:factory'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none,urn:paint:factory'
 echo
 echo
 
 
 echo "06. GET entities - datasetId=urn:paint:factory (array path, partial match)"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&datasetId=urn:paint:factory'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&datasetId=urn:paint:factory'
 echo
 echo
 
@@ -205,5 +205,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/entities - simplified input format
 create entity format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -47,14 +47,14 @@ payload='{
   "active": true,
   "temperature": 22.5
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity E1 - verify normalized output"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities/urn:simp:E1
+corCurl --url /ngsi-ld/v1/entities/urn:simp:E1
 echo
 echo
 
@@ -69,14 +69,14 @@ payload='{
     "coordinates": [1.0, 2.0]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET entity E2 - verify GeoProperty in normalized output"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:simp:E2
+corCurl --url /ngsi-ld/v1/entities/urn:simp:E2
 echo
 echo
 
@@ -88,14 +88,14 @@ payload='{
   "type": "T",
   "tags": ["fast", "red", "sporty"]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. GET entity E3 - verify Property with array value"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:simp:E3
+corCurl --url /ngsi-ld/v1/entities/urn:simp:E3
 echo
 echo
 
@@ -110,14 +110,14 @@ payload='{
     "num": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "08. GET entity E4 - verify Property with object value"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:simp:E4
+corCurl --url /ngsi-ld/v1/entities/urn:simp:E4
 echo
 echo
 
@@ -265,5 +265,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -8,9 +8,9 @@
 #include <stddef.h>                                   // NULL
 #include <stdint.h>                                   // uint64_t
 
-#include "swNgsild/LdSubCache.h"                      // LdSubCache
-#include "swNgsild/LdPernotCache.h"                   // LdPernotCache
-#include "swNgsild/ldSubStatsFlush.h"                 // ldSubStatsFlush, ldPernotStatsFlush
+#include "corNgsild/LdSubCache.h"                      // LdSubCache
+#include "corNgsild/LdPernotCache.h"                   // LdPernotCache
+#include "corNgsild/ldSubStatsFlush.h"                 // ldSubStatsFlush, ldPernotStatsFlush
 
 #include "db/DbDriver.h"                              // db (DbDriver)
 #include "db/Tenant.h"                                // tenant0, tenantList
@@ -22,7 +22,7 @@
 // -----------------------------------------------------------------------------
 //
 // dbFlushAdapter - bridges DbDriver's Tenant*-taking signature to the
-// swNgsild-side generic (void*) one.
+// corNgsild-side generic (void*) one.
 //
 static int dbFlushAdapter(void*        tenantP,
                           const char*  subId,

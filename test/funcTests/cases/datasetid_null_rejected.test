@@ -21,49 +21,49 @@ datasetId = urn:ngsi-ld:null rejected with 400 BadRequestData (§ 8.4.2)
 entity error validation merge partial-update datasetid
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed Building:1 (name Property)"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:1","type":"Building","name":{"type":"Property","value":"Eiffel"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:1","type":"Building","name":{"type":"Property","value":"Eiffel"}}' | head -1
 echo
 echo
 
 
 echo "02. Merge Entity (PATCH /entities/{id}) name.datasetId = null -> 400"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}}'
 echo
 echo
 
 
 echo "03. Partial Attribute Update (PATCH /entities/{id}/attrs/name) datasetId = null -> 400"
 echo "======================================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1/attrs/name' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1/attrs/name' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}'
 echo
 echo
 
 
 echo "04. Create with a datasetId = null -> 400 (same shared validator)"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:2","type":"Building","name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}}'
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:2","type":"Building","name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:null"}}'
 echo
 echo
 
 
 echo "05. A real (non-null) datasetId is accepted (Merge) -> 204"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:dataset:1"}}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":{"type":"Property","value":"x","datasetId":"urn:ngsi-ld:dataset:1"}}' | head -1
 echo
 echo
 
 
 echo "06. The null delete-marker on a *value* still removes the attribute (Merge) -> 204"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":"urn:ngsi-ld:null"}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1' -X PATCH --header 'Content-Type: application/json' --payload '{"name":"urn:ngsi-ld:null"}' | head -1
 echo
 echo
 
@@ -133,5 +133,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

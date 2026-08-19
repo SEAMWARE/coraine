@@ -19,7 +19,7 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
@@ -29,13 +29,13 @@
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/ldEntityToApi.h"                  // ldEntityToApi
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldRender.h"                       // ldAttrValueNode
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/ldEntityToApi.h"                  // ldEntityToApi
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldRender.h"                       // ldAttrValueNode
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -50,17 +50,17 @@
 //
 bool getEntityAttrValue(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
-  const char* attrWild = swRest.in.wildcard[1];
+  const char* entityId = corRest.in.wildcard[0];
+  const char* attrWild = corRest.in.wildcard[1];
 
   ldContextResolve();
 
-  SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL)
     attrIri = attrWild;
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   KjNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
@@ -90,16 +90,16 @@ bool getEntityAttrValue(void)
   // datasetId filter — storage format keys each instance by dsKey (or "@none"
   // for the default). Keep only matching instances.
   //
-  if (swNgsild.datasetIdV != NULL)
+  if (corNgsild.datasetIdV != NULL)
   {
     KjNode* instP = attrWrapperP->value.firstChildP;
     while (instP != NULL)
     {
       KjNode* nextP = instP->next;
       bool    keep  = false;
-      for (int i = 0; swNgsild.datasetIdV[i] != NULL; i++)
+      for (int i = 0; corNgsild.datasetIdV[i] != NULL; i++)
       {
-        if (instP->name != NULL && strcmp(instP->name, swNgsild.datasetIdV[i]) == 0)
+        if (instP->name != NULL && strcmp(instP->name, corNgsild.datasetIdV[i]) == 0)
         {
           keep = true;
           break;
@@ -121,10 +121,10 @@ bool getEntityAttrValue(void)
   // Unwrap storage-format to API-format via a transient single-attribute entity.
   //
   kjChildRemove(entityP, attrWrapperP);
-  KjNode* wrap = kjObject(swRest.kjsonP, NULL);
+  KjNode* wrap = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(wrap, attrWrapperP);
 
-  ldEntityToApi(wrap, &swRest.kalloc);
+  ldEntityToApi(wrap, &corRest.kalloc);
 
   // sysAttrs have nowhere to live in a value-only response — always stripped.
   ldStripSysAttrs(wrap);
@@ -155,7 +155,7 @@ bool getEntityAttrValue(void)
   valueP->name = NULL;
   valueP->next = NULL;
   int   len = kjFastRenderSize(valueP) + 1;
-  char* buf = (char*) kaAlloc(&swRest.kalloc, len);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, len);
   if (buf == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory rendering attribute value");
@@ -163,10 +163,10 @@ bool getEntityAttrValue(void)
   }
   kjFastRender(valueP, buf);
 
-  swRest.out.payload        = buf;
-  swRest.out.payloadSize    = strlen(buf);
-  swRest.out.contentType    = (char*) swMimeString(SwMimeJson);
-  swRest.out.httpStatusCode = 200;
-  swNgsild.rawResponse      = true;
+  corRest.out.payload        = buf;
+  corRest.out.payloadSize    = strlen(buf);
+  corRest.out.contentType    = (char*) corMimeString(CorMimeJson);
+  corRest.out.httpStatusCode = 200;
+  corNgsild.rawResponse      = true;
   return true;
 }

@@ -31,7 +31,7 @@
 //
 #include <stdbool.h>                                     // bool
 
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, LdSnapshotCacheItem
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, LdSnapshotCacheItem
 #include "db/Tenant.h"                                   // Tenant
 
 

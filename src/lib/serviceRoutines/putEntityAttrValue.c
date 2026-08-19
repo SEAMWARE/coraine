@@ -22,18 +22,18 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd
 #include "kjson/kjLookup.h"                          // kjLookup
 
-#include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swJsonld/swldExpandTree.h"                 // swldExpandTree
-#include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
+#include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -67,9 +67,9 @@ static const char* valueMemberForType(const char* typeStr)
 //
 bool putEntityAttrValue(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
-  const char* attrWild = swRest.in.wildcard[1];
-  KjNode*     valueP   = swRest.in.requestTree;  // raw value (NOT @context-expanded)
+  const char* entityId = corRest.in.wildcard[0];
+  const char* attrWild = corRest.in.wildcard[1];
+  KjNode*     valueP   = corRest.in.requestTree;  // raw value (NOT @context-expanded)
 
   if (valueP == NULL)
   {
@@ -79,7 +79,7 @@ bool putEntityAttrValue(void)
 
   // A value-only body is plain JSON — it carries no @context, so ld+json is
   // not a meaningful Content-Type for it.
-  if (swRest.in.contentType != NULL && strstr(swRest.in.contentType, "ld+json") != NULL)
+  if (corRest.in.contentType != NULL && strstr(corRest.in.contentType, "ld+json") != NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Request",
             "a value-only body is plain JSON (no @context); use Content-Type application/json");
@@ -88,8 +88,8 @@ bool putEntityAttrValue(void)
 
   ldContextResolve();
 
-  SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
 
   // § 10.2.6.4 — scope cannot be set this way.
@@ -104,7 +104,7 @@ bool putEntityAttrValue(void)
   // The target Attribute must already exist (value-only cannot create it, and
   // its type — which is preserved — tells us which member the value goes into).
   //
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   KjNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
 
@@ -167,26 +167,26 @@ bool putEntityAttrValue(void)
   // the value-shape unambiguous (e.g. a GeoProperty's GeoJSON object must not be
   // mis-inferred as a Property). Sub-attributes are untouched by the merge.
   //
-  KjNode* fragP = kjObject(swRest.kjsonP, NULL);
+  KjNode* fragP = kjObject(corRest.kjsonP, NULL);
   if (typeStr != NULL)
-    kjChildAdd(fragP, kjString(swRest.kjsonP, "type", typeStr));
+    kjChildAdd(fragP, kjString(corRest.kjsonP, "type", typeStr));
   valueP->name = (char*) member;
   kjChildAdd(fragP, valueP);
 
   // § 10.2.6.4 observedAt: remove it when the attribute had one and no ?observedAt
   // is supplied. When ?observedAt IS supplied the merge injects it into the
   // fragment (ldEntityMerge), so nothing extra is needed for the update case.
-  if (hadObservedAt && swNgsild.observedAt == NULL)
-    kjChildAdd(fragP, kjString(swRest.kjsonP, LD_VOCAB_OBSERVED_AT, (char*) LD_VOCAB_NGSILD_NULL));
+  if (hadObservedAt && corNgsild.observedAt == NULL)
+    kjChildAdd(fragP, kjString(corRest.kjsonP, LD_VOCAB_OBSERVED_AT, (char*) LD_VOCAB_NGSILD_NULL));
 
   // Expand the synthesized fragment the way ldParseHook would for a normal
   // PATCH /attrs body (the raw value-only body itself was deliberately not
   // expanded). This gives a GeoProperty's GeoJSON / a JsonProperty's json the
   // proper opaque-value treatment in ldApiEntityToDbModel; for a primitive it
   // is a no-op. The fragment has no @context, so the context is unchanged.
-  swldExpandTree(fragP, ctxP, &swRest.kalloc);
+  corLdExpandTree(fragP, ctxP, &corRest.kalloc);
 
-  swRest.in.requestTree = fragP;
+  corRest.in.requestTree = fragP;
 
   return patchEntityAttr();  // merge + distops; 204 (or 207 on partial distop failure)
 }

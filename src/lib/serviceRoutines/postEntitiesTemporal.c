@@ -31,8 +31,8 @@
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strlen, strcpy, strcat, strcmp, memset
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -40,14 +40,14 @@
 #include "kjson/kjRenderSize.h"                      // kjFastRenderSize
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swJsonld/swldInit.h"                       // SWLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckUri.h"                     // ldCheckUri
-#include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
-#include "swNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckUri.h"                     // ldCheckUri
+#include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "corNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -113,7 +113,7 @@ static char* renderTemporalFragment(KjNode* fragP)
     kjChildRemove(fragP, atCtx);
 
   int   bufSize = kjFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
   kjFastRender(fragP, buf);
   return buf;
 }
@@ -132,19 +132,19 @@ static int forwardUpsertTemporal(LdRegCacheItem* csr,
   const char* path    = "/ngsi-ld/v1/temporal/entities";
   int         baseLen = strlen(csr->endpoint);
   int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
+  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
   strcpy(url, csr->endpoint);
   strcpy(url + baseLen, path);
 
   char* body = renderTemporalFragment(fragP);
-  return ldDistOpSend(csr, SwVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
+  return ldDistOpSend(csr, CorVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
 }
 
 
 
 bool postEntitiesTemporal(void)
 {
-  KjNode* bodyP = swRest.in.requestTree;
+  KjNode* bodyP = corRest.in.requestTree;
 
   if (bodyP == NULL || bodyP->type != KjObject)
   {
@@ -208,18 +208,18 @@ bool postEntitiesTemporal(void)
     return true;
   }
 
-  Tenant*     tenantP    = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP    = (Tenant*) corNgsild.tenantP;
   const char* entityId   = idP->value.s;
   bool        inputHadAttrs = hasNonKeywordAttr(bodyP);
 
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
   // Distop dispatch (§ 4.3.6 / § 5.6.11.4). upsertTemporal is NOT in the
   // default operations group per § 4.20 Table 4.20-2 — CSRs must opt in
   // explicitly. Auxiliary mode is retrieve-only (§ 4.3.6.2) — never
   // enters the write dispatch.
-  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (!corNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
     //
     // Registration matching considers EVERY type the Entity carries, not just
@@ -233,7 +233,7 @@ bool postEntitiesTemporal(void)
         typeCount++;
     }
 
-    char**  typeArr = (char**) kaAlloc(&swRest.kalloc, sizeof(char*) * (typeCount + 1));
+    char**  typeArr = (char**) kaAlloc(&corRest.kalloc, sizeof(char*) * (typeCount + 1));
     int     tIx     = 0;
 
     if (typeP->type == KjArray)
@@ -259,7 +259,7 @@ bool postEntitiesTemporal(void)
                                             entityId, typeArr,
                                             LdRegModeInclusive, &inclV);
 
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     bool        loopSeen = ldDistOpLoopDetected(ownAlias);
 
     // A loop no longer skips dispatch: phase 1 still chops the exclusive/
@@ -275,9 +275,9 @@ bool postEntitiesTemporal(void)
       for (int i = 0; i < counts[g]; i++)
         for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
     memset(items, 0, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -299,7 +299,7 @@ bool postEntitiesTemporal(void)
 
           // Exclusive: detach in-loop. Redirect: clone, sweep after
           // the loop. Inclusive: clone for local-too semantics.
-          KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, /*detach=*/(g == 0));
+          KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, corRest.kjsonP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
 
           if (!opSupported)
@@ -326,7 +326,7 @@ bool postEntitiesTemporal(void)
 
           int baseLen = strlen(csr->endpoint);
           int pathLen = strlen(tpath);
-          char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
+          char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, tpath);
           char* body = renderTemporalFragment(fragP);
@@ -350,14 +350,14 @@ bool postEntitiesTemporal(void)
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
         if (!entityInfoCoversId(riP, entityId)) continue;
-        KjNode* drop = ldEntityFragmentForInfo(bodyP, riP, swRest.kjsonP, /*detach=*/true);
+        KjNode* drop = ldEntityFragmentForInfo(bodyP, riP, corRest.kjsonP, /*detach=*/true);
         (void) drop;
       }
     }
 
     if (itemCount > 0)
     {
-      ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
+      ldDistOpSendMulti(items, itemCount, CorVerbPost, ownAlias, results);
 
       for (int i = 0; i < itemCount; i++)
       {
@@ -423,32 +423,32 @@ bool postEntitiesTemporal(void)
     // update of a pre-existing entity (no Location header).
     if (localWasUpdate)
     {
-      swRest.out.httpStatusCode = 204;
+      corRest.out.httpStatusCode = 204;
     }
     else
     {
       const char* prefix = "/ngsi-ld/v1/temporal/entities/";
       int   locLen = (int) strlen(prefix) + (int) strlen(entityId) + 1;
-      char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
+      char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
       strcpy(locBuf, prefix);
       strcat(locBuf, entityId);
-      swRestOutHeaderAdd("Location", locBuf);
+      corRestOutHeaderAdd("Location", locBuf);
 
-      swRest.out.httpStatusCode = 201;
+      corRest.out.httpStatusCode = 201;
     }
     return true;
   }
 
   // Mixed result → 207 with BatchOperationResult; total failure → 502.
-  KjNode* result = kjObject(swRest.kjsonP, NULL);
-  KjNode* successArr = kjArray(swRest.kjsonP, "success");
+  KjNode* result = kjObject(corRest.kjsonP, NULL);
+  KjNode* successArr = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArr, kjString(swRest.kjsonP, NULL, entityId));
+    kjChildAdd(successArr, kjString(corRest.kjsonP, NULL, entityId));
   kjChildAdd(result, successArr);
   kjChildAdd(result, errorsArrayP);
 
-  swRest.out.responseTree   = result;
-  swRest.out.httpStatusCode = anySucceeded ? 207 : 502;
+  corRest.out.responseTree   = result;
+  corRest.out.httpStatusCode = anySucceeded ? 207 : 502;
   (void) localCreatedOk;
   return true;
 }

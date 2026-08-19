@@ -1,5 +1,5 @@
-#ifndef SW_SR_GET_ATTRIBUTES_H_
-#define SW_SR_GET_ATTRIBUTES_H_
+#ifndef COR_SR_GET_ATTRIBUTES_H_
+#define COR_SR_GET_ATTRIBUTES_H_
 //
 // FILE            getAttributes.h
 //

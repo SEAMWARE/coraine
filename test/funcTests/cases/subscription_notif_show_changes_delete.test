@@ -25,9 +25,9 @@ notification.showChanges — previous<X> on attribute & entity delete
 subscription delete
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     "object": "urn:V0"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -62,14 +62,14 @@ sub1='{
     "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$sub1"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$sub1"
 echo
 echo
 
 
 echo "03. DELETE V1.parent — Relationship → previousObject"
 echo "===================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/parent
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/parent
 echo
 echo
 
@@ -84,7 +84,7 @@ echo
 echo "05. ftClientReset + delete S1 (only S2 should fire on the entity-delete)"
 echo "========================================================================"
 ftClientReset
-swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
+corCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
 echo
 echo
 
@@ -103,7 +103,7 @@ payload='{
     "object": "urn:V0"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -120,14 +120,14 @@ sub2='{
     "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$sub2"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$sub2"
 echo
 echo
 
 
 echo "08. DELETE entity V2"
 echo "===================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V2
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -283,6 +283,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

@@ -15,8 +15,8 @@ Multi-byte characters in an attribute name round-trip and work in a q-filter
 attr query q entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,21 +36,21 @@ payload='{
     "value": 1
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET E1"
 echo "=========="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
 echo
 echo
 
 
 echo "03. Query q=ｎａｍｅ==1 — E1 matches"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'q=ｎａｍｅ==1'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'q=ｎａｍｅ==1'
 echo
 echo
 
@@ -107,5 +107,5 @@ Content-Length: 137
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

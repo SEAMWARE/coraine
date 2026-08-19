@@ -12,8 +12,8 @@ GET entity/entities with datasetId filter returns only matching instances
 datasetid url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -54,42 +54,42 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity - datasetId=@none (default instance only)"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none'
 echo
 echo
 
 
 echo "03. GET entity - datasetId=urn:sensor:radar (named instance only)"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar'
 echo
 echo
 
 
 echo "04. GET entity - datasetId=@none,urn:sensor:lidar (two instances)"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none,urn:sensor:lidar'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none,urn:sensor:lidar'
 echo
 echo
 
 
 echo "05. GET entity - datasetId=urn:nonexistent (no match, attribute dropped)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:nonexistent'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:nonexistent'
 echo
 echo
 
 
 echo "06. GET entities - datasetId=urn:sensor:radar (collection query)"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&datasetId=urn:sensor:radar'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&datasetId=urn:sensor:radar'
 echo
 echo
 
@@ -111,42 +111,42 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "08. GET entity E2 - datasetId=@none (default Relationship instance only)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e2?datasetId=@none'
+corCurl --url '/ngsi-ld/v1/entities/urn:e2?datasetId=@none'
 echo
 echo
 
 
 echo "09. GET entity E2 - datasetId=urn:source:manual (named Relationship instance)"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e2?datasetId=urn:source:manual'
+corCurl --url '/ngsi-ld/v1/entities/urn:e2?datasetId=urn:source:manual'
 echo
 echo
 
 
 echo "10. GET entity E1 - datasetId=@none + pick=speed (combined filter)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none&pick=speed'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=@none&pick=speed'
 echo
 echo
 
 
 echo "11. GET entity E1 - datasetId=urn:sensor:radar + pick=id,type,speed"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar&pick=id,type,speed'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar&pick=id,type,speed'
 echo
 echo
 
 
 echo "12. GET entity E1 - datasetId=urn:sensor:radar + omit=speed (omit drops the only attr)"
 echo "======================================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar&omit=speed'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?datasetId=urn:sensor:radar&omit=speed'
 echo
 echo
 
@@ -366,5 +366,5 @@ Content-Length: 42
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

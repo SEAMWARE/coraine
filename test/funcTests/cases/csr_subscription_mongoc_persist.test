@@ -19,8 +19,8 @@ CSR + entity subscriptions — mixed persistence across broker restart (mongoc)
 csr-sub subscription
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": { "endpoint": { "uri": "http://localhost:1234/E1" } }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -59,29 +59,29 @@ payload='{
   "entities": [{"type": "Temperature"}],
   "notification": { "endpoint": { "uri": "http://localhost:1234/C1" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "03. List /subscriptions — E1 only"
 echo "================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. List /csourceSubscriptions — C1 only"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions
+corCurl --url /ngsi-ld/v1/csourceSubscriptions
 echo
 echo
 
 
 echo "05. Restart broker"
 echo "=================="
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo "restarted"
 echo
 echo
@@ -89,42 +89,42 @@ echo
 
 echo "06. List /subscriptions after restart — E1 only"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "07. List /csourceSubscriptions after restart — C1 only"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions
+corCurl --url /ngsi-ld/v1/csourceSubscriptions
 echo
 echo
 
 
 echo "08. Retrieve E1 via /subscriptions/E1 — 200"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:E1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:E1
 echo
 echo
 
 
 echo "09. Retrieve C1 via /subscriptions/C1 — 404"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:C1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:C1
 echo
 echo
 
 
 echo "10. Retrieve C1 via /csourceSubscriptions/C1 — 200"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C1
 echo
 echo
 
 
 echo "11. Retrieve E1 via /csourceSubscriptions/E1 — 404"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:E1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:E1
 echo
 echo
 
@@ -369,5 +369,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

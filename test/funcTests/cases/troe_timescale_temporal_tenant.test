@@ -16,15 +16,15 @@ TRoE timescale - multi-tenant isolation
 troe timescale postgres temporal tenant
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. POST urn:V1 (Vehicle, speed=10) in tenant T1"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t1" --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t1" --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
 echo done
 echo
 echo
@@ -32,7 +32,7 @@ echo
 
 echo "02. POST urn:V1 (Vehicle, speed=99) in tenant T2 — same id, different tenant"
 echo "============================================================================"
-swCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t2" --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t2" --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
 echo done
 echo
 echo
@@ -40,7 +40,7 @@ echo
 
 echo "03. GET temporal/urn:V1 in tenant T1 — sees speed=10"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t1" | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t1" | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -57,7 +57,7 @@ echo
 
 echo "04. GET temporal/urn:V1 in tenant T2 — sees speed=99"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t2" | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t2" | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -74,14 +74,14 @@ echo
 
 echo "05. GET temporal/urn:V1 in default tenant — 404 (no entity there)"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | head -1
 echo
 echo
 
 
 echo "06. Multi-entity GET in T1 — count 1, V1"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z' -H "NGSILD-Tenant: t1" | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z' -H "NGSILD-Tenant: t1" | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -95,21 +95,21 @@ echo
 
 echo "07. DELETE temporal/urn:V1 in T1 — drops only T1's row"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE -H "NGSILD-Tenant: t1" | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE -H "NGSILD-Tenant: t1" | head -1
 echo
 echo
 
 
 echo "08. GET temporal/urn:V1 in T1 — 404 (gone)"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t1" | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t1" | head -1
 echo
 echo
 
 
 echo "09. GET temporal/urn:V1 in T2 — still there"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t2" | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H "NGSILD-Tenant: t2" | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -126,10 +126,10 @@ echo
 
 echo "10. Physical isolation — t1 and t2 own separate TRoE databases"
 echo "=============================================================="
-# Each tenant's temporal data lives in its own "${SW_TROE_DB}_<tenant>"
+# Each tenant's temporal data lives in its own "${COR_TROE_DB}_<tenant>"
 # database, not as a tenant-column slice of one shared database.
 psql -h localhost -p 5432 -U postgres -tAc \
-  "SELECT datname FROM pg_database WHERE datname IN ('${SW_TROE_DB}_t1', '${SW_TROE_DB}_t2') ORDER BY datname"
+  "SELECT datname FROM pg_database WHERE datname IN ('${COR_TROE_DB}_t1', '${COR_TROE_DB}_t2') ORDER BY datname"
 echo
 echo
 
@@ -187,6 +187,6 @@ corh_cb_t2
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

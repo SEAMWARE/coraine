@@ -14,140 +14,140 @@ URL parsing — URL-as-entity-id, non-URI ids, unknown path
 url parse entity subscription registration error
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. GET /ngsi-ld/v1/entities?type=T"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T'
 echo
 echo
 
 
 echo "02. GET /ngsi-ld/v1/entities/<url-as-id>"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx'
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx'
 echo
 echo
 
 
 echo "03. GET /ngsi-ld/v1/subscriptions"
 echo "================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. GET /ngsi-ld/v1/subscriptions/urn:S1"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1
 echo
 echo
 
 
 echo "05. GET /ngsi-ld/v1/csourceRegistrations"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations
+corCurl --url /ngsi-ld/v1/csourceRegistrations
 echo
 echo
 
 
 echo "06. GET /ngsi-ld/v1/csourceRegistrations/urn:R1"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1
 echo
 echo
 
 
 echo "07. GET /ngsi-ld/v1/jsonldContexts/C1"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/jsonldContexts/C1
+corCurl --url /ngsi-ld/v1/jsonldContexts/C1
 echo
 echo
 
 
 echo "08. POST /ngsi-ld/v1/entities (url-as-id)"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "http://a.b.c/E8", "type": "A", "name": { "type": "Property", "value": "John" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "http://a.b.c/E8", "type": "A", "name": { "type": "Property", "value": "John" } }'
 echo
 echo
 
 
 echo "09. POST /ngsi-ld/v1/entities/<url-as-id>/attrs (entity absent)"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E9.xxx/attrs' -X POST --payload '{ "A1": { "type": "Property", "value": 1 } }'
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E9.xxx/attrs' -X POST --payload '{ "A1": { "type": "Property", "value": 1 } }'
 echo
 echo
 
 
 echo "10. POST /ngsi-ld/v1/subscriptions"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "type": "Subscription", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://valid.url/url", "accept": "application/ld+json" } } }' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "type": "Subscription", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://valid.url/url", "accept": "application/ld+json" } } }' | head -1
 echo
 echo
 
 
 echo "11. POST /ngsi-ld/v1/csourceRegistrations"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "id": "http://a.b.c/E1", "type": "T" } ] } ], "endpoint": "http://my.csource.org:1026" }' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "id": "http://a.b.c/E1", "type": "T" } ] } ], "endpoint": "http://my.csource.org:1026" }' | head -1
 echo
 echo
 
 
 echo "12. PATCH /ngsi-ld/v1/entities/<url-as-id>/attrs (entity absent)"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx/attrs' -X PATCH --payload '{ "a": 1 }'
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx/attrs' -X PATCH --payload '{ "a": 1 }'
 echo
 echo
 
 
 echo "13. PATCH /ngsi-ld/v1/subscriptions/S1 (non-URI id)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/S1 -X PATCH --payload '{ "a": 1 }'
+corCurl --url /ngsi-ld/v1/subscriptions/S1 -X PATCH --payload '{ "a": 1 }'
 echo
 echo
 
 
 echo "14. PATCH /ngsi-ld/v1/csourceRegistrations/R1 (non-URI id)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/R1 -X PATCH --payload '{ "a": 1 }'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/R1 -X PATCH --payload '{ "a": 1 }'
 echo
 echo
 
 
 echo "15. DELETE /ngsi-ld/v1/entities/<url-as-id> (entity absent)"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E9.xxx' -X DELETE
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E9.xxx' -X DELETE
 echo
 echo
 
 
 echo "16. DELETE /ngsi-ld/v1/entities/<url-as-id>/attrs/<url-as-attr>"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx/attrs/http://a.b.c/list/of/attributes/A1.xxx' -X DELETE
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/list/of/entities/E1.xxx/attrs/http://a.b.c/list/of/attributes/A1.xxx' -X DELETE
 echo
 echo
 
 
 echo "17. DELETE /ngsi-ld/v1/subscriptions/urn:S1 (absent)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 -X DELETE
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 -X DELETE
 echo
 echo
 
 
 echo "18. DELETE /ngsi-ld/v1/csourceRegistrations/urn:R1 (absent)"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1 -X DELETE
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1 -X DELETE
 echo
 echo
 
 
 echo "19. GET /ngsi-ld/nada (unknown service path)"
 echo "============================================"
-swCurl --url /ngsi-ld/nada
+corCurl --url /ngsi-ld/nada
 echo
 echo
 
@@ -422,5 +422,5 @@ Content-Length: 172
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -20,21 +20,21 @@
 #include <stddef.h>                                   // NULL
 #include <string.h>                                   // strlen, strcpy, strcat
 
-#include "swRest/SwRestState.h"                       // swRest
-#include "swRest/swRestOutHeader.h"                   // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                       // corRest
+#include "corRest/corRestOutHeader.h"                   // corRestOutHeaderAdd
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kalloc/kaStrdup.h"                          // kaStrdup
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjRenderSize.h"                       // kjFastRenderSize
 #include "kjson/kjRender.h"                           // kjFastRender
-#include "swJsonld/SwldContext.h"                     // SwldContext, SwldContextKind
-#include "swJsonld/SwldContextCache.h"                // SwldContextCache
-#include "swJsonld/swldCache.h"                       // swldCacheLookup, swldCacheInsert
-#include "swJsonld/swldContextParse.h"                // swldContextFromObject, swldContextFromTree
-#include "swJsonld/swldDownload.h"                    // swldContextFromUrl
-#include "swJsonld/swldIdGen.h"                       // swldIdGenerate
-#include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
+#include "corJsonld/CorLdContext.h"                     // CorLdContext, CorLdContextKind
+#include "corJsonld/CorLdContextCache.h"                // CorLdContextCache
+#include "corJsonld/corLdCache.h"                       // corLdCacheLookup, corLdCacheInsert
+#include "corJsonld/corLdContextParse.h"                // corLdContextFromObject, corLdContextFromTree
+#include "corJsonld/corLdDownload.h"                    // corLdContextFromUrl
+#include "corJsonld/corLdIdGen.h"                       // corLdIdGenerate
+#include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
 
 #include "db/DbDriver.h"                              // db, DB_CONTEXT_KIND_*
 
@@ -44,9 +44,9 @@
 
 // -----------------------------------------------------------------------------
 //
-// swldCacheGet - internal accessor in swJsonld/swldInit.c
+// corLdCacheGet - internal accessor in corJsonld/corLdInit.c
 //
-extern SwldContextCache* swldCacheGet(void);
+extern CorLdContextCache* corLdCacheGet(void);
 
 
 
@@ -56,7 +56,7 @@ extern SwldContextCache* swldCacheGet(void);
 //
 bool postJsonldContexts(void)
 {
-  KjNode* bodyP = swRest.in.requestTree;
+  KjNode* bodyP = corRest.in.requestTree;
 
   //
   // Content-Type / payload checks
@@ -74,7 +74,7 @@ bool postJsonldContexts(void)
   KjNode* atContextP = kjLookup(bodyP, "@context");
   KjNode* urlP       = kjLookup(bodyP, "url");
 
-  SwldContextCache* cacheP   = swldCacheGet();
+  CorLdContextCache* cacheP   = corLdCacheGet();
   KAlloc*           storeP   = cacheP->kaP;
   const char*       location = NULL;
 
@@ -91,17 +91,17 @@ bool postJsonldContexts(void)
       return true;
     }
 
-    SwldContext* contextP = NULL;
+    CorLdContext* contextP = NULL;
 
     if (atContextP->type == KjObject)
-      contextP = swldContextFromObject(atContextP, storeP, NULL);
+      contextP = corLdContextFromObject(atContextP, storeP, NULL);
     else
       //
       // Array form. Each element is a URL string (downloaded as Implicit
-      // and referenced) or an inline object. swldContextFromTree builds
-      // a wrapper SwldContext with isArray=true and contextV[] populated.
+      // and referenced) or an inline object. corLdContextFromTree builds
+      // a wrapper CorLdContext with isArray=true and contextV[] populated.
       //
-      contextP = swldContextFromTree(atContextP, storeP, NULL);  // Hosted @context - identified by localId, no URL of its own to resolve against
+      contextP = corLdContextFromTree(atContextP, storeP, NULL);  // Hosted @context - identified by localId, no URL of its own to resolve against
 
     if (contextP == NULL)
     {
@@ -116,7 +116,7 @@ bool postJsonldContexts(void)
     // @context arrays). When a referenced @context is not yet stored,
     // the broker downloads it and adds it as a Cached @context."
     //
-    // swldContextFromTree just-downloaded each URL element of the
+    // corLdContextFromTree just-downloaded each URL element of the
     // @context array as kind=Implicit; promote those to Cached so a
     // subsequent GET ?details=true reports the spec-mandated kind.
     // Inline-object elements stay Implicit (they have no URL — they
@@ -127,10 +127,10 @@ bool postJsonldContexts(void)
       for (KjNode* el = atContextP->value.firstChildP; el != NULL; el = el->next)
       {
         if (el->type != KjString) continue;
-        SwldContext* refP = swldCacheLookup(el->value.s);
-        if (refP != NULL && refP->kind == SwldKindImplicit && refP->url != NULL)
+        CorLdContext* refP = corLdCacheLookup(el->value.s);
+        if (refP != NULL && refP->kind == CorLdKindImplicit && refP->url != NULL)
         {
-          refP->kind = SwldKindCached;
+          refP->kind = CorLdKindCached;
           if (db.contextSave != NULL && refP->body != NULL)
             db.contextSave(refP->url, refP->url, DB_CONTEXT_KIND_CACHED, refP->body);
         }
@@ -140,14 +140,14 @@ bool postJsonldContexts(void)
     //
     // Assign broker-minted id and preserve the raw body for later GETs.
     //
-    char* id = swldIdGenerate(storeP);
+    char* id = corLdIdGenerate(storeP);
     if (id == NULL)
     {
       ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "id generation failed");
       return true;
     }
     contextP->id   = id;
-    contextP->kind = SwldKindHosted;
+    contextP->kind = CorLdKindHosted;
 
     int   bodyLen = kjFastRenderSize(bodyP) + 1;
     char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
@@ -157,7 +157,7 @@ bool postJsonldContexts(void)
       contextP->body = bodyBuf;
     }
 
-    swldCacheInsert(contextP);
+    corLdCacheInsert(contextP);
 
     //
     // Persist (only mongoc plugin implements this; ramdb leaves it NULL).
@@ -185,11 +185,11 @@ bool postJsonldContexts(void)
     // If already in cache (as Implicit): upgrade to Cached per § 5.13.2.5.
     // Otherwise download. Either way, location = url.
     //
-    SwldContext* existingP = swldCacheLookup(url);
+    CorLdContext* existingP = corLdCacheLookup(url);
 
     if (existingP == NULL)
     {
-      existingP = swldContextFromUrl(url, storeP);
+      existingP = corLdContextFromUrl(url, storeP);
 
       if (existingP == NULL)
       {
@@ -200,8 +200,8 @@ bool postJsonldContexts(void)
     }
 
     // Upgrade kind to Cached (idempotent if already Cached/Hosted).
-    if (existingP->kind == SwldKindImplicit)
-      existingP->kind = SwldKindCached;
+    if (existingP->kind == CorLdKindImplicit)
+      existingP->kind = CorLdKindCached;
 
     //
     // Persist. body was captured at download time (or by an earlier POST).
@@ -225,20 +225,20 @@ bool postJsonldContexts(void)
   //
   // 201 Created + Location
   //
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
 
   //
   // Build "/ngsi-ld/v1/jsonldContexts/<id>" in the request arena.
   //
   static const char prefix[] = "/ngsi-ld/v1/jsonldContexts/";
   int   locLen = sizeof(prefix) - 1 + strlen(location) + 1;
-  char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
+  char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
   if (locBuf != NULL)
   {
     strcpy(locBuf, prefix);
     strcat(locBuf, location);
 
-    swRestOutHeaderAdd("Location", locBuf);
+    corRestOutHeaderAdd("Location", locBuf);
   }
 
   return true;

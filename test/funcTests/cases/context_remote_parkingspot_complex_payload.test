@@ -18,9 +18,9 @@ Complex ParkingSpot payload under a 2-element @context is accepted, broker alive
 context entity geo relationship
 
 --INIT--
-swDbDrop
+corDbDrop
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/parkingspot '{
   "@context": {
@@ -41,7 +41,7 @@ contextServerPush /jsonldContexts/parkingspot '{
 
 echo "01. POST the complex ParkingSpot entity"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/ld+json' --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/ld+json' --payload '{
   "id": "urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3",
   "type": "ParkingSpot",
   "status": { "type": "Property", "value": "free", "observedAt": "2018-09-21T12:00:00Z" },
@@ -60,7 +60,7 @@ echo
 
 echo "02. GET the entity back — broker alive"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3 --header 'Link: <http://localhost:7080/jsonldContexts/parkingspot>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:ParkingSpot:santander:daoiz_velarde_1_5:3 --header 'Link: <http://localhost:7080/jsonldContexts/parkingspot>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
@@ -119,6 +119,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop
+corDbDrop

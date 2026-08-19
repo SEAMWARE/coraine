@@ -24,26 +24,26 @@
 #include "kjson/kjParse.h"                           // kjParse
 #include "kjson/kjBufferCreate.h"                    // kjBufferCreate
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swJsonld/swldExpandTree.h"                 // swldExpandTree
-#include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swJsonld/swldCompact.h"                    // swldCompact
-#include "swJsonld/swldInit.h"                       // swldCoreContext
-#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldPickOmit
-#include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
-#include "swRest/SwRestIn.h"                  // swAcceptParse, SwMimeGeoJson
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd (§ 6.3.5 NGSILD-Warning)
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
-#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
-#include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
-#include "swNgsild/ldDistMerge.h"                   // ldDistExpiresAtReconcile, ldDistScopeMerge
-#include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
-#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
-#include "swNgsild/ldQRender.h"                      // ldCompactOrEncode
+#include "corRest/CorRestState.h"                      // corRest
+#include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
+#include "corJsonld/corLdCompact.h"                    // corLdCompact
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldPickOmit
+#include "corNgsild/ldParamsValidate.h"               // ldParamsValidate
+#include "corRest/CorRestIn.h"                  // corAcceptParse, CorMimeGeoJson
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd (§ 6.3.5 NGSILD-Warning)
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "corNgsild/ldStripAtContext.h"              // ldStripAtContext
+#include "corNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
+#include "corNgsild/ldDistMerge.h"                   // ldDistExpiresAtReconcile, ldDistScopeMerge
+#include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
+#include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
+#include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityIs
@@ -190,7 +190,7 @@ static void mergeOneSourceInto(KjNode* destP, KjNode* srcP, int64_t nowNs)
   ldDistExpiresAtReconcile(destP, srcP);
 
   // § 5.2.7 — and the Scopes of this version join those of the versions already assembled.
-  ldDistScopeMerge(destP, srcP, swRest.kjsonP);
+  ldDistScopeMerge(destP, srcP, corRest.kjsonP);
 
   KjNode* srcAttrP = srcP->value.firstChildP;
   while (srcAttrP != NULL)
@@ -236,7 +236,7 @@ static void mergeOneSourceInto(KjNode* destP, KjNode* srcP, int64_t nowNs)
 
         if (destAttrP == NULL)
         {
-          destAttrP = kjObject(swRest.kjsonP, srcAttrP->name);
+          destAttrP = kjObject(corRest.kjsonP, srcAttrP->name);
           kjChildAdd(destP, destAttrP);
         }
 
@@ -302,7 +302,7 @@ static void mergeAuxiliaryInto(KjNode* destP, KjNode* srcP)
 
       if (destAttrP == NULL)
       {
-        destAttrP = kjObject(swRest.kjsonP, srcAttrP->name);
+        destAttrP = kjObject(corRest.kjsonP, srcAttrP->name);
         kjChildAdd(destP, destAttrP);
       }
       kjChildAdd(destAttrP, srcInstP);
@@ -423,17 +423,17 @@ static bool infoEntryMatchesEntity(LdRegInfo* riP, const char* entityId)
 //
 static bool userWantsField(const char* name)
 {
-  if (swNgsild.pickV != NULL)
+  if (corNgsild.pickV != NULL)
   {
-    for (int i = 0; swNgsild.pickV[i] != NULL; i++)
-      if (strcmp(swNgsild.pickV[i], name) == 0)
+    for (int i = 0; corNgsild.pickV[i] != NULL; i++)
+      if (strcmp(corNgsild.pickV[i], name) == 0)
         return true;
     return false;
   }
-  if (swNgsild.omitV != NULL)
+  if (corNgsild.omitV != NULL)
   {
-    for (int i = 0; swNgsild.omitV[i] != NULL; i++)
-      if (strcmp(swNgsild.omitV[i], name) == 0)
+    for (int i = 0; corNgsild.omitV[i] != NULL; i++)
+      if (strcmp(corNgsild.omitV[i], name) == 0)
         return false;
     return true;
   }
@@ -482,7 +482,7 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
   // context > core. Compacting against any other context would emit
   // short names the CS expands differently than we intended; IRIs with
   // no short form there are %-encoded (ldCompactOrEncode).
-  SwldContext* forwardCtx = (csr != NULL) ? ldDistOpForwardContext(csr) : swldCoreContext();
+  CorLdContext* forwardCtx = (csr != NULL) ? ldDistOpForwardContext(csr) : corLdCoreContext();
 
   int totalLen = 0;
   int count    = 0;
@@ -536,14 +536,14 @@ static char* buildQueryFormUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* 
   const char* base    = csr->endpoint;
   const char* path    = "/ngsi-ld/v1/entities?id=";
   const char* qs      = "&sysAttrs=true";
-  const char* pickRaw = buildInfoPickParam(csr, riP, &swRest.kalloc, forceTypeScope);
+  const char* pickRaw = buildInfoPickParam(csr, riP, &corRest.kalloc, forceTypeScope);
 
   int baseLen = strlen(base);
   int pathLen = strlen(path);
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
   int pickLen = strlen(pickRaw);
-  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
+  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
 
   char* p = url;
   memcpy(p, base, baseLen);       p += baseLen;
@@ -567,7 +567,7 @@ static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char*
 {
   const char* path    = "/ngsi-ld/v1/entityOperations/query?sysAttrs=true";
   int   baseLen = strlen(csr->endpoint);
-  char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + strlen(path) + 1);
+  char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
   strcpy(url, csr->endpoint);
   strcpy(url + baseLen, path);
 
@@ -575,7 +575,7 @@ static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char*
   static const char bodyPre[]  = "{\"type\":\"Query\",\"entities\":[{\"id\":\"";
   static const char bodyPost[] = "\"}]}";
   int   idLen = strlen(entityId);
-  char* body  = (char*) kaAlloc(&swRest.kalloc, sizeof(bodyPre) - 1 + idLen + sizeof(bodyPost));
+  char* body  = (char*) kaAlloc(&corRest.kalloc, sizeof(bodyPre) - 1 + idLen + sizeof(bodyPost));
   char* p     = body;
   memcpy(p, bodyPre, sizeof(bodyPre) - 1);  p += sizeof(bodyPre) - 1;
   memcpy(p, entityId, idLen);               p += idLen;
@@ -586,7 +586,7 @@ static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char*
   itemP->body    = body;
   itemP->bodyLen = (int) (p - body) + (int) sizeof(bodyPost) - 1;
   itemP->hasVerb = true;
-  itemP->verb    = SwVerbPost;
+  itemP->verb    = CorVerbPost;
 }
 
 
@@ -615,8 +615,8 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   //     forwarded only if the original GET asked for it.
   bool isAux = (csr->mode == LdRegModeAuxiliary);
 
-  const char* qs       = (isAux && !swNgsild.sysAttrs) ? "" : "?sysAttrs=true";
-  const char* pickRaw  = buildInfoPickParam(csr, riP, &swRest.kalloc, forceTypeScope);
+  const char* qs       = (isAux && !corNgsild.sysAttrs) ? "" : "?sysAttrs=true";
+  const char* pickRaw  = buildInfoPickParam(csr, riP, &corRest.kalloc, forceTypeScope);
   const char* pick     = pickRaw;
   if (qs[0] == '\0' && pickRaw[0] == '&')
   {
@@ -633,7 +633,7 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
   int pickLen = strlen(pick);
-  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
+  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
@@ -674,18 +674,18 @@ static KjNode* shapeUpstreamBody(KjNode* treeP, const char* respCtxUrl, const ch
   }
 
   // Expand via the context that travels WITH the response — the URL in its
-  // json-ld#context Link header (application/json), else core. swldExpandTree
+  // json-ld#context Link header (application/json), else core. corLdExpandTree
   // additionally applies any embedded @context (application/ld+json) on top.
-  // NOT swNgsild.contextP: the response speaks the CP's vocabulary, which may
+  // NOT corNgsild.contextP: the response speaks the CP's vocabulary, which may
   // differ from the client's request context.
-  SwldContext* respCtxP = (respCtxUrl != NULL) ? swldContextFromUrl(respCtxUrl, &swRest.kalloc) : NULL;
+  CorLdContext* respCtxP = (respCtxUrl != NULL) ? corLdContextFromUrl(respCtxUrl, &corRest.kalloc) : NULL;
   if (respCtxP == NULL)
-    respCtxP = swldCoreContext();
+    respCtxP = corLdCoreContext();
 
-  swldExpandTree(treeP, respCtxP, &swRest.kalloc);
+  corLdExpandTree(treeP, respCtxP, &corRest.kalloc);
   ldStripAtContext(treeP);
-  apiAttrToStorageWrap(treeP, swRest.kjsonP);
-  ldExpiresAtPropagate(treeP, swRest.kjsonP);
+  apiAttrToStorageWrap(treeP, corRest.kjsonP);
+  ldExpiresAtPropagate(treeP, corRest.kjsonP);
   return treeP;
 }
 
@@ -705,7 +705,7 @@ static void ensureEntityId(KjNode* treeP, const char* entityId)
 {
   if (treeP == NULL || treeP->type != KjObject) return;
   if (kjLookup(treeP, "id") != NULL)            return;
-  kjChildAdd(treeP, kjString(swRest.kjsonP, "id", (char*) entityId));
+  kjChildAdd(treeP, kjString(corRest.kjsonP, "id", (char*) entityId));
 }
 
 
@@ -765,7 +765,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
 
   // Loop detection per § 5.7.5 — our own Via alias already inbound → serve
   // locally, suppress forwards.
-  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
   if (ldDistOpLoopDetected(ownAlias))
   {
     ldRegCacheMatchRelease(exclV,  exclN);  exclV  = NULL; exclN  = 0;
@@ -814,11 +814,11 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
     for (int i = 0; i < counts[g]; i++)
       for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-  LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+  LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
   memset(items, 0, total * sizeof(LdDistOpBatchItem));
-  LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-  int*                 itemGroup = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
-  LdRegInfo**          itemRiP   = (LdRegInfo**)          kaAlloc(&swRest.kalloc, total * sizeof(LdRegInfo*));
+  LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+  int*                 itemGroup = (int*)                 kaAlloc(&corRest.kalloc, total * sizeof(int));
+  LdRegInfo**          itemRiP   = (LdRegInfo**)          kaAlloc(&corRest.kalloc, total * sizeof(LdRegInfo*));
   int                  itemCount = 0;
   memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -865,7 +865,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
 
   if (itemCount > 0)
   {
-    ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+    ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
 
     // Pass 1 — § 4.3.6.3 local-strip for excl/redir BEFORE any merge.
     for (int i = 0; i < itemCount; i++)
@@ -922,14 +922,14 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
         upP->next = NULL;
       }
 
-      SwldContext* respCtxP = (results[i].responseContextUrl != NULL)
-                              ? swldContextFromUrl(results[i].responseContextUrl, &swRest.kalloc) : NULL;
+      CorLdContext* respCtxP = (results[i].responseContextUrl != NULL)
+                              ? corLdContextFromUrl(results[i].responseContextUrl, &corRest.kalloc) : NULL;
       if (respCtxP == NULL)
-        respCtxP = swldCoreContext();
-      swldExpandTree(upP, respCtxP, &swRest.kalloc);
+        respCtxP = corLdCoreContext();
+      corLdExpandTree(upP, respCtxP, &corRest.kalloc);
       ldStripAtContext(upP);
-      apiAttrToStorageWrap(upP, swRest.kjsonP);
-      ldExpiresAtPropagate(upP, swRest.kjsonP);
+      apiAttrToStorageWrap(upP, corRest.kjsonP);
+      ldExpiresAtPropagate(upP, corRest.kjsonP);
       ensureEntityId(upP, entityId);
 
       if (destP == NULL)
@@ -948,7 +948,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
     // redirect) errors abort into a 504/502 above and never reach here.
     char* warn = ldDistOpWarnings(items, results, itemCount);
     if (warn != NULL)
-      swRestOutHeaderAdd("NGSILD-Warning", warn);
+      corRestOutHeaderAdd("NGSILD-Warning", warn);
   }
 
   ldRegCacheMatchRelease(exclV,  exclN);
@@ -975,37 +975,37 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
 //
 static void geoJsonGeomProtectSetup(void)
 {
-  if (swAcceptParse(swRest.in.accept) != SwMimeGeoJson)
+  if (corAcceptParse(corRest.in.accept) != CorMimeGeoJson)
     return;
 
-  SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  gmName = (swNgsild.geometryProperty != NULL) ? swNgsild.geometryProperty : "location";
-  char*        gmIri  = swldExpand(ctxP, gmName, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP   = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  gmName = (corNgsild.geometryProperty != NULL) ? corNgsild.geometryProperty : "location";
+  char*        gmIri  = corLdExpand(ctxP, gmName, &corRest.kalloc, NULL, NULL);
   if (gmIri == NULL)
     gmIri = (char*) gmName;
 
-  swNgsild.geometryPropertyExpanded = gmIri;
+  corNgsild.geometryPropertyExpanded = gmIri;
 
   bool wanted = true;
-  if (swNgsild.pickV != NULL)
+  if (corNgsild.pickV != NULL)
   {
     wanted = false;
-    for (int i = 0; swNgsild.pickV[i] != NULL; i++)
-      if (strcmp(swNgsild.pickV[i], gmIri) == 0) { wanted = true; break; }
+    for (int i = 0; corNgsild.pickV[i] != NULL; i++)
+      if (strcmp(corNgsild.pickV[i], gmIri) == 0) { wanted = true; break; }
   }
-  else if (swNgsild.omitV != NULL)
+  else if (corNgsild.omitV != NULL)
   {
-    for (int i = 0; swNgsild.omitV[i] != NULL; i++)
-      if (strcmp(swNgsild.omitV[i], gmIri) == 0) { wanted = false; break; }
+    for (int i = 0; corNgsild.omitV[i] != NULL; i++)
+      if (strcmp(corNgsild.omitV[i], gmIri) == 0) { wanted = false; break; }
   }
-  else if (swNgsild.attrsV != NULL)
+  else if (corNgsild.attrsV != NULL)
   {
     wanted = false;
-    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
-      if (strcmp(swNgsild.attrsV[i], gmIri) == 0) { wanted = true; break; }
+    for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
+      if (strcmp(corNgsild.attrsV[i], gmIri) == 0) { wanted = true; break; }
   }
 
-  swNgsild.geoJsonGeomForced = !wanted;
+  corNgsild.geoJsonGeomForced = !wanted;
 }
 
 
@@ -1020,7 +1020,7 @@ bool getEntity(void)
   // geo+json: protect the geometry GeoProperty through the member projection.
   geoJsonGeomProtectSetup();
 
-  const char* entityId = swRest.in.wildcard[0];
+  const char* entityId = corRest.in.wildcard[0];
 
   //
   // § 6.3.22 / § 5.5.15 — snapshot-aware read. NGSILD-Snapshot header
@@ -1047,16 +1047,16 @@ bool getEntity(void)
   //   4. Auxiliary:  forward each, fill gaps only (never overrides)
   // ?local=true (§ 5.5.13) bypasses the dispatcher entirely.
   //
-  if (swNgsild.local == false)
+  if (corNgsild.local == false)
   {
-    Tenant*          tP      = (Tenant*) swNgsild.tenantP;
+    Tenant*          tP      = (Tenant*) corNgsild.tenantP;
     bool             matched = false;
     DistRetrieveErr  err     = {0};
 
     // Request-driven retrieve: scope the reg match by the request's type
     // (NULL = no type filter), and let buildInfoPickParam honour the
     // request projection for the forward pick (wholeForward = false).
-    KjNode*          destP   = distributedRetrieveOne(entityId, swNgsild.typeV, tP, false, &matched, &err);
+    KjNode*          destP   = distributedRetrieveOne(entityId, corNgsild.typeV, tP, false, &matched, &err);
 
     if (matched)
     {
@@ -1090,21 +1090,21 @@ bool getEntity(void)
         return true;
       }
 
-      if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
-        ldPickOmit(destP, swNgsild.pickV, swNgsild.omitV);
-      else if (swNgsild.attrsV != NULL)
-        ldAttrsFilter(destP, swNgsild.attrsV);
-      swRest.out.responseTree = destP;
+      if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
+        ldPickOmit(destP, corNgsild.pickV, corNgsild.omitV);
+      else if (corNgsild.attrsV != NULL)
+        ldAttrsFilter(destP, corNgsild.attrsV);
+      corRest.out.responseTree = destP;
       return true;
     }
   }
 
   KjNode* entityP = NULL;
-  int     r       = db.entityRetrieve((Tenant*) swNgsild.tenantP, entityId, &entityP);
+  int     r       = db.entityRetrieve((Tenant*) corNgsild.tenantP, entityId, &entityP);
 
   // § 5.2.4: a transient Entity past its expiresAt is invalid — answered as if
   // it were not there, and queued for deletion once the response is out.
-  if ((r == DB_OK) && dbExpiredEntityIs((Tenant*) swNgsild.tenantP, entityP))
+  if ((r == DB_OK) && dbExpiredEntityIs((Tenant*) corNgsild.tenantP, entityP))
     r = DB_NOT_FOUND;
 
   if (r == DB_NOT_FOUND)
@@ -1138,16 +1138,16 @@ bool getEntity(void)
   //     test — only user attributes do.
   //
   // ETSI 018_03_02 / 018_19_*.
-  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+    ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
     bool hasMembers = false;
     for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;
-      if (!swNgsild.sysAttrs &&
+      if (!corNgsild.sysAttrs &&
           (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0 ||
            strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0 ||
            strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0))
@@ -1168,9 +1168,9 @@ bool getEntity(void)
       return true;
     }
   }
-  else if (swNgsild.attrsV != NULL)
+  else if (corNgsild.attrsV != NULL)
   {
-    ldAttrsFilter(entityP, swNgsild.attrsV);
+    ldAttrsFilter(entityP, corNgsild.attrsV);
 
     // Count surviving user attributes (skip entity members and
     // system-managed timestamps — the filter preserves them but they
@@ -1201,12 +1201,12 @@ bool getEntity(void)
   // (primary + targets); join=inline nests targets as `entity` sub-
   // attributes on the originating Relationship. @none and absent
   // leave the response as the single entity.
-  if (swNgsild.join != NULL)
+  if (corNgsild.join != NULL)
   {
-    int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
-    if (strcmp(swNgsild.join, "flat") == 0)
+    int level = (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1;
+    if (strcmp(corNgsild.join, "flat") == 0)
     {
-      KjNode* flatP = ldLinkedEntitiesFlat(entityP, level, (Tenant*) swNgsild.tenantP);
+      KjNode* flatP = ldLinkedEntitiesFlat(entityP, level, (Tenant*) corNgsild.tenantP);
       // Single-entity Retrieve shape: if flat returned only the
       // primary (no linked targets resolved), unwrap the array so the
       // response stays a plain Entity object. § 4.5.23 doesn't mandate
@@ -1222,16 +1222,16 @@ bool getEntity(void)
           flatP = first;
         }
       }
-      swRest.out.responseTree = flatP;
+      corRest.out.responseTree = flatP;
       return true;
     }
-    if (strcmp(swNgsild.join, "inline") == 0)
+    if (strcmp(corNgsild.join, "inline") == 0)
     {
-      swRest.out.responseTree = ldLinkedEntitiesInline(entityP, level, (Tenant*) swNgsild.tenantP);
+      corRest.out.responseTree = ldLinkedEntitiesInline(entityP, level, (Tenant*) corNgsild.tenantP);
       return true;
     }
   }
 
-  swRest.out.responseTree = entityP;
+  corRest.out.responseTree = entityP;
   return true;
 }

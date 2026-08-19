@@ -22,8 +22,8 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/SwRestVerb.h"                       // SwVerbDelete
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/CorRestVerb.h"                       // CorVerbDelete
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "kjson/KjNode.h"                            // KjNode
@@ -31,24 +31,24 @@
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjClone.h"                           // kjClone
 
-#include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_NGSILD_NULL
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
-#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
-#include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_NGSILD_NULL
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
+#include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrDeleted
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
 
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldDistOp.h"                       // ldDistOp*
-#include "swNgsild/ldQRender.h"                      // ldCompactOrEncode
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldDistOp.h"                       // ldDistOp*
+#include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -65,8 +65,8 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
 {
   const char* p1 = "/ngsi-ld/v1/entities/";
   const char* p2 = "/attrs/";
-  const char* dsKey   = swNgsild.datasetId;   // may be NULL
-  bool        delAll  = swNgsild.deleteAll;
+  const char* dsKey   = corNgsild.datasetId;   // may be NULL
+  bool        delAll  = corNgsild.deleteAll;
 
   int lenE  = strlen(endpoint);
   int lenP1 = strlen(p1);
@@ -77,7 +77,7 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
   int extra = (dsKey != NULL ? 1 + 10 + lenDs : 0) + (delAll ? 1 + 15 : 0);
   //   "?datasetId=" = 11; "?deleteAll=true" = 15; "&..." sep = 1 each.
 
-  char* buf = (char*) kaAlloc(&swRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + extra + 1);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + extra + 1);
   char* p = buf;
   memcpy(p, endpoint, lenE); p += lenE;
   memcpy(p, p1, lenP1);      p += lenP1;
@@ -116,13 +116,13 @@ static bool applyLocalDelete(KjNode* entityP, const char* attrIri)
   if (attrP == NULL)
     return false;
 
-  if (swNgsild.deleteAll || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
+  if (corNgsild.deleteAll || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
   {
     kjChildRemove(entityP, attrP);
     return true;
   }
 
-  const char* dsKey = swNgsild.datasetId;
+  const char* dsKey = corNgsild.datasetId;
   if (dsKey == NULL) dsKey = "@none";
 
   KjNode* instP = kjLookup(attrP, dsKey);
@@ -146,13 +146,13 @@ static bool applyLocalDelete(KjNode* entityP, const char* attrIri)
 //
 bool deleteEntityAttr(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
-  const char* attrWild = swRest.in.wildcard[1];
+  const char* entityId = corRest.in.wildcard[0];
+  const char* attrWild = corRest.in.wildcard[1];
 
   ldContextResolve();
 
-  SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
 
   //
@@ -184,14 +184,14 @@ bool deleteEntityAttr(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
-  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
-  bool dispatch = (swNgsild.local == false
+  bool dispatch = (corNgsild.local == false
                   
                    && tenantP->regCacheP != NULL);
 
@@ -223,7 +223,7 @@ bool deleteEntityAttr(void)
 
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
-                                  swRest.serviceP->ldOp, "deleteAttrs",
+                                  corRest.serviceP->ldOp, "deleteAttrs",
                                   entityId, /*perRi=*/true, entityId, attrIri,
                                   errorsArrayP, &items);
 
@@ -232,13 +232,13 @@ bool deleteEntityAttr(void)
     // %-encode the IRI when it has no short form there.
     for (int i = 0; i < n; i++)
     {
-      const char* fwdAttr = ldCompactOrEncode(attrIri, ldDistOpForwardContext(items[i].csr), &swRest.kalloc, false);
+      const char* fwdAttr = ldCompactOrEncode(attrIri, ldDistOpForwardContext(items[i].csr), &corRest.kalloc, false);
       items[i].url = attrUrl(items[i].csr->endpoint, entityId, fwdAttr);
     }
 
     n = ldDistOpLoopReap(items, n);
 
-    ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
+    ldDistOpEntriesPerform(items, n, CorVerbDelete, ownAlias);
 
     for (int i = 0; i < n; i++)
     {
@@ -304,7 +304,7 @@ bool deleteEntityAttr(void)
         // through db.entityReplace (the kalloc behind both is the same
         // request arena).
         KjNode* preSrc      = kjLookup(targetEntity, attrIri);
-        KjNode* preSnapshot = (preSrc != NULL) ? kjClone(swRest.kjsonP, preSrc) : NULL;
+        KjNode* preSnapshot = (preSrc != NULL) ? kjClone(corRest.kjsonP, preSrc) : NULL;
 
         bool changed = applyLocalDelete(targetEntity, attrIri);
 
@@ -315,10 +315,10 @@ bool deleteEntityAttr(void)
           // or (no datasetId given) the default "@none" instance on an attr
           // that only has datasetId-bearing instances. A bare "entity not
           // found" would be misleading — report the missing instance.
-          if (swNgsild.datasetId != NULL)
+          if (corNgsild.datasetId != NULL)
             ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                     "attribute '%s' has no instance with datasetId '%s' in entity '%s'",
-                    attrWild, swNgsild.datasetId, entityId);
+                    attrWild, corNgsild.datasetId, entityId);
           else
             ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                     "attribute '%s' has no default instance in entity '%s'",
@@ -367,24 +367,24 @@ bool deleteEntityAttr(void)
               //
               // Scope is not a dataset-keyed wrapper, so it keeps the plain
               // "@none" key, as does any snapshot that is not an object.
-              KjNode* dsKeys = kjArray(swRest.kjsonP, "datasetIds");
-              if (!swNgsild.deleteAll)
-                kjChildAdd(dsKeys, kjString(swRest.kjsonP, NULL,
-                                            (swNgsild.datasetId != NULL) ? swNgsild.datasetId : "@none"));
+              KjNode* dsKeys = kjArray(corRest.kjsonP, "datasetIds");
+              if (!corNgsild.deleteAll)
+                kjChildAdd(dsKeys, kjString(corRest.kjsonP, NULL,
+                                            (corNgsild.datasetId != NULL) ? corNgsild.datasetId : "@none"));
               else if ((preSnapshot != NULL) && (preSnapshot->type == KjObject) &&
                        (strcmp(attrIri, LD_VOCAB_SCOPE) != 0))
               {
                 for (KjNode* instP = preSnapshot->value.firstChildP; instP != NULL; instP = instP->next)
-                  kjChildAdd(dsKeys, kjString(swRest.kjsonP, NULL, instP->name));
+                  kjChildAdd(dsKeys, kjString(corRest.kjsonP, NULL, instP->name));
               }
               else
-                kjChildAdd(dsKeys, kjString(swRest.kjsonP, NULL, "@none"));
+                kjChildAdd(dsKeys, kjString(corRest.kjsonP, NULL, "@none"));
 
               LdMergeReport report;
-              report.changes = kjArray(swRest.kjsonP, "changes");
-              KjNode* entry = kjObject(swRest.kjsonP, NULL);
-              kjChildAdd(entry, kjString(swRest.kjsonP, "attr",   attrIri));
-              kjChildAdd(entry, kjString(swRest.kjsonP, "reason", "attributeDeleted"));
+              report.changes = kjArray(corRest.kjsonP, "changes");
+              KjNode* entry = kjObject(corRest.kjsonP, NULL);
+              kjChildAdd(entry, kjString(corRest.kjsonP, "attr",   attrIri));
+              kjChildAdd(entry, kjString(corRest.kjsonP, "reason", "attributeDeleted"));
               kjChildAdd(entry, dsKeys);
               if (preSnapshot != NULL)
               {
@@ -405,14 +405,14 @@ bool deleteEntityAttr(void)
                 KjNode* tn = kjLookup(targetEntity, "type");
                 if (tn != NULL && tn->type == KjString) etype = tn->value.s;
               }
-              TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+              TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
               memset(tevP, 0, sizeof(*tevP));
               tevP->op             = TroeOpAttrDeleted;
               tevP->tenantP        = tenantP;
               tevP->entityId       = entityId;
               tevP->entityType     = etype;
               tevP->attrName       = attrIri;
-              tevP->modifiedAtNs   = swRest.requestStartTime;
+              tevP->modifiedAtNs   = corRest.requestStartTime;
               tevP->entitySnapshot = targetEntity;
               tevP->attrSnapshot   = preSnapshot;  // pre-delete wrapper — carries the attr kind for the tombstone row
               troeDeferAttrEvent(tevP);
@@ -435,19 +435,19 @@ bool deleteEntityAttr(void)
 
   if (errorsCount == 0)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
+  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
+    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(respBodyP, successArrayP);
   kjChildAdd(respBodyP, errorsArrayP);
 
-  swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = anySucceeded ? 207 : 409;
+  corRest.out.responseTree   = respBodyP;
+  corRest.out.httpStatusCode = anySucceeded ? 207 : 409;
   return true;
 }

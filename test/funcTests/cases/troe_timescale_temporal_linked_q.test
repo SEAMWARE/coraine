@@ -33,23 +33,23 @@ TRoE timescale - linked-entity filter condition is refused on the temporal query
 troe timescale postgres temporal q validation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:Alice (age 35) and urn:V1 (owner=Alice, speed=10)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:Alice","type":"Person","age":[{"type":"Property","value":35,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"owner":[{"type":"Relationship","object":"urn:Alice","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:Alice","type":"Person","age":[{"type":"Property","value":35,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"owner":[{"type":"Relationship","object":"urn:Alice","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
 echo
 echo
 
 
 echo "02. Temporal query with q=owner{age>30} → 400"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=owner%7Bage%3E30%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=owner%7Bage%3E30%7D'
 echo
 echo
 
@@ -58,14 +58,14 @@ echo "03. Temporal query with q=owner{age>50} → 400 as well"
 echo "====================================================="
 # Same refusal whether or not the condition would have matched — it is the
 # linked-entity retrieval that is unsupported, not the outcome.
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=owner%7Bage%3E50%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=owner%7Bage%3E50%7D'
 echo
 echo
 
 
 echo "04. Control — a plain temporal q still filters normally"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed%3E5' | grep -E '"id"|"value"'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed%3E5' | grep -E '"id"|"value"'
 echo
 echo
 
@@ -75,15 +75,15 @@ echo "==========================================="
 # POST /temporal/entities populates only the temporal store, so the Core-API
 # control below needs its own entities — without them an empty result would
 # prove nothing.
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Alice","type":"Person","age":{"type":"Property","value":35}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"owner":{"type":"Relationship","object":"urn:Alice"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Alice","type":"Person","age":{"type":"Property","value":35}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"owner":{"type":"Relationship","object":"urn:Alice"}}' | head -1
 echo
 echo
 
 
 echo "06. Core-API control — the same linked q matches there (Alice is 35)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D' | grep -E '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D' | grep -E '"id"'
 echo
 echo
 
@@ -92,15 +92,15 @@ echo "07. Core-API control — and really filters: age>50 excludes V1"
 echo "============================================================="
 # Empty result, not an error: linked-entity filtering is a working Core-API
 # feature and this change does not touch it.
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E50%7D' | grep -E '"id"|^\[\]'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E50%7D' | grep -E '"id"|^\[\]'
 echo
 echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop
 
 --EXPECT--
 01. Seed urn:Alice (age 35) and urn:V1 (owner=Alice, speed=10)

@@ -36,7 +36,7 @@
 #include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
 
-#include "swRest/SwRestState.h"                           // swRest
+#include "corRest/CorRestState.h"                           // corRest
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TROE_*
 
@@ -261,7 +261,7 @@ static KjNode* instanceWrap(KjNode* instanceP)
   KjNode* dsP = kjLookup(instanceP, "datasetId");
   const char* dsKey = (dsP != NULL && dsP->type == KjString) ? dsP->value.s : "@none";
 
-  KjNode* wrap = kjObject(swRest.kjsonP, NULL);
+  KjNode* wrap = kjObject(corRest.kjsonP, NULL);
   // Detach the instance from its array parent and rename for the wrapper.
   instanceP->next = NULL;
   instanceP->name = (char*) dsKey;
@@ -423,7 +423,7 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
     // The snapshot is what carries a multi-type list: entityType above is only
     // set for the single-name form (see entityTypeArrayLiteral).
     eEv.entitySnapshot = rootP;
-    eEv.modifiedAtNs = swRest.requestStartTime;
+    eEv.modifiedAtNs = corRest.requestStartTime;
 
     int r = timescaleExecEntityInsertLocked(&eEv);
     if (r != TROE_OK)
@@ -436,7 +436,7 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
   }
 
   // Attr rows.
-  int r = insertInstanceRows(tenantP, entityId, entityType, rootP, swRest.requestStartTime);
+  int r = insertInstanceRows(tenantP, entityId, entityType, rootP, corRest.requestStartTime);
   if (r != TROE_OK)
   {
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
@@ -563,13 +563,13 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
       v_text = valueP->value.s;
     else if (valueP->type == KjInt)
     {
-      char* buf = (char*) kaAlloc(&swRest.kalloc, 32);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, 32);
       snprintf(buf, 32, "%lld", (long long) valueP->value.i);
       v_number = buf;
     }
     else if (valueP->type == KjFloat)
     {
-      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, "%.17g", valueP->value.f);
       v_number = buf;
     }
@@ -580,7 +580,7 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
     else if (valueP->type == KjObject || valueP->type == KjArray)
     {
       int   sz  = kjFastRenderSize(valueP) + 1;
-      char* buf = (char*) kaAlloc(&swRest.kalloc, sz);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
       kjFastRender(valueP, buf);
       v_compnd = buf;
     }
@@ -622,7 +622,7 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
   // modified_at is bumped to the broker's request-start time per § 5.6.14.4
   // (faster than a postgres-side now() and consistent with the INSERT path).
   char tsExpr[64];
-  timescaleNsToSqlTimestamp(swRest.requestStartTime, tsExpr, sizeof(tsExpr));
+  timescaleNsToSqlTimestamp(corRest.requestStartTime, tsExpr, sizeof(tsExpr));
 
   char sql[1024];
   snprintf(sql, sizeof(sql),
@@ -802,7 +802,7 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
   PGresult* beginR = PQexec(timescaleConn, "BEGIN");
   PQclear(beginR);
 
-  int r = insertInstanceRows(tenantP, entityId, NULL, rootP, swRest.requestStartTime);
+  int r = insertInstanceRows(tenantP, entityId, NULL, rootP, corRest.requestStartTime);
   if (r != TROE_OK)
   {
     PQclear(PQexec(timescaleConn, "ROLLBACK"));

@@ -12,8 +12,8 @@ DistOps - createEntity 409 Conflict when every forward fails and nothing else su
 create distops error registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 503
 ftClientStart --port 7712 --status 403
 
@@ -49,7 +49,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -71,7 +71,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -90,7 +90,7 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -154,5 +154,5 @@ Content-Length: 738
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

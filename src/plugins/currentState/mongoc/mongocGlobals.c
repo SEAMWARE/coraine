@@ -27,7 +27,7 @@ unsigned short  mongocDbTimeout = 30;
 // persistence (§ 5.13). Independent of --dbName so it survives tenant
 // churn; configurable so parallel brokers sharing one mongo can each own a
 // private global DB instead of colliding on the default.
-char*           mongocGlobalDb  = "swBroker";
+char*           mongocGlobalDb  = "coraine";
 
 
 
@@ -52,7 +52,7 @@ KArg mongocArgV[] =
 {
   { "--dbHost", "-dbHost", KaString, _vp &mongocDbHost, KaOpt, _vp "localhost", NULL,  NULL,      "database server host"  },
   { "--dbName", "-dbName", KaString, _vp &mongocDbName, KaOpt, _vp "cor",  NULL,  NULL,      "database name"         },
-  { "--globalDb", "-globalDb", KaString, _vp &mongocGlobalDb, KaOpt, _vp "swBroker", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
+  { "--globalDb", "-globalDb", KaString, _vp &mongocGlobalDb, KaOpt, _vp "coraine", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
   { "--dbPort", "-dbPort", KaUShort, _vp &mongocDbPort, KaOpt, _vp 27017,       _vp 1, _vp 65535, "database server port"  },
   { "--dbUser", "-dbUser", KaString, _vp &mongocDbUser, KaOpt, NULL,            NULL,  NULL,      "database user"         },
   { "--dbPwd",  "-dbPwd",  KaString, _vp &mongocDbPwd,  KaOpt, NULL,            NULL,  NULL,      "database password"     },

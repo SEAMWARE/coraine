@@ -10,10 +10,10 @@
 
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdEntityMap.h"                    // LdEntityMapStore, LdEntityMap
-#include "swNgsild/ldEntityMap.h"                    // ldEntityMapLookup, ldEntityMapToTree
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdEntityMap.h"                    // LdEntityMapStore, LdEntityMap
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapLookup, ldEntityMapToTree
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -27,8 +27,8 @@
 //
 bool getEntityMap(void)
 {
-  const char* mapId = swRest.in.wildcard[0];
-  Tenant*     tP    = (Tenant*) swNgsild.tenantP;
+  const char* mapId = corRest.in.wildcard[0];
+  Tenant*     tP    = (Tenant*) corNgsild.tenantP;
 
   if (tP == NULL || tP->entityMapStoreP == NULL)
   {
@@ -50,7 +50,7 @@ bool getEntityMap(void)
     return true;
   }
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = treeP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = treeP;
   return true;
 }

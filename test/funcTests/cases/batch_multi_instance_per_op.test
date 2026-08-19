@@ -24,14 +24,14 @@ Batch ops — multi-instance same-entity semantics (§ 5.5.11)
 entity batch order multi-instance
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. CREATE [V1, V1, V1] — first succeeds, two errors (§ 5.5.11.1)"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3}}
@@ -42,14 +42,14 @@ echo
 
 echo "02. GET — speed=1 (only the first create stuck)"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"value"'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"value"'
 echo
 echo
 
 
 echo "03. UPSERT default replace [V2 x3] — last fully replaces; obs gone"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":1},"obs":{"type":"Property","value":"first"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":2}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":3},"color":{"type":"Property","value":"red"}}
@@ -57,14 +57,14 @@ swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
 echo
 echo
 echo "  GET V2 — expect speed=3, color=red, NO obs"
-swCurl --url /ngsi-ld/v1/entities/urn:V2 | grep -E '"(speed|color|obs|value)"'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 | grep -E '"(speed|color|obs|value)"'
 echo
 echo
 
 
 echo "04. UPSERT options=update [V3 x3] — merge each, all attrs preserved"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1},"obs":{"type":"Property","value":"first"}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":2}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":3},"color":{"type":"Property","value":"red"}}
@@ -72,14 +72,14 @@ swCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
 echo
 echo
 echo "  GET V3 — expect speed=3, color=red, obs=first (merged)"
-swCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"(speed|color|obs|value)"'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"(speed|color|obs|value)"'
 echo
 echo
 
 
 echo "05. DELETE [V1, V1] — first ok, second 'Not Found' (§ 5.5.11.4)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V1"]' -X POST | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V1"]' -X POST | head -1
 echo
 echo
 
@@ -127,5 +127,5 @@ HTTP/1.1 207 Multi-Status
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

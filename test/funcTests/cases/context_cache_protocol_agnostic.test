@@ -18,10 +18,10 @@ Context cache treats http:// and https:// of the same context as one entry
 context jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -45,7 +45,7 @@ contextServerPush /jsonldContexts/ctxA '{
 
 echo "01. Fresh cache — only the core context"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/jsonldContexts
+corCurl --url /ngsi-ld/v1/jsonldContexts
 echo
 echo
 
@@ -58,28 +58,28 @@ payload='{
   "spd": {"type": "Property", "value": 5},
   "@context": "http://localhost:7080/jsonldContexts/ctxA"
 }'
-swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
 echo
 echo
 
 
 echo "03. Cache holds two: core + http://.../ctxA"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/jsonldContexts
+corCurl --url /ngsi-ld/v1/jsonldContexts
 echo
 echo
 
 
 echo "04. GET /entities naming the https:// variant — reuses the cached entry"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Link: <https://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Link: <https://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
 
 echo "05. Cache still holds two — no https:// duplicate"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/jsonldContexts
+corCurl --url /ngsi-ld/v1/jsonldContexts
 echo
 echo
 
@@ -161,7 +161,7 @@ Content-Length: 120
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine

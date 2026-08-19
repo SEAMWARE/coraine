@@ -15,10 +15,10 @@ Distributed queryEntities (split-entities mode)
 entity query
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -38,46 +38,46 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed split entity V1 across CB + CP1"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}}'
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}}'
 echo
 echo
 
 
 echo "02. Register CB→CP1 (inclusive, type=Vehicle)"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "03. Split mode: GET type=Vehicle → V1 assembled with speed+color"
 echo "================================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues"
 echo
 echo
 
 
 echo "04. splitEntities=false → no-split, V1 from CB only (speed)"
 echo "============================================================"
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&splitEntities=false&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&splitEntities=false&options=keyValues"
 echo
 echo
 
 
 echo "05. q-filter post-assembly: speed>100 → only V2 (V1 has speed=80)"
 echo "=================================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E100&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E100&options=keyValues"
 echo
 echo
 
 
 echo "06. q-filter on remote attr: color==red → only V1 (color from CP1)"
 echo "==================================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22&options=keyValues"
 echo
 echo
 
@@ -202,7 +202,7 @@ Content-Length: 91
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

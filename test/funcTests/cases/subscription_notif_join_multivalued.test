@@ -17,17 +17,17 @@ Subscription notification - join over a multivalued relationship (§ 5.2.14, § 
 subscription notification linked-entities
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart --port 7713 --status 200
 
 --RUN--
 
 echo "01. Seed P1 + P2 + V1 (owners → [P1, P2])"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owners":{"type":"Relationship","object":["urn:P1","urn:P2"]}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owners":{"type":"Relationship","object":["urn:P1","urn:P2"]}}' | head -1
 echo
 echo
 
@@ -47,14 +47,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
 
 echo "03. Trigger - update V1"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}' | head -1
 echo
 echo
 
@@ -96,5 +96,5 @@ HTTP/1.1 204 No Content
 
 --TEARDOWN--
 ftClientStop --port 7713
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

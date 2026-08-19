@@ -13,7 +13,7 @@
 # still yield a populated "geometry" — the GeoProperty is simply absent from
 # "properties" unless the projection keeps it.
 #
-# (swBroker's call pending ETSI TC DATA resolution — see spec-doubts-2.md
+# (coraine's call pending ETSI TC DATA resolution — see spec-doubts-2.md
 # "GeoJSON output (§5.3.3) — geometry vs the attribute projection".)
 #
 --NAME--
@@ -23,50 +23,50 @@ GeoJSON geometry survives a pick/attrs/omit that drops the GeoProperty
 entity query geojson pick attrs omit geometryProperty
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create City with location + name + population"
 echo "================================================="
 payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } }, "name": { "type": "Property", "value": "Berlin" }, "population": { "type": "Property", "value": 3600000 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. attrs=name → geometry still Point [13.4,52.5]; properties only name"
 echo "======================================================================"
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'attrs=name'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'attrs=name'
 echo
 echo
 
 
 echo "03. pick=name → geometry still populated; properties only type+name"
 echo "=================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'pick=name'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'pick=name'
 echo
 echo
 
 
 echo "04. geometryProperty=location&pick=name → explicit geom source survives pick"
 echo "==========================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'geometryProperty=location&pick=name'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'geometryProperty=location&pick=name'
 echo
 echo
 
 
 echo "05. omit=location → geometry still populated; location absent from properties"
 echo "============================================================================"
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'omit=location'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'omit=location'
 echo
 echo
 
 
 echo "06. Control: pick=name,location → geometry populated AND location in properties"
 echo "=============================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'pick=name,location'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'pick=name,location'
 
 --EXPECT--
 01. Create City with location + name + population
@@ -231,4 +231,4 @@ Content-Length: 461
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -16,14 +16,14 @@ POST /entityOperations/update — Batch Entity Update (§ 5.6.8)
 batch entity update
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed — create V1, V2, V3"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
@@ -34,7 +34,7 @@ echo
 
 echo "02. Batch Update V1.speed=11 + V2.speed=22 → 204 No Content"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":11}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":22}}
 ]'
@@ -44,7 +44,7 @@ echo
 
 echo "03. GET V1 — speed=11, color=red still there (merge, not replace)"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
@@ -52,7 +52,7 @@ echo
 echo "04. Multi-instance V1 in one batch — array order wins"
 echo "====================================================="
 # V1 appears three times: 100 → 200 → 300; newest (300) wins.
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}
@@ -63,14 +63,14 @@ echo
 
 echo "05. GET V1 — speed=300 (last instance)"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "06. Update including a non-existing entity → 207 partial"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":222}},
   {"id":"urn:VX","type":"Vehicle","speed":{"type":"Property","value":999}}
 ]'
@@ -80,14 +80,14 @@ echo
 
 echo "07. GET V2 — speed=222 (update applied)"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
 echo
 echo
 
 
 echo "08. All ids missing → 409"
 echo "========================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:missingA","type":"Vehicle","speed":{"type":"Property","value":1}},
   {"id":"urn:missingB","type":"Vehicle","speed":{"type":"Property","value":2}}
 ]'
@@ -97,21 +97,21 @@ echo
 
 echo "09. Empty array → 400"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[]'
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[]'
 echo
 echo
 
 
 echo "10. null element → 400"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
 echo
 echo
 
 
 echo "11. Non-array body → 400"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '{"id":"urn:V1","type":"Vehicle"}'
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '{"id":"urn:V1","type":"Vehicle"}'
 echo
 echo
 
@@ -291,5 +291,5 @@ Content-Length: 176
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

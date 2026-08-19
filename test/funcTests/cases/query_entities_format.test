@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - format parameter (normalized, concise, simplified, ke
 entity format query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -40,42 +40,42 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entities with no format (default normalized)"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
 
 echo "03. GET entities with format=normalized"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=normalized'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=normalized'
 echo
 echo
 
 
 echo "04. GET entities with format=concise"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=concise'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=concise'
 echo
 echo
 
 
 echo "05. GET entities with format=simplified"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=simplified'
 echo
 echo
 
 
 echo "06. GET entities with format=keyValues (synonym for simplified)"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=keyValues'
 echo
 echo
 
@@ -199,5 +199,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

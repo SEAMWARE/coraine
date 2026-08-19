@@ -24,14 +24,14 @@ Embedded @context is rejected (§ 4.5.1 / § 5.5.7)
 context create entity error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. @context inside an attribute → 400"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "speed": {
@@ -46,7 +46,7 @@ echo
 
 echo "02. @context inside a sub-attribute → 400"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V2",
   "type": "Vehicle",
   "speed": {
@@ -65,7 +65,7 @@ echo
 
 echo "03. @context inside hasValue (structured value) → 400"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V3",
   "type": "Vehicle",
   "address": {
@@ -82,7 +82,7 @@ echo
 
 echo "04. Batch: @context nested inside one element's attribute → 400"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":1}},
   {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":2,"@context":"https://example.org/mycontext.jsonld"}}
 ]'
@@ -92,7 +92,7 @@ echo
 
 echo "05. @context at root (object body) is fine — 201"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities \
+corCurl --url /ngsi-ld/v1/entities \
   --header 'Content-Type: application/ld+json' \
   --payload '{
   "id": "urn:V6",
@@ -106,7 +106,7 @@ echo
 
 echo "06. @context on each batch element is fine — 201"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/create \
+corCurl --url /ngsi-ld/v1/entityOperations/create \
   --header 'Content-Type: application/ld+json' \
   --payload '[
   {"id":"urn:V7","type":"Vehicle","speed":{"type":"Property","value":70},"@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"},
@@ -206,5 +206,5 @@ Content-Length: 27
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

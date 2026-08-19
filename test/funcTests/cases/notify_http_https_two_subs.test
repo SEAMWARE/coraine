@@ -17,8 +17,8 @@ An update matching both an HTTP and an HTTPS subscription leaves the broker heal
 subscription notification https tenant
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -32,7 +32,7 @@ swBrokerStart
 
 echo "01. Create HTTP subscription SA"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
   "id": "urn:ngsi-ld:Subscription:SA",
   "type": "Subscription",
   "entities": [ { "type": "W" } ],
@@ -44,7 +44,7 @@ echo
 
 echo "02. Create HTTPS subscription SB"
 echo "================================"
-swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
   "id": "urn:ngsi-ld:Subscription:SB",
   "type": "Subscription",
   "entities": [ { "type": "W" } ],
@@ -56,7 +56,7 @@ echo
 
 echo "03. Create a matching entity (triggers both notifications)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
   "id": "urn:ngsi-ld:W1", "type": "W", "t": { "type": "Property", "value": 5 }
 }'
 echo
@@ -65,14 +65,14 @@ echo
 
 echo "04. PATCH the entity (triggers both again)"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:W1/attrs/t -X PATCH -H 'NGSILD-Tenant: captn' --payload '{ "type": "Property", "value": 6 }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:W1/attrs/t -X PATCH -H 'NGSILD-Tenant: captn' --payload '{ "type": "Property", "value": 6 }'
 echo
 echo
 
 
 echo "05. GET the entity — broker healthy"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:W1 -H 'NGSILD-Tenant: captn'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:W1 -H 'NGSILD-Tenant: captn'
 echo
 echo
 
@@ -141,5 +141,5 @@ Content-Length: 97
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

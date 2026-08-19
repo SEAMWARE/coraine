@@ -20,8 +20,8 @@ Merge Entity: datasetId non-matching adds instance; null+datasetId deletes one
 merge patch attr datasetid
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,7 +35,7 @@ payload='{
     { "type": "Property", "value": 1, "datasetId": "urn:ds:1" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -43,14 +43,14 @@ echo
 echo "02. Merge speed datasetId D2 (no match) -> ADDS instance"
 echo "======================================================="
 payload='{ "speed": { "type": "Property", "value": 2, "datasetId": "urn:ds:2" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "03. GET E1 - default(0), D1(1), new D2(2)"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -58,14 +58,14 @@ echo
 echo "04. Merge: delete speed D1 via urn:ngsi-ld:null + datasetId"
 echo "==========================================================="
 payload='{ "speed": { "type": "Property", "value": "urn:ngsi-ld:null", "datasetId": "urn:ds:1" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "05. GET E1 - D1 gone; default(0) + D2(2) remain"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -154,4 +154,4 @@ Content-Length: 204
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

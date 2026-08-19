@@ -10,12 +10,12 @@
 
 #include "ktrace/kTrace.h"                            // KT_E
 #include "kjson/KjNode.h"                             // KjNode
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjTreeToBson
 #include "currentState/mongoc/mongocBsonToKjTree.h"   // mongocBsonToKjTree
-#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityReplace.h"  // Own interface
 
@@ -76,7 +76,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
   if (geoClashP != NULL)
   {
     KT_E("mongoc: entityReplace: '%s' is a GeoProperty here but already held as another type", geoClashP);
-    swNgsild.geoConflictAttr = geoClashP;
+    corNgsild.geoConflictAttr = geoClashP;
     bson_init(&reply);
     result = DB_GEO_TYPE_CONFLICT;
   }
@@ -102,7 +102,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
       if (mixedP != NULL)
       {
         KT_E("mongoc: entityReplace: '%s' is held as a GeoProperty here and replaced with another type", mixedP);
-        swNgsild.geoConflictAttr = mixedP;
+        corNgsild.geoConflictAttr = mixedP;
         result = DB_GEO_TYPE_CONFLICT;
       }
       else
@@ -137,7 +137,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
       if (bson_init_static(&oldDoc, data, len))
       {
         if (oldEntityPP != NULL)
-          *oldEntityPP = mongocBsonToKjTree(&swRest.kalloc, &oldDoc);
+          *oldEntityPP = mongocBsonToKjTree(&corRest.kalloc, &oldDoc);
       }
       else if (oldEntityPP != NULL)
       {

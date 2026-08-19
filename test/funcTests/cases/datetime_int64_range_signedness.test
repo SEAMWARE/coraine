@@ -21,8 +21,8 @@ DateTime epoch-ns is signed int64: pre-1970 ordering + out-of-range 400
 datetime validation observedAt expiresAt
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ payload='{
   "type": "T",
   "a": { "type": "Property", "value": 1, "observedAt": "3000-01-01T00:00:00Z" }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -45,7 +45,7 @@ payload='{
   "type": "T",
   "a": { "type": "Property", "value": 1, "observedAt": "1000-01-01T00:00:00Z" }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -57,14 +57,14 @@ payload='{
   "type": "T",
   "a": { "type": "Property", "value": 1, "observedAt": "1968-12-31T23:50:59Z" }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "04. GET urn:ngsi-ld:T:3 - the 1968 observedAt round-trips intact"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:3?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:3?options=sysAttrs'
 echo
 echo
 
@@ -78,7 +78,7 @@ payload='{
   "expiresAt": "1968-01-01T00:00:00Z",
   "notification": { "endpoint": { "uri": "http://localhost:9999/n" } }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -166,4 +166,4 @@ Content-Length: 168
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

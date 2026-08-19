@@ -19,9 +19,9 @@ TRoE timescale - temporal datasetId filter
 troe timescale postgres temporal datasetid
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -50,35 +50,35 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. ?datasetId=urn:ds:1 — only the DS1 instance is returned"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:1'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:1'
 echo
 echo
 
 
 echo "03. ?datasetId=@none — only the default instance (no datasetId field) is returned"
 echo "================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=@none'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=@none'
 echo
 echo
 
 
 echo "04. ?datasetId=urn:ds:1,urn:ds:2 — both named datasets, default excluded"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:1,urn:ds:2'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:1,urn:ds:2'
 echo
 echo
 
 
 echo "05. ?datasetId=urn:ds:1 + ?type=Vehicle&timerel=after on multi-entity GET"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&datasetId=urn:ds:1'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&datasetId=urn:ds:1'
 echo
 echo
 
@@ -91,7 +91,7 @@ echo "============================================================="
 # filter that wipes every instance falls in that bucket — single-entity
 # GET surfaces it as 404. (ETSI 020_08_01 expects the same shape with
 # ?attrs=unknownAttribute.)
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:nope'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:nope'
 echo
 echo
 
@@ -228,6 +228,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

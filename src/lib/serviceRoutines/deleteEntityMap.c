@@ -10,10 +10,10 @@
 
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdEntityMap.h"                    // LdEntityMapStore
-#include "swNgsild/ldEntityMap.h"                    // ldEntityMapRemove
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdEntityMap.h"                    // LdEntityMapStore
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapRemove
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -27,8 +27,8 @@
 //
 bool deleteEntityMap(void)
 {
-  const char* mapId = swRest.in.wildcard[0];
-  Tenant*     tP    = (Tenant*) swNgsild.tenantP;
+  const char* mapId = corRest.in.wildcard[0];
+  Tenant*     tP    = (Tenant*) corNgsild.tenantP;
 
   if (tP == NULL || tP->entityMapStoreP == NULL)
   {
@@ -43,6 +43,6 @@ bool deleteEntityMap(void)
     return true;
   }
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

@@ -22,14 +22,14 @@
 #include <string.h>                                    // strcmp, strlen, memcpy
 #include <time.h>                                      // gmtime_r, struct tm
 
-#include "swRest/SwRestState.h"                        // swRest
-#include "swRest/swRestOutHeader.h"                   // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                        // corRest
+#include "corRest/corRestOutHeader.h"                   // corRestOutHeaderAdd
 #include "kalloc/kaAlloc.h"                            // kaAlloc
 #include "kjson/kjBuilder.h"                           // kjObject, kjArray, kjString, kjInteger, kjChildAdd
-#include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
-#include "swJsonld/swldCache.h"                        // swldCacheSnapshot
-#include "swNgsild/swNgsild.h"                         // swNgsild
-#include "swNgsild/SwNgsild.h"                         // ldBrokerHttpEndpoint
+#include "corJsonld/CorLdContext.h"                      // CorLdContext, CorLdContextKind
+#include "corJsonld/corLdCache.h"                        // corLdCacheSnapshot
+#include "corNgsild/corNgsild.h"                         // corNgsild
+#include "corNgsild/CorNgsild.h"                         // ldBrokerHttpEndpoint
 
 #include "serviceRoutines/getJsonldContexts.h"         // Own interface
 
@@ -39,13 +39,13 @@
 //
 // kindString - NGSI-LD § 5.13.1 kind name
 //
-static const char* kindString(SwldContextKind k)
+static const char* kindString(CorLdContextKind k)
 {
   switch (k)
   {
-    case SwldKindHosted:   return "Hosted";
-    case SwldKindCached:   return "Cached";
-    case SwldKindImplicit: return "ImplicitlyCreated";
+    case CorLdKindHosted:   return "Hosted";
+    case CorLdKindCached:   return "Cached";
+    case CorLdKindImplicit: return "ImplicitlyCreated";
   }
   return "ImplicitlyCreated";
 }
@@ -58,28 +58,28 @@ static const char* kindString(SwldContextKind k)
 //
 bool getJsonldContexts(void)
 {
-  SwldContext** arr = NULL;
+  CorLdContext** arr = NULL;
   int           n   = 0;
 
-  swldCacheSnapshot(&swRest.kalloc, &arr, &n);
+  corLdCacheSnapshot(&corRest.kalloc, &arr, &n);
 
   //
   // Apply ?kind= filter (if specified and valid; unknown values filter out
   // everything rather than 400 — matches spec's treatment of enum params).
   //
-  SwldContextKind wantKind   = SwldKindImplicit;
+  CorLdContextKind wantKind   = CorLdKindImplicit;
   bool            kindFilter = false;
 
-  if (swNgsild.kind != NULL)
+  if (corNgsild.kind != NULL)
   {
     kindFilter = true;
-    if      (strcmp(swNgsild.kind, "Hosted")            == 0) wantKind = SwldKindHosted;
-    else if (strcmp(swNgsild.kind, "Cached")            == 0) wantKind = SwldKindCached;
-    else if (strcmp(swNgsild.kind, "ImplicitlyCreated") == 0) wantKind = SwldKindImplicit;
+    if      (strcmp(corNgsild.kind, "Hosted")            == 0) wantKind = CorLdKindHosted;
+    else if (strcmp(corNgsild.kind, "Cached")            == 0) wantKind = CorLdKindCached;
+    else if (strcmp(corNgsild.kind, "ImplicitlyCreated") == 0) wantKind = CorLdKindImplicit;
     else
     {
       // Unknown kind: empty result
-      wantKind = (SwldContextKind) -1;
+      wantKind = (CorLdContextKind) -1;
     }
   }
 
@@ -98,26 +98,26 @@ bool getJsonldContexts(void)
     totalCount++;
   }
 
-  if (swNgsild.count)
+  if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%d", totalCount);
 
-    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+    corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
   //
   // Build response array — honouring offset/limit over the filtered view.
   //
-  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
-  int     skipN  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-  int     limit  = (swNgsild.limit > 0) ? swNgsild.limit : totalCount;
+  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  int     skipN  = (corNgsild.offset > 0) ? corNgsild.offset : 0;
+  int     limit  = (corNgsild.limit > 0) ? corNgsild.limit : totalCount;
   int     taken  = 0;
   int     seen   = 0;
 
   for (int i = 0; i < n; i++)
   {
-    SwldContext* c = arr[i];
+    CorLdContext* c = arr[i];
 
     if (c->volatileCtx)   // one-shot Link targets are not listable contexts
       continue;
@@ -154,7 +154,7 @@ bool getJsonldContexts(void)
       int   baseLen      = strlen(base);
       int   prefixLen    = strlen(prefix);
       int   idLen        = strlen(contextId);
-      char* buf          = (char*) kaAlloc(&swRest.kalloc, baseLen + prefixLen + idLen + 1);
+      char* buf          = (char*) kaAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
       memcpy(buf, base, baseLen);
       memcpy(buf + baseLen, prefix, prefixLen);
       memcpy(buf + baseLen + prefixLen, contextId, idLen);
@@ -162,43 +162,43 @@ bool getJsonldContexts(void)
       urlOut = buf;
     }
 
-    if (!swNgsild.details)
+    if (!corNgsild.details)
     {
-      kjChildAdd(arrayP, kjString(swRest.kjsonP, NULL, (char*) urlOut));
+      kjChildAdd(arrayP, kjString(corRest.kjsonP, NULL, (char*) urlOut));
     }
     else
     {
       // § 5.13.3.5 metadata field names (NB. spec uses URL/localId, not
       // url/id; kind is one of Hosted/Cached/ImplicitlyCreated).
-      KjNode* obj = kjObject(swRest.kjsonP, NULL);
-      kjChildAdd(obj, kjString(swRest.kjsonP, "URL",       (char*) urlOut));
-      kjChildAdd(obj, kjString(swRest.kjsonP, "localId",   contextId));
-      kjChildAdd(obj, kjString(swRest.kjsonP, "kind",      kindString(c->kind)));
+      KjNode* obj = kjObject(corRest.kjsonP, NULL);
+      kjChildAdd(obj, kjString(corRest.kjsonP, "URL",       (char*) urlOut));
+      kjChildAdd(obj, kjString(corRest.kjsonP, "localId",   contextId));
+      kjChildAdd(obj, kjString(corRest.kjsonP, "kind",      kindString(c->kind)));
       // § 5.13.3.5: DateTime strings, not Unix timestamps.
       {
         time_t  secs;
         struct  tm tm;
-        char*   ca = (char*) kaAlloc(&swRest.kalloc, 80);
+        char*   ca = (char*) kaAlloc(&corRest.kalloc, 80);
         secs = (time_t) c->createdAt;
         gmtime_r(&secs, &tm);
         snprintf(ca, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
-        kjChildAdd(obj, kjString(swRest.kjsonP, "createdAt", ca));
+        kjChildAdd(obj, kjString(corRest.kjsonP, "createdAt", ca));
 
-        char* lu = (char*) kaAlloc(&swRest.kalloc, 80);
+        char* lu = (char*) kaAlloc(&corRest.kalloc, 80);
         secs = (time_t) c->usedAt;
         gmtime_r(&secs, &tm);
         snprintf(lu, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
-        kjChildAdd(obj, kjString(swRest.kjsonP, "lastUsage", lu));
+        kjChildAdd(obj, kjString(corRest.kjsonP, "lastUsage", lu));
       }
       kjChildAdd(arrayP, obj);
     }
   }
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = arrayP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = arrayP;
   return true;
 }

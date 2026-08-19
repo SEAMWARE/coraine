@@ -32,36 +32,36 @@ An expired Entity is not served, and is deleted after the response
 entity expiry validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed one live Entity (2099) and one already expired (2020)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T1","type":"T","expiresAt":"2099-01-01T00:00:00Z","speed":{"type":"Property","value":10}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T2","type":"T","expiresAt":"2020-01-01T00:00:00Z","speed":{"type":"Property","value":20}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T1","type":"T","expiresAt":"2099-01-01T00:00:00Z","speed":{"type":"Property","value":10}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T2","type":"T","expiresAt":"2020-01-01T00:00:00Z","speed":{"type":"Property","value":20}}' | head -1
 echo
 echo
 
 
 echo "02. Both are in storage to begin with"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=1' | grep -i "ngsild-results-count"
+corCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=1' | grep -i "ngsild-results-count"
 echo
 echo
 
 
 echo "03. GET the expired one → 404, as if it were not there"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:T2'
+corCurl --url '/ngsi-ld/v1/entities/urn:T2'
 echo
 echo
 
 
 echo "04. A query returns only the live one"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' | grep -E '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T' | grep -E '"id"'
 echo
 echo
 
@@ -70,29 +70,29 @@ echo "05. And it is really gone from storage, not merely hidden"
 echo "========================================================="
 # The count is answered by the database. It drops to 1 only because the reads
 # above queued urn:T2 and the post-response hook deleted it.
-swCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=1' | grep -i "ngsild-results-count"
+corCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=1' | grep -i "ngsild-results-count"
 echo
 echo
 
 
 echo "06. The live Entity is untouched, expiresAt and all"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:T1' | grep -E '"id"|"expiresAt"|"value"'
+corCurl --url '/ngsi-ld/v1/entities/urn:T1' | grep -E '"id"|"expiresAt"|"value"'
 echo
 echo
 
 
 echo "07. An Entity with no expiresAt is never affected"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T3","type":"T","speed":{"type":"Property","value":30}}' | head -1
-swCurl --url '/ngsi-ld/v1/entities/urn:T3' | grep -E '"id"'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:T3","type":"T","speed":{"type":"Property","value":30}}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:T3' | grep -E '"id"'
 echo
 echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 
 --EXPECT--
 01. Seed one live Entity (2099) and one already expired (2020)

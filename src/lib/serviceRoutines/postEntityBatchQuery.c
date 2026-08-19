@@ -17,12 +17,12 @@
 
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "kjson/KjNode.h"                            // KjNode
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldQueryBody.h"                    // ldQueryBodyToParams
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldQueryBody.h"                    // ldQueryBodyToParams
 
 #include "serviceRoutines/getEntities.h"             // getEntities
 #include "serviceRoutines/postEntityBatchQuery.h"    // Own interface
@@ -31,7 +31,7 @@
 
 bool postEntityBatchQuery(void)
 {
-  KjNode* bodyP = swRest.in.requestTree;
+  KjNode* bodyP = corRest.in.requestTree;
 
   if (!ldQueryBodyToParams(bodyP))
     return true;

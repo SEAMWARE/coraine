@@ -22,9 +22,9 @@ TRoE timescale - temporal scopeQ filter
 troe timescale postgres temporal scope
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -36,20 +36,20 @@ payload='{
   "scope": "/EU/Spain",
   "speed": {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":    "urn:V2",
   "type":  "Vehicle",
   "scope": "/EU/France",
   "speed": {"type":"Property","value":20,"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":    "urn:V3",
   "type":  "Vehicle",
   "speed": {"type":"Property","value":30,"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 echo done
 echo
 echo
@@ -57,7 +57,7 @@ echo
 
 echo "02. ?scopeQ=/EU/Spain — only V1"
 echo "==============================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/EU/Spain&pick=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/EU/Spain&pick=speed'
 echo
 echo
 
@@ -65,14 +65,14 @@ echo
 echo "03. ?scopeQ=/EU/+ — V1 + V2 (V3 has no scope, dropped)"
 echo "======================================================"
 # '+' is the single-level scope wildcard (MQTT-style); '/#' is multi-level.
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/EU/%2B&pick=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/EU/%2B&pick=speed'
 echo
 echo
 
 
 echo "04. ?scopeQ=/Asia — no match → 200 + empty array"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/Asia&pick=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&scopeQ=/Asia&pick=speed'
 echo
 echo
 
@@ -152,6 +152,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

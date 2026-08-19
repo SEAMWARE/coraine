@@ -1,5 +1,5 @@
-#ifndef SWBROKER_PATCH_ENTITY_ATTRS_H_
-#define SWBROKER_PATCH_ENTITY_ATTRS_H_
+#ifndef CORAINE_PATCH_ENTITY_ATTRS_H_
+#define CORAINE_PATCH_ENTITY_ATTRS_H_
 
 //
 // FILE            patchEntityAttrs.h
@@ -16,4 +16,4 @@
 
 extern bool patchEntityAttrs(void);
 
-#endif  // SWBROKER_PATCH_ENTITY_ATTRS_H_
+#endif  // CORAINE_PATCH_ENTITY_ATTRS_H_

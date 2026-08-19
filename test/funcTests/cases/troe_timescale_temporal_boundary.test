@@ -18,17 +18,17 @@ TRoE timescale - timerel boundary inclusivity at exact timeAt (§ 7.2.6)
 troe timescale postgres temporal timerel
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:V1 speed: 10@10:00, 20@11:00, 30@12:00"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -36,35 +36,35 @@ echo
 
 echo "02. before timeAt=11:00 → EXCLUSIVE: only value 10 (11:00 itself excluded)"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=before&timeAt=2026-04-28T11:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=before&timeAt=2026-04-28T11:00:00Z'
 echo
 echo
 
 
 echo "03. after timeAt=11:00 → INCLUSIVE: values 20 and 30 (11:00 itself included)"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T11:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T11:00:00Z'
 echo
 echo
 
 
 echo "04. between 10:00..12:00 → lower INCLUSIVE, upper EXCLUSIVE: values 10 and 20"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T12:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T12:00:00Z'
 echo
 echo
 
 
 echo "05. between WITHOUT endTimeAt → 400 BadRequestData"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T10:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T10:00:00Z'
 echo
 echo
 
 
 echo "06. malformed timeAt (not ISO8601 DateTime) → 400 BadRequestData"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28'
 echo
 echo
 
@@ -189,4 +189,4 @@ Content-Length: 190
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

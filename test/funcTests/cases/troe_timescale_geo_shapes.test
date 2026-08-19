@@ -22,9 +22,9 @@ TRoE timescale - GeoJSON geometry shapes (2D/3D) round-trip
 troe timescale postgres geo
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -41,14 +41,14 @@ payload='{
   "mpg": {"type":"GeoProperty","value":{"type":"MultiPolygon","coordinates":[[[[0,0,1],[1,0,1],[1,1,1],[0,0,1]]]]}},
   "obs": {"type":"Property","value":1,"where":{"type":"GeoProperty","value":{"type":"Point","coordinates":[9,9,9]}}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. GET E1 — every geometry (and its Z) preserved on retrieval"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -56,7 +56,7 @@ echo
 echo "03. troe_attrs.v_compound — geometry stored verbatim as JSONB"
 echo "============================================================="
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), v_compound FROM troe_attrs WHERE v_compound IS NOT NULL ORDER BY attr_name"
 echo
 echo
@@ -64,7 +64,7 @@ echo
 
 echo "04. troe_attrs.sub_attrs — geo sub-property kept under its parent"
 echo "================================================================"
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), sub_attrs->'https://uri.etsi.org/ngsi-ld/default-context/where'->'value' FROM troe_attrs WHERE sub_attrs IS NOT NULL ORDER BY attr_name"
 echo
 echo
@@ -72,7 +72,7 @@ echo
 
 echo "05. GET /temporal/entities/urn:ngsi-ld:E1 — Z survives the temporal path too"
 echo "============================================================================"
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -458,6 +458,6 @@ Content-Length: 3148
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

@@ -1,12 +1,12 @@
 # Two brokers + MongoDB — a distributed-operations smoke rig.
 #
-#   ./docker/vendor-libs.sh && docker build -f docker/Dockerfile -t swbroker:local .
+#   ./docker/vendor-libs.sh && docker build -f docker/Dockerfile -t coraine:local .
 #   docker compose -f docker/docker-compose-distops.yml up -d
 #   ./docker/distops-smoke.sh
 #
 # Published on 2026/2027, NOT 1026/1027: those are the functest harness's own
 # broker ports, and a container holding 1026 makes the whole sw suite fail to
-# start its broker ("swRestInit failed on port 1026").
+# start its broker ("corRestInit failed on port 1026").
 #
 # broker-cp holds the data. broker-cb holds nothing and is told, via a Context
 # Source Registration, that Vehicles live at broker-cp. A query to broker-cb
@@ -46,7 +46,7 @@ services:
   # The Context Source: holds the Vehicles, forwards nothing, so no
   # --distributed here. Published on 2027 so the smoke script can seed it.
   broker-cp:
-    image: swbroker:local
+    image: coraine:local
     depends_on:
       mongo:
         condition: service_healthy
@@ -71,7 +71,7 @@ services:
   # answer about a Vehicle has to be forwarded, which is what --distributed
   # switches on.
   broker-cb:
-    image: swbroker:local
+    image: coraine:local
     depends_on:
       mongo:
         condition: service_healthy

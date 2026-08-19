@@ -25,56 +25,56 @@ scope: the leading "/" is implicit and stored canonically, on every write path a
 entity query scope registration batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create E1 with scope \"Madrid\" - no leading slash"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E1", "type": "Zone", "scope": "Madrid" }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E1", "type": "Zone", "scope": "Madrid" }' | head -1
 echo
 echo
 
 
 echo "02. GET E1 - the Scope comes back canonical: /Madrid"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1
 echo
 echo
 
 
 echo "03. Create E2 with the two spellings mixed in one array"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E2", "type": "Zone", "scope": [ "Madrid/Gardens", "/Madrid/Sur" ] }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E2", "type": "Zone", "scope": [ "Madrid/Gardens", "/Madrid/Sur" ] }' | head -1
 echo
 echo
 
 
 echo "04. GET E2 - both are canonical, and they stay two Scopes"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E2
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E2
 echo
 echo
 
 
 echo "05. Batch-create E3 with scope \"Barcelona\""
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[ { "id": "urn:ngsi-ld:Z:E3", "type": "Zone", "scope": "Barcelona" } ]' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[ { "id": "urn:ngsi-ld:Z:E3", "type": "Zone", "scope": "Barcelona" } ]' | head -1
 echo
 echo
 
 
 echo "06. GET E3 - the batch path canonicalizes too: /Barcelona"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E3
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E3
 echo
 echo
 
 
 echo "07. Register a Context Source with scope \"Madrid\""
 echo "================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:ngsi-ld:CSR:S1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -88,56 +88,56 @@ echo
 
 echo "08. GET the Registration - a Registration Scope is canonical as well"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:S1 | grep '"scope"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:S1 | grep '"scope"'
 echo
 echo
 
 
 echo "09. scopeQ=/Madrid - E1"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid' | grep '"id"'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid' | grep '"id"'
 echo
 echo
 
 
 echo "10. scopeQ=Madrid - the same query, the same E1"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Madrid' | grep '"id"'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Madrid' | grep '"id"'
 echo
 echo
 
 
 echo "11. scopeQ=Madrid/%23 - the hierarchy wildcard on an implicit slash: E1, E2"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Madrid/%23' | grep '"id"'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Madrid/%23' | grep '"id"'
 echo
 echo
 
 
 echo "12. scopeQ=(Madrid/Gardens;/Madrid/Sur) - mixed spellings in one AND group: E2"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=(Madrid/Gardens;/Madrid/Sur)' | grep '"id"'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=(Madrid/Gardens;/Madrid/Sur)' | grep '"id"'
 echo
 echo
 
 
 echo "13. scopeQ=Barcelona,Madrid - and in an OR list: E1, E3"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Barcelona,Madrid' | grep '"id"'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=Barcelona,Madrid' | grep '"id"'
 echo
 echo
 
 
 echo "14. Append a Scope to E1 through the fragment path (union, noOverwrite)"
 echo "======================================================================="
-swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1/attrs' --urlParams 'options=noOverwrite' --payload '{ "scope": "Barcelona" }' | head -1
+corCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1/attrs' --urlParams 'options=noOverwrite' --payload '{ "scope": "Barcelona" }' | head -1
 echo
 echo
 
 
 echo "15. GET E1 - the appended Scope is canonical too: [/Madrid, /Barcelona]"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:E1
 echo
 echo
 
@@ -271,5 +271,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

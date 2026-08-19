@@ -18,9 +18,9 @@ Subscription entities type "*" — match-any wildcard fires for every entity typ
 subscription notification
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -42,14 +42,14 @@ payload='{
     "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. GET S1 — entities round-trips as {type:\"*\"}"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
@@ -57,7 +57,7 @@ echo
 echo "03. Create entity of type A — notification expected"
 echo "==================================================="
 payload='{"id": "urn:ngsi-ld:A:1", "type": "A", "p": {"type": "Property", "value": 1}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -65,7 +65,7 @@ echo
 echo "04. Create entity of type B — notification expected"
 echo "==================================================="
 payload='{"id": "urn:ngsi-ld:B:1", "type": "B", "q": {"type": "Property", "value": 2}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -199,5 +199,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

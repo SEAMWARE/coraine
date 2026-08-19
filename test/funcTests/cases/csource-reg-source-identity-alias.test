@@ -12,8 +12,8 @@ DistOps - a registration's contextSourceAlias skips the sourceIdentity probe (§
 distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 201
 
 --RUN--
@@ -39,7 +39,7 @@ payload='{
     { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -58,7 +58,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 42 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 7 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" --header "Via: 1.1 ext-alias"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" --header "Via: 1.1 ext-alias"
 echo
 echo
 
@@ -148,5 +148,5 @@ Content-Length: 219
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

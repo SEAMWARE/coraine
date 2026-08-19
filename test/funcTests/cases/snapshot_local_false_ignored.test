@@ -23,30 +23,30 @@ Snapshot read ignores local=false — no distop forwarding (§ 6.4.11)
 snapshot distop local
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart -dist
+corDbDrop
+corSnapDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 
 --RUN--
 
 echo "01. Seed a local Vehicle"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
 echo
 echo
 
 
 echo "02. Create a snapshot capturing the Vehicle (before any CSR exists)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Frozen","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Frozen","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
 
 echo "03. Register a matching CSR (type Vehicle) at the mock receiver"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
@@ -54,7 +54,7 @@ echo
 echo "04. CONTROL — GET ?type=Vehicle&local=false (no snapshot) DOES forward"
 echo "====================================================================="
 ftClientReset --port 7711
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' > /dev/null
 sleep 0.8
 ftClientDump --port 7711 | grep -E '"verb"|"url"'
 echo
@@ -64,7 +64,7 @@ echo
 echo "05. SNAPSHOT — GET ?type=Vehicle&local=false + NGSILD-Snapshot does NOT forward"
 echo "==============================================================================="
 ftClientReset --port 7711
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 sleep 0.8
 echo "forwards-to-mock=$(ftClientDump --port 7711 | grep -c '\"verb\"')"
 echo
@@ -118,6 +118,6 @@ forwards-to-mock=0
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

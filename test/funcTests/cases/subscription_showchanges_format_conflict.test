@@ -19,8 +19,8 @@ Subscription notification — showChanges incompatible with keyValues/simplified
 subscription notification showChanges
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,25 +28,25 @@ ep='"endpoint": { "uri": "http://localhost:9999/notify" }'
 
 echo "01. showChanges:true + format:keyValues -> 400"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:1", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "keyValues", '"$ep"' } }'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:1", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "keyValues", '"$ep"' } }'
 echo
 echo
 
 echo "02. showChanges:true + format:simplified -> 400"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:2", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "simplified", '"$ep"' } }'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:2", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "simplified", '"$ep"' } }'
 echo
 echo
 
 echo "03. showChanges:true + format:normalized -> 201 (compatible)"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:3", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "normalized", '"$ep"' } }'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:3", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "normalized", '"$ep"' } }'
 echo
 echo
 
 echo "04. showChanges:true + format:concise -> 201 (concise keeps sub-attrs)"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:4", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "concise", '"$ep"' } }'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:4", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "showChanges": true, "format": "concise", '"$ep"' } }'
 echo
 echo
 
@@ -105,4 +105,4 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

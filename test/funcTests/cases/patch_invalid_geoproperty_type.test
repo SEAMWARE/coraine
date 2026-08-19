@@ -21,8 +21,8 @@ PATCH adding a GeoProperty with an invalid geometry type is rejected (bad geomet
 error attr patch geo
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -47,7 +47,7 @@ payload='{
     "unitCode": "CEL"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
@@ -60,14 +60,14 @@ payload='{
     "coordinates": [13.3505, 52.5144]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET — entity unaffected, broker alive"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
 echo
 echo
 
@@ -80,14 +80,14 @@ payload='{
     "coordinates": [13.3505, 52.5144]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "05. GET — entity still unaffected"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
 echo
 echo
 
@@ -100,14 +100,14 @@ payload='{
     "coordinates": [13.3505, 52.5144]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "07. GET — location now a normalized GeoProperty"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
 echo
 echo
 
@@ -246,4 +246,4 @@ Content-Length: 389
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

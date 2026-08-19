@@ -23,12 +23,12 @@ TRoE timescale - temporal distop instance writes, inclusive
 troe timescale postgres temporal distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swTroeInit
-swTroeInit -role CP1
-swBrokerStart        --troe timescale -dist
-swBrokerStart -role CP1 --troe timescale -dist
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist
+coraineStart -role CP1 --troe timescale -dist
 
 --RUN--
 
@@ -47,7 +47,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" --include 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
 echo
@@ -63,7 +63,7 @@ payload='{
     { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" --include 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
 echo
@@ -72,7 +72,7 @@ echo
 
 echo "03. Discover CP1's local instanceId via direct GET on CP1"
 echo "========================================================="
-INSTANCE_ID=$(swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+INSTANCE_ID=$(corCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -89,7 +89,7 @@ echo
 
 echo "04. PATCH the CP1 instance via CB (forward succeeds, local 404 swallowed)"
 echo "========================================================================="
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
   -X PATCH --payload '{"type":"Property","value":99,"observedAt":"2026-04-28T09:30:00Z"}' --include 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
@@ -99,7 +99,7 @@ echo
 
 echo "05. GET on CP1 - verify value patched to 99"
 echo "==========================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -114,7 +114,7 @@ echo
 
 echo "06. DELETE the CP1 instance via CB (forward succeeds, local 404 swallowed)"
 echo "=========================================================================="
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
   -X DELETE --include 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
@@ -124,7 +124,7 @@ echo
 
 echo "07. GET on CP1 - speed instance gone, only id+type left"
 echo "======================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -175,9 +175,9 @@ echo
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
-swTroeDrop
-swTroeDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

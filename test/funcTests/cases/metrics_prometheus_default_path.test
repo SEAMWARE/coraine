@@ -16,29 +16,29 @@ Prometheus metrics also served at the default /metrics path
 admin metrics
 
 --INIT--
-swDbDrop
-swBrokerStart --apiPlugins admin
+corDbDrop
+coraineStart --apiPlugins admin
 
 --RUN--
 
 echo "01. GET /metrics — 200 + Prometheus exposition content-type"
 echo "==========================================================="
-swCurl --url /metrics --out raw | grep -E "^HTTP/1.1 |^Content-Type:"
+corCurl --url /metrics --out raw | grep -E "^HTTP/1.1 |^Content-Type:"
 echo
 echo
 
 
 echo "02. GET /admin/metrics — same status + content-type"
 echo "===================================================="
-swCurl --url /admin/metrics --out raw | grep -E "^HTTP/1.1 |^Content-Type:"
+corCurl --url /admin/metrics --out raw | grep -E "^HTTP/1.1 |^Content-Type:"
 echo
 echo
 
 
 echo "03. /metrics and /admin/metrics expose the same metric set"
 echo "=========================================================="
-a=$(swCurl --url /metrics --out raw       | grep -aoE "^ngsild_[a-z_]+" | sort -u)
-b=$(swCurl --url /admin/metrics --out raw | grep -aoE "^ngsild_[a-z_]+" | sort -u)
+a=$(corCurl --url /metrics --out raw       | grep -aoE "^ngsild_[a-z_]+" | sort -u)
+b=$(corCurl --url /admin/metrics --out raw | grep -aoE "^ngsild_[a-z_]+" | sort -u)
 [ "$a" = "$b" ] && echo "same metric set" || echo "DIFFERENT metric set"
 echo
 echo
@@ -46,7 +46,7 @@ echo
 
 echo "04. A known counter line is present at /metrics"
 echo "==============================================="
-swCurl --url /metrics --out raw | grep -aE "^ngsild_entity_create_total "
+corCurl --url /metrics --out raw | grep -aE "^ngsild_entity_create_total "
 echo
 echo
 
@@ -75,4 +75,4 @@ ngsild_entity_create_total 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

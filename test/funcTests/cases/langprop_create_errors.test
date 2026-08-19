@@ -17,15 +17,15 @@ LanguageProperty create — error matrix
 langProp validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. 'lang' instead of 'languageMap' (no languageMap)"
 echo "===================================================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "lang": { "en": "el", "es": "ele" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -33,7 +33,7 @@ echo
 echo "02. languageMap is not an object"
 echo "================================"
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "languageMap": "en=el, es=ele" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -41,7 +41,7 @@ echo
 echo "03. languageMap value is not a string (sv: 12)"
 echo "=============================================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "languageMap": { "en": "el", "sv": 12 } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -49,7 +49,7 @@ echo
 echo "04. LanguageProperty with a forbidden 'value' key"
 echo "================================================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "languageMap": { "en": "el" }, "value": 1 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -57,7 +57,7 @@ echo
 echo "05. LanguageProperty with a forbidden 'object' key"
 echo "=================================================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "type": "LanguageProperty", "object": "urn:E1", "languageMap": { "en": "el" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -65,7 +65,7 @@ echo
 echo "06. LanguageProperty with a forbidden 'unitCode' sub-attribute"
 echo "=============================================================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "unitCode": "cm", "languageMap": { "en": "el" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -73,7 +73,7 @@ echo
 echo "07. languageMap key is empty"
 echo "============================"
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "languageMap": { "": "el", "es": "ele" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -81,7 +81,7 @@ echo
 echo "08. languageMap value is empty"
 echo "=============================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "L": { "languageMap": { "en": "", "es": "ele" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -216,4 +216,4 @@ Content-Length: 184
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

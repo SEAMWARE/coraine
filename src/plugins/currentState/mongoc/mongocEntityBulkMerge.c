@@ -33,14 +33,14 @@
 #include "ktrace/kTrace.h"                               // KT_E
 #include "kjson/KjNode.h"                                // KjNode
 #include "kjson/kjLookup.h"                              // kjLookup
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 
-#include "swNgsild/ldEntityMerge.h"                      // LdMergeReport
+#include "corNgsild/ldEntityMerge.h"                      // LdMergeReport
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/mongoc/mongocBsonToKjTree.h"      // mongocBsonToKjTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
-#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkMerge.h"   // Own interface
 
@@ -143,7 +143,7 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** tar
       if (idP == NULL || idP->type != KjString) continue;
       if (strcmp(idP->value.s, foundId) != 0) continue;
       if (shared == NULL)
-        shared = mongocBsonToKjTree(&swRest.kalloc, doc);
+        shared = mongocBsonToKjTree(&corRest.kalloc, doc);
       targetsV[k] = shared;
     }
   }
@@ -221,7 +221,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
     if (geoClashP != NULL)
     {
       KT_E("mongoc: entityBulkChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
-      swNgsild.geoConflictAttr = geoClashP;
+      corNgsild.geoConflictAttr = geoClashP;
       resultsV[i] = DB_GEO_TYPE_CONFLICT;
       bson_destroy(&update);
       continue;
@@ -275,7 +275,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
         if (mixedP != NULL)
         {
           KT_E("mongoc: entityBulkChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
-          swNgsild.geoConflictAttr = mixedP;
+          corNgsild.geoConflictAttr = mixedP;
           resultsV[i] = DB_GEO_TYPE_CONFLICT;
         }
         else

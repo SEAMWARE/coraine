@@ -16,21 +16,21 @@
 #include <stddef.h>                                   // NULL
 #include <string.h>                                   // strcmp
 
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjBuilder.h"                          // kjArray, kjObject, kjString, kjInteger, kjChildAdd
 #include "kjson/kjLookup.h"                           // kjLookup
 
-#include "swJsonld/swldCompact.h"                     // swldCompact
-#include "swJsonld/swldExpand.h"                      // swldExpand
-#include "swJsonld/swldInit.h"                        // swldCoreContext
+#include "corJsonld/corLdCompact.h"                     // corLdCompact
+#include "corJsonld/corLdExpand.h"                      // corLdExpand
+#include "corJsonld/corLdInit.h"                        // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdRegCache.h"                      // LdRegCache
-#include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
-#include "swNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardType, ldDiscoveryShouldForward
-#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdRegCache.h"                      // LdRegCache
+#include "corNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentTypes
+#include "corNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardType, ldDiscoveryShouldForward
+#include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -43,9 +43,9 @@
 //
 // shortOrSelf -
 //
-static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
+static const char* shortOrSelf(CorLdContext* ctxP, const char* iri)
 {
-  const char* compact = swldCompact(ctxP, iri);
+  const char* compact = corLdCompact(ctxP, iri);
   return (compact != NULL) ? compact : iri;
 }
 
@@ -57,8 +57,8 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 //
 bool getType(void)
 {
-  Tenant*     tenantP    = (Tenant*) swNgsild.tenantP;
-  const char* typeWild   = swRest.in.wildcard[0];    // url-decoded already
+  Tenant*     tenantP    = (Tenant*) corNgsild.tenantP;
+  const char* typeWild   = corRest.in.wildcard[0];    // url-decoded already
 
   if (db.typeList == NULL)
   {
@@ -67,12 +67,12 @@ bool getType(void)
     return true;
   }
 
-  SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+  CorLdContext* ctxP = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
 
   //
   // Expand the supplied name (may be short name from @context, or full IRI).
   //
-  const char* typeIri = swldExpand(ctxP, typeWild, &swRest.kalloc, NULL, NULL);
+  const char* typeIri = corLdExpand(ctxP, typeWild, &corRest.kalloc, NULL, NULL);
   if (typeIri == NULL)
     typeIri = typeWild;
 
@@ -88,14 +88,14 @@ bool getType(void)
     return true;
   }
 
-  if (!swNgsild.local && tenantP->regCacheP != NULL)
+  if (!corNgsild.local && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentTypes(aggregated, (LdRegCache*) tenantP->regCacheP, true);
 
-  if (!swNgsild.local && !swNgsild.noForward &&
+  if (!corNgsild.local && !corNgsild.noForward &&
       tenantP->regCacheP != NULL &&
       ldDiscoveryShouldForward())
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     ldDiscoveryForwardType(aggregated, (LdRegCache*) tenantP->regCacheP,
                            typeIri, typeWild, ownAlias);
   }
@@ -123,16 +123,16 @@ bool getType(void)
   //   { id, type:"EntityTypeInfo", typeName, entityCount,
   //     attributeDetails: [ Attribute-restricted ] }
   //
-  KjNode* body = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(body, kjString(swRest.kjsonP, "id",       typeIri));
-  kjChildAdd(body, kjString(swRest.kjsonP, "type",     "EntityTypeInfo"));
-  kjChildAdd(body, kjString(swRest.kjsonP, "typeName", shortOrSelf(ctxP, typeIri)));
+  KjNode* body = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(body, kjString(corRest.kjsonP, "id",       typeIri));
+  kjChildAdd(body, kjString(corRest.kjsonP, "type",     "EntityTypeInfo"));
+  kjChildAdd(body, kjString(corRest.kjsonP, "typeName", shortOrSelf(ctxP, typeIri)));
 
   KjNode* countP = kjLookup(entry, "entityCount");
-  kjChildAdd(body, kjInteger(swRest.kjsonP, "entityCount",
+  kjChildAdd(body, kjInteger(corRest.kjsonP, "entityCount",
                              (countP != NULL) ? countP->value.i : 0));
 
-  KjNode* attrDetails = kjArray(swRest.kjsonP, "attributeDetails");
+  KjNode* attrDetails = kjArray(corRest.kjsonP, "attributeDetails");
   KjNode* attrs       = kjLookup(entry, "attrs");
   KjNode* attrTypes   = kjLookup(entry, "attrTypes");
 
@@ -142,18 +142,18 @@ bool getType(void)
     {
       if (aN->type != KjString) continue;
 
-      KjNode* ad = kjObject(swRest.kjsonP, NULL);
-      kjChildAdd(ad, kjString(swRest.kjsonP, "id",            aN->value.s));
-      kjChildAdd(ad, kjString(swRest.kjsonP, "type",          "Attribute"));
-      kjChildAdd(ad, kjString(swRest.kjsonP, "attributeName", shortOrSelf(ctxP, aN->value.s)));
+      KjNode* ad = kjObject(corRest.kjsonP, NULL);
+      kjChildAdd(ad, kjString(corRest.kjsonP, "id",            aN->value.s));
+      kjChildAdd(ad, kjString(corRest.kjsonP, "type",          "Attribute"));
+      kjChildAdd(ad, kjString(corRest.kjsonP, "attributeName", shortOrSelf(ctxP, aN->value.s)));
 
-      KjNode* atArr = kjArray(swRest.kjsonP, "attributeTypes");
+      KjNode* atArr = kjArray(corRest.kjsonP, "attributeTypes");
       KjNode* atSrc = (attrTypes != NULL) ? kjLookup(attrTypes, aN->value.s) : NULL;
       if (atSrc != NULL && atSrc->type == KjArray)
       {
         for (KjNode* atN = atSrc->value.firstChildP; atN != NULL; atN = atN->next)
           if (atN->type == KjString)
-            kjChildAdd(atArr, kjString(swRest.kjsonP, NULL, atN->value.s));
+            kjChildAdd(atArr, kjString(corRest.kjsonP, NULL, atN->value.s));
       }
       kjChildAdd(ad, atArr);
 
@@ -162,7 +162,7 @@ bool getType(void)
   }
   kjChildAdd(body, attrDetails);
 
-  swRest.out.responseTree   = body;
-  swRest.out.httpStatusCode = 200;
+  corRest.out.responseTree   = body;
+  corRest.out.httpStatusCode = 200;
   return true;
 }

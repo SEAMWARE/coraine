@@ -12,8 +12,8 @@ POST /entityOperations/query — Batch Query (§ 6.23)
 batch entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,7 +28,7 @@ swBrokerStart
 
 echo "01. Batch-seed entities"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}
@@ -39,28 +39,28 @@ echo
 
 echo "02. POST query entities:[{type:Vehicle}] → V1+V2"
 echo "================================================"
-swCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}]}'
+corCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}]}'
 echo
 echo
 
 
 echo "03. POST query q=speed>15 → V2"
 echo "=============================="
-swCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>15"}'
+corCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>15"}'
 echo
 echo
 
 
 echo "04. POST without type:Query → 400"
 echo "================================="
-swCurl --url "/ngsi-ld/v1/entityOperations/query" --payload '{"entities":[{"type":"Vehicle"}]}'
+corCurl --url "/ngsi-ld/v1/entityOperations/query" --payload '{"entities":[{"type":"Vehicle"}]}'
 echo
 echo
 
 
 echo "05. POST non-object body → 400"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload '[1,2,3]'
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '[1,2,3]'
 echo
 echo
 
@@ -164,5 +164,5 @@ Content-Length: 181
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,23 +12,23 @@
 #include <stdio.h>                                   // snprintf
 #include <time.h>                                    // time
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
 #include "kjson/KjNode.h"                            // KjNode
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckRegistration.h"            // ldCheckRegistration
-#include "swNgsild/LdOp.h"                           // LdOpCreateRegistration
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemAdd
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegCreate
-#include "swNgsild/ldDistSub.h"                      // ldDistSubOnRegCreate
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckRegistration.h"            // ldCheckRegistration
+#include "corNgsild/LdOp.h"                           // LdOpCreateRegistration
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheItemAdd
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubOnRegCreate
+#include "corNgsild/ldDistSub.h"                      // ldDistSubOnRegCreate
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -47,7 +47,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
   if (fragP == NULL)
     return;
 
@@ -77,10 +77,10 @@ static char* regIdGenerate(KAlloc* allocP)
 //
 bool postCsourceRegistration(void)
 {
-  KjNode* regP = swRest.in.requestTree;
+  KjNode* regP = corRest.in.requestTree;
 
   // Validate the registration
-  if (ldCheckRegistration(regP, LdOpCreateRegistration, /*merged*/false, &swRest.kalloc) == false)
+  if (ldCheckRegistration(regP, LdOpCreateRegistration, /*merged*/false, &corRest.kalloc) == false)
     return true;
 
   // Extract or generate registration id
@@ -88,9 +88,9 @@ bool postCsourceRegistration(void)
 
   if (idP == NULL)
   {
-    char* generatedId = regIdGenerate(&swRest.kalloc);
+    char* generatedId = regIdGenerate(&corRest.kalloc);
 
-    idP = kjString(swRest.kjsonP, "id", generatedId);
+    idP = kjString(corRest.kjsonP, "id", generatedId);
     kjChildAdd(regP, idP);
   }
   else if (idP->type != KjString)
@@ -112,7 +112,7 @@ bool postCsourceRegistration(void)
   // overlapping reg in the cache, or a local entity holding the to-be-claimed
   // attrs. inclusive / auxiliary skip these checks per spec. The new reg isn't
   // cached yet, so passing its own id as the self-skip is harmless here.
-  if (regConflictCheck(regP, regModeOf(regP), idP->value.s, &swRest.kalloc))
+  if (regConflictCheck(regP, regModeOf(regP), idP->value.s, &corRest.kalloc))
     return true;
 
   // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
@@ -126,7 +126,7 @@ bool postCsourceRegistration(void)
     return true;
   }
 
-  int r = db.registrationCreate((Tenant*) swNgsild.tenantP, idP->value.s, regP);
+  int r = db.registrationCreate((Tenant*) corNgsild.tenantP, idP->value.s, regP);
 
   if (r == DB_ALREADY_EXISTS)
   {
@@ -147,14 +147,14 @@ bool postCsourceRegistration(void)
   // Add to per-tenant registration cache. The wrlock serializes against
   // concurrent CSR CRUD + match-path readers, and is held across the fanout so
   // the just-added regItemP can't be freed by a concurrent CSR DELETE.
-  Tenant*     tenantP   = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP   = (Tenant*) corNgsild.tenantP;
   LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
   LdRegCacheItem* regItemP = NULL;
 
   ldRegCacheWrLock(regCacheP);
 
   if (regCacheP != NULL)
-    regItemP = ldRegCacheItemAdd(regCacheP, regP, &swRest.kalloc);
+    regItemP = ldRegCacheItemAdd(regCacheP, regP, &corRest.kalloc);
 
   // § 5.11.7 — fan out "newlyMatching" CsourceNotifications to any CSR-
   // sub whose filter matches this new registration.
@@ -167,7 +167,7 @@ bool postCsourceRegistration(void)
   // when the sub is created BEFORE the CSR.
   if (regItemP != NULL && tenantP->subCacheP != NULL)
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     ldDistSubOnRegCreate((LdSubCache*) tenantP->subCacheP, regItemP, ownAlias,
                          distSubPersist, tenantP);
   }
@@ -175,15 +175,15 @@ bool postCsourceRegistration(void)
   ldRegCacheUnlock(regCacheP);
 
   // 201 Created — set Location and Link headers, no body
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
 
   const char* prefix = "/ngsi-ld/v1/csourceRegistrations/";
   int         locLen = strlen(prefix) + strlen(idP->value.s) + 1;
-  char*       locBuf = kaAlloc(&swRest.kalloc, locLen);
+  char*       locBuf = kaAlloc(&corRest.kalloc, locLen);
 
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);
-  swRestOutHeaderAdd("Location", locBuf);
+  corRestOutHeaderAdd("Location", locBuf);
 
   // § 6.3.6: no Link header on no-body responses.
 

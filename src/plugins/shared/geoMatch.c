@@ -16,8 +16,8 @@
 #include "kjson/KjNode.h"                                // KjNode
 #include "kjson/kjLookup.h"                              // kjLookup
 
-#include "swNgsild/LdGeoRel.h"                           // LdGeoRel, LdGeoRelType
-#include "swNgsild/LdVocab.h"                            // LD_VOCAB_*
+#include "corNgsild/LdGeoRel.h"                           // LdGeoRel, LdGeoRelType
+#include "corNgsild/LdVocab.h"                            // LD_VOCAB_*
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
 
 #include "shared/geoMatch.h"                             // Own interface

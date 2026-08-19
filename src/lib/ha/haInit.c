@@ -13,7 +13,7 @@
 #include "ktrace/kTrace.h"                               // KT_*
 
 #include "db/DbDriver.h"                                 // db
-#include "swBrokerTraceLevels.h"                         // KtHa
+#include "coraineTraceLevels.h"                         // KtHa
 #include "ha/haEventApply.h"                             // haEventApply
 #include "ha/haInit.h"                                   // Own interface
 

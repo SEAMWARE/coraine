@@ -26,8 +26,8 @@ georel=near annotates matches with a non-reified geoDistance number (metres)
 geo geoQ georel query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,36 +38,36 @@ payload='[
   { "id": "urn:ngsi-ld:GD:2", "type": "GD", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 0.5] } } },
   { "id": "urn:ngsi-ld:GD:3", "type": "GD", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 2.0] } } }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | grep -c "urn:ngsi-ld:GD:"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | grep -c "urn:ngsi-ld:GD:"
 echo
 echo
 
 
 echo "02. near [0,0] maxDistance=20km — only GD:1; geoDistance is a plain number"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D20000&geometry=Point&coordinates=\[0,0\]' | grep -E '"id"|"geoDistance"'
+corCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D20000&geometry=Point&coordinates=\[0,0\]' | grep -E '"id"|"geoDistance"'
 echo
 echo
 
 
 echo "03. near [0,0] maxDistance=300km — all three, nearest first: GD:1, GD:2, GD:3"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]' | grep '"id"'
 echo
 echo
 
 
 echo "04. same near query, options=keyValues — geoDistance still a plain number"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]&options=keyValues' | grep '"geoDistance"' | head -1
-swCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]&options=keyValues' | grep -c '"geoDistance"'
+corCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]&options=keyValues' | grep '"geoDistance"' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=GD&georel=near%3BmaxDistance%3D%3D300000&geometry=Point&coordinates=\[0,0\]&options=keyValues' | grep -c '"geoDistance"'
 echo
 echo
 
 
 echo "05. plain GET (no georel) — no geoDistance member"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
+corCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
 
 --EXPECT--
 01. Seed three GeoProperty entities at increasing distance from [0,0]
@@ -98,4 +98,4 @@ swCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
 =================================================
 0
 --TEARDOWN--
-swBrokerStop
+coraineStop

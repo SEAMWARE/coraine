@@ -20,8 +20,8 @@
 #include <stdio.h>                                       // snprintf
 #include <time.h>                                        // gmtime_r
 
-#include "swRest/SwRestState.h"                          // swRest
-#include "swRest/swRestOutHeader.h"                      // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                          // corRest
+#include "corRest/corRestOutHeader.h"                      // corRestOutHeaderAdd
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kjson/KjNode.h"                                // KjNode
@@ -30,10 +30,10 @@
 #include "kjson/kjChildReplace.h"                        // kjChildReplace
 #include "kjson/kjClone.h"                               // kjClone
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemAdd
-#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemAdd
+#include "corNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
 
 #include "db/DbDriver.h"                                 // db, DB_OK
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
@@ -55,7 +55,7 @@ static char* nsToIso(uint64_t ns)
   struct tm tm;
   gmtime_r(&s, &tm);
 
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 80);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 80);
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
@@ -67,9 +67,9 @@ static char* nsToIso(uint64_t ns)
 static char* generateSnapshotId(void)
 {
   static int counter = 0;
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
   snprintf(buf, 64, "urn:ngsi-ld:Snapshot:%lx:%04x",
-           (long) (swRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
+           (long) (corRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
   return buf;
 }
 
@@ -81,18 +81,18 @@ static void replaceString(KjNode* parent, const char* name, const char* value)
   if (p != NULL && p->type == KjString)
     p->value.s = (char*) value;
   else
-    kjChildAdd(parent, kjString(swRest.kjsonP, name, (char*) value));
+    kjChildAdd(parent, kjString(corRest.kjsonP, name, (char*) value));
 }
 
 
 
 bool cloneSnapshot(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   // The route pattern is /ngsi-ld/v1/snapshots/<id>/clone — wildcard[0]
   // is the source snapshot id.
-  const char* sourceId = swRest.in.wildcard[0];
+  const char* sourceId = corRest.in.wildcard[0];
   if (sourceId == NULL || sourceId[0] == 0)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component",
@@ -116,7 +116,7 @@ bool cloneSnapshot(void)
     return true;
   }
 
-  KjNode* bodyP = swRest.in.requestTree;
+  KjNode* bodyP = corRest.in.requestTree;
   if (bodyP != NULL && bodyP->type != KjObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
@@ -161,7 +161,7 @@ bool cloneSnapshot(void)
   // it makes the clone self-describing without introducing a "blank"
   // tree we'd then have to re-fetch from somewhere.
   //
-  KjNode* newTree = kjClone(swRest.kjsonP, sourceP->tree);
+  KjNode* newTree = kjClone(corRest.kjsonP, sourceP->tree);
 
   // Body overrides for mutable fields.
   if (bodyP != NULL)
@@ -180,7 +180,7 @@ bool cloneSnapshot(void)
       }
       KjNode* dest = kjLookup(newTree, "snapshotPriority");
       if (dest != NULL) dest->value.i = pn;
-      else              kjChildAdd(newTree, kjInteger(swRest.kjsonP, "snapshotPriority", pn));
+      else              kjChildAdd(newTree, kjInteger(corRest.kjsonP, "snapshotPriority", pn));
     }
 
     const char* COPY_OVER[] = { "snapshotLifetime", "endpoint", "receiverInfo", NULL };
@@ -188,14 +188,14 @@ bool cloneSnapshot(void)
     {
       KjNode* fP = kjLookup(bodyP, COPY_OVER[i]);
       if (fP == NULL) continue;
-      KjNode* clone = kjClone(swRest.kjsonP, fP);
+      KjNode* clone = kjClone(corRest.kjsonP, fP);
       KjNode* dest  = kjLookup(newTree, COPY_OVER[i]);
       if (dest != NULL) kjChildReplace(newTree, dest, clone);
       else              kjChildAdd(newTree, clone);
     }
   }
 
-  uint64_t now = swRest.requestStartTime;
+  uint64_t now = corRest.requestStartTime;
   uint64_t exp = now + 3600ULL * 1000000000ULL;
   replaceString(newTree, "id",             (char*) newId);
   replaceString(newTree, "createdAt",      nsToIso(now));
@@ -307,13 +307,13 @@ bool cloneSnapshot(void)
   ldSnapshotNotify(newItemP, false);
 
   // 201 Created + Location.
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
   const char* prefix = "/ngsi-ld/v1/snapshots/";
   int locLen = strlen(prefix) + strlen(newId) + 1;
-  char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
+  char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
   strcpy(locBuf, prefix);
   strcat(locBuf, newId);
-  swRestOutHeaderAdd("Location", locBuf);
+  corRestOutHeaderAdd("Location", locBuf);
 
   return true;
 }

@@ -18,8 +18,8 @@ PATCH delete marker — normalized {value/object: urn:ngsi-ld:null} == simplifie
 patch merge delete attr
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ swBrokerStart
 
 echo "01. Create E1 (A, B, R)"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:E1",
   "type": "T",
   "A": { "type": "Property", "value": 5 },
@@ -46,28 +46,28 @@ echo
 
 echo "02. PATCH simplified marker deletes A"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "A": "urn:ngsi-ld:null" }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "A": "urn:ngsi-ld:null" }'
 echo
 echo
 
 
 echo "03. PATCH normalized {value: marker} deletes B"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "B": { "value": "urn:ngsi-ld:null" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "B": { "value": "urn:ngsi-ld:null" } }'
 echo
 echo
 
 
 echo "04. PATCH normalized {object: marker} deletes R"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "R": { "object": "urn:ngsi-ld:null" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload '{ "R": { "object": "urn:ngsi-ld:null" } }'
 echo
 echo
 
 
 echo "05. GET — only id/type remain"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -123,5 +123,5 @@ Content-Length: 44
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

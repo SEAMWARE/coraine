@@ -19,8 +19,8 @@ createdAt/modifiedAt: sub-second precision; update advances only the touched att
 entity attr sysAttrs createdAt
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,7 +35,7 @@ E="urn:ngsi-ld:entities:E1"
 
 echo "01. Create entity E1 with A1, A2 (millisecond observedAt)"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:entities:E1",
   "type": "T",
   "A1": { "type": "Property", "value": 1, "observedAt": "2020-07-23T10:31:25.001Z" },
@@ -44,7 +44,7 @@ swCurl --url /ngsi-ld/v1/entities --payload '{
 echo
 echo
 
-body1=$(swCurl --url "/ngsi-ld/v1/entities/${E}?sysAttrs=true" | sed -n '/^{/,$p')
+body1=$(corCurl --url "/ngsi-ld/v1/entities/${E}?sysAttrs=true" | sed -n '/^{/,$p')
 e_c1=$(echo "$body1" | jq -r '.createdAt');   e_m1=$(echo "$body1" | jq -r '.modifiedAt')
 a1_c1=$(echo "$body1" | jq -r '.A1.createdAt'); a1_m1=$(echo "$body1" | jq -r '.A1.modifiedAt')
 a2_c1=$(echo "$body1" | jq -r '.A2.createdAt'); a2_m1=$(echo "$body1" | jq -r '.A2.modifiedAt')
@@ -57,11 +57,11 @@ echo
 
 echo "03. PATCH A1"
 echo "============"
-swCurl --url "/ngsi-ld/v1/entities/${E}/attrs/A1" -X PATCH --payload '{ "type": "Property", "value": 99 }' | head -1
+corCurl --url "/ngsi-ld/v1/entities/${E}/attrs/A1" -X PATCH --payload '{ "type": "Property", "value": 99 }' | head -1
 echo
 echo
 
-body2=$(swCurl --url "/ngsi-ld/v1/entities/${E}?sysAttrs=true" | sed -n '/^{/,$p')
+body2=$(corCurl --url "/ngsi-ld/v1/entities/${E}?sysAttrs=true" | sed -n '/^{/,$p')
 e_c2=$(echo "$body2" | jq -r '.createdAt');   e_m2=$(echo "$body2" | jq -r '.modifiedAt')
 a1_c2=$(echo "$body2" | jq -r '.A1.createdAt'); a1_m2=$(echo "$body2" | jq -r '.A1.modifiedAt')
 a2_c2=$(echo "$body2" | jq -r '.A2.createdAt'); a2_m2=$(echo "$body2" | jq -r '.A2.modifiedAt')
@@ -107,5 +107,5 @@ A2 modifiedAt:     unchanged
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

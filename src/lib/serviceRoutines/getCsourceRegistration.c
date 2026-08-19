@@ -10,14 +10,14 @@
 
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/kjClone.h"                           // kjClone
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemLookup
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheItemLookup
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -35,9 +35,9 @@
 //
 bool getCsourceRegistration(void)
 {
-  const char* regId = swRest.in.wildcard[0];
+  const char* regId = corRest.in.wildcard[0];
 
-  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
 
   LdRegCacheItem* itemP = (cacheP != NULL) ? ldRegCacheItemLookup(cacheP, regId) : NULL;
@@ -50,15 +50,15 @@ bool getCsourceRegistration(void)
 
   ldContextResolve();
 
-  KjNode* regP = kjClone(swRest.kjsonP, itemP->regTree);
+  KjNode* regP = kjClone(corRest.kjsonP, itemP->regTree);
 
   // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
-  if (swNgsild.sysAttrs == false)
+  if (corNgsild.sysAttrs == false)
     ldStripSysAttrs(regP);
   else
-    ldSysTimestampsToIso(regP, &swRest.kalloc);
+    ldSysTimestampsToIso(regP, &corRest.kalloc);
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = regP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = regP;
   return true;
 }

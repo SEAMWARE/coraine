@@ -18,10 +18,10 @@ Inclusive registration replicates create + attribute PATCH to the registered CP
 csource registration distop inclusive patch forward
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -44,7 +44,7 @@ payload='{
   "mode": "inclusive",
   "operations": ["updateOps", "redirectionOps"]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -57,21 +57,21 @@ payload='{
   "totalRAM": {"type": "Property", "value": 32},
   "cPUCores": {"type": "Property", "value": 4}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. GET urn:ngsi-ld:IE:001 on CB ?local=true — totalRAM=32"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
 echo
 echo
 
 
 echo "04. GET urn:ngsi-ld:IE:001 on CP1 ?local=true — replicated, totalRAM=32"
 echo "======================================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
 echo
 echo
 
@@ -81,14 +81,14 @@ echo "========================================================"
 payload='{
   "totalRAM": {"type": "Property", "value": 64}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:IE:001/attrs -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:IE:001/attrs -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "06. GET urn:ngsi-ld:IE:001 on CP1 ?local=true — totalRAM=64"
 echo "==========================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IE:001?local=true'
 echo
 echo
 
@@ -192,5 +192,5 @@ Content-Length: 170
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1

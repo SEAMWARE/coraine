@@ -12,8 +12,8 @@
 media query geojson error
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -33,65 +33,65 @@ swBrokerStart -dist
 
 echo "01. Seed a Vehicle with a location GeoProperty + a subscription"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}}}'
 echo
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Subscription:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Subscription:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
 echo
 echo
 
 
 echo "02. Retrieve Entity + Accept geo+json → 200 application/geo+json (carve-out)"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
 echo
 echo
 
 
 echo "03. Query Entities + Accept geo+json → 200 application/geo+json (carve-out)"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
 echo
 echo
 
 
 echo "04. GET /subscriptions (list) + Accept geo+json → 406 + representation list (no geo+json)"
 echo "========================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions -H 'Accept: application/geo+json'
+corCurl --url /ngsi-ld/v1/subscriptions -H 'Accept: application/geo+json'
 echo
 echo
 
 
 echo "05. GET /subscriptions/{id} + Accept geo+json → 406"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -H 'Accept: application/geo+json'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -H 'Accept: application/geo+json'
 echo
 echo
 
 
 echo "06. GET /csourceRegistrations + Accept geo+json → 406"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'Accept: application/geo+json'
+corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'Accept: application/geo+json'
 echo
 echo
 
 
 echo "07. GET /temporal/entities/{id} + Accept geo+json → 406 (temporal is not Retrieve Entity)"
 echo "========================================================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H 'Accept: application/geo+json'
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -H 'Accept: application/geo+json'
 echo
 echo
 
 
 echo "08. GET /temporal/entities (query) + Accept geo+json → 406"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle' -H 'Accept: application/geo+json'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle' -H 'Accept: application/geo+json'
 echo
 echo
 
 
 echo "09. GET /types + Accept geo+json → 406"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/types -H 'Accept: application/geo+json'
+corCurl --url /ngsi-ld/v1/types -H 'Accept: application/geo+json'
 echo
 echo
 
@@ -102,28 +102,28 @@ echo
 #
 echo "10. Create Entity + Accept geo+json → 406 (write is not Retrieve/Query)"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'Accept: application/geo+json' --payload '{"id":"urn:V9","type":"Vehicle"}' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+corCurl --url /ngsi-ld/v1/entities -H 'Accept: application/geo+json' --payload '{"id":"urn:V9","type":"Vehicle"}' 2>&1 | grep -iE '^(HTTP|Content-Type)'
 echo
 echo
 
 
 echo "11. urn:V9 was NOT created — the 406 precondition blocked the write → 404"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V9 2>&1 | grep -iE '^HTTP'
+corCurl --url /ngsi-ld/v1/entities/urn:V9 2>&1 | grep -iE '^HTTP'
 echo
 echo
 
 
 echo "12. Delete Entity + Accept geo+json → 406"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE -H 'Accept: application/geo+json' 2>&1 | grep -iE '^(HTTP|Content-Type)'
 echo
 echo
 
 
 echo "13. urn:V1 was NOT deleted — still retrievable → 200"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 2>&1 | grep -iE '^HTTP'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 2>&1 | grep -iE '^HTTP'
 echo
 echo
 
@@ -277,5 +277,5 @@ HTTP/1.1 200 OK
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

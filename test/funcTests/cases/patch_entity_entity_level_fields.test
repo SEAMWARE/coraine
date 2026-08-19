@@ -8,8 +8,8 @@
 --NAME--
 PATCH /entities/{id} - id/type/scope/timestamps in body (§ 5.6.17.4, § 5.2.2)
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --TAGS--
 entity patch
@@ -27,7 +27,7 @@ entity patch
 
 echo "01. Create V1 with type=Vehicle, scope=/s1, speed=50"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V1","type":"Vehicle","scope":"/s1","speed":{"type":"Property","value":50}}'
 echo
 echo
@@ -35,7 +35,7 @@ echo
 
 echo "02. PATCH /{id} with id in body → 400 BadRequestData"
 echo "===================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
   --payload '{"id":"urn:V1","foo":{"type":"Property","value":1}}'
 echo
 echo
@@ -43,7 +43,7 @@ echo
 
 echo "03. PATCH /{id} adding new type=Car → unioned"
 echo "============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
   --payload '{"type":"Car","foo":{"type":"Property","value":1}}'
 echo
 echo
@@ -51,7 +51,7 @@ echo
 
 echo "04. PATCH /{id} replacing scope (overwrite default) → /s2"
 echo "========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
   --payload '{"scope":"/s2","bar":{"type":"Property","value":2}}'
 echo
 echo
@@ -59,7 +59,7 @@ echo
 
 echo "05. PATCH /{id} with createdAt/modifiedAt → ignored (204)"
 echo "========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 \
   --payload '{"createdAt":"2000-01-01T00:00:00Z","modifiedAt":"2000-01-01T00:00:00Z","baz":{"type":"Property","value":3}}'
 echo
 echo
@@ -67,7 +67,7 @@ echo
 
 echo "06. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -151,5 +151,5 @@ Content-Length: 304
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

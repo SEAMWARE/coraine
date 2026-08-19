@@ -13,13 +13,13 @@
 #include "kjson/kjBufferCreate.h"                        // kjBufferCreate
 #include "ktrace/kTrace.h"                               // KT_*
 
-#include "swRest/SwRestState.h"                          // swRest
-#include "swNgsild/SwNgsild.h"                           // swNgsild
+#include "corRest/CorRestState.h"                          // corRest
+#include "corNgsild/CorNgsild.h"                           // corNgsild
 
 #include "db/Tenant.h"                                   // tenantSubCacheItemRefresh, ...
 #include "db/contextCache.h"                             // contextCacheItemRefresh, contextCacheItemDrop
 #include "ha/haInit.h"                                   // haApplyWait
-#include "swBrokerTraceLevels.h"                         // KtHa
+#include "coraineTraceLevels.h"                         // KtHa
 #include "ha/haEventApply.h"                             // Own interface
 
 
@@ -29,7 +29,7 @@
 // stateBind - bring this thread's request state up to working order
 //
 // A channel runs in a thread of its own, with no request behind it, and the DB
-// driver allocates what it reads through swRest.kalloc/kjsonP. Both are __thread
+// driver allocates what it reads through corRest.kalloc/kjsonP. Both are __thread
 // (via the per-connection fallback), so the channel thread gets its own - zeroed
 // until somebody sets them up, which is what this does, once.
 //
@@ -43,8 +43,8 @@ static void stateBind(Tenant* tenantP)
 
   if (inited == false)
   {
-    kaBufferInit(&swRest.kalloc, swRest.kallocBuffer, sizeof(swRest.kallocBuffer), 256 * 1024, NULL, "ha");
-    swRest.kjsonP = kjBufferCreate(&swRest.kjson, &swRest.kalloc);
+    kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "ha");
+    corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
     inited = true;
   }
   else
@@ -55,13 +55,13 @@ static void stateBind(Tenant* tenantP)
     // dangling list and frees the same pointers again: "double free or
     // corruption", in whatever thread happens to be there.
     //
-    kaBufferReset(&swRest.kalloc, KTRUE);
+    kaBufferReset(&corRest.kalloc, KTRUE);
 
   //
   // The apply runs AS the event's tenant. Not everything downstream takes the
   // tenant as a parameter, and a thread with no request has none.
   //
-  swNgsild.tenantP = tenantP;
+  corNgsild.tenantP = tenantP;
 }
 
 

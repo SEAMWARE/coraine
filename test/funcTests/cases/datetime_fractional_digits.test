@@ -22,84 +22,84 @@ DateTime fraction: accept 1..9 digits, round >9 to ns, reject bare separator (§
 datetime attribute validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. observedAt with 3 fractional digits — 201"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F3","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F3","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123Z"}}' | head -1
 echo
 echo
 
 
 echo "02. observedAt with 6 fractional digits (the spec maximum) — 201"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F6","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F6","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456Z"}}' | head -1
 echo
 echo
 
 
 echo "03. observedAt with 6 fractional digits + offset timezone — 201"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Foff","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456+02:00"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Foff","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456+02:00"}}' | head -1
 echo
 echo
 
 
 echo "04. observedAt with no fraction — 201"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F0","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F0","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00Z"}}' | head -1
 echo
 echo
 
 
 echo "05. observedAt with 7 fractional digits — 201 (beyond the spec max, accepted)"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.1234567Z"}}' | head -1
 echo
 echo
 
 
 echo "06. GET F7 — default broker renders 6 fractional digits (µs); the 7th is dropped"
 echo "================================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:F7
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:F7
 echo
 echo
 
 
 echo "07. observedAt with 9 fractional digits (full ns) — 201"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F9","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F9","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789Z"}}' | head -1
 echo
 echo
 
 
 echo "08. observedAt with 12 digits — 201 (rounded to nanoseconds)"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F12","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789999Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:F12","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.123456789999Z"}}' | head -1
 echo
 echo
 
 
 echo "09. observedAt .9999999999 — round carries into the whole second — 201"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fc","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.9999999999Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fc","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.9999999999Z"}}' | head -1
 echo
 echo
 
 
 echo "10. GET Fc — the rounded-up fraction advanced the second to 10:00:01Z"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Fc
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Fc
 echo
 echo
 
 
 echo "11. observedAt with a bare decimal point (zero digits) — 400"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fdot","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Fdot","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00.Z"}}'
 echo
 echo
 
@@ -202,5 +202,5 @@ Content-Length: 263
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

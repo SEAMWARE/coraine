@@ -19,15 +19,15 @@ CSR Subscription - csf filters on the registration's own Properties
 csr-sub subscription registration csf
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
 echo "01. CSR-sub S1 on Vehicle with csf=organization==\"Acme\""
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
@@ -40,7 +40,7 @@ echo
 
 echo "02. CSR-sub S2 on Vehicle with no csf — matches every Vehicle CSR"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
   "id": "urn:S2",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
@@ -52,7 +52,7 @@ echo
 
 echo "03. Register CSR-Beta (organization=Beta) — only S2 matches"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:Beta",
   "type": "ContextSourceRegistration",
   "endpoint": "http://cp2.example",
@@ -73,7 +73,7 @@ echo
 
 echo "05. Register CSR-Acme (organization=Acme) — S1 and S2 both match"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:Acme",
   "type": "ContextSourceRegistration",
   "endpoint": "http://cp1.example",
@@ -94,28 +94,28 @@ echo
 
 echo "07. GET the CSR-sub back — csf is echoed as supplied"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:S1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:S1
 echo
 echo
 
 
 echo "08. An ENTITY subscription's csf is ignored (§ 5.2.6.5.2) — stored, echoed"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S3",
   "type": "Subscription",
   "entities": [{"type": "Bike"}],
   "csf": "organization==\"Nobody\"",
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/s3"}}
 }' | head -1
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S3
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S3
 echo
 echo
 
 
 echo "09. ... and it still notifies on a matching Entity"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bike:1","type":"Bike","gears":{"type":"Property","value":21}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bike:1","type":"Bike","gears":{"type":"Property","value":21}}' | head -1
 sleep 0.3
 ftClientDump | grep -E '"url"|"id"'
 echo
@@ -266,5 +266,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

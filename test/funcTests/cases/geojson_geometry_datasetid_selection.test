@@ -21,8 +21,8 @@ GeoJSON top-level geometry selection over a multi-instance GeoProperty + dataset
 entity query geojson geometryProperty datasetId
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -44,21 +44,21 @@ payload='{
   ],
   "name": { "type": "Property", "value": "Berlin" }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GeoJSON, no datasetId → geometry from the DEFAULT instance [13.4,52.5]"
 echo "========================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1'
 echo
 echo
 
 
 echo "03. GeoJSON, datasetId=urn:ngsi-ld:dataset:radar → geometry [2.3,48.9]"
 echo "====================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'datasetId=urn:ngsi-ld:dataset:radar'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'datasetId=urn:ngsi-ld:dataset:radar'
 echo
 echo
 
@@ -66,21 +66,21 @@ echo
 echo "04. Create City:2 with NO location at all"
 echo "========================================="
 payload='{ "id": "urn:ngsi-ld:City:2", "type": "City", "name": { "type": "Property", "value": "Nowhere" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "05. GeoJSON of City:2 → geometry: null (entity lacks the GeoProperty)"
 echo "===================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:2'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:2'
 echo
 echo
 
 
 echo "06. GeoJSON with geometryProperty=missing → geometry: null"
 echo "=========================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'geometryProperty=missing'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'geometryProperty=missing'
 
 --EXPECT--
 01. Create City with location = default Point [13.4,52.5] + datasetId Point [2.3,48.9]
@@ -259,4 +259,4 @@ Content-Length: 698
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

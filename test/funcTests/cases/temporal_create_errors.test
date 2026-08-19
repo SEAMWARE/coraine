@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/temporal/entities - input validation (id URI, etc.)
 create temporal error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,7 +38,7 @@ payload='{
   ],
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
 echo
 
@@ -52,7 +52,7 @@ payload='{
   ],
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
 echo
 
@@ -67,7 +67,7 @@ payload='{
   ],
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ payload='{
   ],
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities -H "Content-Type: application/ld+json" --payload "$payload"
 echo
 echo
 
@@ -153,5 +153,5 @@ Content-Length: 224
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

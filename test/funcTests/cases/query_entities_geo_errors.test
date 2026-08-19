@@ -12,8 +12,8 @@ Geo-query error handling (georel, geometry, coordinates validation)
 entity error geo query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -50,147 +50,147 @@ swBrokerStart
 
 echo "01. georel= (empty) - 400 Bad Request"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "02. georel=NEAR (wrong case) - 400 Bad Request"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=NEAR%3BmaxDistance%3D%3D100&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=NEAR%3BmaxDistance%3D%3D100&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "03. georel=foo (unknown type) - 400 Bad Request"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=foo&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=foo&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "04. georel=near without distance modifier - 400 Bad Request"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=near&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=near&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "05. georel=near;foo==100 (unknown modifier) - 400 Bad Request"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3Bfoo%3D%3D100&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3Bfoo%3D%3D100&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "06. georel=near;maxDistance=100 (single = instead of ==) - 400 Bad Request"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3BmaxDistance%3D100&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3BmaxDistance%3D100&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "07. georel=near;maxDistance==abc (non-numeric) - 400 Bad Request"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3BmaxDistance%3D%3Dabc&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3BmaxDistance%3D%3Dabc&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "08. georel=near;maxDistance==-5 (negative) - 400 Bad Request"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3BmaxDistance%3D%3D-5&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=near%3BmaxDistance%3D%3D-5&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "09. georel=within;maxDistance==100 (distance on non-near) - 400 Bad Request"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within%3BmaxDistance%3D%3D100&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within%3BmaxDistance%3D%3D100&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "10. geometry= (empty) - 400 Bad Request"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "11. geometry=Piont (typo) - 400 Bad Request"
 echo "==========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Piont&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Piont&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "12. geometry=point (wrong case) - 400 Bad Request"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "13. coordinates= (empty) - 400 Bad Request"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Point&coordinates='
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Point&coordinates='
 echo
 echo
 
 
 echo "14. coordinates=notanarray (not a JSON array) - 400 Bad Request"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Point&coordinates=notanarray'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Point&coordinates=notanarray'
 echo
 echo
 
 
 echo "15. georel without geometry and coordinates - 400 Bad Request"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within'
 echo
 echo
 
 
 echo "16. geometry without georel and coordinates - 400 Bad Request"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&geometry=Point'
+corCurl --url '/ngsi-ld/v1/entities?type=T&geometry=Point'
 echo
 echo
 
 
 echo "17. coordinates without georel and geometry - 400 Bad Request"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "18. georel+geometry without coordinates - 400 Bad Request"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Point'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&geometry=Point'
 echo
 echo
 
 
 echo "19. georel+coordinates without geometry - 400 Bad Request"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&georel=within&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "20. geometry+coordinates without georel - 400 Bad Request"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&geometry=Point&coordinates=\[0,0\]'
+corCurl --url '/ngsi-ld/v1/entities?type=T&geometry=Point&coordinates=\[0,0\]'
 echo
 echo
 
 
 echo "21. geoproperty alone - 400 Bad Request"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&geoproperty=location'
+corCurl --url '/ngsi-ld/v1/entities?type=T&geoproperty=location'
 echo
 echo
 
@@ -533,5 +533,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

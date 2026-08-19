@@ -27,7 +27,7 @@
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
 #include "currentState/mongoc/mongocKjTreeToBson.h"      // mongocKjTreeToBson
-#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkUpdate.h"  // Own interface
 
@@ -177,7 +177,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     if (geoClashP != NULL)
     {
       KT_E("mongoc: entityBulkUpdate: '%s' is a GeoProperty here but already held as another type", geoClashP);
-      swNgsild.geoConflictAttr = geoClashP;
+      corNgsild.geoConflictAttr = geoClashP;
       resultsV[i] = DB_GEO_TYPE_CONFLICT;
       continue;
     }
@@ -235,7 +235,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
         if (mixedP != NULL)
         {
           KT_E("mongoc: entityBulkUpdate: '%s' is held as a GeoProperty here and updated to another type", mixedP);
-          swNgsild.geoConflictAttr = mixedP;
+          corNgsild.geoConflictAttr = mixedP;
           resultsV[i] = DB_GEO_TYPE_CONFLICT;
         }
         else

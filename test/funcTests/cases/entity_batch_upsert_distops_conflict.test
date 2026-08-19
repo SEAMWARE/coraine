@@ -17,10 +17,10 @@ Batch Entity Upsert — exclusive CSR without upsertBatch (409 / 207 conflict)
 batch entity
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -29,14 +29,14 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Register CB→CP1 exclusive claiming 'speed' but WITHOUT upsertBatch"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "02. Upsert new V1 {speed only} → 409 (all-chopped, CSR can't accept, nothing local)"
 echo "==================================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
 ]'
 echo
@@ -45,14 +45,14 @@ echo
 
 echo "03. GET CB V1 local-only — 404 (was never created locally)"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "04. Upsert new V1 {speed, color} → 207 (color locally, speed conflicts)"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -61,7 +61,7 @@ echo
 
 echo "05. GET CB V1 local-only — color=blue (the only part that reached local)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
@@ -152,7 +152,7 @@ Content-Length: 61
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

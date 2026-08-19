@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - Type Selection Language (OR, AND, mixed)
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -52,7 +52,7 @@ payload='{
     "value": "Office"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -67,7 +67,7 @@ payload='{
     "value": "Cottage"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ payload='{
     "value": "Campervan"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -97,56 +97,56 @@ payload='{
     "value": "Winnebago"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "05. ?type=Building - E1 only"
 echo "============================"
-swCurl --url '/ngsi-ld/v1/entities?type=Building'
+corCurl --url '/ngsi-ld/v1/entities?type=Building'
 echo
 echo
 
 
 echo "06. ?type=Building,House - E1, E2 (OR with comma)"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Building,House'
+corCurl --url '/ngsi-ld/v1/entities?type=Building,House'
 echo
 echo
 
 
 echo "07. ?type=Building|House - E1, E2 (OR with pipe)"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Building|House'
+corCurl --url '/ngsi-ld/v1/entities?type=Building|House'
 echo
 echo
 
 
 echo "08. ?type=(Home;Vehicle) - E3 (AND)"
 echo "==================================="
-swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle)'
+corCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle)'
 echo
 echo
 
 
 echo "09. ?type=(Home;Vehicle)|Motorhome - E3, E4 (mixed)"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle)|Motorhome'
+corCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle)|Motorhome'
 echo
 echo
 
 
 echo "10. ?type=Home - E3 (multi-type entity matches on any single type)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Home'
+corCurl --url '/ngsi-ld/v1/entities?type=Home'
 echo
 echo
 
 
 echo "11. ?type=(Building;Vehicle) - empty (no entity has both)"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=(Building;Vehicle)'
+corCurl --url '/ngsi-ld/v1/entities?type=(Building;Vehicle)'
 echo
 echo
 
@@ -161,42 +161,42 @@ payload='{
     "value": "Houseboat"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "13. ?type=(Building;House),(Home;Motorhome) - two AND groups OR'd with comma (no match)"
 echo "======================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=(Building;House),(Home;Motorhome)'
+corCurl --url '/ngsi-ld/v1/entities?type=(Building;House),(Home;Motorhome)'
 echo
 echo
 
 
 echo "14. ?type=(Home;Vehicle;Boat) - 3-type AND (E5 only)"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle;Boat)'
+corCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle;Boat)'
 echo
 echo
 
 
 echo "15. ?type=Building,House,Motorhome - 3+ simple OR (E1, E2, E4)"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Building,House,Motorhome'
+corCurl --url '/ngsi-ld/v1/entities?type=Building,House,Motorhome'
 echo
 echo
 
 
 echo "16. ?type=(Home;Vehicle),Motorhome - comma as outer OR with AND group (E3, E4, E5)"
 echo "=================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle),Motorhome'
+corCurl --url '/ngsi-ld/v1/entities?type=(Home;Vehicle),Motorhome'
 echo
 echo
 
 
 echo "17. ?type=Vehicle - partial match on multi-type returns E3 and E5"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
@@ -578,5 +578,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

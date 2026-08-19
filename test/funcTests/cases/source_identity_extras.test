@@ -22,14 +22,14 @@ cat > /tmp/csx.json << 'EOF'
   "contact": { "email": "ops@example.com", "phone": "+1-555-0100" }
 }
 EOF
-swDbDrop
-swBrokerStart --contextSourceExtras /tmp/csx.json
+corDbDrop
+coraineStart --contextSourceExtras /tmp/csx.json
 
 --RUN--
 
 echo "01. GET /info/sourceIdentity — contextSourceExtras present, verbatim"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/info/sourceIdentity | grep -E '"(contextSourceExtras|instance|tags|contact|email|phone)"'
+corCurl --url /ngsi-ld/v1/info/sourceIdentity | grep -E '"(contextSourceExtras|instance|tags|contact|email|phone)"'
 echo
 echo
 
@@ -46,6 +46,6 @@ echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 \rm -f /tmp/csx.json

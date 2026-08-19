@@ -18,8 +18,8 @@ Subscription notifierInfo - MQTT-QoS / MQTT-Version validation (§ 7.2)
 subscription mqtt error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,7 +38,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -58,7 +58,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -76,7 +76,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -96,7 +96,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -117,14 +117,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "06. Confirm only the valid one was created"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -247,5 +247,5 @@ Content-Length: 585
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

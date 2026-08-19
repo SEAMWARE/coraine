@@ -29,49 +29,49 @@ DateTime comma fraction separator accepted on input (§ 5.2.2.4)
 datetime attribute validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. observedAt with a comma fraction — 201 (accepted for compatibility)"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C1","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,500000Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C1","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,500000Z"}}' | head -1
 echo
 echo
 
 
 echo "02. GET it — observedAt (ns-backed) is CANONICALIZED to a decimal point"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:C1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:C1
 echo
 echo
 
 
 echo "03. DateTime Property value with a comma fraction — 201"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C2","type":"T","when":{"type":"Property","value":{"@type":"DateTime","@value":"2023-06-15T12:30:45,123Z"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C2","type":"T","when":{"type":"Property","value":{"@type":"DateTime","@value":"2023-06-15T12:30:45,123Z"}}}' | head -1
 echo
 echo
 
 
 echo "04. GET it — a DateTime *value* is an opaque string, echoed VERBATIM (comma kept)"
 echo "================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:C2
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:C2
 echo
 echo
 
 
 echo "05. comma fraction with seven digits — 201 (beyond the spec max, accepted)"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,1234567Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C7","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,1234567Z"}}' | head -1
 echo
 echo
 
 
 echo "06. comma with zero fraction digits (bare separator) — 400"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C0","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C0","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-04-28T10:00:00,Z"}}'
 echo
 echo
 
@@ -151,5 +151,5 @@ Content-Length: 263
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

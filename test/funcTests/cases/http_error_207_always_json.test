@@ -12,8 +12,8 @@
 batch error media query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -32,7 +32,7 @@ swBrokerStart
 
 echo "01. Seed a local entity to collide with"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","P1":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","P1":{"type":"Property","value":1}}'
 echo
 echo
 
@@ -42,7 +42,7 @@ echo "==========================================================================
 # The AlreadyExists error rides in the partial-success 207 body; the successful
 # E2 is in success[]. Despite Accept: application/ld+json the response is
 # application/json, the body is FQN (full error-type URI), no @context, no Link.
-swCurl --url /ngsi-ld/v1/entityOperations/create -H 'Accept: application/ld+json' \
+corCurl --url /ngsi-ld/v1/entityOperations/create -H 'Accept: application/ld+json' \
   --payload '[{"id":"urn:E1","type":"T"},{"id":"urn:E2","type":"T"}]'
 echo
 echo
@@ -50,7 +50,7 @@ echo
 
 echo "03. Same batch, DEFAULT Accept → 207 application/json, still no Link"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create \
+corCurl --url /ngsi-ld/v1/entityOperations/create \
   --payload '[{"id":"urn:E1","type":"T"},{"id":"urn:E3","type":"T"}]'
 echo
 echo
@@ -60,7 +60,7 @@ echo "04. Batch merge into non-existent [urn:NOPE] + Accept ld+json → 404 appl
 echo "==================================================================================="
 # A uniform single-element batch failure renders a bare FQN error object (404);
 # § 6.2.2/6.2.3 → application/json, no @context, no Link even under ld+json.
-swCurl --url /ngsi-ld/v1/entityOperations/merge -H 'Accept: application/ld+json' \
+corCurl --url /ngsi-ld/v1/entityOperations/merge -H 'Accept: application/ld+json' \
   --payload '[{"id":"urn:NOPE","type":"T","P1":{"type":"Property","value":9}}]'
 echo
 echo
@@ -68,14 +68,14 @@ echo
 
 echo "05. Direct 400 (entity without id) + Accept ld+json → 400 application/json, no Link"
 echo "=================================================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'Accept: application/ld+json' --payload '{"type":"NoId"}'
+corCurl --url /ngsi-ld/v1/entities -H 'Accept: application/ld+json' --payload '{"type":"NoId"}'
 echo
 echo
 
 
 echo "06. Direct 404 (retrieve non-existent) + Accept ld+json → 404 application/json, no Link"
 echo "======================================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:NoSuch' -H 'Accept: application/ld+json'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:NoSuch' -H 'Accept: application/ld+json'
 echo
 echo
 
@@ -191,5 +191,5 @@ Content-Length: 163
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

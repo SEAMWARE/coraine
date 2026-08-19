@@ -18,9 +18,9 @@ Subscription notification with TRoE enabled — notifications fire and temporal 
 subscription notification troe timescale
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 ftClientStart
 
 --RUN--
@@ -29,9 +29,9 @@ EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
 
 echo "01. Subscribe to T, create E1 (temperature=5), then update to 10"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temperature":{"type":"Property","value":5}}' | grep HTTP
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs --payload '{"temperature":{"type":"Property","value":10}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temperature":{"type":"Property","value":5}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs --payload '{"temperature":{"type":"Property","value":10}}' | grep HTTP
 echo
 echo
 
@@ -46,7 +46,7 @@ echo
 
 echo "03. Temporal history holds both instances (5 and 10)"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1' | grep -E "\"value\"|\"id\""
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1' | grep -E "\"value\"|\"id\""
 echo
 
 
@@ -73,5 +73,5 @@ HTTP/1.1 204 No Content
       "value": 5
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

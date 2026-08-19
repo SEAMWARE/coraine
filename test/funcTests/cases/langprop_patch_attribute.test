@@ -25,8 +25,8 @@ LanguageProperty - PATCH /attrs/{attr} replace languageMap + validation
 langprop entity patch validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -51,7 +51,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -65,14 +65,14 @@ payload='{
     "sv": "Swedish"
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
 echo
 echo
 
 
 echo "03. GET normalized - L:es is Castellano"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
 echo
 echo
 
@@ -82,7 +82,7 @@ echo "========================================================"
 payload='{
   "languageMap": 13
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
 echo
 echo
 
@@ -94,7 +94,7 @@ payload='{
     "es": 14
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L --payload "$payload"
 echo
 echo
 
@@ -174,5 +174,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

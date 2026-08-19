@@ -12,8 +12,8 @@ POST entity with multi-attribute (array of instances) returns 201
 create entity multi-attr
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,7 +38,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -55,5 +55,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

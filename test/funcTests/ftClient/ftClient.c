@@ -36,7 +36,7 @@
 #include "kalloc/kalloc.h"
 #include "kalloc/kaAlloc.h"
 #include "ktrace/kTrace.h"
-#include "swRest/swRest.h"
+#include "corRest/corRest.h"
 
 
 
@@ -150,36 +150,36 @@ static void dumpAccumulate(void)
   //
   KjNode* entry = kjObject(NULL, NULL);
 
-  kjChildAdd(entry, kjString(NULL, "verb",    swRest.in.verbString ? swRest.in.verbString : "?"));
-  kjChildAdd(entry, kjString(NULL, "url",     swRest.in.urlPath    ? swRest.in.urlPath    : "?"));
+  kjChildAdd(entry, kjString(NULL, "verb",    corRest.in.verbString ? corRest.in.verbString : "?"));
+  kjChildAdd(entry, kjString(NULL, "url",     corRest.in.urlPath    ? corRest.in.urlPath    : "?"));
 
   // Headers
   KjNode* hdrs = kjObject(NULL, "headers");
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
-    kjChildAdd(hdrs, kjString(NULL, swRest.in.httpHeaderV[i].key, swRest.in.httpHeaderV[i].value));
+  for (int i = 0; i < corRest.in.httpHeaderCount; i++)
+    kjChildAdd(hdrs, kjString(NULL, corRest.in.httpHeaderV[i].key, corRest.in.httpHeaderV[i].value));
   kjChildAdd(entry, hdrs);
 
   // URI params
-  if (swRest.in.uriParamCount > 0)
+  if (corRest.in.uriParamCount > 0)
   {
     KjNode* params = kjObject(NULL, "params");
-    for (int i = 0; i < swRest.in.uriParamCount; i++)
-      kjChildAdd(params, kjString(NULL, swRest.in.uriParamV[i].key, swRest.in.uriParamV[i].value));
+    for (int i = 0; i < corRest.in.uriParamCount; i++)
+      kjChildAdd(params, kjString(NULL, corRest.in.uriParamV[i].key, corRest.in.uriParamV[i].value));
     kjChildAdd(entry, params);
   }
 
   // Body — deep-clone the request tree since the original is per-request allocated
-  if (swRest.in.requestTree != NULL)
+  if (corRest.in.requestTree != NULL)
   {
-    KjNode* bodyClone = kjClone(NULL, swRest.in.requestTree);
+    KjNode* bodyClone = kjClone(NULL, corRest.in.requestTree);
     if (bodyClone != NULL)
     {
       bodyClone->name = (char*) "body";
       kjChildAdd(entry, bodyClone);
     }
   }
-  else if (swRest.in.payload != NULL && swRest.in.payloadSize > 0)
-    kjChildAdd(entry, kjString(NULL, "body", swRest.in.payload));
+  else if (corRest.in.payload != NULL && corRest.in.payloadSize > 0)
+    kjChildAdd(entry, kjString(NULL, "body", corRest.in.payload));
 
   kjChildAdd(dumpArray, entry);
   dumpCount++;
@@ -196,25 +196,25 @@ static bool getDump(void)
   if (dumpArray == NULL || dumpCount == 0)
   {
     // Return empty array
-    swRest.out.payload     = (char*) "[]";
-    swRest.out.payloadSize = 2;
+    corRest.out.payload     = (char*) "[]";
+    corRest.out.payloadSize = 2;
     return true;
   }
 
   //
   // Render dumpArray to JSON.
   // Use a scratch buffer allocated via malloc so the output survives
-  // beyond the per-request kalloc lifetime — swRest copies the response
+  // beyond the per-request kalloc lifetime — corRest copies the response
   // body (MHD_RESPMEM_MUST_COPY), so we can free this buffer after
   // the call returns by using kaAlloc from the per-request allocator.
   //
   int   bufSize = kjFastRenderSize(dumpArray) + 1;
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
   kjFastRender(dumpArray, buf);
 
-  swRest.out.payload     = buf;
-  swRest.out.payloadSize = strlen(buf);
+  corRest.out.payload     = buf;
+  corRest.out.payloadSize = strlen(buf);
 
   return true;
 }
@@ -228,7 +228,7 @@ static bool getDump(void)
 static bool deleteDump(void)
 {
   dumpClear();
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }
 
@@ -246,11 +246,11 @@ static bool deleteDump(void)
 //
 static bool getCount(void)
 {
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 16);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 16);
 
   snprintf(buf, 16, "%d", dumpCount);
-  swRest.out.payload     = buf;
-  swRest.out.payloadSize = strlen(buf);
+  corRest.out.payload     = buf;
+  corRest.out.payloadSize = strlen(buf);
 
   return true;
 }
@@ -268,11 +268,11 @@ static bool getCount(void)
 //
 static bool getProbeCount(void)
 {
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 16);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 16);
 
   snprintf(buf, 16, "%d", probeCount);
-  swRest.out.payload     = buf;
-  swRest.out.payloadSize = strlen(buf);
+  corRest.out.payload     = buf;
+  corRest.out.payloadSize = strlen(buf);
 
   return true;
 }
@@ -285,12 +285,12 @@ static bool getProbeCount(void)
 //
 static bool getDie(void)
 {
-  swRest.out.httpStatusCode = 200;
-  swRest.out.payload        = (char*) "bye";
-  swRest.out.payloadSize    = 3;
+  corRest.out.httpStatusCode = 200;
+  corRest.out.payload        = (char*) "bye";
+  corRest.out.payloadSize    = 3;
 
   // Schedule exit after the response is sent
-  // (MHD_RESPMEM_MUST_COPY means swRest copies the buffer before we exit)
+  // (MHD_RESPMEM_MUST_COPY means corRest copies the buffer before we exit)
   _exit(0);
 
   return true;  // unreachable
@@ -322,7 +322,7 @@ static FtStub* ftStubMatch(const char* verb, const char* path)
 //
 static bool stubServe(void)
 {
-  FtStub* s = ftStubMatch(swRest.in.verbString, swRest.in.urlPath);
+  FtStub* s = ftStubMatch(corRest.in.verbString, corRest.in.urlPath);
   if (s == NULL)
     return false;
 
@@ -331,18 +331,18 @@ static bool stubServe(void)
   if (s->delayMs > 0)
     usleep(s->delayMs * 1000);
 
-  swRest.out.httpStatusCode = s->status;
+  corRest.out.httpStatusCode = s->status;
 
   if (s->body != NULL)
   {
     int   n   = strlen(s->body);
-    char* buf = (char*) kaAlloc(&swRest.kalloc, n + 1);
+    char* buf = (char*) kaAlloc(&corRest.kalloc, n + 1);
     memcpy(buf, s->body, n + 1);
-    swRest.out.payload     = buf;
-    swRest.out.payloadSize = n;
+    corRest.out.payload     = buf;
+    corRest.out.payloadSize = n;
   }
 
-  KT_T(1, "stub served: %s %s -> %d (bodyLen=%d)", s->verb, swRest.in.urlPath, s->status, s->body ? (int) strlen(s->body) : 0);
+  KT_T(1, "stub served: %s %s -> %d (bodyLen=%d)", s->verb, corRest.in.urlPath, s->status, s->body ? (int) strlen(s->body) : 0);
   return true;
 }
 
@@ -357,10 +357,10 @@ static bool stubServe(void)
 //
 static bool postMockReply(void)
 {
-  KjNode* tree = swRest.in.requestTree;
+  KjNode* tree = corRest.in.requestTree;
   if (tree == NULL)
   {
-    swRest.out.httpStatusCode = 400;
+    corRest.out.httpStatusCode = 400;
     return true;
   }
 
@@ -392,7 +392,7 @@ static bool postMockReply(void)
   ftStubs = s;
 
   KT_T(1, "stub programmed: %s <path-contains %s> -> %d", s->verb, s->path, s->status);
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
   return true;
 }
 
@@ -414,7 +414,7 @@ static bool deleteMockReply(void)
     ftStubs = next;
   }
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }
 
@@ -427,7 +427,7 @@ static bool deleteMockReply(void)
 static bool postAccumulate(void)
 {
   dumpAccumulate();
-  KT_T(1, "POST %s received (total: %d, status=%u, delay=%ums)", swRest.in.urlPath, dumpCount, ftPostStatus, ftDelayMs);
+  KT_T(1, "POST %s received (total: %d, status=%u, delay=%ums)", corRest.in.urlPath, dumpCount, ftPostStatus, ftDelayMs);
 
   if (ftDelayMs > 0)
     usleep(ftDelayMs * 1000);
@@ -436,10 +436,10 @@ static bool postAccumulate(void)
   if (stubServe())
     return true;
 
-  swRest.out.httpStatusCode = ftPostStatus;
+  corRest.out.httpStatusCode = ftPostStatus;
 
   //
-  // For 4xx/5xx responses, emit an NGSI-LD ProblemDetails body so swBroker's
+  // For 4xx/5xx responses, emit an NGSI-LD ProblemDetails body so coraine's
   // forward-failure surfacing has something spec-shaped to log / include
   // as the "reason" in notCreated entries.
   //
@@ -450,8 +450,8 @@ static bool postAccumulate(void)
              "{\"type\":\"https://uri.etsi.org/ngsi-ld/errors/InternalError\","
              "\"title\":\"Mock Error\","
              "\"detail\":\"ftClient configured with --status %u\"}", ftPostStatus);
-    swRest.out.payload     = errBuf;
-    swRest.out.payloadSize = strlen(errBuf);
+    corRest.out.payload     = errBuf;
+    corRest.out.payloadSize = strlen(errBuf);
   }
 
   return true;
@@ -479,12 +479,12 @@ static bool getAccumulate(void)
   // dump. Suffix-match covers both spellings.
   static const char probeSuffix[] = "/info/sourceIdentity";
   bool isProbe = false;
-  if (swRest.in.urlPath != NULL)
+  if (corRest.in.urlPath != NULL)
   {
-    int urlLen    = (int) strlen(swRest.in.urlPath);
+    int urlLen    = (int) strlen(corRest.in.urlPath);
     int suffixLen = (int) (sizeof(probeSuffix) - 1);
     isProbe = (urlLen >= suffixLen) &&
-              (strcmp(swRest.in.urlPath + urlLen - suffixLen, probeSuffix) == 0);
+              (strcmp(corRest.in.urlPath + urlLen - suffixLen, probeSuffix) == 0);
   }
 
   if (isProbe)
@@ -492,7 +492,7 @@ static bool getAccumulate(void)
   else
     dumpAccumulate();
   KT_T(1, "GET %s received (probe=%d total: %d, status=%u, delay=%ums)",
-       swRest.in.urlPath, isProbe, dumpCount, ftPostStatus, ftDelayMs);
+       corRest.in.urlPath, isProbe, dumpCount, ftPostStatus, ftDelayMs);
 
   if (ftDelayMs > 0)
     usleep(ftDelayMs * 1000);
@@ -501,7 +501,7 @@ static bool getAccumulate(void)
   if (stubServe())
     return true;
 
-  swRest.out.httpStatusCode = (ftPostStatus == 201) ? 200 : ftPostStatus;
+  corRest.out.httpStatusCode = (ftPostStatus == 201) ? 200 : ftPostStatus;
 
   if (ftPostStatus >= 400)
   {
@@ -510,13 +510,13 @@ static bool getAccumulate(void)
              "{\"type\":\"https://uri.etsi.org/ngsi-ld/errors/InternalError\","
              "\"title\":\"Mock Error\","
              "\"detail\":\"ftClient configured with --status %u\"}", ftPostStatus);
-    swRest.out.payload     = errBuf;
-    swRest.out.payloadSize = strlen(errBuf);
+    corRest.out.payload     = errBuf;
+    corRest.out.payloadSize = strlen(errBuf);
   }
   else
   {
-    swRest.out.payload     = (char*) "[]";
-    swRest.out.payloadSize = 2;
+    corRest.out.payload     = (char*) "[]";
+    corRest.out.payloadSize = 2;
   }
 
   return true;
@@ -605,24 +605,24 @@ static void* mqttListenerThread(void* arg)
 //
 // Service table
 //
-static SwRestServiceSimplified ftServices[] =
+static CorRestServiceSimplified ftServices[] =
 {
-  { SwVerbGet,    "/dump",  getDump,         0,                       0 },
-  { SwVerbDelete, "/dump",  deleteDump,      0,                       0 },
-  { SwVerbGet,    "/count", getCount,        0,                       0 },
-  { SwVerbGet,    "/probeCount", getProbeCount, 0,                    0 },
-  { SwVerbGet,    "/die",   getDie,          0,                       0 },
+  { CorVerbGet,    "/dump",  getDump,         0,                       0 },
+  { CorVerbDelete, "/dump",  deleteDump,      0,                       0 },
+  { CorVerbGet,    "/count", getCount,        0,                       0 },
+  { CorVerbGet,    "/probeCount", getProbeCount, 0,                    0 },
+  { CorVerbGet,    "/die",   getDie,          0,                       0 },
   // Programmable response stubs (mock-reply API).
-  { SwVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },
-  { SwVerbDelete, "/mock/reply", deleteMockReply, 0,                  0 },
+  { CorVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },
+  { CorVerbDelete, "/mock/reply", deleteMockReply, 0,                  0 },
   // Catch-all accumulators — every verb lands here and honors --status.
   // supportedParams = ~0ULL: ftClient mocks any NGSI-LD endpoint and
   // must accept whatever URL params the broker forwards, without 400ing.
-  { SwVerbGet,    "/**",    getAccumulate,   ~(uint64_t)0,            0 },
-  { SwVerbPost,   "/**",    postAccumulate,  ~(uint64_t)0,            0 },
-  { SwVerbDelete, "/**",    postAccumulate,  ~(uint64_t)0,            0 },
-  { SwVerbPatch,  "/**",    postAccumulate,  ~(uint64_t)0,            0 },
-  { SwVerbPut,    "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { CorVerbGet,    "/**",    getAccumulate,   ~(uint64_t)0,            0 },
+  { CorVerbPost,   "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { CorVerbDelete, "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { CorVerbPatch,  "/**",    postAccumulate,  ~(uint64_t)0,            0 },
+  { CorVerbPut,    "/**",    postAccumulate,  ~(uint64_t)0,            0 },
 };
 
 static int ftServiceCount = sizeof(ftServices) / sizeof(ftServices[0]);
@@ -633,7 +633,7 @@ static int ftServiceCount = sizeof(ftServices) / sizeof(ftServices[0]);
 //
 // pemSlurp - read a PEM file into a malloc'd, NUL-terminated string
 //
-// swRest's HTTPS server options want the key/certificate as in-memory PEM, not
+// corRest's HTTPS server options want the key/certificate as in-memory PEM, not
 // file paths. Returns NULL (and prints to stderr) on any error.
 //
 static char* pemSlurp(const char* path)
@@ -707,11 +707,11 @@ int main(int argC, char* argV[])
 
   dumpInit();
 
-  swRestSetPrettySpaces(2);
+  corRestSetPrettySpaces(2);
 
   // ftClient is a notification RECEIVER — accept geo+json notifications (the
   // broker's § 6.3.4 415 gate otherwise rejects a geo+json POST body).
-  swRestAcceptGeoJsonInputSet(true);
+  corRestAcceptGeoJsonInputSet(true);
 
   // --httpsKey + --httpsCertificate → serve notifications over TLS
   if ((ftHttpsKey != NULL) && (ftHttpsCert != NULL))
@@ -722,13 +722,13 @@ int main(int argC, char* argV[])
     if ((keyPem == NULL) || (certPem == NULL))
       return 1;
 
-    swRestHttpsServerCredentialsSet(keyPem, certPem);
+    corRestHttpsServerCredentialsSet(keyPem, certPem);
     KT_I("ftClient serving HTTPS on port %u", ftPort);
   }
 
-  if (swRestInit(ftServices, ftServiceCount, ftPort, 2) != 0)
+  if (corRestInit(ftServices, ftServiceCount, ftPort, 2) != 0)
   {
-    fprintf(stderr, "ftClient: swRestInit failed on port %u\n", ftPort);
+    fprintf(stderr, "ftClient: corRestInit failed on port %u\n", ftPort);
     return 1;
   }
 

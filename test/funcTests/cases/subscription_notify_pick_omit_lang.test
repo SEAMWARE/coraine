@@ -15,8 +15,8 @@ Subscription notification - pick / omit / lang body shaping (§ 5.2.14)
 subscription notification format pick
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -32,7 +32,7 @@ payload='{
     "pick": ["speed"]
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -48,7 +48,7 @@ payload='{
     "omit": ["color"]
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -64,7 +64,7 @@ payload='{
     "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -78,7 +78,7 @@ payload='{
   "color":  {"type":"Property","value":"red"},
   "name":   {"type":"LanguageProperty","languageMap":{"en":"Hello","es":"Hola"}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 sleep 0.4
 echo
@@ -234,6 +234,6 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop

@@ -21,10 +21,10 @@ DistSub - subordinate mapping persists across CB restart
 mongoc persist subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -49,29 +49,29 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Create sub urn:S1 on CB → fanout"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "03. GET /subscriptions on CP1 — derivative present"
 echo "=================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. Restart CB (no DB drop) — _subordinates rehydrate from mongo"
 echo "================================================================"
-swBrokerStop
-swBrokerStart -dist
+coraineStop
+coraineStart -dist
 echo "restarted"
 echo
 echo
@@ -79,14 +79,14 @@ echo
 
 echo "05. DELETE urn:S1 on CB → cascade DELETE to CP1"
 echo "==============================================="
-swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
+corCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
 echo
 echo
 
 
 echo "06. GET /subscriptions on CP1 — derivative gone (cascade reached after restart)"
 echo "==============================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -170,7 +170,7 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -8,7 +8,7 @@
 
 #include <stddef.h>                                   // NULL
 
-#include "swPlugin/swPlugin.h"                        // swPluginCloseAll
+#include "corPlugin/corPlugin.h"                        // corPluginCloseAll
 #include "db/DbDriver.h"                              // DbDriver, db
 #include "db/dbClose.h"                               // Own interface
 
@@ -23,5 +23,5 @@ void dbClose(void)
   if (db.close != NULL)
     db.close();
 
-  swPluginCloseAll();
+  corPluginCloseAll();
 }

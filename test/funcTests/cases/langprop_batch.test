@@ -15,8 +15,8 @@ LanguageProperty through batch create / update / upsert
 langProp batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -26,7 +26,7 @@ payload='[
   { "id": "urn:ngsi-ld:T:B1", "type": "T", "L": { "languageMap": { "en": "One", "es": "Uno" } } },
   { "id": "urn:ngsi-ld:T:B2", "type": "T", "L": { "languageMap": { "en": "Two", "es": "Dos" } } }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
 echo
 echo
 
@@ -36,7 +36,7 @@ echo "=========================================="
 payload='[
   { "id": "urn:ngsi-ld:T:B1", "type": "T", "L": { "languageMap": { "en": "One", "es": "Unico" } } }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
 echo
 echo
 
@@ -47,14 +47,14 @@ payload='[
   { "id": "urn:ngsi-ld:T:B2", "type": "T", "L": { "languageMap": { "en": "Two", "es": "DosUpserted" } } },
   { "id": "urn:ngsi-ld:T:B3", "type": "T", "L": { "languageMap": { "en": "Three", "fr": "Trois" } } }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
 echo
 echo
 
 
 echo "04. GET all three — languageMaps round-trip"
 echo "==========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T'
+corCurl --url '/ngsi-ld/v1/entities?type=T'
 echo
 echo
 
@@ -142,4 +142,4 @@ Content-Length: 554
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

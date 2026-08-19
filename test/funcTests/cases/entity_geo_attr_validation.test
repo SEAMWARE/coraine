@@ -17,14 +17,14 @@ Entity attribute validation — location/observationSpace/operationSpace must be
 entity error validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. location declared as Property → 400"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:1",
   "type": "T",
   "location": {"type": "Property", "value": "hello"}
@@ -35,7 +35,7 @@ echo
 
 echo "02. location declared as Relationship → 400"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:2",
   "type": "T",
   "location": {"type": "Relationship", "object": "urn:other"}
@@ -46,7 +46,7 @@ echo
 
 echo "03. location with no explicit type → accepted (implicit-type inference is a separate gap)"
 echo "==========================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:3",
   "type": "T",
   "location": {"value": {"type": "Point", "coordinates": [1, 2]}}
@@ -57,7 +57,7 @@ echo
 
 echo "04. observationSpace declared as Property → 400"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:4",
   "type": "T",
   "observationSpace": {"type": "Property", "value": 42}
@@ -68,7 +68,7 @@ echo
 
 echo "05. operationSpace declared as JsonProperty → 400"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:5",
   "type": "T",
   "operationSpace": {"type": "JsonProperty", "json": {"a": 1}}
@@ -79,7 +79,7 @@ echo
 
 echo "06. location as proper GeoProperty → 201"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:6",
   "type": "T",
   "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [10, 20]}}
@@ -90,7 +90,7 @@ echo
 
 echo "07. observationSpace + operationSpace as GeoProperty → 201"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:7",
   "type": "T",
   "observationSpace": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [11, 21]}},
@@ -102,7 +102,7 @@ echo
 
 echo "08. PATCH attempting to change location into a Property → 400"
 echo "============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E:6/attrs --payload '{
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E:6/attrs --payload '{
   "location": {"type": "Property", "value": "no longer a geo"}
 }'
 echo
@@ -111,7 +111,7 @@ echo
 
 echo "09. Free-form attribute named like one of these but NOT one of them → 201 (no false positive)"
 echo "=============================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E:9",
   "type": "T",
   "myLocation": {"type": "Property", "value": "free-form"}
@@ -242,5 +242,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

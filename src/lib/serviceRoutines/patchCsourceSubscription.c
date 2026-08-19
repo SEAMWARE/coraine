@@ -19,23 +19,23 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/KjNode.h"                            // KjNode, KjNull
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjChildAdd, kjChildRemove, kjString
 #include "kjson/kjFree.h"                            // kjFree
 #include "kjson/kjClone.h"                           // kjClone
 
-#include "swNgsild/swNgsild.h"                       // ldError, swNgsild
-#include "swNgsild/ldCheckSubscription.h"            // ldCheckSubscription
-#include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
-#include "swNgsild/LdOp.h"                           // LdOpUpdateCsourceSubscription
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheItemRemove, ldSubCacheItemAdd
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
+#include "corNgsild/corNgsild.h"                       // ldError, corNgsild
+#include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription
+#include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
+#include "corNgsild/LdOp.h"                           // LdOpUpdateCsourceSubscription
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheItemRemove, ldSubCacheItemAdd
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
+#include "corNgsild/LdRegCache.h"                     // LdRegCache
+#include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -46,14 +46,14 @@
 
 bool patchCsourceSubscription(void)
 {
-  const char* subId    = swRest.in.wildcard[0];
-  KjNode*     fragment = swRest.in.requestTree;
+  const char* subId    = corRest.in.wildcard[0];
+  KjNode*     fragment = corRest.in.requestTree;
 
   // Fragment validation only. The post-merge re-validation (and single-parse
   // format capture) for the csource-sub PATCH path is part of the deferred
   // registration/csource validation work — for now the format is re-derived
   // from the tree at cache time (LdFormatUnset below).
-  if (ldCheckSubscription(fragment, LdOpUpdateCsourceSubscription, /*merged*/false, NULL, &swRest.kalloc) == false)
+  if (ldCheckSubscription(fragment, LdOpUpdateCsourceSubscription, /*merged*/false, NULL, &corRest.kalloc) == false)
     return true;
 
   // expiresAt-past check
@@ -61,7 +61,7 @@ bool patchCsourceSubscription(void)
   if (expiresAtP != NULL && expiresAtP->type == KjString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
-    if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+    if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
               "'expiresAt' must be a DateTime in the future");
@@ -77,7 +77,7 @@ bool patchCsourceSubscription(void)
     return true;
   }
 
-  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
   // The whole Lookup → in-place merge-patch → Remove + Add is one
@@ -148,7 +148,7 @@ bool patchCsourceSubscription(void)
     if (expiresP != NULL && expiresP->type == KjString)
     {
       uint64_t expiresNs = ldIsoToNanoseconds(expiresP->value.s);
-      if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+      if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
         isExpired = true;
     }
 
@@ -197,6 +197,6 @@ bool patchCsourceSubscription(void)
   if (newItemP != NULL)
     ldSubCacheItemUnpin(newItemP);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

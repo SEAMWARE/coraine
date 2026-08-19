@@ -8,21 +8,21 @@
 
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
-#include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
-#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
-#include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
-#include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
+#include "corNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
+#include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
+#include "corNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -40,9 +40,9 @@
 //
 bool getSubscription(void)
 {
-  const char* subId = swRest.in.wildcard[0];
+  const char* subId = corRest.in.wildcard[0];
 
-  Tenant*         tenantP    = (Tenant*) swNgsild.tenantP;
+  Tenant*         tenantP    = (Tenant*) corNgsild.tenantP;
   LdSubCacheItem* cacheItem  = (tenantP->subCacheP != NULL)    ? ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId)       : NULL;
   LdPernotItem*   pernotItem = (tenantP->pernotCacheP != NULL) ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) : NULL;
   KjNode*         srcTree    = (cacheItem != NULL) ? cacheItem->subTree : (pernotItem != NULL) ? pernotItem->subTree : NULL;
@@ -55,9 +55,9 @@ bool getSubscription(void)
 
   ldContextResolve();
 
-  KjNode*  subP  = kjClone(swRest.kjsonP, srcTree);
+  KjNode*  subP  = kjClone(corRest.kjsonP, srcTree);
   LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr : (pernotItem != NULL) ? pernotItem->qExpr : NULL;
-  ldSubscriptionCompactQ(subP, qExpr, swNgsild.contextP, &swRest.kalloc);
+  ldSubscriptionCompactQ(subP, qExpr, corNgsild.contextP, &corRest.kalloc);
 
   // § 5.2.12: notificationTrigger defaults to ["attributeCreated",
   // "attributeUpdated"] when not specified. Surface the active default
@@ -65,9 +65,9 @@ bool getSubscription(void)
   // trigger on, rather than silently inheriting an undocumented value.
   if (kjLookup(subP, "notificationTrigger") == NULL)
   {
-    KjNode* trigArr = kjArray(swRest.kjsonP, "notificationTrigger");
-    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeCreated"));
-    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeUpdated"));
+    KjNode* trigArr = kjArray(corRest.kjsonP, "notificationTrigger");
+    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeCreated"));
+    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeUpdated"));
     kjChildAdd(subP, trigArr);
   }
 
@@ -83,12 +83,12 @@ bool getSubscription(void)
 
   // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 only under
   // sysAttrs; stripped otherwise.
-  if (swNgsild.sysAttrs == false)
+  if (corNgsild.sysAttrs == false)
     ldStripSysAttrs(subP);
   else
-    ldSysTimestampsToIso(subP, &swRest.kalloc);
+    ldSysTimestampsToIso(subP, &corRest.kalloc);
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = subP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = subP;
   return true;
 }

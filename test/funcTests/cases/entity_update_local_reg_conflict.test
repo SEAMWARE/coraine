@@ -18,91 +18,91 @@ Entity updates — ?local=true still 409s against exclusive/redirect claims
 entity update distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. Register exclusive CSR for V1/speed"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V1","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V1","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "02. Create V1 with color, ?local=true → 201 (unclaimed attr)"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "03. Append speed (POST attrs), ?local=true → 409"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' --payload '{"speed":{"type":"Property","value":10}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' --payload '{"speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "04. Append brand (POST attrs), ?local=true → 204 (unclaimed)"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' --payload '{"brand":{"type":"Property","value":"Opel"}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' --payload '{"brand":{"type":"Property","value":"Opel"}}'
 echo
 echo
 
 
 echo "05. Update attrs (PATCH attrs) with speed, ?local=true → 409"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' -X PATCH --payload '{"speed":{"type":"Property","value":11}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?local=true' -X PATCH --payload '{"speed":{"type":"Property","value":11}}'
 echo
 echo
 
 
 echo "06. Partial attribute update (PATCH attrs/speed), ?local=true → 409"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?local=true' -X PATCH --payload '{"type":"Property","value":12}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?local=true' -X PATCH --payload '{"type":"Property","value":12}'
 echo
 echo
 
 
 echo "07. Replace attribute (PUT attrs/speed), ?local=true → 409"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?local=true' -X PUT --payload '{"type":"Property","value":13}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?local=true' -X PUT --payload '{"type":"Property","value":13}'
 echo
 echo
 
 
 echo "08. Merge entity (PATCH entities/urn:V1) with speed, ?local=true → 409"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' -X PATCH --payload '{"speed":{"type":"Property","value":14}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' -X PATCH --payload '{"speed":{"type":"Property","value":14}}'
 echo
 echo
 
 
 echo "09. Replace entity (PUT entities/urn:V1) with speed, ?local=true → 409"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":15}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":15}}'
 echo
 echo
 
 
 echo "10. Batch update [V1 speed], ?local=true → 409 (uniform overlap collapses to ProblemDetails)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entityOperations/update?local=true' --payload '[{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":16}}]'
+corCurl --url '/ngsi-ld/v1/entityOperations/update?local=true' --payload '[{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":16}}]'
 echo
 echo
 
 
 echo "11. Batch create [V1 speed], ?local=true → 409 (uniform overlap collapses to ProblemDetails)"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entityOperations/create?local=true' --payload '[{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":17}}]'
+corCurl --url '/ngsi-ld/v1/entityOperations/create?local=true' --payload '[{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":17}}]'
 echo
 echo
 
 
 echo "12. GET V1 ?local=true → color + brand only, nothing leaked"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
 echo
 echo
 
@@ -280,4 +280,4 @@ Content-Length: 79
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

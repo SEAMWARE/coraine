@@ -7,7 +7,7 @@
 //
 #include <stddef.h>                                   // NULL
 
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 
 #include "metrics/subStatsFlushAll.h"                 // subStatsFlushAll
 
@@ -25,6 +25,6 @@
 bool adminPostSubStatsFlush(void)
 {
   subStatsFlushAll();
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

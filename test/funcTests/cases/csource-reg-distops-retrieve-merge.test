@@ -12,12 +12,12 @@ DistOps - retrieveEntity merges local non-registered attrs with single-exclusive
 distops merge registration retrieve
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
@@ -48,7 +48,7 @@ payload='{
     "value": 42
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -67,7 +67,7 @@ payload='{
     "value": "X1"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -93,28 +93,28 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. GET V1 on CB -> merged (color+model local, speed from CP1)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "05. GET V1 on CB ?local=true -> local only (no speed)"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
 echo
 
 
 echo "06. GET V1 on CP1 -> upstream view (speed only)"
 echo "==============================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -127,28 +127,28 @@ payload='{
     "value": 99
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' --payload "$payload"
 echo
 echo
 
 
 echo "08. GET V1 on CB -> merged, no stale local speed can exist (exclusive wins)"
 echo "============================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "09. DELETE V1 on CP1"
 echo "====================="
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "10. GET V1 on CB -> upstream 404, falls back to local non-registered attrs"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -159,17 +159,17 @@ echo "==========================================================================
 # CSRs claim the WHOLE entity (no propertyNames). The retrieve must merge
 # BOTH upstreams — one source's wildcard claim must not strip what the
 # other just contributed.
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}' | head -1
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:RW1","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:RW2","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP2_PORT'","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}' | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}' | head -1
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:RW1","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:RW2","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP2_PORT'","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
 
 echo "08. GET urn:V2 on CB — color (CP1) AND speed (CP2) both present"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2
+corCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -380,9 +380,9 @@ Content-Length: 162
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

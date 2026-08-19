@@ -13,9 +13,9 @@ Subscription persistence — survives broker restart (mongoc)
 subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -39,15 +39,15 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. Restart broker"
 echo "===================="
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo "restarted"
 echo
 echo
@@ -60,7 +60,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 120}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -74,7 +74,7 @@ echo
 
 echo "05. Retrieve subscription — should exist"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Persist
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Persist
 echo
 echo
 
@@ -173,6 +173,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

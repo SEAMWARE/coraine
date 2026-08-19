@@ -42,8 +42,8 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/SwRestVerb.h"                       // SwVerbPost
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/CorRestVerb.h"                       // CorVerbPost
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "kjson/KjNode.h"                            // KjNode
@@ -54,39 +54,39 @@
 #include "kjson/kjRender.h"                          // kjFastRender
 #include "kjson/kjRenderSize.h"                      // kjFastRenderSize
 
-#include "swJsonld/swldInit.h"                       // SWLD_CORE_CONTEXT_URL
-#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
-#include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
+#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
+#include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdOp.h"                           // LdOpCreateEntity, LdOpUpdateAttrs, LdOpBatchUpsert
-#include "swNgsild/LdNormalizeInput.h"               // ldNormalizeInput
-#include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
-#include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
-#include "swNgsild/ldIsEntityKeyword.h"              // ldIsEntityKeyword
-#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
-#include "swNgsild/LdProblem.h"                      // LD_ERROR_*
-#include "swNgsild/ldEntityAttrsSet.h"               // ldEntityAttrsSet
-#include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
-#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate, LdNotifyEntityUpdate
-#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdOp.h"                           // LdOpCreateEntity, LdOpUpdateAttrs, LdOpBatchUpsert
+#include "corNgsild/LdNormalizeInput.h"               // ldNormalizeInput
+#include "corNgsild/ldCheckEntity.h"                  // ldCheckEntity
+#include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsEntityKeyword
+#include "corNgsild/ldStripAtContext.h"              // ldStripAtContext
+#include "corNgsild/LdProblem.h"                      // LD_ERROR_*
+#include "corNgsild/ldEntityAttrsSet.h"               // ldEntityAttrsSet
+#include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
+#include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate, LdNotifyEntityUpdate
+#include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
 
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldDistOp.h"                       // ldDistOp*
-#include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldDistOp.h"                       // ldDistOp*
+#include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
 #include "ktrace/kTrace.h"                           // KT_T
-#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/postEntityBatchUpsert.h"   // Own interface
 
@@ -100,18 +100,18 @@ static void addBatchError(KjNode* errorsP, const char* entityId, int statusCode,
                           const char* errType, const char* title,
                           const char* detail, const char* regId)
 {
-  KjNode* err = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(err, kjString(swRest.kjsonP, "entityId", (char*) entityId));
+  KjNode* err = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(err, kjString(corRest.kjsonP, "entityId", (char*) entityId));
 
-  KjNode* pd = kjObject(swRest.kjsonP, "error");
-  kjChildAdd(pd, kjString (swRest.kjsonP, "type",   (char*) errType));
-  kjChildAdd(pd, kjString (swRest.kjsonP, "title",  (char*) title));
-  kjChildAdd(pd, kjInteger(swRest.kjsonP, "status", statusCode));
-  kjChildAdd(pd, kjString (swRest.kjsonP, "detail", (char*) detail));
+  KjNode* pd = kjObject(corRest.kjsonP, "error");
+  kjChildAdd(pd, kjString (corRest.kjsonP, "type",   (char*) errType));
+  kjChildAdd(pd, kjString (corRest.kjsonP, "title",  (char*) title));
+  kjChildAdd(pd, kjInteger(corRest.kjsonP, "status", statusCode));
+  kjChildAdd(pd, kjString (corRest.kjsonP, "detail", (char*) detail));
   kjChildAdd(err, pd);
 
   if (regId != NULL)
-    kjChildAdd(err, kjString(swRest.kjsonP, "registrationId", (char*) regId));
+    kjChildAdd(err, kjString(corRest.kjsonP, "registrationId", (char*) regId));
 
   kjChildAdd(errorsP, err);
 }
@@ -127,11 +127,11 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
   // Link header) — and strip in-body @context (the forward goes out as
   // application/json + Link).
   //
-  SwldContext* fwdCtx = ldDistOpForwardContext(csr);
+  CorLdContext* fwdCtx = ldDistOpForwardContext(csr);
 
   for (KjNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
   {
-    swldCompactTreeWith(fragP, fwdCtx);
+    corLdCompactTreeWith(fragP, fwdCtx);
 
     KjNode* atCtx = kjLookup(fragP, "@context");
     if (atCtx != NULL)
@@ -139,7 +139,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
   }
 
   int   bufSize = kjFastRenderSize(batchArr) + 1;
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
   kjFastRender(batchArr, buf);
   return buf;
 }
@@ -156,7 +156,7 @@ static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
   int         baseLen = strlen(csr->endpoint);
   int         pathLen = strlen(path);
   int         qsLen   = (queryString != NULL) ? strlen(queryString) : 0;
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
   strcpy(url, csr->endpoint);
   strcpy(url + baseLen, path);
   if (qsLen > 0) strcpy(url + baseLen + pathLen, queryString);
@@ -170,13 +170,13 @@ static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
 
   KT_T(KtDistOpRequest, "forward: POST %s", url);
 
-  int status = ldDistOpSendReceive(csr, SwVerbPost, url, body, bodyLen,
+  int status = ldDistOpSendReceive(csr, CorVerbPost, url, body, bodyLen,
                                     ownAlias, &upErr,
                                     &respBody, &respBodyLen);
 
   if (respBody != NULL && respBodyLen > 0)
   {
-    KjNode* treeP = kjParse(swRest.kjsonP, respBody);
+    KjNode* treeP = kjParse(corRest.kjsonP, respBody);
     if (treeP != NULL)
     {
       ldStripAtContext(treeP);
@@ -292,7 +292,7 @@ static Group* groupFindOrCreate(Group** groupsP, int* gNp, int* gCapP, const cha
   if (*gNp >= *gCapP)
   {
     int newCap = (*gCapP == 0) ? 8 : *gCapP * 2;
-    Group* newV = (Group*) kaAlloc(&swRest.kalloc, newCap * sizeof(Group));
+    Group* newV = (Group*) kaAlloc(&corRest.kalloc, newCap * sizeof(Group));
     for (int i = 0; i < *gNp; i++) newV[i] = (*groupsP)[i];
     *groupsP = newV;
     *gCapP   = newCap;
@@ -312,7 +312,7 @@ static void groupFragAppend(Group* g, KjNode* fragP)
   if (g->count >= g->capacity)
   {
     int newCap = (g->capacity == 0) ? 4 : g->capacity * 2;
-    KjNode** newV = (KjNode**) kaAlloc(&swRest.kalloc, newCap * sizeof(KjNode*));
+    KjNode** newV = (KjNode**) kaAlloc(&corRest.kalloc, newCap * sizeof(KjNode*));
     for (int i = 0; i < g->count; i++) newV[i] = g->fragV[i];
     g->fragV    = newV;
     g->capacity = newCap;
@@ -332,7 +332,7 @@ static CsrAccum* csrAccumFindOrCreate(CsrAccum** aV, int* aN, int* aCap,
   if (*aN >= *aCap)
   {
     int newCap = (*aCap == 0) ? 4 : *aCap * 2;
-    CsrAccum* newV = (CsrAccum*) kaAlloc(&swRest.kalloc, newCap * sizeof(CsrAccum));
+    CsrAccum* newV = (CsrAccum*) kaAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
     for (int i = 0; i < *aN; i++) newV[i] = (*aV)[i];
     *aV   = newV;
     *aCap = newCap;
@@ -354,8 +354,8 @@ static void csrAccumAppend(CsrAccum* a, KjNode* fragP, const char* id)
   if (a->count >= a->capacity)
   {
     int newCap = (a->capacity == 0) ? 4 : a->capacity * 2;
-    KjNode**     newF  = (KjNode**)     kaAlloc(&swRest.kalloc, newCap * sizeof(KjNode*));
-    const char** newId = (const char**) kaAlloc(&swRest.kalloc, newCap * sizeof(char*));
+    KjNode**     newF  = (KjNode**)     kaAlloc(&corRest.kalloc, newCap * sizeof(KjNode*));
+    const char** newId = (const char**) kaAlloc(&corRest.kalloc, newCap * sizeof(char*));
     for (int i = 0; i < a->count; i++)
     {
       newF[i]  = a->fragV[i];
@@ -400,7 +400,7 @@ static void chopForMode(Tenant*      tenantP,
 
     for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
     {
-      KjNode* chopped = ldEntityFragmentForInfo(fragP, riP, swRest.kjsonP, detach);
+      KjNode* chopped = ldEntityFragmentForInfo(fragP, riP, corRest.kjsonP, detach);
       if (chopped == NULL)
         continue;
 
@@ -443,7 +443,7 @@ static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
     if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
 
     for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-      (void) ldEntityFragmentForInfo(fragP, riP, swRest.kjsonP, /*detach=*/true);
+      (void) ldEntityFragmentForInfo(fragP, riP, corRest.kjsonP, /*detach=*/true);
   }
 
   ldRegCacheMatchRelease(matchV, matchN);
@@ -479,7 +479,7 @@ static bool hasAnyNonKeywordAttr(KjNode* fragP)
 //
 static KjNode* buildReplaceBase(KjNode* fragP)
 {
-  KjNode* baseP = kjClone(swRest.kjsonP, fragP);
+  KjNode* baseP = kjClone(corRest.kjsonP, fragP);
   KjNode* atCtx = kjLookup(baseP, "@context");
   if (atCtx != NULL)
     kjChildRemove(baseP, atCtx);
@@ -494,7 +494,7 @@ static KjNode* buildReplaceBase(KjNode* fragP)
 //
 bool postEntityBatchUpsert(void)
 {
-  KjNode* bodyP = swRest.in.requestTree;
+  KjNode* bodyP = corRest.in.requestTree;
 
   if (bodyP->type != KjArray)
   {
@@ -515,8 +515,8 @@ bool postEntityBatchUpsert(void)
     total++;
   }
 
-  bool hasPreErrors = (swNgsild.batchPreErrors != NULL &&
-                       swNgsild.batchPreErrors->value.firstChildP != NULL);
+  bool hasPreErrors = (corNgsild.batchPreErrors != NULL &&
+                       corNgsild.batchPreErrors->value.firstChildP != NULL);
   if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Empty Array",
@@ -524,17 +524,17 @@ bool postEntityBatchUpsert(void)
     return true;
   }
 
-  KjNode* successP = kjArray(swRest.kjsonP, "success");
-  KjNode* errorsP  = kjArray(swRest.kjsonP, "errors");
+  KjNode* successP = kjArray(corRest.kjsonP, "success");
+  KjNode* errorsP  = kjArray(corRest.kjsonP, "errors");
 
   if (hasPreErrors)
   {
-    errorsP->value.firstChildP = swNgsild.batchPreErrors->value.firstChildP;
-    errorsP->lastChild         = swNgsild.batchPreErrors->lastChild;
-    swNgsild.batchPreErrors    = NULL;
+    errorsP->value.firstChildP = corNgsild.batchPreErrors->value.firstChildP;
+    errorsP->lastChild         = corNgsild.batchPreErrors->lastChild;
+    corNgsild.batchPreErrors    = NULL;
   }
 
-  bool updateMode = swNgsild.upsertUpdate;  // false (default) → replace semantics
+  bool updateMode = corNgsild.upsertUpdate;  // false (default) → replace semantics
 
   //
   // Pass 1 — validate + group by id.
@@ -553,25 +553,25 @@ bool postEntityBatchUpsert(void)
       continue;
     }
 
-    ldNormalizeInput(inP, &swRest.kalloc, false, false);
+    ldNormalizeInput(inP, &corRest.kalloc, false, false);
 
-    if (ldCheckEntity(inP, LdOpCreateEntity, NULL, &swRest.kalloc) == false)
+    if (ldCheckEntity(inP, LdOpCreateEntity, NULL, &corRest.kalloc) == false)
     {
       const char* eid = "";
       KjNode* idP = kjLookup(inP, "id");
       if (idP != NULL && idP->type == KjString) eid = idP->value.s;
 
       char snapshot[512];
-      strncpy(snapshot, swRest.out.problemDetail, sizeof(snapshot) - 1);
+      strncpy(snapshot, corRest.out.problemDetail, sizeof(snapshot) - 1);
       snapshot[sizeof(snapshot) - 1] = 0;
 
       addBatchError(errorsP, eid, 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Invalid Entity", snapshot, NULL);
 
-      swRest.out.httpStatusCode   = 0;
-      swRest.out.problemType      = NULL;
-      swRest.out.problemTitle     = NULL;
-      swRest.out.problemDetail[0] = 0;
+      corRest.out.httpStatusCode   = 0;
+      corRest.out.problemType      = NULL;
+      corRest.out.problemTitle     = NULL;
+      corRest.out.problemDetail[0] = 0;
       continue;
     }
 
@@ -588,10 +588,10 @@ bool postEntityBatchUpsert(void)
     // § 9.3.3 guard — a ?local=true write must not produce local data that
     // an exclusive or redirect registration claims.
     //
-    if (swNgsild.local == true && ((Tenant*) swNgsild.tenantP)->regCacheP != NULL)
+    if (corNgsild.local == true && ((Tenant*) corNgsild.tenantP)->regCacheP != NULL)
     {
-      const char* cRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) ((Tenant*) swNgsild.tenantP)->regCacheP,
-                                                            idP->value.s, inP, &swRest.kalloc);
+      const char* cRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) ((Tenant*) corNgsild.tenantP)->regCacheP,
+                                                            idP->value.s, inP, &corRest.kalloc);
       if (cRegId != NULL)
       {
         addBatchError(errorsP, idP->value.s, 409,
@@ -611,17 +611,17 @@ bool postEntityBatchUpsert(void)
     int singleStatus = ldBatchErrorsSingleStatus(errorsP);
     if (singleStatus > 0)
     {
-      swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
-      swRest.out.httpStatusCode = singleStatus;
+      corRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+      corRest.out.httpStatusCode = singleStatus;
     }
     else
     {
-      KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+      KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
       kjChildAdd(respBodyP, successP);
       kjChildAdd(respBodyP, errorsP);
-      swRest.out.responseTree   = respBodyP;
-      swRest.out.httpStatusCode = 207;
-      swNgsild.rawResponse      = true;
+      corRest.out.responseTree   = respBodyP;
+      corRest.out.httpStatusCode = 207;
+      corNgsild.rawResponse      = true;
     }
     return true;
   }
@@ -630,12 +630,12 @@ bool postEntityBatchUpsert(void)
   // Pass 2 — per group: retrieve (to decide create-vs-update branch),
   // chop, merge-in-order, defer notifications.
   //
-  Tenant*      tenantP   = (Tenant*) swNgsild.tenantP;
+  Tenant*      tenantP   = (Tenant*) corNgsild.tenantP;
   LdSubCache*  subCacheP = (LdSubCache*) tenantP->subCacheP;
 
-  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
-  bool dispatch = (swNgsild.local == false
+  bool dispatch = (corNgsild.local == false
                   
                    && tenantP->regCacheP != NULL);
 
@@ -646,15 +646,15 @@ bool postEntityBatchUpsert(void)
   int          csrAccumsN  = 0;
   int          csrAccumsCap= 0;
 
-  KjNode*      finalsCreate  = kjArray(swRest.kjsonP, NULL);  // new entities → bulk create
-  KjNode*      finalsUpdate  = kjArray(swRest.kjsonP, NULL);  // existing entities → bulk replace
-  const char** createIdV     = (const char**) kaAlloc(&swRest.kalloc, sizeof(char*) * gN);
-  const char** updateIdV     = (const char**) kaAlloc(&swRest.kalloc, sizeof(char*) * gN);
+  KjNode*      finalsCreate  = kjArray(corRest.kjsonP, NULL);  // new entities → bulk create
+  KjNode*      finalsUpdate  = kjArray(corRest.kjsonP, NULL);  // existing entities → bulk replace
+  const char** createIdV     = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
+  const char** updateIdV     = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
   int          createN       = 0;
   int          updateN       = 0;
-  bool*        anySuccessV   = (bool*)        kaAlloc(&swRest.kalloc, sizeof(bool)  * gN);
-  bool*        wasCreatedV   = (bool*)        kaAlloc(&swRest.kalloc, sizeof(bool)  * gN);
-  const char** allIdV        = (const char**) kaAlloc(&swRest.kalloc, sizeof(char*) * gN);
+  bool*        anySuccessV   = (bool*)        kaAlloc(&corRest.kalloc, sizeof(bool)  * gN);
+  bool*        wasCreatedV   = (bool*)        kaAlloc(&corRest.kalloc, sizeof(bool)  * gN);
+  const char** allIdV        = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
 
   for (int gi = 0; gi < gN; gi++)
   {
@@ -759,7 +759,7 @@ bool postEntityBatchUpsert(void)
       if (!hasAnyNonKeywordAttr(fragP) && !firstFragmentEmpty)
         continue;
 
-      ldApiEntityToDbModel(fragP, &swRest.kalloc, 0);
+      ldApiEntityToDbModel(fragP, &corRest.kalloc, 0);
 
       //
       // Branch: first fragment vs subsequent fragment.
@@ -771,7 +771,7 @@ bool postEntityBatchUpsert(void)
       if (firstFragment && !exists)
       {
         // First fragment for a MISSING entity → create.
-        finalP    = kjClone(swRest.kjsonP, fragP);
+        finalP    = kjClone(corRest.kjsonP, fragP);
         notifyOp  = LdNotifyEntityCreate;
         wasCreatedV[gi] = true;
       }
@@ -787,7 +787,7 @@ bool postEntityBatchUpsert(void)
         // doesn't reset it. modifiedAt gets stamped fresh by the DB
         // layer on every write.
         KjNode* prevP = (finalP != NULL) ? finalP : existingDb;
-        KjNode* newFinalP = kjClone(swRest.kjsonP, fragP);
+        KjNode* newFinalP = kjClone(corRest.kjsonP, fragP);
 
         if (prevP != NULL)
         {
@@ -798,7 +798,7 @@ bool postEntityBatchUpsert(void)
             // overwrite that with the previous entity's value (§ 4.8).
             KjNode* nCreated = kjLookup(newFinalP, "createdAt");
             if (nCreated == NULL)
-              kjChildAdd(newFinalP, kjClone(swRest.kjsonP, prevCreatedP));
+              kjChildAdd(newFinalP, kjClone(corRest.kjsonP, prevCreatedP));
             else if (nCreated->type == KjInt)
               nCreated->value.i = prevCreatedP->value.i;
           }
@@ -827,14 +827,14 @@ bool postEntityBatchUpsert(void)
 
               KjNode* nInstCreated = kjLookup(nInst, "createdAt");
               if (nInstCreated == NULL)
-                kjChildAdd(nInst, kjClone(swRest.kjsonP, pInstCreated));
+                kjChildAdd(nInst, kjClone(corRest.kjsonP, pInstCreated));
               else if (nInstCreated->type == KjInt)
                 nInstCreated->value.i = pInstCreated->value.i;
             }
           }
         }
 
-        report.changes = kjArray(swRest.kjsonP, NULL);
+        report.changes = kjArray(corRest.kjsonP, NULL);
         if (prevP != NULL)
         {
           for (KjNode* eAttr = prevP->value.firstChildP; eAttr != NULL; eAttr = eAttr->next)
@@ -843,9 +843,9 @@ bool postEntityBatchUpsert(void)
             if (strcmp(eAttr->name, "id")   == 0)               continue;
             if (strcmp(eAttr->name, "type") == 0)               continue;
             if (kjLookup(fragP, eAttr->name) != NULL)           continue;
-            KjNode* chg = kjObject(swRest.kjsonP, NULL);
-            kjChildAdd(chg, kjString(swRest.kjsonP, "attr",   (char*) eAttr->name));
-            kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) "attributeDeleted"));
+            KjNode* chg = kjObject(corRest.kjsonP, NULL);
+            kjChildAdd(chg, kjString(corRest.kjsonP, "attr",   (char*) eAttr->name));
+            kjChildAdd(chg, kjString(corRest.kjsonP, "reason", (char*) "attributeDeleted"));
             kjChildAdd(report.changes, chg);
           }
         }
@@ -857,9 +857,9 @@ bool postEntityBatchUpsert(void)
           const char* reason = (prevP != NULL && kjLookup(prevP, fAttr->name) != NULL)
                                ? "attributeModified"
                                : "attributeCreated";
-          KjNode* chg = kjObject(swRest.kjsonP, NULL);
-          kjChildAdd(chg, kjString(swRest.kjsonP, "attr",   (char*) fAttr->name));
-          kjChildAdd(chg, kjString(swRest.kjsonP, "reason", (char*) reason));
+          KjNode* chg = kjObject(corRest.kjsonP, NULL);
+          kjChildAdd(chg, kjString(corRest.kjsonP, "attr",   (char*) fAttr->name));
+          kjChildAdd(chg, kjString(corRest.kjsonP, "reason", (char*) reason));
           kjChildAdd(report.changes, chg);
         }
 
@@ -869,17 +869,17 @@ bool postEntityBatchUpsert(void)
       {
         // Update mode (?options=update): merge into running state.
         if (finalP == NULL)
-          finalP = kjClone(swRest.kjsonP, fragP);
+          finalP = kjClone(corRest.kjsonP, fragP);
         else
           ldEntityAttrsSet(finalP, fragP, true,
-                           swRest.requestStartTime, &report, swRest.kjsonP);
+                           corRest.requestStartTime, &report, corRest.kjsonP);
       }
 
       anyLocal = true;
 
       if (subCacheP != NULL)
       {
-        KjNode* snapshot = kjClone(swRest.kjsonP, finalP);
+        KjNode* snapshot = kjClone(corRest.kjsonP, finalP);
         ldNotifyDefer(subCacheP, snapshot, notifyOp,
                       (notifyOp == LdNotifyEntityUpdate) ? &report : NULL);
       }
@@ -894,20 +894,20 @@ bool postEntityBatchUpsert(void)
 
         if (notifyOp == LdNotifyEntityCreate)
         {
-          TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+          TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(tevP, 0, sizeof(*tevP));
           tevP->op             = TroeOpEntityCreated;
           tevP->tenantP        = tenantP;
           tevP->entityId       = g->id;
           tevP->entityType     = etype;
-          tevP->modifiedAtNs   = swRest.requestStartTime;
+          tevP->modifiedAtNs   = corRest.requestStartTime;
           tevP->entitySnapshot = finalP;
           troeDeferEntityEvent(tevP);
         }
         else
         {
           troeDeferAttrEventsFromMerge(tenantP, g->id, etype, finalP, &report,
-                                       swRest.requestStartTime);
+                                       corRest.requestStartTime);
         }
       }
     }
@@ -939,9 +939,9 @@ bool postEntityBatchUpsert(void)
   int         fwdQsLen           = (forwardQueryString != NULL) ? (int) strlen(forwardQueryString) : 0;
 
   {
-    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
     memset(bItems, 0, csrAccumsN * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
     int                  bIdx[csrAccumsN];
     int                  bCount   = 0;
     memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
@@ -970,12 +970,12 @@ bool postEntityBatchUpsert(void)
         continue;
       }
 
-      KjNode* batchArr = kjArray(swRest.kjsonP, NULL);
+      KjNode* batchArr = kjArray(corRest.kjsonP, NULL);
       for (int i = 0; i < a->count; i++)
         kjChildAdd(batchArr, a->fragV[i]);
 
       int   baseLen = strlen(csr->endpoint);
-      char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + batchPathLen + fwdQsLen + 1);
+      char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + batchPathLen + fwdQsLen + 1);
       strcpy(url, csr->endpoint);
       strcpy(url + baseLen, batchPath);
       if (fwdQsLen > 0) strcpy(url + baseLen + batchPathLen, forwardQueryString);
@@ -993,7 +993,7 @@ bool postEntityBatchUpsert(void)
 
     if (bCount > 0)
     {
-      ldDistOpSendMulti(bItems, bCount, SwVerbPost, ownAlias, bResults);
+      ldDistOpSendMulti(bItems, bCount, CorVerbPost, ownAlias, bResults);
 
       for (int bi = 0; bi < bCount; bi++)
       {
@@ -1010,7 +1010,7 @@ bool postEntityBatchUpsert(void)
           }
         }
 
-        bool* groupOk = (bool*) kaAlloc(&swRest.kalloc, sizeof(bool) * a->count);
+        bool* groupOk = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * a->count);
         for (int k = 0; k < a->count; k++) groupOk[k] = false;
 
         applyRemoteBatchResult(bResults[bi].statusCode, respTreeP, bItems[bi].csr->regId,
@@ -1043,7 +1043,7 @@ bool postEntityBatchUpsert(void)
               "Batch Entity Upsert (create path) not supported by this DB plugin");
       return true;
     }
-    int* resultsV = (int*) kaAlloc(&swRest.kalloc, sizeof(int) * createN);
+    int* resultsV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * createN);
     db.entityBulkCreate(tenantP, finalsCreate, resultsV);
 
     for (int k = 0; k < createN; k++)
@@ -1084,7 +1084,7 @@ bool postEntityBatchUpsert(void)
               "Batch Entity Upsert (update path) not supported by this DB plugin");
       return true;
     }
-    int* resultsV = (int*) kaAlloc(&swRest.kalloc, sizeof(int) * updateN);
+    int* resultsV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * updateN);
     db.entityBulkUpdate(tenantP, finalsUpdate, resultsV);
 
     for (int k = 0; k < updateN; k++)
@@ -1126,7 +1126,7 @@ bool postEntityBatchUpsert(void)
   {
     if (!anySuccessV[gi])
       continue;
-    kjChildAdd(successP, kjString(swRest.kjsonP, NULL, (char*) allIdV[gi]));
+    kjChildAdd(successP, kjString(corRest.kjsonP, NULL, (char*) allIdV[gi]));
     successCount++;
     if (wasCreatedV[gi])
       createdCount++;
@@ -1146,20 +1146,20 @@ bool postEntityBatchUpsert(void)
   // both also require errors=0. The (success=0, errors=0) case is success too.
   if (errorCount == 0)
   {
-    swRest.out.httpStatusCode = (createdCount > 0) ? 201 : 204;
+    corRest.out.httpStatusCode = (createdCount > 0) ? 201 : 204;
     if (createdCount > 0)
     {
       // § 5.6.8.5: 201 body is the array of newly-created entity IDs (the
       // "S Array"), not the BatchOperationResult shape — that's reserved
       // for 207 Multi-Status.
-      KjNode* createdP = kjArray(swRest.kjsonP, NULL);
+      KjNode* createdP = kjArray(corRest.kjsonP, NULL);
       for (int gi = 0; gi < gN; gi++)
       {
         if (anySuccessV[gi] && wasCreatedV[gi])
-          kjChildAdd(createdP, kjString(swRest.kjsonP, NULL, (char*) allIdV[gi]));
+          kjChildAdd(createdP, kjString(corRest.kjsonP, NULL, (char*) allIdV[gi]));
       }
-      swRest.out.responseTree = createdP;
-      swNgsild.rawResponse    = true;
+      corRest.out.responseTree = createdP;
+      corNgsild.rawResponse    = true;
     }
     return true;
   }
@@ -1167,17 +1167,17 @@ bool postEntityBatchUpsert(void)
   int singleStatus = (successCount == 0) ? ldBatchErrorsSingleStatus(errorsP) : -1;
   if (singleStatus > 0)
   {
-    swRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
-    swRest.out.httpStatusCode = singleStatus;
+    corRest.out.responseTree   = ldBatchErrorAsProblemDetails(errorsP);
+    corRest.out.httpStatusCode = singleStatus;
   }
   else
   {
-    KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+    KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
     kjChildAdd(respBodyP, successP);
     kjChildAdd(respBodyP, errorsP);
-    swRest.out.responseTree   = respBodyP;
-    swRest.out.httpStatusCode = 207;
+    corRest.out.responseTree   = respBodyP;
+    corRest.out.httpStatusCode = 207;
   }
-  swNgsild.rawResponse      = true;
+  corNgsild.rawResponse      = true;
   return true;
 }

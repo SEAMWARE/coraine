@@ -23,55 +23,55 @@ A type-less partial-update fragment still validates observedAt / unitCode
 entity validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 echo "01. Seed an entity with a Property carrying a valid observedAt -> 201"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","p1":{"type":"Property","value":1,"observedAt":"2023-01-01T00:00:00Z"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","p1":{"type":"Property","value":1,"observedAt":"2023-01-01T00:00:00Z"}}' | grep HTTP
 echo
 echo
 
 
 echo "02. Merge Entity: type-less fragment with a bad observedAt -> 400"
 echo "================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 --payload '{"p1":{"observedAt":"banana"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 --payload '{"p1":{"observedAt":"banana"}}'
 echo
 echo
 
 
 echo "03. Partial Attribute Update: bad observedAt -> 400"
 echo "==================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"observedAt":"banana"}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"observedAt":"banana"}'
 echo
 echo
 
 
 echo "04. Partial Attribute Update: non-string unitCode -> 400"
 echo "========================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"unitCode":123}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"unitCode":123}'
 echo
 echo
 
 
 echo "05. The rejected PATCHes left the stored observedAt untouched"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
 
 echo "06. A valid observedAt Partial Attribute Update still succeeds -> 204"
 echo "===================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"observedAt":"2024-05-05T00:00:00Z"}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/p1 --payload '{"observedAt":"2024-05-05T00:00:00Z"}' | grep HTTP
 echo
 echo
 
 
 echo "07. GET confirms the valid observedAt persisted and the value is kept"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -176,4 +176,4 @@ Content-Length: 140
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

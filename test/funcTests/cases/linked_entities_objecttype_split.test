@@ -19,10 +19,10 @@ Linked entities — join assembles a target split across two brokers
 retrieve linked-entities registration distops
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     "value": "from-CP1"
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -65,7 +65,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -80,7 +80,7 @@ payload='{
     "value": "from-CB"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -96,21 +96,21 @@ payload='{
     "objectType": "Tx"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "05. GET urn:X on CB -> merged { local, remote }"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:X
+corCurl --url /ngsi-ld/v1/entities/urn:X
 echo
 echo
 
 
 echo "06. GET urn:E1?join=inline&joinLevel=1 -> linkToX.entity carries both attrs"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:E1?join=inline&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?join=inline&joinLevel=1'
 echo
 echo
 
@@ -212,5 +212,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1

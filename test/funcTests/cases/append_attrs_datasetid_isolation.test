@@ -20,8 +20,8 @@ Append Attributes datasetId isolation (new appends, existing overwrite/noOverwri
 attr append datasetid create
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,7 +35,7 @@ payload='{
     { "type": "Property", "value": 1, "datasetId": "urn:ds:1" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -43,14 +43,14 @@ echo
 echo "02. Append speed datasetId D2 (new) -> default + D1 untouched, D2 added"
 echo "======================================================================"
 payload='{ "speed": { "type": "Property", "value": 2, "datasetId": "urn:ds:2" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "03. GET E1 - default(0), D1(1), D2(2)"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -58,7 +58,7 @@ echo
 echo "04. Append speed D1 again, value 11 (overwrite) -> D1 becomes 11, others intact"
 echo "=============================================================================="
 payload='{ "speed": { "type": "Property", "value": 11, "datasetId": "urn:ds:1" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -66,14 +66,14 @@ echo
 echo "05. Append speed D2 value 222 with options=noOverwrite -> 207 (D2 exists)"
 echo "========================================================================"
 payload='{ "speed": { "type": "Property", "value": 222, "datasetId": "urn:ds:2" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs?options=noOverwrite' -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs?options=noOverwrite' -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "06. GET E1 - default(0), D1(11 overwritten), D2(2 kept by noOverwrite)"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -186,4 +186,4 @@ Content-Length: 292
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

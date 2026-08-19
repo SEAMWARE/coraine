@@ -109,7 +109,7 @@ extern Tenant* tenantFromRequest(bool autoCreate);
 
 // -----------------------------------------------------------------------------
 //
-// tenantPreServiceHook - swRest preServiceHook for tenant resolution
+// tenantPreServiceHook - corRest preServiceHook for tenant resolution
 //
 extern bool tenantPreServiceHook(void);
 

@@ -20,8 +20,8 @@ PATCH /attrs — Relationship with "value" instead of "object" — 400
 entity-patch validation relationship
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,7 +35,7 @@ payload='{
     "object": "http://a.b.c/hola"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -48,14 +48,14 @@ payload='{
     "value": "http://a.b.c/errIsGoodSometimes"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET the entity — R1 unchanged"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
 echo
 echo
 
@@ -107,4 +107,4 @@ Content-Length: 124
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

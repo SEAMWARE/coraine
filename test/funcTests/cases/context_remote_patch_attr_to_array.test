@@ -19,9 +19,9 @@ PATCH a Property value into a String[] array under a hosted @context (concise ro
 context patch attr format
 
 --INIT--
-swDbDrop
+corDbDrop
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/tutorial '{
   "@context": {
@@ -51,14 +51,14 @@ payload='{
     "unitCode": "CEL"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
 
 echo "02. GET the entity, format=concise"
 echo "=================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001?format=concise' -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001?format=concise' -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
@@ -68,14 +68,14 @@ echo "==============================================="
 payload='{
   "category": [ "actuator", "sensor" ]
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload" -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload" -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
 
 echo "04. GET the entity, format=concise — category is the array"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001?format=concise' -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001?format=concise' -H 'Link: <http://localhost:7080/jsonldContexts/tutorial>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
@@ -143,6 +143,6 @@ Content-Length: 192
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop
+corDbDrop

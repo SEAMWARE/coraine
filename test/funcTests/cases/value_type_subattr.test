@@ -24,8 +24,8 @@ valueType sub-attribute - Property-only, String-only, rendered as metadata
 value-type entity validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,14 +46,14 @@ payload='{
     "valueType": "Integer"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET urn:E1 - valueType rendered alongside type/value"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:E1?local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?local=true'
 echo
 echo
 
@@ -68,7 +68,7 @@ payload='{
     "valueType": "Integer"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -83,7 +83,7 @@ payload='{
     "valueType": 4
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -152,5 +152,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

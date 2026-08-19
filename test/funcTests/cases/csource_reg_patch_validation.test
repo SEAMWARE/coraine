@@ -22,8 +22,8 @@ CSourceRegistration PATCH re-validation — operations + auxiliary (§ 5.9.4)
 registration error validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -37,42 +37,42 @@ payload='{
   "operations": ["createEntity", "retrieveEntity"],
   "information": [{"entities": [{"type": "T"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "02. PATCH operations=[] → 400 (empty array)"
 echo "==========================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": []}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": []}'
 echo
 echo
 
 
 echo "03. PATCH operations=[\"frobnicate\"] → 400 (unknown operation)"
 echo "============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": ["frobnicate"]}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": ["frobnicate"]}'
 echo
 echo
 
 
 echo "04. PATCH mode=auxiliary keeping a non-retrieve op → 400 (auxiliary is retrieve-only)"
 echo "===================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"mode": "auxiliary", "operations": ["createEntity"]}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"mode": "auxiliary", "operations": ["createEntity"]}'
 echo
 echo
 
 
 echo "05. PATCH a valid change (operations=[retrieveOps]) → 204"
 echo "========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": ["retrieveOps"]}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"operations": ["retrieveOps"]}' | grep HTTP
 echo
 echo
 
 
 echo "06. GET — the rejected PATCHes left the reg intact; the valid one applied"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 | grep -E '"mode"|"operations"|retrieveOps|createEntity'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 | grep -E '"mode"|"operations"|retrieveOps|createEntity'
 echo
 echo
 
@@ -144,5 +144,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

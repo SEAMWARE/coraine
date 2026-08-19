@@ -1,5 +1,5 @@
-#ifndef SWBROKER_GET_SOURCE_IDENTITY_H_
-#define SWBROKER_GET_SOURCE_IDENTITY_H_
+#ifndef CORAINE_GET_SOURCE_IDENTITY_H_
+#define CORAINE_GET_SOURCE_IDENTITY_H_
 
 //
 // FILE            getSourceIdentity.h
@@ -16,4 +16,4 @@
 
 extern bool getSourceIdentity(void);
 
-#endif  // SWBROKER_GET_SOURCE_IDENTITY_H_
+#endif  // CORAINE_GET_SOURCE_IDENTITY_H_

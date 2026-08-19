@@ -16,8 +16,8 @@ Subscription notification - endpoint.cooldown suppresses retries after failure (
 subscription notification cooldown
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,23 +34,23 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. POST 3 entities — only the first fires a notification"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}' | head -1
 echo
 echo
 
 
 echo "03. Inspect counters - timesFailed=1, timesSent=1 (cooldown blocked the rest)"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Cool | grep -E '"(timesSent|timesFailed)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Cool | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
@@ -75,5 +75,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

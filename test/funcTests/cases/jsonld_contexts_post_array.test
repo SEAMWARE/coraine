@@ -16,10 +16,10 @@ POST /jsonldContexts with array @context (Hosted)
 context entity
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/childA '{
   "@context": {
@@ -54,29 +54,29 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload"
 echo
 echo
 
 
 echo "02. LIST Hosted"
 echo "==============="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
 echo
 echo
 
 
 echo "03. LIST Cached (child URLs downloaded)"
 echo "======================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
 echo
 echo
 
 
 echo "04. GET hosted body — array preserved"
 echo "====================================="
-hostedId=$(swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted" | grep -oE 'urn:ngsi-ld:Context:[0-9]+-[0-9]+' | head -1)
-swCurl --url "/ngsi-ld/v1/jsonldContexts/${hostedId}"
+hostedId=$(corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted" | grep -oE 'urn:ngsi-ld:Context:[0-9]+-[0-9]+' | head -1)
+corCurl --url "/ngsi-ld/v1/jsonldContexts/${hostedId}"
 echo
 echo
 
@@ -84,7 +84,7 @@ echo
 echo "05. POST Hosted with empty array"
 echo "================================"
 payload='{"@context":[]}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload" | head -1
 echo
 echo
 
@@ -154,7 +154,7 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop -db swBroker
-swDbDrop
+corDbDrop -db coraine
+corDbDrop

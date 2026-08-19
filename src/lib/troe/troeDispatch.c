@@ -6,7 +6,7 @@
 // Copyright 2026 Seamware
 //
 // Per-connection defer queue. The linked list head/tail/count live in the
-// per-connection swNgsild (so the worker that runs the request and the I/O
+// per-connection corNgsild (so the worker that runs the request and the I/O
 // thread that drains it post-response share one queue); the events themselves
 // are allocated from the per-request kalloc arena. Each request's queue is
 // drained at brokerPostResponseHook time, then reset. Memory of the events is
@@ -15,7 +15,7 @@
 
 #include <stddef.h>                                   // NULL
 
-#include "swNgsild/SwNgsild.h"                         // swNgsild (per-conn troeQ*)
+#include "corNgsild/CorNgsild.h"                         // corNgsild (per-conn troeQ*)
 #include "troe/TroeDriver.h"                          // troe, TroeEvent
 #include "troe/troeDispatch.h"                        // Own interface
 
@@ -32,13 +32,13 @@ static void queueAppend(const TroeEvent* evP)
   TroeEvent* mut = (TroeEvent*) evP;
   mut->next = NULL;
 
-  if (swNgsild.troeQHead == NULL)
-    swNgsild.troeQHead = mut;
+  if (corNgsild.troeQHead == NULL)
+    corNgsild.troeQHead = mut;
   else
-    ((TroeEvent*) swNgsild.troeQTail)->next = mut;
+    ((TroeEvent*) corNgsild.troeQTail)->next = mut;
 
-  swNgsild.troeQTail = mut;
-  swNgsild.troeQCount++;
+  corNgsild.troeQTail = mut;
+  corNgsild.troeQCount++;
 }
 
 
@@ -75,7 +75,7 @@ void troeDeferAttrEvent(const TroeEvent* evP)
 //
 void troeDispatchPending(void)
 {
-  TroeEvent* head = (TroeEvent*) swNgsild.troeQHead;
+  TroeEvent* head = (TroeEvent*) corNgsild.troeQHead;
 
   if (head == NULL)
     return;
@@ -84,7 +84,7 @@ void troeDispatchPending(void)
   // no-ops anyway — this branch only matters if no plugin loaded at all.
   if (troe.eventList != NULL)
   {
-    troe.eventList(head, swNgsild.troeQCount);
+    troe.eventList(head, corNgsild.troeQCount);
   }
   else if (troe.attrEvent != NULL || troe.entityEvent != NULL)
   {
@@ -103,7 +103,7 @@ void troeDispatchPending(void)
     }
   }
 
-  swNgsild.troeQHead  = NULL;
-  swNgsild.troeQTail  = NULL;
-  swNgsild.troeQCount = 0;
+  corNgsild.troeQHead  = NULL;
+  corNgsild.troeQTail  = NULL;
+  corNgsild.troeQCount = 0;
 }

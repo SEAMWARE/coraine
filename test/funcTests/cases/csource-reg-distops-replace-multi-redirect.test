@@ -12,12 +12,12 @@ DistOps - replaceEntity (PUT): two redirect CSRs both get the replace (D007_01_r
 distops registration replace
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
   "speed": { "type": "Property", "value": 1 },
   "color": { "type": "Property", "value": "red" }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -52,7 +52,7 @@ payload='{
   "speed": { "type": "Property", "value": 2 },
   "gear": { "type": "Property", "value": "high" }
 }'
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -67,7 +67,7 @@ payload='{
   "operations": ["replaceEntity", "retrieveEntity"],
   "information": [{"entities":[{"id":"urn:MV1","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ payload='{
   "operations": ["replaceEntity", "retrieveEntity"],
   "information": [{"entities":[{"id":"urn:MV1","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -95,21 +95,21 @@ payload='{
   "speed": { "type": "Property", "value": 99 },
   "brand": { "type": "Property", "value": "Foo" }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:MV1 -X PUT --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:MV1 -X PUT --payload "$payload"
 echo
 echo
 
 
 echo "06. GET urn:MV1 on CP1 -> speed=99, brand=Foo (color gone) = CP1 was replaced"
 echo "============================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:MV1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:MV1
 echo
 echo
 
 
 echo "07. GET urn:MV1 on CP2 -> speed=99, brand=Foo (gear gone) = CP2 was replaced"
 echo "============================================================================"
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities/urn:MV1
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities/urn:MV1
 echo
 echo
 
@@ -210,6 +210,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2

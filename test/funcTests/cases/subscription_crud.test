@@ -12,8 +12,8 @@ Subscription CRUD - create, retrieve, query, update, delete
 subscription
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -49,14 +49,14 @@ payload='{
   },
   "throttling": 5
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve subscription by id"
 echo "================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
@@ -79,14 +79,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "04. Query all subscriptions - two subscriptions"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -96,42 +96,42 @@ echo "============================================="
 payload='{
   "throttling": 10
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload "$payload"
 echo
 echo
 
 
 echo "06. Retrieve updated subscription"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
 
 echo "07. Delete first subscription - 204"
 echo "===================================="
-swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
 
 echo "08. Query all subscriptions - only second subscription"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "09. Delete non-existing subscription - 404"
 echo "============================================"
-swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:doesnt:exist
+corCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:doesnt:exist
 echo
 echo
 
 
 echo "10. Retrieve deleted subscription - 404"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
@@ -144,7 +144,7 @@ payload='{
   "entities": [{"type": "X"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/x"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -389,5 +389,5 @@ Content-Length: 185
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -9,12 +9,12 @@
 DistOps - inclusive multi-source merge per § 4.5.5.3
 
 --INIT--
-swDbDrop -role CB
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -role CB
-swBrokerStart -role CP1
-swBrokerStart -role CP2
+corDbDrop -role CB
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -role CB
+coraineStart -role CP1
+coraineStart -role CP2
 
 --RUN--
 #
@@ -53,7 +53,7 @@ swBrokerStart -role CP2
 
 echo "01. Register CB->CP1 inclusive for urn:V1"
 echo "=========================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
+corCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
   --payload '{
     "id": "urn:CSR:CP1",
     "type": "ContextSourceRegistration",
@@ -76,7 +76,7 @@ echo
 
 echo "02. Register CB->CP2 inclusive for urn:V1"
 echo "=========================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
+corCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/csourceRegistrations \
   --payload '{
     "id": "urn:CSR:CP2",
     "type": "ContextSourceRegistration",
@@ -104,7 +104,7 @@ echo
 
 echo "03. Create entity urn:V1 on CB with speed=10, observedAt 2026-01-01"
 echo "==================================================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -120,7 +120,7 @@ echo
 
 echo "04. Create entity urn:V1 on CP1 with speed=20, observedAt 2026-02-01"
 echo "====================================================================="
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -136,7 +136,7 @@ echo
 
 echo "05. Create entity urn:V1 on CP2 with speed=30, observedAt 2026-03-01"
 echo "====================================================================="
-swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -152,7 +152,7 @@ echo
 
 echo "06. GET urn:V1 on CB - newest observedAt wins (CP2 speed=30)"
 echo "============================================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+corCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -162,21 +162,21 @@ echo
 
 echo "07. Delete urn:V1 on CB"
 echo "======================="
-swCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "08. Delete urn:V1 on CP1"
 echo "========================"
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "09. Delete urn:V1 on CP2"
 echo "========================"
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -185,7 +185,7 @@ echo
 
 echo "10. Create entity urn:V1 on CP2 with speed=300 (no observedAt)"
 echo "==============================================================="
-swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -200,7 +200,7 @@ echo
 
 echo "11. Create entity urn:V1 on CB with speed=100 (no observedAt)"
 echo "=============================================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -215,7 +215,7 @@ echo
 
 echo "12. Create entity urn:V1 on CP1 with speed=200, observedAt 2020-01-01"
 echo "======================================================================"
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -231,7 +231,7 @@ echo
 
 echo "13. GET urn:V1 on CB - CP1 has observedAt so CP1 wins (speed=200)"
 echo "=================================================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+corCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -241,28 +241,28 @@ echo
 
 echo "14. Delete urn:V1 on CB"
 echo "======================="
-swCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CB_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "15. Delete urn:V1 on CP1"
 echo "========================"
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "16. Delete urn:V1 on CP2"
 echo "========================"
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "17. Create entity urn:V1 on CP2 with speed=3000 (no observedAt)"
 echo "================================================================"
-swCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CP2_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -277,7 +277,7 @@ echo
 
 echo "18. Create entity urn:V1 on CP1 with speed=2000 (no observedAt)"
 echo "================================================================"
-swCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CP1_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -292,7 +292,7 @@ echo
 
 echo "19. Create entity urn:V1 on CB with speed=1000 (no observedAt)"
 echo "==============================================================="
-swCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
+corCurl --port $CB_PORT -X POST --url /ngsi-ld/v1/entities \
   --payload '{
     "id": "urn:V1",
     "type": "Vehicle",
@@ -307,7 +307,7 @@ echo
 
 echo "20. GET urn:V1 on CB - newest modifiedAt wins (CB speed=1000)"
 echo "=============================================================="
-swCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
+corCurl --port $CB_PORT --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -531,9 +531,9 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop -role CB
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop -role CB
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop -role CB
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop -role CB
+corDbDrop -role CP1
+corDbDrop -role CP2

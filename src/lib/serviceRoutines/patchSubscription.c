@@ -10,24 +10,24 @@
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckSubscription.h"            // ldCheckSubscription
-#include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
-#include "swNgsild/LdOp.h"                           // LdOpUpdateSubscription
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
-#include "swNgsild/LdPernotCache.h"                  // LdPernotCache
-#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
-#include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/SwNgsild.h"                       // ldDistributed
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription
+#include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
+#include "corNgsild/LdOp.h"                           // LdOpUpdateSubscription
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "corNgsild/LdPernotCache.h"                  // LdPernotCache
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
+#include "corNgsild/LdRegCache.h"                     // LdRegCache
+#include "corNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
+#include "corNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/CorNgsild.h"                       // ldDistributed
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -45,7 +45,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
   if (fragP == NULL)
     return;
 
@@ -60,8 +60,8 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 bool patchSubscription(void)
 {
-  const char* subId    = swRest.in.wildcard[0];
-  KjNode*     fragment = swRest.in.requestTree;
+  const char* subId    = corRest.in.wildcard[0];
+  KjNode*     fragment = corRest.in.requestTree;
   //
   // PATCH body needs at least one updatable field. § 5.2.12: id and type
   // are read-only; ldParseHook tolerates a `type:"Subscription"` echo for
@@ -111,7 +111,7 @@ bool patchSubscription(void)
   // Fragment validation only (well-formedness). The format value isn't parsed
   // here — it's validated and captured from the merged result below, so the
   // string is matched once. NULL: nothing to capture from the fragment.
-  if (ldCheckSubscription(fragment, LdOpUpdateSubscription, /*merged*/false, NULL, &swRest.kalloc) == false)
+  if (ldCheckSubscription(fragment, LdOpUpdateSubscription, /*merged*/false, NULL, &corRest.kalloc) == false)
     return true;
 
   //
@@ -121,7 +121,7 @@ bool patchSubscription(void)
   if (expiresAtP != NULL && expiresAtP->type == KjString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
-    if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+    if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
               "'expiresAt' must be a DateTime in the future");
@@ -129,7 +129,7 @@ bool patchSubscription(void)
     }
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   //
   // Block patching of CSR-subs via this endpoint.
@@ -210,7 +210,7 @@ bool patchSubscription(void)
     return true;
   }
 
-  ldRegSubMerge(mergedSubP, fragment, swRest.kjsonP);
+  ldRegSubMerge(mergedSubP, fragment, corRest.kjsonP);
 
   //
   // § 5.8.3 — re-validate the COMPLETE merged result before persisting. The
@@ -222,7 +222,7 @@ bool patchSubscription(void)
   // stored document legitimately carries.
   //
   LdFormat notifFormat = LdFormatNone;
-  if (ldCheckSubscription(mergedSubP, LdOpCreateSubscription, /*merged*/true, &notifFormat, &swRest.kalloc) == false)
+  if (ldCheckSubscription(mergedSubP, LdOpCreateSubscription, /*merged*/true, &notifFormat, &corRest.kalloc) == false)
   {
     ldSubCacheUnlock(subCacheP);
     return true;  // ldCheckSubscription already raised the 400
@@ -256,7 +256,7 @@ bool patchSubscription(void)
     if (expiresP != NULL && expiresP->type == KjString)
     {
       uint64_t expiresNs = ldIsoToNanoseconds(expiresP->value.s);
-      if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+      if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
         isExpired = true;
     }
 
@@ -265,7 +265,7 @@ bool patchSubscription(void)
     if (statusP != NULL && statusP->type == KjString)
       statusP->value.s = (char*) newStatus;
     else
-      kjChildAdd(mergedSubP, kjString(swRest.kjsonP, LD_VOCAB_STATUS, newStatus));
+      kjChildAdd(mergedSubP, kjString(corRest.kjsonP, LD_VOCAB_STATUS, newStatus));
   }
 
   // § 6.4.5 — bump modifiedAt to now; createdAt (from the retrieved tree) stays
@@ -318,7 +318,7 @@ bool patchSubscription(void)
   // Best-effort — remote failures don't roll back local state.
   if (newItemP != NULL && tenantP->regCacheP != NULL && ldDistributed)
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     ldDistSubReconcile(newItemP, fragment, (LdRegCache*) tenantP->regCacheP, ownAlias,
                        distSubPersist, tenantP);
   }
@@ -341,6 +341,6 @@ bool patchSubscription(void)
     }
   }
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

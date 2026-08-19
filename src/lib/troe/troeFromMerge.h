@@ -13,14 +13,14 @@
 // "attributeCreated"/"attributeModified"/"attributeDeleted" reasons
 // to TroeOpAttrCreated/Modified/Deleted respectively.
 //
-// Allocates each TroeEvent from swRest.kalloc; lifetime is until the
+// Allocates each TroeEvent from corRest.kalloc; lifetime is until the
 // post-response dispatch.
 //
 
 #include <stdint.h>                                       // uint64_t
 
 #include "kjson/KjNode.h"                                 // KjNode
-#include "swNgsild/ldEntityMerge.h"                       // LdMergeReport
+#include "corNgsild/ldEntityMerge.h"                       // LdMergeReport
 #include "db/Tenant.h"                                    // Tenant
 
 

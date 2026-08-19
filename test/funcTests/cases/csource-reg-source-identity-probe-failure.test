@@ -12,8 +12,8 @@ DistOps - a failing sourceIdentity probe is non-fatal; forwarding still works (Â
 distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 201
 
 --RUN--
@@ -27,7 +27,7 @@ ftClientStart --port 7711 --status 201
 
 echo "01. Make ftClient return 503 on the sourceIdentity probe"
 echo "========================================================"
-swCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "info/sourceIdentity", "status": 503 }'
+corCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "info/sourceIdentity", "status": 503 }'
 echo
 echo
 
@@ -44,7 +44,7 @@ payload='{
     { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -56,7 +56,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 42 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -77,7 +77,7 @@ echo
 
 echo "06. Make ftClient DELAY the probe 800 ms (> the 500 ms probe timeout)"
 echo "====================================================================="
-swCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "info/sourceIdentity", "status": 200, "delayMs": 800 }'
+corCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "info/sourceIdentity", "status": 200, "delayMs": 800 }'
 echo
 echo
 
@@ -94,7 +94,7 @@ payload='{
     { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -106,7 +106,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 9 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -194,5 +194,5 @@ Content-Length: 0
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -17,8 +17,8 @@ Very large compound attribute value is accepted, round-trips
 attr value-type entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ payload=$(python3 -c 'import json; print(json.dumps({"id":"urn:ngsi-ld:Mega:1","
 
 echo "01. Create entity with a large compound value"
 echo "============================================="
-out=$(swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload")
+out=$(corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload")
 echo "$out" | grep "^HTTP/"
 echo
 echo
@@ -41,7 +41,7 @@ echo
 
 echo "02. GET — broker alive, all 5000 array elements stored"
 echo "======================================================"
-out=$(swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Mega:1)
+out=$(corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Mega:1)
 echo "$out" | grep "^HTTP/"
 echo "buildingNo count: $(echo "$out" | grep -c '"buildingNo"')"
 echo
@@ -50,7 +50,7 @@ echo
 
 echo "03. Query all entities — one entity, broker alive"
 echo "================================================="
-out=$(swCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=M&limit=1&count=true')
+out=$(corCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=M&limit=1&count=true')
 echo "$out" | grep -iE "^HTTP/|NGSILD-Results-Count"
 echo
 echo
@@ -75,5 +75,5 @@ NGSILD-Results-Count: 1
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

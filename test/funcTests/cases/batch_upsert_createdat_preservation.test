@@ -22,8 +22,8 @@ Batch upsert (replace) preserves createdAt for entity + attr instances (§ 4.8 /
 batch upsert createdAt sysAttrs replace
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,14 +37,14 @@ payload='{
     "value": 50
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. GET sysAttrs=true → capture createdAt for entity + speed"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/cat_pres_initial.txt 2>&1
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/cat_pres_initial.txt 2>&1
 ENTITY_CREATED=$(grep -m1 -oE '"createdAt": "[^"]+"' /tmp/cat_pres_initial.txt | head -1)
 SPEED_CREATED=$(grep -A2 '"speed":' /tmp/cat_pres_initial.txt | grep -oE '"createdAt": "[^"]+"' | head -1)
 echo "initial entity.createdAt captured: $([ -n "$ENTITY_CREATED" ] && echo OK || echo FAIL)"
@@ -72,14 +72,14 @@ payload='[
     }
   }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
 echo
 echo
 
 
 echo "05. GET sysAttrs=true → entity.createdAt + speed.createdAt unchanged"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/cat_pres_after.txt 2>&1
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/cat_pres_after.txt 2>&1
 ENTITY_CREATED2=$(grep -m1 -oE '"createdAt": "[^"]+"' /tmp/cat_pres_after.txt | head -1)
 SPEED_CREATED2=$(grep -A2 '"speed":' /tmp/cat_pres_after.txt | grep -oE '"createdAt": "[^"]+"' | head -1)
 [ "$ENTITY_CREATED" = "$ENTITY_CREATED2" ] && echo "entity.createdAt preserved: OK" || echo "entity.createdAt CHANGED: $ENTITY_CREATED -> $ENTITY_CREATED2"
@@ -129,6 +129,6 @@ entity.modifiedAt bumped: OK
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 \rm -f /tmp/cat_pres_initial.txt /tmp/cat_pres_after.txt

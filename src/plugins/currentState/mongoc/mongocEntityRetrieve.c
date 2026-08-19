@@ -10,7 +10,7 @@
 
 #include "ktrace/kTrace.h"                               // KT_E
 #include "kjson/KjNode.h"                            // KjNode
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"               // mongocBsonToKjTree
@@ -52,7 +52,7 @@ int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityP
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    *entityPP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    *entityPP = mongocBsonToKjTree(&corRest.kalloc, doc);
     result = DB_OK;
   }
   else

@@ -13,9 +13,9 @@ Multi-tenant persistence across broker restart
 tenant
 
 --INIT--
-swDbDrop
-swDbDrop -tenant t1
-swBrokerStart
+corDbDrop
+corDbDrop -tenant t1
+coraineStart
 
 --RUN--
 
@@ -31,16 +31,16 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "02. Restart broker, GET /entities with NGSILD-Tenant: t1 - tenant rediscovered"
 echo "=============================================================================="
-swBrokerStop
-swBrokerStart
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+coraineStop
+coraineStart
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -76,6 +76,6 @@ Content-Length: 48
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swDbDrop -tenant t1
+coraineStop
+corDbDrop
+corDbDrop -tenant t1

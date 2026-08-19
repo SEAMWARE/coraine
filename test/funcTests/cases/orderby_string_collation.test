@@ -21,8 +21,8 @@ orderBy string ordering is case-insensitive root collation, not byte order (§ 7
 orderBy collation query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,7 +34,7 @@ for v in \
   '{"id":"urn:ngsi-ld:N3","type":"T","name":{"type":"Property","value":"cherry"}}' \
   '{"id":"urn:ngsi-ld:N4","type":"T","name":{"type":"Property","value":"Apple"}}' \
   '{"id":"urn:ngsi-ld:N5","type":"T","name":{"type":"Property","value":"banana"}}' ; do
-  swCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
+  corCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
 done
 echo
 echo
@@ -42,14 +42,14 @@ echo
 
 echo "02. orderBy=name — apple, Apple, banana, Banana, cherry (root, not byte order)"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=name;desc — the exact reverse"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&options=keyValues'
 echo
 echo
 
@@ -141,5 +141,5 @@ Content-Length: 376
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

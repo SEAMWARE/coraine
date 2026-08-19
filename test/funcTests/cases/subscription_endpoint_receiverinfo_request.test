@@ -17,8 +17,8 @@ Subscription notification - receiverInfo "urn:ngsi-ld:request" substitution (§ 
 subscription notification receiverinfo request-substitution
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart --port 7711 --status 200
 
 --RUN--
@@ -39,14 +39,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. Trigger notification - request carries X-Auth: bearer-abc"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities -H "X-Auth: bearer-abc" \
+corCurl --url /ngsi-ld/v1/entities -H "X-Auth: bearer-abc" \
        --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
 echo
 echo
@@ -61,7 +61,7 @@ echo
 
 echo "04. Trigger another notification - this time WITHOUT X-Auth"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs \
        --payload '{"speed":{"type":"Property","value":99}}' | head -1
 echo
 echo
@@ -105,5 +105,5 @@ HTTP/1.1 204 No Content
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

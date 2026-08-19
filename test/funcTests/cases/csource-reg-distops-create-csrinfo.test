@@ -12,8 +12,8 @@ DistOps - contextSourceInfo headers are emitted on forwarded createEntity
 create distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 201
 
 --RUN--
@@ -40,7 +40,7 @@ payload='{
     { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ], "propertyNames": ["speed"] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -52,7 +52,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 42 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -103,5 +103,5 @@ Content-Length: REGEX(\d+)
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ DistOps - write-op loop detection returns 508 for exclusive/redirect (TS 104-176
 distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart --csourceAlias cb-alias -dist
+corDbDrop
+coraineStart --csourceAlias cb-alias -dist
 
 --RUN--
 #
@@ -60,14 +60,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. DELETE urn:V1 with Via cb-alias -> 508"
 echo "=========================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -79,7 +79,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 7 }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload" -H "Via: 1.1 cb-alias"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload" -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -89,7 +89,7 @@ echo "========================================================"
 payload='{
   "speed": { "type": "Property", "value": 9 }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload" -H "Via: 1.1 cb-alias"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload" -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -99,7 +99,7 @@ echo "======================================================="
 payload='{
   "speed": { "type": "Property", "value": 11 }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload" -H "Via: 1.1 cb-alias"
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload" -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -110,14 +110,14 @@ payload='{
   "type": "Property",
   "value": 13
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed --payload "$payload" -H "Via: 1.1 cb-alias"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed --payload "$payload" -H "Via: 1.1 cb-alias"
 echo
 echo
 
 
 echo "07. Delete urn:V1/attrs/speed with Via cb-alias -> 508"
 echo "======================================================"
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -H "Via: 1.1 cb-alias"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -137,14 +137,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:Vc",
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 5 }
 }'
-swCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Via: 1.1 cb-alias"
+corCurl -X POST --url /ngsi-ld/v1/entities --payload "$payload" -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -164,9 +164,9 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V3 -H "Via: 1.1 cb-alias"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V3 -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -186,7 +186,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:V2",
@@ -195,16 +195,16 @@ payload='{
 }'
 # Create the local copy with ?local=true so it does not depend on the
 # proactive-loop probe timing for the inclusive self-pointing CSR.
-swCurl -X POST --url '/ngsi-ld/v1/entities?local=true' --payload "$payload"
+corCurl -X POST --url '/ngsi-ld/v1/entities?local=true' --payload "$payload"
 echo
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V2 -H "Via: 1.1 cb-alias"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V2 -H "Via: 1.1 cb-alias"
 echo
 echo
 
 
 echo "11. Control: DELETE urn:V1?local=true with Via -> no dispatch, local 404 (no 508)"
 echo "================================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1?local=true' -H "Via: 1.1 cb-alias"
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1?local=true' -H "Via: 1.1 cb-alias"
 echo
 echo
 
@@ -401,5 +401,5 @@ Content-Length: 151
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

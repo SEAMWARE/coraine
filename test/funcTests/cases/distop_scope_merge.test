@@ -26,18 +26,18 @@ DistOp § 5.2.7 — the Scopes of every version of an Entity are merged
 distops scope merge retrieve
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
 echo "01. Seed urn:V1 on CP1 - scope /a, speed"
 echo "========================================"
-swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "scope": "/a",
@@ -52,7 +52,7 @@ echo
 
 echo "02. Seed urn:V1 on CP2 - scope [/b, /c], colour"
 echo "==============================================="
-swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "scope": [ "/b", "/c" ],
@@ -67,7 +67,7 @@ echo
 
 echo "03. Register CB->CP1 inclusive for Vehicle"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP1_PORT'",
@@ -80,7 +80,7 @@ echo
 
 echo "04. Register CB->CP2 inclusive for Vehicle"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP2_PORT'",
@@ -93,21 +93,21 @@ echo
 
 echo "05. GET urn:V1 on CB - scope is the union [/a, /b, /c]"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "06. Query /entities on CB - the same union on the list path"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
 echo
 echo
 
 
 echo "07. Seed urn:V1 locally on CB too - scope /a and /d"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "scope": [ "/a", "/d" ],
@@ -124,21 +124,21 @@ echo "08. GET urn:V1 on CB - the local copy is a version too: [/a, /d, /b, /c]"
 echo "======================================================================="
 echo "  /a is seen twice (locally and on CP1) and appears once"
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "09. scopeQ=/b on CB - the merged Entity is in CP2's scope as well"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle&scopeQ=/b' | grep '"id"'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle&scopeQ=/b' | grep '"id"'
 echo
 echo
 
 
 echo "10. Seed urn:V2 on CP1 and on CP2 - the very same single scope /a on both"
 echo "========================================================================"
-swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V2",
   "type": "Vehicle",
   "scope": "/a",
@@ -147,7 +147,7 @@ swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
     "value": 30
   }
 }' | head -1
-swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V2",
   "type": "Vehicle",
   "scope": "/a",
@@ -162,15 +162,15 @@ echo
 
 echo "11. GET urn:V2 on CB - a union of one Scope renders as a bare String"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2
+corCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
 
 echo "12. Re-seed urn:V2 on CP2 WITHOUT any scope"
 echo "==========================================="
-swCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V2
-swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V2
+corCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V2",
   "type": "Vehicle",
   "colour": {
@@ -184,7 +184,7 @@ echo
 
 echo "13. GET urn:V2 on CB - a version without Scopes takes none away: /a"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2
+corCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -377,10 +377,10 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
 

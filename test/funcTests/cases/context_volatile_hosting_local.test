@@ -27,9 +27,9 @@ Inline @context on a query's json response — hosted volatile, content-addresse
 context entity jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
-swBrokerStart
+corDbDrop
+corDbDrop -db coraine
+coraineStart
 
 --RUN--
 
@@ -56,7 +56,7 @@ payload='{
     "spd": "https://example.org/veh/speed"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities \
+corCurl --url /ngsi-ld/v1/entities \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 echo
@@ -73,7 +73,7 @@ payload='{
     "spd": "https://example.org/veh/speed"
   }
 }'
-swCurl --url /ngsi-ld/v1/entityOperations/query \
+corCurl --url /ngsi-ld/v1/entityOperations/query \
   --header 'Content-Type: application/ld+json' \
   --header 'Accept: application/json' \
   --payload "$payload" 2>&1 | grep -iE "^Link:|\"spd\""
@@ -83,10 +83,10 @@ echo
 
 echo "03. Same query again — same hosted URL (content-addressed dedup)"
 echo "================================================================"
-L1=$(swCurl --url /ngsi-ld/v1/entityOperations/query \
+L1=$(corCurl --url /ngsi-ld/v1/entityOperations/query \
   --header 'Content-Type: application/ld+json' --header 'Accept: application/json' \
   --payload "$payload" 2>&1 | grep -i "^Link:" | sed 's/.*<//;s/>.*//')
-L2=$(swCurl --url /ngsi-ld/v1/entityOperations/query \
+L2=$(corCurl --url /ngsi-ld/v1/entityOperations/query \
   --header 'Content-Type: application/ld+json' --header 'Accept: application/json' \
   --payload "$payload" 2>&1 | grep -i "^Link:" | sed 's/.*<//;s/>.*//')
 [ "$L1" = "$L2" ] && echo "dedup: same URL" || echo "dedup: DIFFERENT URLs"
@@ -97,21 +97,21 @@ echo
 echo "04. GET the hosted context URL — original @context, no-store"
 echo "============================================================="
 path=$(echo "$L1" | sed 's|http://[^/]*||')
-swCurl --url "$path" 2>&1 | grep -iE "HTTP/|Cache-Control|example.org"
+corCurl --url "$path" 2>&1 | grep -iE "HTTP/|Cache-Control|example.org"
 echo
 echo
 
 
 echo "05. GET the same hosted URL again — still 200 (shared, not dropped)"
 echo "==================================================================="
-swCurl --url "$path" 2>&1 | grep -iE "HTTP/"
+corCurl --url "$path" 2>&1 | grep -iE "HTTP/"
 echo
 echo
 
 
 echo "06. GET /jsonldContexts — volatile context not listed"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/jsonldContexts | grep -c "jsonldContexts/urn:ngsi-ld:Context"
+corCurl --url /ngsi-ld/v1/jsonldContexts | grep -c "jsonldContexts/urn:ngsi-ld:Context"
 echo
 echo
 
@@ -151,4 +151,4 @@ HTTP/1.1 200 OK
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

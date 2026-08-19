@@ -18,17 +18,17 @@ Snapshot NGSILD-Snapshot write guard (§ 5.16 / Phase #147)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart -dist
+corDbDrop
+corSnapDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. Seed an entity and create a snapshot to reference"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Frozen",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]
@@ -39,35 +39,35 @@ echo
 
 echo "02. GET /entities with NGSILD-Snapshot — passes through (200)"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "03. POST /entities with NGSILD-Snapshot — 422 OperationNotSupported"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle"}'
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle"}'
 echo
 echo
 
 
 echo "04. PATCH /entities/{id} with NGSILD-Snapshot — 422"
 echo "==================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"speed":{"type":"Property","value":99}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"speed":{"type":"Property","value":99}}'
 echo
 echo
 
 
 echo "05. DELETE /entities/{id} with NGSILD-Snapshot — 422"
 echo "===================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "06. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)"
 echo "=================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
   "type":"Subscription",
   "entities":[{"type":"Vehicle"}],
   "notification":{"endpoint":{"uri":"http://localhost:9999/x"}}
@@ -78,7 +78,7 @@ echo
 
 echo "07. POST /csourceRegistrations with NGSILD-Snapshot — 422"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
   "type":"ContextSourceRegistration",
   "information":[{"entities":[{"type":"Vehicle"}]}],
   "endpoint":"http://localhost:9999/x"
@@ -89,14 +89,14 @@ echo
 
 echo "08. POST /entityOperations/create with NGSILD-Snapshot — 422 (batch)"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '[{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle"}]'
+corCurl --url /ngsi-ld/v1/entityOperations/create -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '[{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle"}]'
 echo
 echo
 
 
 echo "09. PATCH /snapshots/{id} with NGSILD-Snapshot — 422 (can't patch a snapshot via the snapshot scope)"
 echo "===================================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Frozen -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"snapshotPriority":9}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Frozen -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"snapshotPriority":9}'
 echo
 echo
 
@@ -254,6 +254,6 @@ Content-Length: 296
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

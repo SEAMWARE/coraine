@@ -26,10 +26,10 @@ Batch Entity Update — exclusive CSR without updateBatch op (409 conflict)
 batch entity update
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -38,7 +38,7 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1 on CB — only 'color' exists, no 'speed'"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
@@ -48,7 +48,7 @@ echo "======================================================================"
 # retrieveEntity is in the default federationOps group — the CSR can still
 # answer GETs. It cannot accept updates though, so the batch-update chop
 # must produce a 409 Conflict per affected entity.
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
@@ -58,7 +58,7 @@ echo "==================================================================="
 # The body only changes 'speed' — which is claimed by the exclusive CSR
 # that cannot accept updates. With no other attrs to apply locally, the
 # response is a 409 All-failed with one BatchEntityError per entity.
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
 ]'
 echo
@@ -67,7 +67,7 @@ echo
 
 echo "04. GET CB V1 local-only — color still red, unchanged"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
@@ -75,7 +75,7 @@ echo
 echo "05. Batch Update V1 speed+color → 207 (speed conflicts, color applied locally)"
 echo "=============================================================================="
 # speed is still chopped-and-conflicts; color merges locally → partial success.
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -84,7 +84,7 @@ echo
 
 echo "06. GET CB V1 local-only — color=blue (the only attr that reached local)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
@@ -185,7 +185,7 @@ Content-Length: 61
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -12,8 +12,8 @@ GET /entities?type=NonExistent returns empty array
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -32,14 +32,14 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entities?type=NonExistent - empty array (no match)"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=NonExistent'
+corCurl --url '/ngsi-ld/v1/entities?type=NonExistent'
 echo
 echo
 
@@ -68,5 +68,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

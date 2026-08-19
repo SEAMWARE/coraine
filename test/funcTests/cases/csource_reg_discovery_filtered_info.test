@@ -17,8 +17,8 @@ CSR discovery — filtered RegistrationInfo in response (§ 5.10.2.5)
 csr discovery
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -28,7 +28,7 @@ swBrokerStart -dist
 #   info[2]:  Building.location
 echo "01. Register CSR with three RegistrationInfo entries"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id":"urn:ngsi-ld:CSR:Multi",
   "type":"ContextSourceRegistration",
   "endpoint":"http://localhost:9999/csource",
@@ -44,41 +44,41 @@ echo
 
 echo "02. Discovery type=Vehicle — only the Vehicle RegistrationInfo entry comes back"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
 echo
 echo
 
 
 echo "03. Discovery type=Vehicle,Person — both Vehicle and Person entries come back"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Person'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Person'
 echo
 echo
 
 
 echo "04. Discovery pick=speed — only the speed entry matches"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&pick=speed'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&pick=speed'
 echo
 echo
 
 
 echo "05. Discovery type=Building — Building info entry only"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Building'
 echo
 echo
 
 
 echo "06. Register CSR:Pinned (id Vehicle:V1) and CSR:Pattern (idPattern ^urn:ngsi-ld:Vehicle:P.*)"
 echo "=============================================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id":"urn:ngsi-ld:CSR:Pinned",
   "type":"ContextSourceRegistration",
   "endpoint":"http://localhost:9999/csource",
   "information":[{"entities":[{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
 }' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id":"urn:ngsi-ld:CSR:Pattern",
   "type":"ContextSourceRegistration",
   "endpoint":"http://localhost:9999/csource",
@@ -90,21 +90,21 @@ echo
 
 echo "07. Discovery id=urn:ngsi-ld:Vehicle:V1 — Pinned + Multi match, Pattern is excluded"
 echo "====================================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Vehicle:V1'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Vehicle:V1'
 echo
 echo
 
 
 echo "08. Discovery id=urn:ngsi-ld:Vehicle:P7 — Pattern + Multi match, Pinned is excluded"
 echo "====================================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Vehicle:P7'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Vehicle:P7'
 echo
 echo
 
 
 echo "09. Discovery id=urn:ngsi-ld:Boat:B1 — only Multi (no id constraints) can provide it"
 echo "======================================================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Boat:B1'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?id=urn:ngsi-ld:Boat:B1'
 echo
 echo
 
@@ -438,5 +438,5 @@ Content-Length: 645
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

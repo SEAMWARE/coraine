@@ -23,9 +23,9 @@ Snapshot entity capture (§ 5.16, Phase 2a)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
@@ -36,21 +36,21 @@ payload='{
   "type": "Vehicle",
   "speed": {"type":"Property","value":42}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{
   "id": "urn:ngsi-ld:Vehicle:V2",
   "type": "Vehicle",
   "speed": {"type":"Property","value":80}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{
   "id": "urn:ngsi-ld:Sensor:S1",
   "type": "Sensor",
   "reading": {"type":"Property","value":12.5}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -62,14 +62,14 @@ payload='{
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "03. GET that snapshot → snapshotStatus=success, one query detail"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Vehicles
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Vehicles
 echo
 echo
 
@@ -84,14 +84,14 @@ payload='{
     {"type":"Query","entities":[{"type":"Building"}]}
   ]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "05. GET mixed snapshot → snapshotStatus=partial, two details (success, empty)"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Mixed
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Mixed
 echo
 echo
 
@@ -103,14 +103,14 @@ payload='{
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle","id":"urn:ngsi-ld:Vehicle:V1"}]}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "07. GET V1Only snapshot → success"
 echo "================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:V1Only
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:V1Only
 echo
 echo
 
@@ -122,14 +122,14 @@ payload='{
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>50"}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "09. GET fast snapshot → success"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
 echo
 echo
 
@@ -141,14 +141,14 @@ payload='{
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"NonExistentType"}]}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "11. GET empty snapshot → empty"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Empty
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Empty
 echo
 echo
 
@@ -412,6 +412,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

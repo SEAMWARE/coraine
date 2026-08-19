@@ -17,14 +17,14 @@ GeoProperty — reject a degenerate Polygon (4 identical points); near-point geo
 geo geoproperty validation query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create an entity urn:ngsi-ld:test123:99 with a location property"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id" : "urn:ngsi-ld:test123:99",
   "type" : "testtype",
   "brandName" : {
@@ -70,7 +70,7 @@ echo
 
 echo "02. Attempt to create an entity with a degenerate Polygon (4 identical points) -> 400"
 echo "===================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:test:6",
   "type" : "testtype",
   "brandName": {
@@ -121,7 +121,7 @@ echo
 
 echo "03. Query using geometry URL params"
 echo "==================================="
-swCurl --url '/ngsi-ld/v1/entities?type=testtype&geoproperty=location&georel=near;maxDistance==1500&geometry=Point&coordinates=%5B8.6447165,49.4184066%5D&limit=500'
+corCurl --url '/ngsi-ld/v1/entities?type=testtype&geoproperty=location&georel=near;maxDistance==1500&geometry=Point&coordinates=%5B8.6447165,49.4184066%5D&limit=500'
 echo
 echo
 
@@ -210,5 +210,5 @@ Content-Length: 931
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

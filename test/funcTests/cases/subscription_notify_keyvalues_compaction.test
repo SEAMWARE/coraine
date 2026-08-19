@@ -17,8 +17,8 @@ keyValues notification compacts attribute names via the subscription @context
 subscription notification format context
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 contextServerStart
 
@@ -42,7 +42,7 @@ payload='{
     "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H "Link: <http://localhost:7080/jsonldContexts/ctxSub>; $LH" | head -1
 echo
 echo
@@ -55,7 +55,7 @@ payload='{
   "type": "T",
   "speed": { "type": "Property", "value": 80 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H "Link: <http://localhost:7080/jsonldContexts/ctxSub>; $LH" | head -1
 echo
 echo
@@ -112,7 +112,7 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop
 contextServerStop

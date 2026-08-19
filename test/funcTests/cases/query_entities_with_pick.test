@@ -12,8 +12,8 @@ GET /entities?pick= returns only specified attributes
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,14 +36,14 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entities?pick=speed - only speed attribute returned"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed'
 echo
 echo
 
@@ -79,5 +79,5 @@ Content-Length: 78
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

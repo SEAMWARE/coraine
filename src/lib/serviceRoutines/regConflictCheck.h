@@ -9,7 +9,7 @@
 //
 #include "kjson/KjNode.h"                             // KjNode
 #include "kalloc/KAlloc.h"                            // KAlloc
-#include "swNgsild/LdRegCache.h"                      // LdRegMode
+#include "corNgsild/LdRegCache.h"                      // LdRegMode
 
 
 

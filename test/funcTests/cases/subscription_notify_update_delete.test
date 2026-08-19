@@ -12,9 +12,9 @@ Subscription notification on entity update (PATCH) and delete
 delete notification subscription update
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
   },
   "notificationTrigger": ["entityCreated", "entityUpdated", "entityDeleted"]
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -55,7 +55,7 @@ payload='{
   "speed": {"type": "Property", "value": 100},
   "color": {"type": "Property", "value": "red"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -71,7 +71,7 @@ echo
 echo "04. PATCH entity — change speed"
 echo "================================="
 payload='{"speed": {"type": "Property", "value": 200}}'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -93,7 +93,7 @@ echo
 
 echo "07. DELETE entity"
 echo "==================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -252,6 +252,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

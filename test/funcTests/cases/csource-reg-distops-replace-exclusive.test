@@ -12,10 +12,10 @@ DistOps - replaceEntity (PUT) forwarded to exclusive registration
 distops registration replace
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -43,7 +43,7 @@ payload='{
   "color": {"type":"Property","value":"red"},
   "brand": {"type":"Property","value":"Acme"}
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -63,7 +63,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -77,14 +77,14 @@ payload='{
   "color": {"type":"Property","value":"blue"},
   "brand": {"type":"Property","value":"Zephyr"}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload "$payload"
 echo
 echo
 
 
 echo "04. GET urn:V1 on CP1 → speed=99, color=blue (brand wiped by remote Replace)"
 echo "============================================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -92,7 +92,7 @@ echo
 echo "05. PUT a non-existent id on CB (no local, no CSR match) → 404"
 echo "=============================================================="
 payload='{"id":"urn:NeverExisted","type":"Vehicle","speed":{"type":"Property","value":1}}'
-swCurl --url /ngsi-ld/v1/entities/urn:NeverExisted -X PUT --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:NeverExisted -X PUT --payload "$payload"
 echo
 echo
 
@@ -166,7 +166,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

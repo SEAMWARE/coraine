@@ -19,8 +19,8 @@ PATCH/PUT entity attr — wrapped fragment form unwrapped for local processing
 entity attribute patch put
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
   "speed": {"type": "Property", "value": 42, "observedAt": "2026-01-01T00:00:00Z"},
   "brand": {"type": "Property", "value": "Acme"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -56,14 +56,14 @@ payload='{
     "source": {"type": "Property", "value": "Speedometer"}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET urn:V1 — speed.value 99, source present, no nesting"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -77,14 +77,14 @@ payload='{
     "source": {"type": "Property", "value": "Radar"}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload "$payload"
 echo
 echo
 
 
 echo "05. GET urn:V1 — speed wholly replaced (77, Radar, no observedAt)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -95,14 +95,14 @@ payload='{
   "type": "Property",
   "value": 55
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload "$payload"
 echo
 echo
 
 
 echo "07. GET urn:V1 — speed.value 55"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -220,4 +220,4 @@ Content-Length: 162
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

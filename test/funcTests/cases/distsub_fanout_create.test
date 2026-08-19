@@ -24,10 +24,10 @@ DistSub - create-time fanout to matching CSR
 create distops subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -60,7 +60,7 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -77,7 +77,7 @@ payload='{
     { "entities": [ { "type": "Device" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -90,14 +90,14 @@ payload='{
   "entities": [ { "type": "Vehicle" } ],
   "notification": { "endpoint": { "uri": "http://example.com/notify/s1" } }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "04. GET /subscriptions on CP1 — derived urn:S1:1 with rewritten callback"
 echo "========================================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -110,14 +110,14 @@ payload='{
   "entities": [ { "type": "Sensor" } ],
   "notification": { "endpoint": { "uri": "http://example.com/notify/s2" } }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "06. GET /subscriptions on CP1 — still only urn:S1:1"
 echo "==================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -130,14 +130,14 @@ payload='{
   "entities": [ { "type": "Device" } ],
   "notification": { "endpoint": { "uri": "http://example.com/notify/s3" } }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "08. GET /subscriptions on CP1 — still only urn:S1:1"
 echo "==================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -290,7 +290,7 @@ Content-Length: 370
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

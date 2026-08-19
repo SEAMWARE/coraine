@@ -17,42 +17,42 @@ DELETE /entities - Purge with both keep and drop is rejected 400 BadRequestData
 purge entity error validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed Building:1 (name + subCategory)"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:1","type":"Building","name":{"type":"Property","value":"x"},"subCategory":{"type":"Property","value":"y"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:Building:1","type":"Building","name":{"type":"Property","value":"x"},"subCategory":{"type":"Property","value":"y"}}' | head -1
 echo
 echo
 
 
 echo "02. DELETE /entities?type=Building&keep=name&drop=subCategory → 400"
 echo "==================================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&keep=name&drop=subCategory'
+corCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&keep=name&drop=subCategory'
 echo
 echo
 
 
 echo "03. The entity is untouched (nothing purged)"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1'
 echo
 echo
 
 
 echo "04. DELETE /entities?type=Building&drop=subCategory → 204 (drop alone works)"
 echo "============================================================================"
-swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&drop=subCategory' | head -1
+corCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&drop=subCategory' | head -1
 echo
 echo
 
 
 echo "05. DELETE /entities?type=Building&keep=name → 204 (keep alone works)"
 echo "===================================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&keep=name' | head -1
+corCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Building&keep=name' | head -1
 echo
 echo
 
@@ -113,5 +113,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

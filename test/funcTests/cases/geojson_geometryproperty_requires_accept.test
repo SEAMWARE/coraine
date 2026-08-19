@@ -18,36 +18,36 @@ geometryProperty without Accept: application/geo+json → 400 BadRequestData
 entity query geojson geometryProperty error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed a City with location"
 echo "============================="
 payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve with geometryProperty but default Accept (json) → 400"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1?geometryProperty=location'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1?geometryProperty=location'
 echo
 echo
 
 
 echo "03. Query with geometryProperty but Accept: application/ld+json → 400"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&geometryProperty=location' -H 'Accept: application/ld+json'
+corCurl --url '/ngsi-ld/v1/entities?type=City&geometryProperty=location' -H 'Accept: application/ld+json'
 echo
 echo
 
 
 echo "04. Control: same retrieve WITH Accept: application/geo+json → 200 Feature"
 echo "========================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1?geometryProperty=location'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1?geometryProperty=location'
 
 --EXPECT--
 01. Seed a City with location
@@ -126,4 +126,4 @@ Content-Length: 440
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - idPattern regex filtering on entity IDs
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     "value": "Car 1"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -60,7 +60,7 @@ payload='{
     "value": "Car 2"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -75,7 +75,7 @@ payload='{
     "value": "Truck 1"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -90,7 +90,7 @@ payload='{
     "value": "Temp Sensor 1"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -105,56 +105,56 @@ payload='{
     "value": "Humidity Sensor 1"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. idPattern=urn:vehicle.* - all vehicles (3)"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle.*'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle.*'
 echo
 echo
 
 
 echo "07. idPattern=urn:vehicle:car.* - only cars (2)"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle:car.*'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle:car.*'
 echo
 echo
 
 
 echo "08. idPattern=.*:001 - all entities ending in :001 (4)"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=.*:001'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=.*:001'
 echo
 echo
 
 
 echo "09. idPattern=urn:sensor.* - all sensors (2)"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:sensor.*'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:sensor.*'
 echo
 echo
 
 
 echo "10. idPattern=urn:vehicle:truck.* - only trucks (1)"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle:truck.*'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:vehicle:truck.*'
 echo
 echo
 
 
 echo "11. idPattern=urn:nonexistent.* - no match (empty)"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:nonexistent.*'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Sensor&idPattern=urn:nonexistent.*'
 echo
 echo
 
 
 echo "12. idPattern combined with type filter (1)"
 echo "==========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Sensor&idPattern=.*temp.*'
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&idPattern=.*temp.*'
 echo
 echo
 
@@ -405,5 +405,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

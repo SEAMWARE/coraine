@@ -19,10 +19,10 @@ DistSub - DELETE cascade to remote derivatives
 delete distops subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -47,42 +47,42 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Create local sub urn:S1 (Vehicle) on CB → derived sub forwarded"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "03. GET /subscriptions on CP1 — derived urn:S1:1 present"
 echo "========================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. DELETE urn:S1 on CB → cascade DELETE to CP1"
 echo "==============================================="
-swCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
+corCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
 echo
 echo
 
 
 echo "05. GET /subscriptions on CP1 — derived sub gone"
 echo "================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "06. GET /subscriptions on CB — local sub gone"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -173,7 +173,7 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

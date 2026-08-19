@@ -22,9 +22,9 @@
 #include "kjson/kjBuilder.h"                             // kjObject, kjString, kjChildAdd
 #include "kjson/kjClone.h"                               // kjClone
 
-#include "swRest/SwRestState.h"                          // swRest (__thread)
-#include "swNgsild/SwNgsild.h"                           // swNgsild (__thread)
-#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "corRest/CorRestState.h"                          // corRest (__thread)
+#include "corNgsild/CorNgsild.h"                           // corNgsild (__thread)
+#include "corNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
 
 #include "db/DbDriver.h"                                 // db, DB_OK
 #include "db/Tenant.h"                                   // Tenant
@@ -54,7 +54,7 @@ typedef struct SnapshotCaptureCtx
 //
 // snapshotWorkerThread - worker entry point.
 //
-// Initializes the per-thread swRest / swNgsild state, runs the capture,
+// Initializes the per-thread corRest / corNgsild state, runs the capture,
 // persists the final state via db.snapshotUpdate, fires the notification,
 // and exits.
 //
@@ -63,24 +63,24 @@ static void* snapshotWorkerThread(void* arg)
   SnapshotCaptureCtx* ctx = (SnapshotCaptureCtx*) arg;
   if (ctx == NULL) return NULL;
 
-  // Per-thread swRest init — minimal. We're not handling an MHD request,
-  // so we skip swRestStateInit and set up only what the DB / notify code
+  // Per-thread corRest init — minimal. We're not handling an MHD request,
+  // so we skip corRestStateInit and set up only what the DB / notify code
   // touches: kalloc, kjsonP, requestStartTime.
-  memset(&swRest, 0, sizeof(swRest));
-  kaBufferInit(&swRest.kalloc, swRest.kallocBuffer, sizeof(swRest.kallocBuffer),
+  memset(&corRest, 0, sizeof(corRest));
+  kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer),
                256 * 1024, NULL, "snap-async");
-  swRest.kjsonP = kjBufferCreate(&swRest.kjson, &swRest.kalloc);
+  corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
 
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
-  swRest.requestStartTime = (uint64_t) ts.tv_sec * 1000000000ULL + (uint64_t) ts.tv_nsec;
+  corRest.requestStartTime = (uint64_t) ts.tv_sec * 1000000000ULL + (uint64_t) ts.tv_nsec;
 
-  // Per-thread swNgsild init. The worker only uses tenantP and the
+  // Per-thread corNgsild init. The worker only uses tenantP and the
   // splitEntities* fields (via ldSnapshotExec's runOneQuery).
-  memset(&swNgsild, 0, sizeof(swNgsild));
-  swNgsild.tenantP          = ctx->tenantP;
-  swNgsild.splitEntitiesSet = ctx->splitEntitiesSet;
-  swNgsild.splitEntitiesVal = ctx->splitEntitiesVal;
+  memset(&corNgsild, 0, sizeof(corNgsild));
+  corNgsild.tenantP          = ctx->tenantP;
+  corNgsild.splitEntitiesSet = ctx->splitEntitiesSet;
+  corNgsild.splitEntitiesVal = ctx->splitEntitiesVal;
 
   ldSnapshotExecQueries(ctx->cacheP, ctx->itemP, ctx->tenantP);
   ldSnapshotExecTemporalQueries(ctx->cacheP, ctx->itemP, ctx->tenantP);
@@ -89,16 +89,16 @@ static void* snapshotWorkerThread(void* arg)
   // via JSON Merge Patch.
   if (db.snapshotUpdate != NULL && ctx->itemP->tree != NULL)
   {
-    KjNode* fragment = kjObject(swRest.kjsonP, NULL);
+    KjNode* fragment = kjObject(corRest.kjsonP, NULL);
     KjNode* sP       = kjLookup(ctx->itemP->tree, "snapshotStatus");
     if (sP != NULL && sP->type == KjString)
-      kjChildAdd(fragment, kjString(swRest.kjsonP, "snapshotStatus", sP->value.s));
+      kjChildAdd(fragment, kjString(corRest.kjsonP, "snapshotStatus", sP->value.s));
     KjNode* dP = kjLookup(ctx->itemP->tree, "snapshotQueriesDetails");
     if (dP != NULL)
-      kjChildAdd(fragment, kjClone(swRest.kjsonP, dP));
+      kjChildAdd(fragment, kjClone(corRest.kjsonP, dP));
     KjNode* tdP = kjLookup(ctx->itemP->tree, "snapshotTemporalQueriesDetails");
     if (tdP != NULL)
-      kjChildAdd(fragment, kjClone(swRest.kjsonP, tdP));
+      kjChildAdd(fragment, kjClone(corRest.kjsonP, tdP));
     if (fragment->value.firstChildP != NULL)
       db.snapshotUpdate(ctx->tenantP, ctx->itemP->id, fragment);
   }
@@ -111,7 +111,7 @@ static void* snapshotWorkerThread(void* arg)
   // The thread is about to exit so nothing to free explicitly; the OS
   // reclaims thread-locals. kaBuffer's malloc-overflow blocks need to be
   // freed via kaBufferReset.
-  kaBufferReset(&swRest.kalloc, true);
+  kaBufferReset(&corRest.kalloc, true);
 
   free(ctx);
   return NULL;

@@ -18,23 +18,23 @@
 #include "kjson/kjBuilder.h"                             // kjArray, kjObject, kjString, kjChildAdd
 #include "kjson/kjParse.h"                               // kjParse
 
-#include "swRest/SwRestState.h"                          // swRest
-#include "swRest/swRestClient.h"                         // SwRestClientRequest, swRestClientSend
+#include "corRest/CorRestState.h"                          // corRest
+#include "corRest/corRestClient.h"                         // CorRestClientRequest, corRestClientSend
 
-#include "swJsonld/swldExpand.h"                         // swldExpand, swldAlreadyExpanded
-#include "swJsonld/swldExpandTree.h"                     // swldExpandTree
-#include "swNgsild/swNgsild.h"                           // swNgsild
-#include "swNgsild/ldInit.h"                             // ldSplitEntities (extern)
-#include "swNgsild/ldQParse.h"                           // ldQParse
-#include "swNgsild/LdScopeExpr.h"                        // ldScopeExprParse
-#include "swNgsild/LdRegCache.h"                         // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldRegCache.h"                         // ldRegCacheMatchForRetrieve
-#include "swNgsild/ldStripAtContext.h"                   // ldStripAtContext
-#include "swNgsild/ldApiEntityToDbModel.h"               // ldApiEntityToDbModel
-#include "swNgsild/ldExpiresAtPropagate.h"            // ldExpiresAtPropagate
-#include "swNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile, ldDistScopeMerge
-#include "swNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
+#include "corJsonld/corLdExpand.h"                         // corLdExpand, corLdAlreadyExpanded
+#include "corJsonld/corLdExpandTree.h"                     // corLdExpandTree
+#include "corNgsild/corNgsild.h"                           // corNgsild
+#include "corNgsild/ldInit.h"                             // ldSplitEntities (extern)
+#include "corNgsild/ldQParse.h"                           // ldQParse
+#include "corNgsild/LdScopeExpr.h"                        // ldScopeExprParse
+#include "corNgsild/LdRegCache.h"                         // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldRegCache.h"                         // ldRegCacheMatchForRetrieve
+#include "corNgsild/ldStripAtContext.h"                   // ldStripAtContext
+#include "corNgsild/ldApiEntityToDbModel.h"               // ldApiEntityToDbModel
+#include "corNgsild/ldExpiresAtPropagate.h"            // ldExpiresAtPropagate
+#include "corNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile, ldDistScopeMerge
+#include "corNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
 #include "kjson/kjClone.h"                               // kjClone
 #include "kjson/kjFree.h"                                // kjFree
@@ -55,9 +55,9 @@ static const char* expandedTypeOrSelf(const char* shortName)
 {
   if (shortName == NULL)
     return NULL;
-  if (swldAlreadyExpanded(shortName))
+  if (corLdAlreadyExpanded(shortName))
     return shortName;
-  return swldExpand(swNgsild.contextP, shortName, &swRest.kalloc, NULL, NULL);
+  return corLdExpand(corNgsild.contextP, shortName, &corRest.kalloc, NULL, NULL);
 }
 
 
@@ -99,8 +99,8 @@ static void entitySelectorsToFilter(KjNode* entitiesP, DbQueryFilter* filterP)
     if (kjLookup(selP, "type") != NULL) typeCap++;
   }
 
-  char** idV   = (idCap   > 0) ? (char**) kaAlloc(&swRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
-  char** typeV = (typeCap > 0) ? (char**) kaAlloc(&swRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
+  char** idV   = (idCap   > 0) ? (char**) kaAlloc(&corRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
+  char** typeV = (typeCap > 0) ? (char**) kaAlloc(&corRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
   int    nId = 0, nType = 0;
   const char* idPattern = NULL;
 
@@ -163,11 +163,11 @@ static void queryToFilter(KjNode* queryP, DbQueryFilter* filterP)
 
   KjNode* qP = kjLookup(queryP, "q");
   if (qP != NULL && qP->type == KjString)
-    filterP->qExpr = ldQParse(qP->value.s, &swRest.kalloc);
+    filterP->qExpr = ldQParse(qP->value.s, &corRest.kalloc);
 
   KjNode* scopeQP = kjLookup(queryP, "scopeQ");
   if (scopeQP != NULL && scopeQP->type == KjString)
-    filterP->scopeExpr = ldScopeExprParse(scopeQP->value.s, &swRest.kalloc);
+    filterP->scopeExpr = ldScopeExprParse(scopeQP->value.s, &corRest.kalloc);
 }
 
 
@@ -398,28 +398,28 @@ static KjNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryS
   int   baseLen = strlen(base);
   int   pathLen = strlen(path);
   int   qsLen   = strlen(queryString);
-  char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+  char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, queryString);
 
-  SwRestClientRequest  req;
-  SwRestClientResponse resp;
+  CorRestClientRequest  req;
+  CorRestClientResponse resp;
 
-  swRestClientRequestInit(&req, SwVerbGet, url, &swRest.kalloc);
-  swRestClientRequestTimeout(&req, 5000, 10000);
+  corRestClientRequestInit(&req, CorVerbGet, url, &corRest.kalloc);
+  corRestClientRequestTimeout(&req, 5000, 10000);
 
-  int rc = swRestClientSend(&req, &resp);
-  swRestClientResponseCleanup(&resp);   // free the grown response header vector
+  int rc = corRestClientSend(&req, &resp);
+  corRestClientResponseCleanup(&resp);   // free the grown response header vector
   if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300) return NULL;
   if (resp.body == NULL || resp.bodyLen == 0)                     return NULL;
 
-  char* bodyCopy = (char*) kaAlloc(&swRest.kalloc, resp.bodyLen + 1);
+  char* bodyCopy = (char*) kaAlloc(&corRest.kalloc, resp.bodyLen + 1);
   memcpy(bodyCopy, resp.body, resp.bodyLen);
   bodyCopy[resp.bodyLen] = 0;
 
-  KjNode* treeP = kjParse(swRest.kjsonP, bodyCopy);
+  KjNode* treeP = kjParse(corRest.kjsonP, bodyCopy);
   if (treeP != NULL) ldStripAtContext(treeP);
   return treeP;
 }
@@ -451,7 +451,7 @@ static void snapshotExpiryApply(KjNode* entityP, uint64_t nowNs)
   if (entityP == NULL || entityP->type != KjObject)
     return;
 
-  ldExpiresAtPropagate(entityP, swRest.kjsonP);
+  ldExpiresAtPropagate(entityP, corRest.kjsonP);
 
   KjNode* attrP = entityP->value.firstChildP;
   while (attrP != NULL)
@@ -491,7 +491,7 @@ static void snapshotExpiryApply(KjNode* entityP, uint64_t nowNs)
 // via ldDistInstanceShouldReplace.
 //
 // Both trees are mutated in place; the caller is responsible for
-// passing trees in a long-enough-lived allocator (typically swRest.kjsonP).
+// passing trees in a long-enough-lived allocator (typically corRest.kjsonP).
 //
 static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
 {
@@ -503,7 +503,7 @@ static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
   ldDistExpiresAtReconcile(destDb, srcDb);
 
   // § 5.2.7 — the Scopes of every version are merged, here into the frozen copy
-  ldDistScopeMerge(destDb, srcDb, swRest.kjsonP);
+  ldDistScopeMerge(destDb, srcDb, corRest.kjsonP);
 
   KjNode* srcAttrP = srcDb->value.firstChildP;
   while (srcAttrP != NULL)
@@ -524,7 +524,7 @@ static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
     if (destAttrP == NULL)
     {
       // Attr absent in dest — clone the whole wrapper across.
-      kjChildAdd(destDb, kjClone(swRest.kjsonP, srcAttrP));
+      kjChildAdd(destDb, kjClone(corRest.kjsonP, srcAttrP));
     }
     else
     {
@@ -535,11 +535,11 @@ static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
         if (destInstP == NULL)
         {
           if (!ldDistInstanceIsExpired(srcInstP, nowNs))
-            kjChildAdd(destAttrP, kjClone(swRest.kjsonP, srcInstP));
+            kjChildAdd(destAttrP, kjClone(corRest.kjsonP, srcInstP));
         }
         else if (ldDistInstanceShouldReplace(destInstP, srcInstP, nowNs))
         {
-          kjChildReplace(destAttrP, destInstP, kjClone(swRest.kjsonP, srcInstP));
+          kjChildReplace(destAttrP, destInstP, kjClone(corRest.kjsonP, srcInstP));
         }
       }
     }
@@ -562,7 +562,7 @@ static int streamRemoteEntitiesSplit(KjNode* arrayP, Tenant* snapTenantP)
   if (arrayP == NULL || arrayP->type != KjArray || snapTenantP == NULL)
     return 0;
 
-  uint64_t nowNs = swRest.requestStartTime;
+  uint64_t nowNs = corRest.requestStartTime;
   int      n     = 0;
 
   for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
@@ -572,8 +572,8 @@ static int streamRemoteEntitiesSplit(KjNode* arrayP, Tenant* snapTenantP)
     KjNode* idP = kjLookup(entityP, "id");
     if (idP == NULL || idP->type != KjString) continue;
 
-    swldExpandTree(entityP, swNgsild.contextP, &swRest.kalloc);
-    ldApiEntityToDbModel(entityP, &swRest.kalloc, 0);
+    corLdExpandTree(entityP, corNgsild.contextP, &corRest.kalloc);
+    ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
     snapshotExpiryApply(entityP, nowNs);
 
     KjNode* existing = NULL;
@@ -728,9 +728,9 @@ static int streamRemoteEntitiesIntoSnapshot(KjNode* arrayP, Tenant* snapTenantP)
 
     // CSR responses are in API form — expand short names + wrap attrs
     // into the broker's storage format that db.entityCreate expects.
-    swldExpandTree(entityP, swNgsild.contextP, &swRest.kalloc);
-    ldApiEntityToDbModel(entityP, &swRest.kalloc, 0);
-    snapshotExpiryApply(entityP, swRest.requestStartTime);
+    corLdExpandTree(entityP, corNgsild.contextP, &corRest.kalloc);
+    ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
+    snapshotExpiryApply(entityP, corRest.requestStartTime);
 
     int wr = db.entityCreate(snapTenantP, idP->value.s, entityP);
     if (wr == DB_OK || wr == DB_ALREADY_EXISTS)
@@ -748,7 +748,7 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
   if (itemP->snapTenantP == NULL) return -1;
   Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
 
-  bool splitMode = swNgsild.splitEntitiesSet ? swNgsild.splitEntitiesVal : ldSplitEntities;
+  bool splitMode = corNgsild.splitEntitiesSet ? corNgsild.splitEntitiesVal : ldSplitEntities;
 
   // 1) Local capture.
   //    no-split → full filter (each entity is fully held by one source,
@@ -803,8 +803,8 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
   }
 
   const char* qs = splitMode
-                     ? buildSplitForwardQs(queryP, &swRest.kalloc)
-                     : buildQueryStringFromSnapshotQuery(queryP, &swRest.kalloc);
+                     ? buildSplitForwardQs(queryP, &corRest.kalloc)
+                     : buildQueryStringFromSnapshotQuery(queryP, &corRest.kalloc);
   LdRegMode   modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
   LdRegCache* regC    = (LdRegCache*) tenantP->regCacheP;
 

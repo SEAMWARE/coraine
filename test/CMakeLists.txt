@@ -7,6 +7,6 @@ SET_TARGET_PROPERTIES(ftClient PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/test/funcTests/ftClient"
 )
 TARGET_LINK_LIBRARIES(ftClient
-  -Wl,--whole-archive ${SW_STATIC_LIBS} -Wl,--no-whole-archive
-  ${SW_DYNAMIC_LIBS}
+  -Wl,--whole-archive ${COR_STATIC_LIBS} -Wl,--no-whole-archive
+  ${COR_DYNAMIC_LIBS}
 )

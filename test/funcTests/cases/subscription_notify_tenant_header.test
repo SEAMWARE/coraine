@@ -19,15 +19,15 @@ Subscription notification — NGSILD-Tenant carried on the notification (§ 6.4.
 subscription notification tenant
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Subscription under tenant 'captn' (type T)"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: captn' --payload '{
   "id":"urn:ngsi-ld:Subscription:t",
   "type":"Subscription",
   "entities":[{"type":"T"}],
@@ -39,7 +39,7 @@ echo
 
 echo "02. Create a T under 'captn' → notification carries NGSILD-Tenant: captn"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
   "id":"urn:E1","type":"T","n":{"type":"Property","value":1}
 }'
 echo
@@ -52,7 +52,7 @@ echo
 
 echo "03. Subscription on the DEFAULT tenant (type U)"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:d",
   "type":"Subscription",
   "entities":[{"type":"U"}],
@@ -64,7 +64,7 @@ echo
 
 echo "04. Create a U on the default tenant → notification has NO NGSILD-Tenant"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:E2","type":"U","n":{"type":"Property","value":1}
 }'
 echo
@@ -179,5 +179,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

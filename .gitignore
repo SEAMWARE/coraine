@@ -23,7 +23,7 @@ coverage-mongoc/
 BUILD_RELEASE/
 BUILD_DEBUG/
 BUILD_COVERAGE/
-/swBroker
+/coraine
 test/funcTests/ftClient/ftClient
 
 # Editor lock / autosave files
@@ -42,5 +42,5 @@ CLAUDE
 
 .claude/scheduled_tasks.lock
 
-# Docker build staging: exported sw-lib sources (regenerate with docker/vendor-libs.sh)
+# Docker build staging: exported Cor-Lib sources (regenerate with docker/vendor-libs.sh)
 docker/vendor/

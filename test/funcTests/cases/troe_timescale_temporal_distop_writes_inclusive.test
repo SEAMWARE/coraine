@@ -19,12 +19,12 @@ TRoE timescale - temporal distop URL writes, inclusive
 troe timescale postgres temporal distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swTroeInit
-swTroeInit -role CP1
-swBrokerStart        --troe timescale -dist
-swBrokerStart -role CP1 --troe timescale -dist
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist
+coraineStart -role CP1 --troe timescale -dist
 
 --RUN--
 
@@ -43,7 +43,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -57,7 +57,7 @@ payload='{
     { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
@@ -69,28 +69,28 @@ payload='{
     { "type": "Property", "value": 20, "observedAt": "2026-04-28T10:00:00Z" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs --payload "$payload"
 echo
 echo
 
 
 echo "04. GET temporal/urn:V1 on CP1 - 2 instances persisted via fan-out"
 echo "=================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
 
 echo "05. DELETE /attrs/speed?deleteAll=true on CB (deleteAttrs distop)"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed?deleteAll=true' -X DELETE
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed?deleteAll=true' -X DELETE
 echo
 echo
 
 
 echo "06. GET temporal/urn:V1 on CP1 - speed instances gone, only id+type left"
 echo "========================================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
@@ -104,15 +104,15 @@ payload='{
     { "type": "Property", "value": 30, "observedAt": "2026-04-28T11:00:00Z" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" >/dev/null
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE
 echo
 echo
 
 
 echo "08. GET temporal/urn:V1 on CP1 - 404"
 echo "===================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
@@ -223,9 +223,9 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
-swTroeDrop
-swTroeDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

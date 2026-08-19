@@ -15,8 +15,8 @@ Admin metrics - per-LdOp counters + error counters + notification counters
 admin metrics
 
 --INIT--
-swDbDrop
-swBrokerStart --apiPlugins admin -dist
+corDbDrop
+coraineStart --apiPlugins admin -dist
 
 --RUN--
 
@@ -25,42 +25,42 @@ swBrokerStart --apiPlugins admin -dist
 # 02. POST 2 entities + retrieve one + bad-request (4xx) + duplicate (409)
 # 03. GET /admin/metrics — verify specific counters moved
 #
-# swCurl's REGEXPECT can't easily span a large metrics dump; we
+# corCurl's REGEXPECT can't easily span a large metrics dump; we
 # grep a handful of interesting lines from /admin/metrics and
 # verify those.
 #
 
 echo "01. Initial metrics - entity_create should be 0"
 echo "==============================================="
-swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_create_total|^ngsild_entity_retrieve_total|^ngsild_errors_4xx_total|^ngsild_notifications_sent_total" | sort
+corCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_create_total|^ngsild_entity_retrieve_total|^ngsild_errors_4xx_total|^ngsild_notifications_sent_total" | sort
 echo
 echo
 
 
 echo "02. Two successful POSTs + one 415 (bad content-type)"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
 # Duplicate create -> 409 (still counts on entity_create_total, errors_4xx++)
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
 # Retrieve one -> entity_retrieve_total++
-swCurl --url /ngsi-ld/v1/entities/urn:V1 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 | head -1
 echo
 echo
 
 
 echo "03. Metrics after requests"
 echo "=========================="
-swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_create_total|^ngsild_entity_retrieve_total|^ngsild_errors_4xx_total|^ngsild_notifications_sent_total" | sort
+corCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_create_total|^ngsild_entity_retrieve_total|^ngsild_errors_4xx_total|^ngsild_notifications_sent_total" | sort
 echo
 echo
 
 
 echo "04. Cache gauges - add a sub + a CSR"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://x.example/n"}}}' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:R1","type":"ContextSourceRegistration","endpoint":"http://r.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
-swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_tenants_total|^ngsild_subscription_cache_size|^ngsild_csource_registration_cache_size|^ngsild_csource_subscription_cache_size|^ngsild_pernot_cache_size|^ngsild_entity_map_store_size" | sort
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://x.example/n"}}}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:R1","type":"ContextSourceRegistration","endpoint":"http://r.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /admin/metrics --out raw | grep -aE "^ngsild_tenants_total|^ngsild_subscription_cache_size|^ngsild_csource_registration_cache_size|^ngsild_csource_subscription_cache_size|^ngsild_pernot_cache_size|^ngsild_entity_map_store_size" | sort
 echo
 echo
 
@@ -103,4 +103,4 @@ ngsild_tenants_total 1
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

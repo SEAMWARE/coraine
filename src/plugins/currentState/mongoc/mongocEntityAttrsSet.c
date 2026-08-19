@@ -20,16 +20,16 @@
 #include "ktrace/kTrace.h"                             // KT_E
 #include "kjson/KjNode.h"                              // KjNode
 #include "kjson/kjLookup.h"                            // kjLookup
-#include "swRest/SwRestState.h"                        // swRest
+#include "corRest/CorRestState.h"                        // corRest
 
-#include "swNgsild/LdVocab.h"                          // LD_VOCAB_MODIFIED_AT
-#include "swNgsild/ldEntityAttrsSet.h"                 // ldEntityAttrsSet
+#include "corNgsild/LdVocab.h"                          // LD_VOCAB_MODIFIED_AT
+#include "corNgsild/ldEntityAttrsSet.h"                 // ldEntityAttrsSet
 
 #include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocBsonToKjTree.h"    // mongocBsonToKjTree
 #include "currentState/mongoc/mongocKjTreeToBson.h"    // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"       // mongocEscapeDotsInKey
-#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"        // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityAttrsSet.h"  // Own interface
 
@@ -67,7 +67,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    target = mongocBsonToKjTree(&swRest.kalloc, doc);
+    target = mongocBsonToKjTree(&corRest.kalloc, doc);
   }
   else
   {
@@ -91,7 +91,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
   // 2. Apply append semantics in memory. Target + grafted fragment nodes
   //    share the request arena.
   //
-  ldEntityAttrsSet(target, fragmentDb, overwriteScope, ts, reportP, swRest.kjsonP);
+  ldEntityAttrsSet(target, fragmentDb, overwriteScope, ts, reportP, corRest.kjsonP);
 
   //
   // 3. Build a surgical $set + $unset from the merge report.
@@ -211,7 +211,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
     if (geoClashP != NULL)
     {
       KT_E("mongoc: entityAttrsSet: '%s' is a GeoProperty here but already held as another type", geoClashP);
-      swNgsild.geoConflictAttr = geoClashP;
+      corNgsild.geoConflictAttr = geoClashP;
       result = DB_GEO_TYPE_CONFLICT;
     }
     else if (!mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err))
@@ -226,7 +226,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
         if (mixedP != NULL)
         {
           KT_E("mongoc: entityAttrsSet: '%s' is held as a GeoProperty here and set to another type", mixedP);
-          swNgsild.geoConflictAttr = mixedP;
+          corNgsild.geoConflictAttr = mixedP;
           result = DB_GEO_TYPE_CONFLICT;
         }
         else

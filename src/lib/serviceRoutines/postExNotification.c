@@ -24,21 +24,21 @@
 #include <string.h>                                  // strlen, strcmp, strncasecmp
 #include <stdio.h>                                   // snprintf
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestClient.h"                     // SwRestClientRequest, swRestClientSend
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestClient.h"                     // CorRestClientRequest, corRestClientSend
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjRender.h"                          // kjFastRender
 #include "kjson/kjRenderSize.h"                      // kjFastRenderSize
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swJsonld/swldInit.h"                       // swldCoreContext
-#include "swJsonld/swldCompactTree.h"                // swldCompactTree
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/corLdCompactTree.h"                // corLdCompactTree
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
-#include "swNgsild/ldNotifyStatsHook.h"              // ldNotifyStatsHookInvoke
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
+#include "corNgsild/ldNotifyStatsHook.h"              // ldNotifyStatsHookInvoke
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -52,7 +52,7 @@
 //
 bool postExNotification(void)
 {
-  const char* parentSubId = swRest.in.wildcard[0];
+  const char* parentSubId = corRest.in.wildcard[0];
 
   if (parentSubId == NULL || parentSubId[0] == 0)
   {
@@ -60,7 +60,7 @@ bool postExNotification(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   if (tenantP->subCacheP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no subscription cache for this tenant");
@@ -81,7 +81,7 @@ bool postExNotification(void)
   // we touch here ("subscriptionId", "data") are core-context terms
   // and survive expansion as short names.
   //
-  KjNode* bodyTree = swRest.in.requestTree;
+  KjNode* bodyTree = corRest.in.requestTree;
   if (bodyTree == NULL || bodyTree->type != KjObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
@@ -104,7 +104,7 @@ bool postExNotification(void)
   bool isActive = (itemP->status == LdSubStatusActive);
   if (!isActive || itemP->endpointUri == NULL)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
@@ -114,25 +114,25 @@ bool postExNotification(void)
   // sub notification would carry. Core context handles default-vocab
   // stripping (Vehicle, speed, …) without needing the parent's user ctx.
   //
-  swldCompactTree(bodyTree);
+  corLdCompactTree(bodyTree);
 
   //
   // Render the (modified) body and POST to the original subscriber.
   //
   int   bodyLen = kjFastRenderSize(bodyTree) + 1;
-  char* body    = (char*) kaAlloc(&swRest.kalloc, bodyLen);
+  char* body    = (char*) kaAlloc(&corRest.kalloc, bodyLen);
   kjFastRender(bodyTree, body);
 
-  SwRestClientRequest  req;
-  SwRestClientResponse resp;
+  CorRestClientRequest  req;
+  CorRestClientResponse resp;
 
-  swRestClientRequestInit(&req, SwVerbPost, itemP->endpointUri, NULL);
-  swRestClientRequestHeader(&req, "Content-Type", "application/json");
+  corRestClientRequestInit(&req, CorVerbPost, itemP->endpointUri, NULL);
+  corRestClientRequestHeader(&req, "Content-Type", "application/json");
 
   const char* ctxUrl = (itemP->contextUrl != NULL) ? itemP->contextUrl : NULL;
   if (ctxUrl == NULL)
   {
-    SwldContext* coreP = swldCoreContext();
+    CorLdContext* coreP = corLdCoreContext();
     if (coreP != NULL)
       ctxUrl = coreP->url;
   }
@@ -142,33 +142,33 @@ bool postExNotification(void)
     snprintf(linkBuf, sizeof(linkBuf),
              "<%s>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
              ctxUrl);
-    swRestClientRequestHeader(&req, "Link", linkBuf);
+    corRestClientRequestHeader(&req, "Link", linkBuf);
   }
 
-  swRestClientRequestBody(&req, body, strlen(body));
-  swRestClientRequestTimeout(&req, 5000, 10000);
+  corRestClientRequestBody(&req, body, strlen(body));
+  corRestClientRequestTimeout(&req, 5000, 10000);
 
-  swRestClientSend(&req, &resp);
-  swRestClientResponseCleanup(&resp);   // free the grown response header vector
+  corRestClientSend(&req, &resp);
+  corRestClientResponseCleanup(&resp);   // free the grown response header vector
 
   //
   // Update the parent sub's notification counters — same accounting as
   // a locally-emitted notification.
   //
   itemP->timesSent       += 1;
-  itemP->lastNotification = swRest.requestStartTime;
+  itemP->lastNotification = corRest.requestStartTime;
 
   bool ok = (resp.statusCode >= 200 && resp.statusCode < 300);
   if (ok)
-    itemP->lastSuccess = swRest.requestStartTime;
+    itemP->lastSuccess = corRest.requestStartTime;
   else
   {
     itemP->timesFailed += 1;
-    itemP->lastFailure  = swRest.requestStartTime;
+    itemP->lastFailure  = corRest.requestStartTime;
   }
 
   ldNotifyStatsHookInvoke(false /*csrSub*/, ok);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

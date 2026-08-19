@@ -12,8 +12,8 @@ DateTime Property as compound value with @type/@value round-trips on create + GE
 attr create retrieve format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,21 +36,21 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
 
 echo "02. GET the entity (normalized)"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14
 echo
 echo
 
 
 echo "03. GET the entity simplified (keyValues)"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14 --urlParams 'options=keyValues'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:12:13:14 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -108,4 +108,4 @@ Content-Length: 134
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

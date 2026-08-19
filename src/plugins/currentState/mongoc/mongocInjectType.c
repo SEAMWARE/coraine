@@ -13,7 +13,7 @@
 #include "kjson/kjBuilder.h"                          // kjString, kjChildAdd
 #include "kjson/kjNodeDecouple.h"                     // kjNodeDecouple
 
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 
 #include "currentState/mongoc/mongocInjectType.h"     // Own interface
 
@@ -80,7 +80,7 @@ void mongocInjectTypeAfterId(KjNode* objP, const char* typeValue)
   if (objP == NULL || objP->type != KjObject) return;
   if (kjLookup(objP, "type") != NULL)         return;
 
-  KjNode* typeNode = kjString(swRest.kjsonP, "type", (char*) typeValue);
+  KjNode* typeNode = kjString(corRest.kjsonP, "type", (char*) typeValue);
   KjNode* idP      = kjLookup(objP, "id");
 
   if (idP != NULL)

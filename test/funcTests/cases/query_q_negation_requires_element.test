@@ -31,8 +31,8 @@ q negation - a negated term still requires the element (§ 7.2.3.3), !attr is th
 q query negation range valueList pattern
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -44,7 +44,7 @@ payload='{
 }'
 echo "01. Seed urn:E1 (p=10)"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -57,7 +57,7 @@ payload='{
 }'
 echo "02. Seed urn:E2 (p=99)"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -69,77 +69,77 @@ payload='{
 }'
 echo "03. Seed urn:E3 (no p, no s)"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. q=p==1..50 selects urn:E1"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=p==1..50&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p==1..50&format=simplified'
 echo
 echo
 
 
 echo "05. q=p!=1..50 selects urn:E2 — the COMPLEMENT of 04, and never urn:E3"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=1..50&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=1..50&format=simplified'
 echo
 echo
 
 
 echo "06. q=p!=200..300 selects urn:E1 and urn:E2 — both are outside, urn:E3 has no p"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=200..300&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=200..300&format=simplified'
 echo
 echo
 
 
 echo "07. q=p!=10 selects urn:E2 only — urn:E3 has no p to be unequal with"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=10&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=10&format=simplified'
 echo
 echo
 
 
 echo "08. q=p!=10,77 (value list) selects urn:E2 only"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=10,77&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p!=10,77&format=simplified'
 echo
 echo
 
 
 echo "09. q=s!=\"alpha\" selects urn:E2 only"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=s!=%22alpha%22&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s!=%22alpha%22&format=simplified'
 echo
 echo
 
 
 echo "10. q=s!~=\"^al\" (do-not-match-pattern) selects urn:E2 only"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=s!~=%22^al%22&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s!~=%22^al%22&format=simplified'
 echo
 echo
 
 
 echo "11. q=!p (non-existence) selects urn:E3 — the exception to the rule"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=!p&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=!p&format=simplified'
 echo
 echo
 
 
 echo "12. q=!p.sub selects urn:E3 — no 'p' at all means no 'p.sub' either"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=!p.sub&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=!p.sub&format=simplified'
 echo
 echo
 
 
 echo "13. q=p.sub (existence through a path) selects urn:E1 and urn:E2"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=p.sub&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.sub&format=simplified'
 echo
 echo
 
@@ -376,5 +376,5 @@ Content-Length: 154
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

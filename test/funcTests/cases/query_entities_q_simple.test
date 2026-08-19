@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - q parameter simple filters (==, !=, >, <, >=, <=, exi
 entity q query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -52,7 +52,7 @@ payload='{
     "value": true
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -75,7 +75,7 @@ payload='{
     "value": false
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -98,84 +98,84 @@ payload='{
     "value": true
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. q=speed==100 - E1 only"
 echo "=========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3D%3D100'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3D%3D100'
 echo
 echo
 
 
 echo "05. q=speed>60 - E1, E3"
 echo "======================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E60'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E60'
 echo
 echo
 
 
 echo "06. q=speed>=75 - E1, E3"
 echo "========================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E%3D75'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E%3D75'
 echo
 echo
 
 
 echo "07. q=speed<75 - E2"
 echo "==================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3C75'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3C75'
 echo
 echo
 
 
 echo "08. q=speed<=75 - E2, E3"
 echo "========================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3C%3D75'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3C%3D75'
 echo
 echo
 
 
 echo "09. q=speed!=100 - E2, E3"
 echo "========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed!%3D100'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed!%3D100'
 echo
 echo
 
 
 echo "10. q=color==%22red%22 - E1, E3"
 echo "==============================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color%3D%3D%22red%22'
 echo
 echo
 
 
 echo "11. q=color!=%22red%22 - E2"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color!%3D%22red%22'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=color!%3D%22red%22'
 echo
 echo
 
 
 echo "12. q=active==true - E1, E3"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=active%3D%3Dtrue'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=active%3D%3Dtrue'
 echo
 echo
 
 
 echo "13. q=speed (existence) - E1, E2, E3"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed'
 echo
 echo
 
 
 echo "14. q=nonExistent (existence, no match) - empty"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=nonExistent'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=nonExistent'
 echo
 echo
 
@@ -642,5 +642,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ Subscription creation and patch error handling
 error subscription
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -52,7 +52,7 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -64,7 +64,7 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -75,7 +75,7 @@ payload='{
   "type": "Subscription",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -86,7 +86,7 @@ payload='{
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}]
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -98,7 +98,7 @@ payload='{
   "entities": [],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -110,7 +110,7 @@ payload='{
   "entities": [{}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -122,7 +122,7 @@ payload='{
   "entities": [{"type": 123}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -134,7 +134,7 @@ payload='{
   "watchedAttributes": "speed",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -146,7 +146,7 @@ payload='{
   "watchedAttributes": [123, true],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -160,7 +160,7 @@ payload='{
   "timeInterval": 60,
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -173,7 +173,7 @@ payload='{
   "throttling": "fast",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -186,7 +186,7 @@ payload='{
   "isActive": "yes",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -198,7 +198,7 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -210,7 +210,7 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -223,7 +223,7 @@ payload='{
   "expiresAt": "tomorrow",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -236,7 +236,7 @@ payload='{
   "q": 42,
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -249,7 +249,7 @@ payload='{
   "geoQ": {"coordinates": "[-3.7, 40.4]", "georel": "near;maxDistance==1000"},
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -262,7 +262,7 @@ payload='{
   "geoQ": {"geometry": "Hexagon", "coordinates": "[-3.7, 40.4]", "georel": "near;maxDistance==1000"},
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -275,7 +275,7 @@ payload='{
   "entities": [{"type": "Bike"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -288,7 +288,7 @@ payload='{
   "status": "active",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -301,11 +301,11 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 payload='{
   "id": "urn:ngsi-ld:Subscription:Other"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload "$payload"
 echo
 echo
 
@@ -315,7 +315,7 @@ echo "==========================="
 payload='{
   "type": "Subscription"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Err --payload "$payload"
 echo
 echo
 
@@ -328,7 +328,7 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -341,7 +341,7 @@ payload='{
   "q": "(invalidQuery",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -354,7 +354,7 @@ payload='{
   "q": "(invalidQuery",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
@@ -368,7 +368,7 @@ payload='{
   "q": "someAttr",
   "notification": {"endpoint": {"uri": "http://localhost:1234/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -785,5 +785,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

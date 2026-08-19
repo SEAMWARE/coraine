@@ -26,18 +26,18 @@ DistOp § 4.5.5.3 — entity-level expiresAt across sources
 distops expiresAt merge retrieve
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
 echo "01. Seed urn:V1 on CP1 - expiresAt 2099, speed"
 echo "=============================================="
-swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "expiresAt": "2099-01-01T00:00:00Z",
@@ -52,7 +52,7 @@ echo
 
 echo "02. Seed urn:V1 on CP2 - expiresAt 2150, colour"
 echo "==============================================="
-swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "expiresAt": "2150-01-01T00:00:00Z",
@@ -67,7 +67,7 @@ echo
 
 echo "03. Register CB->CP1 inclusive for Vehicle"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP1_PORT'",
@@ -80,7 +80,7 @@ echo
 
 echo "04. Register CB->CP2 inclusive for Vehicle"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP2_PORT'",
@@ -97,22 +97,22 @@ echo "  entity: 2150 (CP2, furthest in the future - NOT CP1's 2099)"
 echo "  speed:  2099 (cascaded from CP1's own version)"
 echo "  colour: 2150 (cascaded from CP2's own version)"
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "06. Query /entities on CB - same reconciliation on the list path"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
 echo
 echo
 
 
 echo "07. Re-seed urn:V1 on CP2 WITHOUT expiresAt"
 echo "==========================================="
-swCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "colour": {
@@ -128,22 +128,22 @@ echo "08. GET urn:V1 on CB - CP2 is not transient -> entity-level expiresAt GONE
 echo "=========================================================================="
 echo "  speed keeps its cascaded 2099 - the CP1 version really does expire"
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "09. Query /entities on CB - same on the list path"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
 echo
 echo
 
 
 echo "10. Put CP2 back at 2150 and add a LOCAL version on CB with expiresAt 2100"
 echo "=========================================================================="
-swCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP2_PORT" -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "expiresAt": "2150-01-01T00:00:00Z",
@@ -152,7 +152,7 @@ swCurl --port "$CP2_PORT" --url /ngsi-ld/v1/entities --payload '{
     "value": "red"
   }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "expiresAt": "2100-01-01T00:00:00Z",
@@ -171,15 +171,15 @@ echo "  weight carries NO expiresAt of its own: § 4.5.5.2 cascades the"
 echo "  entity-level value for Entities RECEIVED from a Context Source,"
 echo "  and the local copy is deleted wholesale when its expiry passes."
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "12. Drop expiresAt from the LOCAL version -> entity-level GONE again"
 echo "==================================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "weight": {
@@ -187,15 +187,15 @@ swCurl --url /ngsi-ld/v1/entities --payload '{
     "value": 900
   }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "13. Restore the LOCAL version's expiresAt 2100 + snapshot the split Entity"
 echo "=========================================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "expiresAt": "2100-01-01T00:00:00Z",
@@ -204,7 +204,7 @@ swCurl --url /ngsi-ld/v1/entities --payload '{
     "value": 900
   }
 }' | head -1
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Exp",
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
@@ -215,7 +215,7 @@ echo
 
 echo "14. Snapshot read - the frozen Entity carries the reconciled 2150"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp'
 echo
 echo
 
@@ -226,7 +226,7 @@ echo "    CP2 re-seeded with colour expiring in 1970 + a live doors attribute;"
 echo "    the snapshot keeps doors and drops colour (§ 5.2.4), and the frozen"
 echo "    attributes carry the cascaded entity-level expiry (§ 4.5.5.2)"
 echo
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 payload='{
   "id": "urn:V1",
   "type": "Vehicle",
@@ -241,8 +241,8 @@ payload='{
     "value": 5
   }
 }'
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload" | head -1
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Exp2",
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
@@ -253,7 +253,7 @@ echo
 
 echo "16. Snapshot read with sysAttrs - colour gone, doors present with its expiry"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp2'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Exp2'
 echo
 echo
 
@@ -567,9 +567,9 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

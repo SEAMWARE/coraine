@@ -15,21 +15,21 @@ TRoE - entity create captured by troeRamdb plugin
 troe create
 
 --INIT--
-swDbDrop
-swBrokerStart --troe ramdb --apiPlugins admin
+corDbDrop
+coraineStart --troe ramdb --apiPlugins admin
 
 --RUN--
 
 echo "01. POST entity urn:V1"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "02. GET /admin/troe/dump — one entityCreated event"
 echo "=================================================="
-swCurl --url /admin/troe/dump | python3 -c "
+corCurl --url /admin/troe/dump | python3 -c "
 import sys, json, re
 hdr = ''
 body = ''
@@ -70,5 +70,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

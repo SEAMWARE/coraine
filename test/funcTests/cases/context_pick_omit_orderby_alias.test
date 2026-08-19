@@ -19,10 +19,10 @@ pick/omit/orderBy short names expand via the request context
 context entity url-param
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -62,7 +62,7 @@ payload='{
   "spd": {"type": "Property", "value": 30},
   "nm": {"type": "Property", "value": "alpha"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 
 payload='{
@@ -71,7 +71,7 @@ payload='{
   "spd": {"type": "Property", "value": 10},
   "nm": {"type": "Property", "value": "charlie"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 
 payload='{
@@ -80,7 +80,7 @@ payload='{
   "spd": {"type": "Property", "value": 20},
   "nm": {"type": "Property", "value": "bravo"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -88,7 +88,7 @@ echo
 
 echo "02. orderBy=spd via ctxA — E2, E3, E1"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=spd' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=spd' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -96,7 +96,7 @@ echo
 
 echo "03. orderBy=spd;desc via ctxA — E1, E3, E2"
 echo "==========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=spd;desc' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=spd;desc' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -104,7 +104,7 @@ echo
 
 echo "04. orderBy=nm via ctxA — E1, E3, E2"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=nm' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=nm' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -112,7 +112,7 @@ echo
 
 echo "05. pick=id,spd via ctxA — id + spd, nm gone"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,spd&orderBy=spd' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,spd&orderBy=spd' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -120,7 +120,7 @@ echo
 
 echo "06. pick=id,spd via ctxB — only id survives"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,spd' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,spd' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -128,7 +128,7 @@ echo
 
 echo "07. omit=spd via ctxA — nm/id/type remain"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&omit=spd&orderBy=nm' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&omit=spd&orderBy=nm' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -136,7 +136,7 @@ echo
 
 echo "08. omit=spd via ctxB — nothing omitted, full IRIs echo"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities?id=urn:E1&type=T&omit=spd' \
+corCurl --url '/ngsi-ld/v1/entities?id=urn:E1&type=T&omit=spd' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -289,5 +289,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

@@ -17,17 +17,17 @@ TRoE timescale - aggregatedValues over the whole window (PT0S / absent) (§ 5.3.
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:V1 speed history: 10@10:00, 20@11:00, 30@12:00"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -35,14 +35,14 @@ echo
 
 echo "02. aggrPeriodDuration=PT0S → ONE bucket 09:00..13:00, all methods"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,sum,min,max,stddev,sumsq,distinctCount,totalCount&aggrPeriodDuration=PT0S'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,sum,min,max,stddev,sumsq,distinctCount,totalCount&aggrPeriodDuration=PT0S'
 echo
 echo
 
 
 echo "03. aggrPeriodDuration ABSENT → same single whole-window bucket (avg,sum)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,sum'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,sum'
 echo
 echo
 
@@ -160,4 +160,4 @@ Content-Length: 305
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

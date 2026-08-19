@@ -1,10 +1,10 @@
-# swBroker + MongoDB — the default backend, ready to run.
+# coraine + MongoDB — the default backend, ready to run.
 #
 #   docker compose -f docker/docker-compose.yml up
 #   curl localhost:1026/ngsi-ld/v1/types
 #
 # For a broker with no external services at all, skip compose entirely:
-#   docker run --rm -p 1026:1026 <image> --database swRamDB
+#   docker run --rm -p 1026:1026 <image> --database corRamDB
 #
 # Copyright 2026 Seamware
 
@@ -23,14 +23,14 @@ services:
       start_period: 10s
 
   broker:
-    # Published image; swap for swbroker:local to use a locally built one.
+    # Published image; swap for coraine:local to use a locally built one.
     image: quay.io/seamware/broker:latest
     depends_on:
       mongo:
         condition: service_healthy
     ports:
       - "1026:1026"
-    # ENTRYPOINT already supplies "swBroker -fg"; this replaces the default CMD.
+    # ENTRYPOINT already supplies "coraine -fg"; this replaces the default CMD.
     # --dbHost defaults to localhost, which inside a container is the container
     # itself — it has to point at the mongo service by name.
     command:

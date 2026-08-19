@@ -21,35 +21,35 @@ EntityMap reuse — bound query params: omit/same OK, modify/introduce 400, live
 entitymap query pagination distops
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed urn:V1 (speed=10)"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "02. Seed urn:V2 (speed=20)"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
 echo
 echo
 
 
 echo "03. Seed urn:V3 (speed=30)"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
 echo
 echo
 
 
 echo "04. Create EntityMap with type=Vehicle & q=speed>15 — map binds those, page = V2,V3"
 echo "==================================================================================="
-MAP_ID=$(swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 if [ -n "$MAP_ID" ]; then echo "Map captured (id present): yes"; else echo "Map captured (id present): no"; fi
 echo
 echo
@@ -57,42 +57,42 @@ echo
 
 echo "05. Reuse with the SAME params (type=Vehicle & q=speed>15) — V2,V3"
 echo "================================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&type=Vehicle&q=speed%3E15"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&type=Vehicle&q=speed%3E15"
 echo
 echo
 
 
 echo "06. Reuse OMITTING the bound params — broker re-applies them, V2,V3"
 echo "==================================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID"
 echo
 echo
 
 
 echo "07. Reuse MODIFYING q (speed>25) — 400 (a bound filter may not be changed)"
 echo "=========================================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E25"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=speed%3E25"
 echo
 echo
 
 
 echo "08. Reuse MODIFYING type (Car) — 400"
 echo "===================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&type=Car"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&type=Car"
 echo
 echo
 
 
 echo "09. Reuse INTRODUCING scopeQ (not used at creation) — 400"
 echo "========================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&scopeQ=/Sales"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&scopeQ=/Sales"
 echo
 echo
 
 
 echo "10. Mutate urn:V2 speed -> 5 (now fails the bound q=speed>15)"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":5}'
+corCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":5}'
 echo
 echo
 
@@ -100,7 +100,7 @@ echo
 echo "11. Reuse OMITTING params — bound q re-applied live, V2 now drops, only V3"
 echo "=========================================================================="
 echo "    Map still has 2 entries (count=2), but the live re-filter strips V2."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&count=true"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&count=true"
 echo
 echo
 
@@ -279,4 +279,4 @@ Content-Length: 120
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

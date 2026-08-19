@@ -25,7 +25,7 @@
 #include <string.h>                                      // strlen, strcpy, strcat
 #include <stdio.h>                                       // snprintf
 
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kjson/KjNode.h"                                // KjNode
 #include "kjson/kjLookup.h"                              // kjLookup
@@ -34,12 +34,12 @@
 
 #include "db/DbDriver.h"                                 // db
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemAdd
-#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
-#include "swNgsild/ldIso8601Duration.h"                  // ldIso8601DurationParseNs
-#include "swRest/swRestOutHeader.h"                      // swRestOutHeaderAdd
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemAdd
+#include "corNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "corNgsild/ldIso8601Duration.h"                  // ldIso8601DurationParseNs
+#include "corRest/corRestOutHeader.h"                      // corRestOutHeaderAdd
 
 #include "db/Tenant.h"                                   // Tenant
 #include "db/snapshotTenant.h"                           // snapshotTenantCreate
@@ -51,7 +51,7 @@
 #include "serviceRoutines/postSnapshot.h"                // Own interface
 
 
-extern bool asyncSnapshot;  // swBroker.c CLI flag
+extern bool asyncSnapshot;  // coraine.c CLI flag
 
 
 // -----------------------------------------------------------------------------
@@ -61,9 +61,9 @@ extern bool asyncSnapshot;  // swBroker.c CLI flag
 static char* snapshotIdGenerate(void)
 {
   static int counter = 0;
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
   snprintf(buf, 64, "urn:ngsi-ld:Snapshot:%lx:%04x",
-           (long) (swRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
+           (long) (corRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
   return buf;
 }
 
@@ -156,7 +156,7 @@ static char* nsToIso(uint64_t ns)
   struct tm tm;
   gmtime_r(&s, &tm);
 
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 80);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 80);
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
@@ -175,7 +175,7 @@ static void replaceString(KjNode* parent, const char* name, const char* value)
   if (p != NULL && p->type == KjString)
     p->value.s = (char*) value;
   else
-    kjChildAdd(parent, kjString(swRest.kjsonP, name, (char*) value));
+    kjChildAdd(parent, kjString(corRest.kjsonP, name, (char*) value));
 }
 
 
@@ -186,8 +186,8 @@ static void replaceString(KjNode* parent, const char* name, const char* value)
 //
 bool postSnapshot(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
-  KjNode* snapP   = swRest.in.requestTree;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+  KjNode* snapP   = corRest.in.requestTree;
 
   if (!validateSnapshot(snapP))
     return true;
@@ -197,7 +197,7 @@ bool postSnapshot(void)
   if (idP == NULL)
   {
     char* gid = snapshotIdGenerate();
-    kjChildAdd(snapP, kjString(swRest.kjsonP, "id", gid));
+    kjChildAdd(snapP, kjString(corRest.kjsonP, "id", gid));
     idP = kjLookup(snapP, "id");
   }
   else if (idP->type != KjString)
@@ -225,7 +225,7 @@ bool postSnapshot(void)
   // System-generated members. Status starts as "preparing" per
   // § 5.16.1.4; ldSnapshotExecQueries below transitions it to one of
   // success / partial / empty / failure once queries have run.
-  uint64_t  now = swRest.requestStartTime;
+  uint64_t  now = corRest.requestStartTime;
   uint64_t  exp = now + 3600ULL * 1000000000ULL;  // default 1h
 
   // § 5.2.41 snapshotLifetime → expiresAt. Already validated above.
@@ -245,7 +245,7 @@ bool postSnapshot(void)
 
   // Default priority.
   if (kjLookup(snapP, "snapshotPriority") == NULL)
-    kjChildAdd(snapP, kjInteger(swRest.kjsonP, "snapshotPriority", 5));
+    kjChildAdd(snapP, kjInteger(corRest.kjsonP, "snapshotPriority", 5));
 
   LdSnapshotCacheItem* itemP = ldSnapshotCacheItemAdd(cacheP, snapP);
   if (itemP == NULL)
@@ -294,8 +294,8 @@ bool postSnapshot(void)
     // db.snapshotUpdate, fires the notification. POST returns 201
     // immediately with snapshotStatus="preparing".
     ldSnapshotCaptureAsync(cacheP, itemP, tenantP,
-                            swNgsild.splitEntitiesSet,
-                            swNgsild.splitEntitiesVal);
+                            corNgsild.splitEntitiesSet,
+                            corNgsild.splitEntitiesVal);
   }
   else
   {
@@ -306,16 +306,16 @@ bool postSnapshot(void)
     // Re-persist with the final status + both detail arrays.
     if (db.snapshotUpdate != NULL && itemP->tree != NULL)
     {
-      KjNode* fragment = kjObject(swRest.kjsonP, NULL);
+      KjNode* fragment = kjObject(corRest.kjsonP, NULL);
       KjNode* sP       = kjLookup(itemP->tree, "snapshotStatus");
       if (sP != NULL && sP->type == KjString)
-        kjChildAdd(fragment, kjString(swRest.kjsonP, "snapshotStatus", sP->value.s));
+        kjChildAdd(fragment, kjString(corRest.kjsonP, "snapshotStatus", sP->value.s));
       KjNode* dP = kjLookup(itemP->tree, "snapshotQueriesDetails");
       if (dP != NULL)
-        kjChildAdd(fragment, kjClone(swRest.kjsonP, dP));
+        kjChildAdd(fragment, kjClone(corRest.kjsonP, dP));
       KjNode* tdP = kjLookup(itemP->tree, "snapshotTemporalQueriesDetails");
       if (tdP != NULL)
-        kjChildAdd(fragment, kjClone(swRest.kjsonP, tdP));
+        kjChildAdd(fragment, kjClone(corRest.kjsonP, tdP));
       if (fragment->value.firstChildP != NULL)
         db.snapshotUpdate(tenantP, itemP->id, fragment);
     }
@@ -325,13 +325,13 @@ bool postSnapshot(void)
   }
 
   // 201 Created + Location: /ngsi-ld/v1/snapshots/{id}
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
   const char* prefix = "/ngsi-ld/v1/snapshots/";
   int locLen = strlen(prefix) + strlen(idP->value.s) + 1;
-  char* locBuf = (char*) kaAlloc(&swRest.kalloc, locLen);
+  char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);
-  swRestOutHeaderAdd("Location", locBuf);
+  corRestOutHeaderAdd("Location", locBuf);
 
   return true;
 }

@@ -18,8 +18,8 @@ Linked entities — flat retrieve, joinLevel depth + cycle guard
 retrieve linked-entities
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,70 +36,70 @@ swBrokerStart
 
 echo "01. Seed P2 (leaf)"
 echo "=================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}'
 echo
 echo
 
 
 echo "02. Seed P1 → P2 (Relationship)"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"},"manager":{"type":"Relationship","object":"urn:P2"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"},"manager":{"type":"Relationship","object":"urn:P2"}}'
 echo
 echo
 
 
 echo "03. Seed V1 → P1 + dangling MISSING"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:P1"},"reportsTo":{"type":"Relationship","object":"urn:MISSING"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:P1"},"reportsTo":{"type":"Relationship","object":"urn:MISSING"}}'
 echo
 echo
 
 
 echo "04. Seed P3 → P3 (self-cycle)"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P3","type":"Person","mentor":{"type":"Relationship","object":"urn:P3"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P3","type":"Person","mentor":{"type":"Relationship","object":"urn:P3"}}'
 echo
 echo
 
 
 echo "05. GET V1 with no join — single entity"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1'
 echo
 echo
 
 
 echo "06. GET V1 with join=flat&joinLevel=1 — V1 + P1"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=1'
 echo
 echo
 
 
 echo "07. GET V1 with join=flat&joinLevel=2 — V1 + P1 + P2"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=2'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=2'
 echo
 echo
 
 
 echo "08. GET V1 with join=flat&joinLevel=10 — same as level=2 (no further links)"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10'
 echo
 echo
 
 
 echo "09. GET P3 with join=flat&joinLevel=10 — only P3 (self-cycle)"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:P3?join=flat&joinLevel=10'
+corCurl --url '/ngsi-ld/v1/entities/urn:P3?join=flat&joinLevel=10'
 echo
 echo
 
 
 echo "10. GET V1 with join=@none — single entity (inert)"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=@none'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=@none'
 echo
 echo
 
@@ -358,5 +358,5 @@ Content-Length: 247
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

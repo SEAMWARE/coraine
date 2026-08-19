@@ -12,10 +12,10 @@ Per-tenant geo-queries with NGSILD-Tenant header
 geo tenant
 
 --INIT--
-swDbDrop
-swDbDrop -tenant t1
-swDbDrop -tenant t2
-swBrokerStart
+corDbDrop
+corDbDrop -tenant t1
+corDbDrop -tenant t2
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
 echo
 echo
 
@@ -60,28 +60,28 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
 echo
 echo
 
 
 echo "03. GET near Madrid on t1 - should get E1"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
 echo
 echo
 
 
 echo "04. GET near Madrid on t2 - should get nothing (Paris is far)"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t2'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t2'
 echo
 echo
 
 
 echo "05. GET near Paris on t2 - should get E2"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
 echo
 echo
 
@@ -99,14 +99,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
 echo
 echo
 
 
 echo "07. GET near Madrid within 600 km on t1 - should get E1 and E3"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
 echo
 echo
 
@@ -261,7 +261,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swDbDrop -tenant t1
-swDbDrop -tenant t2
+coraineStop
+corDbDrop
+corDbDrop -tenant t1
+corDbDrop -tenant t2

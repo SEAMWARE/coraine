@@ -19,9 +19,9 @@ DistOp forward with inline @context — hosted volatile Link + Volatile header
 context distop csr-reg forwarding jsonldcontext
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart --port 7711 --status 201
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -51,7 +51,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
 echo
 echo
 
@@ -67,7 +67,7 @@ payload='{
     "spd": "https://example.org/veh/speed"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities \
+corCurl --url /ngsi-ld/v1/entities \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 echo
@@ -121,6 +121,6 @@ REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-l
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop --port 7711
-swDbDrop
+corDbDrop

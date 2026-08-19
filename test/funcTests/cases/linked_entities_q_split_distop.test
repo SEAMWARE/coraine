@@ -28,24 +28,24 @@ Linked entities — q over a split-across-brokers target + join inline (§ 4.9 /
 retrieve query linked-entities registration distops
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
 echo "01. Seed CP1 with the REMOTE halves: urn:X (b=5), urn:Y (b=9)"
 echo "============================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:X","type":"Tx","b":{"type":"Property","value":5}}'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:Y","type":"Tx","b":{"type":"Property","value":9}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:X","type":"Tx","b":{"type":"Property","value":5}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:Y","type":"Tx","b":{"type":"Property","value":9}}'
 echo
 echo
 
 
 echo "02. Register CP1 (inclusive) for type Tx (urn:X, urn:Y)"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id":"urn:CSR:Tx","type":"ContextSourceRegistration",
   "endpoint":"http://localhost:'$CP1_PORT'","mode":"inclusive",
   "information":[{"entities":[{"id":"urn:X","type":"Tx"},{"id":"urn:Y","type":"Tx"}]}]
@@ -56,37 +56,37 @@ echo
 
 echo "03. Seed CB with the LOCAL halves: urn:X (a=1), urn:Y (a=2) — X and Y now split"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:X","type":"Tx","a":{"type":"Property","value":1}}'
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Y","type":"Tx","a":{"type":"Property","value":2}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:X","type":"Tx","a":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Y","type":"Tx","a":{"type":"Property","value":2}}'
 echo
 echo
 
 
 echo "04. Seed CB linkers: E1 -ref-> X, E2 -ref-> Y (objectType Tx)"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"Linker","ref":{"type":"Relationship","object":"urn:X","objectType":"Tx"}}'
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"Linker","ref":{"type":"Relationship","object":"urn:Y","objectType":"Tx"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"Linker","ref":{"type":"Relationship","object":"urn:X","objectType":"Tx"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"Linker","ref":{"type":"Relationship","object":"urn:Y","objectType":"Tx"}}'
 echo
 echo
 
 
 echo "05. Query Linkers q=ref{b==5} (REMOTE attr of split target) + join=inline → E1, ref.entity = X{a,b}"
 echo "================================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Bb%3D%3D5%7D&join=inline'
+corCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Bb%3D%3D5%7D&join=inline'
 echo
 echo
 
 
 echo "06. Query Linkers q=ref{a==2} (LOCAL attr of split target) + join=inline → E2, ref.entity = Y{a,b}"
 echo "================================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Ba%3D%3D2%7D&join=inline'
+corCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Ba%3D%3D2%7D&join=inline'
 echo
 echo
 
 
 echo "07. Query Linkers q=ref{b==9} → E2 (remote-attr match on the other split target)"
 echo "================================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Bb%3D%3D9%7D&join=inline'
+corCurl --url '/ngsi-ld/v1/entities?type=Linker&q=ref%7Bb%3D%3D9%7D&join=inline'
 echo
 echo
 
@@ -253,5 +253,5 @@ Content-Length: 378
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1

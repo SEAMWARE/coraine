@@ -18,7 +18,7 @@
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strcmp
 
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kalloc/kaStrdup.h"                             // kaStrdup
@@ -26,12 +26,12 @@
 
 #include "kjson/kjLookup.h"                              // kjLookup
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdQ.h"                                // LdQNode, LdQTerm
-#include "swNgsild/ldQParse.h"                           // ldQParse
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemDelete
-#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdQ.h"                                // LdQNode, LdQTerm
+#include "corNgsild/ldQParse.h"                           // ldQParse
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemDelete
+#include "corNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
 
 #include "db/DbDriver.h"                                 // db
 #include "db/Tenant.h"                                   // Tenant
@@ -171,10 +171,10 @@ static bool matchSnapshot(KjNode* tree, LdQNode* nodeP)
 //
 static const char* readQParam(void)
 {
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
-    if (strcmp(swRest.in.uriParamV[i].key, "q") == 0)
-      return swRest.in.uriParamV[i].value;
+    if (strcmp(corRest.in.uriParamV[i].key, "q") == 0)
+      return corRest.in.uriParamV[i].value;
   }
   return NULL;
 }
@@ -183,7 +183,7 @@ static const char* readQParam(void)
 
 bool purgeSnapshots(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   //
   // § 16.7.4: "If the NGSI-LD Query is not present or it is not a valid as per
@@ -207,13 +207,13 @@ bool purgeSnapshots(void)
 
   if (tenantP->snapshotCacheP == NULL)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
   LdSnapshotCache* cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
 
-  LdQNode* qP = ldQParse(qStr, &swRest.kalloc);
+  LdQNode* qP = ldQParse(qStr, &corRest.kalloc);
   if (qP == NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid q-expression",
@@ -230,7 +230,7 @@ bool purgeSnapshots(void)
   const char** victims = NULL;
   int          n       = 0;
   if (cap > 0)
-    victims = (const char**) kaAlloc(&swRest.kalloc, cap * sizeof(char*));
+    victims = (const char**) kaAlloc(&corRest.kalloc, cap * sizeof(char*));
 
   for (LdSnapshotCacheItem* p = cacheP->head; p != NULL; p = p->next)
   {
@@ -239,7 +239,7 @@ bool purgeSnapshots(void)
     // copy it into the request arena so it stays valid across the delete loop
     // (db.snapshotDelete still needs the id after the item is gone).
     if (match && n < cap)
-      victims[n++] = kaStrdup(&swRest.kalloc, p->id);
+      victims[n++] = kaStrdup(&corRest.kalloc, p->id);
   }
 
   for (int i = 0; i < n; i++)
@@ -261,6 +261,6 @@ bool purgeSnapshots(void)
     snapshotTenantDestroy(snapP);
   }
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

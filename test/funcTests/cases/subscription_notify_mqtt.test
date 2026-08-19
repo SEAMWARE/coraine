@@ -20,13 +20,13 @@ Subscription notification - MQTT delivery (§ 7)
 subscription notification mqtt
 
 --INIT--
-swDbDrop
+corDbDrop
 echo "listener 11883
 allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
 mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
 sleep 0.3
 ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -45,14 +45,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. POST a Vehicle — should trigger an MQTT publish"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}'
 echo
 echo
 
@@ -100,8 +100,8 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop
 pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
 \rm -f /tmp/mqtt-test-mosquitto.conf

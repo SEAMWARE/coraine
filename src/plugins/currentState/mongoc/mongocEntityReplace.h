@@ -21,7 +21,7 @@
 // Atomic findAndModify-based replace-by-_id. Returns the pre-replacement
 // document via *oldEntityPP on success.
 //
-//   DB_OK         — replaced; *oldEntityPP is populated (allocator: swRest.kalloc)
+//   DB_OK         — replaced; *oldEntityPP is populated (allocator: corRest.kalloc)
 //   DB_NOT_FOUND  — no document matched; collection unchanged
 //   DB_ERR        — driver/server error
 //

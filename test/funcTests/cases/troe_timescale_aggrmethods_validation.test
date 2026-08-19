@@ -19,9 +19,9 @@ Invalid aggrMethods value is rejected with 400, not silently ignored (§ 3.2.7)
 temporal aggregation validation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -35,42 +35,42 @@ payload='{
     {"type":"Property","value":20,"observedAt":"2026-04-28T12:00:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Valid aggrMethods=avg,max → 200 (accepted)"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,max&aggrPeriodDuration=PT4H' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,max&aggrPeriodDuration=PT4H' | head -1
 echo
 echo
 
 
 echo "03. Valid alias aggrMethods=count → 200 (accepted)"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=count&aggrPeriodDuration=PT4H' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=count&aggrPeriodDuration=PT4H' | head -1
 echo
 echo
 
 
 echo "04. Invalid aggrMethods=bogus → 400 BadRequestData"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=bogus&aggrPeriodDuration=PT4H'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=bogus&aggrPeriodDuration=PT4H'
 echo
 echo
 
 
 echo "05. Mixed valid+invalid aggrMethods=avg,bogus → 400"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,bogus&aggrPeriodDuration=PT4H' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=avg,bogus&aggrPeriodDuration=PT4H' | head -1
 echo
 echo
 
 
 echo "06. Single-entity retrieve with aggrMethods=bogus → 400"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=bogus&aggrPeriodDuration=PT4H' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:00:00Z&endTimeAt=2026-04-28T13:00:00Z&format=aggregatedValues&aggrMethods=bogus&aggrPeriodDuration=PT4H' | head -1
 echo
 echo
 
@@ -123,5 +123,5 @@ HTTP/1.1 400 Bad Request
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

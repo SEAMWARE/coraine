@@ -20,51 +20,51 @@ Empty-array value — rejected for a Property, opaque (kept) for a JsonProperty
 entity attr json-property validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create J1 with a JsonProperty json:[] — accepted (opaque empty array)"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:J1", "type": "T", "jp": {"type": "JsonProperty", "json": []}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:J1", "type": "T", "jp": {"type": "JsonProperty", "json": []}}'
 echo
 echo
 
 
 echo "02. GET J1 — json:[] preserved"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J1
 echo
 echo
 
 
 echo "03. Create J2 (json:{a:1}), then PATCH its JsonProperty to json:[] — 204"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:J2", "type": "T", "jp": {"type": "JsonProperty", "json": {"a": 1}}}'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J2/attrs/jp -X PATCH --payload '{"type": "JsonProperty", "json": []}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:J2", "type": "T", "jp": {"type": "JsonProperty", "json": {"a": 1}}}'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J2/attrs/jp -X PATCH --payload '{"type": "JsonProperty", "json": []}'
 echo
 echo
 
 
 echo "04. GET J2 — json:[] after the PATCH"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J2
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J2
 echo
 echo
 
 
 echo "05. Create with a Property value:[] — 400 (empty array is not a valid value)"
 echo "============================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:P9", "type": "T", "P1": {"type": "Property", "value": []}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:P9", "type": "T", "P1": {"type": "Property", "value": []}}'
 echo
 echo
 
 
 echo "06. PATCH an existing Property to value:[] — 400"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:P8", "type": "T", "P1": {"type": "Property", "value": 5}}'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:P8/attrs/P1 -X PATCH --payload '{"value": []}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:P8", "type": "T", "P1": {"type": "Property", "value": 5}}'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:P8/attrs/P1 -X PATCH --payload '{"value": []}'
 echo
 echo
 
@@ -171,4 +171,4 @@ Content-Length: 171
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

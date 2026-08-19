@@ -22,7 +22,7 @@
 #include <stdbool.h>                                     // bool
 
 #include "kjson/KjNode.h"                                // KjNode
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, LdSnapshotCacheItem
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, LdSnapshotCacheItem
 #include "db/Tenant.h"                                   // Tenant
 
 
@@ -38,7 +38,7 @@
 //
 // Thread-safe: writes to itemP->tree use NULL allocator (malloc-backed
 // persistent memory), so the function is safe to call from the request
-// thread OR a background worker. db calls use the per-thread swRest
+// thread OR a background worker. db calls use the per-thread corRest
 // arena for transient buffers.
 //
 // Returns true on completion (failures are recorded as per-query

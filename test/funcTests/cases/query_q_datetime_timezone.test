@@ -22,46 +22,46 @@ Query q over observedAt — timezone offset applied on both the stored value and
 query q datetime timezone
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 # A, B, C are the SAME instant (10:00:00Z) written three ways; D is later (20:00Z)
 echo "01. Create A=10:00Z, B=12:00+02:00, C=07:00-03:00 (all 10:00Z), D=20:00Z"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:A","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T10:00:00Z"}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:B","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T12:00:00+02:00"}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:C","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T07:00:00-03:00"}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:D","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T20:00:00Z"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:A","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T10:00:00Z"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:B","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T12:00:00+02:00"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:C","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T07:00:00-03:00"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:D","type":"Ev","e":{"type":"Property","value":1,"observedAt":"2025-06-01T20:00:00Z"}}' | grep HTTP
 echo
 echo
 
 
 echo "02. q=e.observedAt==2025-06-01T10:00:00Z — A,B,C (offset-stored = same instant)"
 echo "=============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt==2025-06-01T10:00:00Z' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt==2025-06-01T10:00:00Z' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
 echo
 echo
 
 
 echo "03. q=e.observedAt>2025-06-01T18:00:00+05:00 (=13:00Z) — only D (20:00Z)"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt%3E2025-06-01T18:00:00%2B05:00' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt%3E2025-06-01T18:00:00%2B05:00' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
 echo
 echo
 
 
 echo "04. q=e.observedAt<2025-06-01T08:00:00-03:00 (=11:00Z) — A,B,C (10:00Z), not D"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt%3C2025-06-01T08:00:00-03:00' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt%3C2025-06-01T08:00:00-03:00' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
 echo
 echo
 
 
 echo "05. q=e.observedAt>=2025-06-01T13:00:00+03:00 (=10:00Z) — A,B,C,D (all >=10:00Z)"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt%3E%3D2025-06-01T13:00:00%2B03:00' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Ev&q=e.observedAt%3E%3D2025-06-01T13:00:00%2B03:00' | grep -oE 'urn:ngsi-ld:E:[A-D]' | sort
 echo
 echo
 
@@ -103,4 +103,4 @@ urn:ngsi-ld:E:D
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

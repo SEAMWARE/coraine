@@ -26,15 +26,15 @@ DistOps are off by default (--distributed)
 distops registration validation local
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart --port 7701
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. The Registry API works with the feature OFF - create a CSR"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:Off",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'7701'",
@@ -47,14 +47,14 @@ echo
 
 echo "02. ...and it is discoverable"
 echo "============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=Vehicle' | grep -E '"id"|"mode"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=Vehicle' | grep -E '"id"|"mode"'
 echo
 echo
 
 
 echo "03. GET /entities does NOT forward - nothing is asked of the source"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
 echo "forwards-to-mock=$(ftClientDump --port 7701 | grep -c '\"verb\"')"
 echo
 echo
@@ -62,7 +62,7 @@ echo
 
 echo "04. A retrieve by id is local too - 404, not a forward"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 | head -1
 echo "forwards-to-mock=$(ftClientDump --port 7701 | grep -c '\"verb\"')"
 echo
 echo
@@ -70,7 +70,7 @@ echo
 
 echo "05. The CSR can still be deleted"
 echo "================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Off -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Off -X DELETE | head -1
 echo
 echo
 
@@ -117,6 +117,6 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop --port 7701
-swDbDrop
+corDbDrop

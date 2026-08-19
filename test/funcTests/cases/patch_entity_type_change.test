@@ -12,8 +12,8 @@ PATCH /entities/{id} - attribute type change is forbidden (§ 5.6.4.4)
 entity patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ payload='{
     "value": "Alice"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -46,14 +46,14 @@ payload='{
     "object": "urn:alice"
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload "$payload"
 echo
 echo
 
 
 echo "03. GET — owner unchanged (still Property with value 'Alice')"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
@@ -105,5 +105,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

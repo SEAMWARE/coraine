@@ -12,8 +12,8 @@ POST /entityOperations/create — Batch Entity Creation (§ 5.6.7)
 batch create entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,7 +30,7 @@ swBrokerStart
 
 echo "01. POST batch of 3 → 201"
 echo "========================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
@@ -41,14 +41,14 @@ echo
 
 echo "02. GET /entities?type=Vehicle → all 3"
 echo "======================================"
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id"
 echo
 echo
 
 
 echo "03. POST batch with duplicate id V1 → 207 partial"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle"},
   {"id":"urn:V4","type":"Vehicle"}
 ]'
@@ -58,7 +58,7 @@ echo
 
 echo "04. POST batch with in-batch duplicate → first-wins + error for second"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V5","type":"Vehicle"},
   {"id":"urn:V5","type":"Vehicle"}
 ]'
@@ -68,7 +68,7 @@ echo
 
 echo "05. POST batch with one invalid (no id) → 207"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V6","type":"Vehicle"},
   {"type":"Vehicle"}
 ]'
@@ -78,21 +78,21 @@ echo
 
 echo "06. POST empty array → 400"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[]'
 echo
 echo
 
 
 echo "07. POST null element → 400"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{"id":"urn:V7","type":"Vehicle"}, null]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{"id":"urn:V7","type":"Vehicle"}, null]'
 echo
 echo
 
 
 echo "08. POST non-array body → 400"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '{"id":"urn:V8","type":"Vehicle"}'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '{"id":"urn:V8","type":"Vehicle"}'
 echo
 echo
 
@@ -268,5 +268,5 @@ Content-Length: 178
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

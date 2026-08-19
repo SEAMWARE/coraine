@@ -18,22 +18,22 @@ Snapshot snapshotLifetime ISO 8601 duration → expiresAt (§ 5.2.41 / Phase #14
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
 # GET the snapshot — raw response goes into .out, expiresAt and
 # snapshotLifetime are masked with REGEX in .expect.
 showSnapshot() {
-    swCurl --url "/ngsi-ld/v1/snapshots/$1"
+    corCurl --url "/ngsi-ld/v1/snapshots/$1"
 }
 
 
 echo "01. POST snapshot with snapshotLifetime=PT2H — expiresAt should be ~7200s out"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Two",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
@@ -47,7 +47,7 @@ echo
 
 echo "02. POST snapshot with snapshotLifetime=P1D — expiresAt should be ~86400s out"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Day",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
@@ -61,7 +61,7 @@ echo
 
 echo "03. POST snapshot with snapshotLifetime=PT1H30M — combined (5400s)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Mix",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
@@ -75,7 +75,7 @@ echo
 
 echo "04. POST snapshot WITHOUT snapshotLifetime — default 1h fallback (~3600s)"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Default",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]
@@ -88,7 +88,7 @@ echo
 
 echo "05. POST with bad snapshotLifetime — expect 400"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Bad",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
@@ -100,7 +100,7 @@ echo
 
 echo "06. POST with non-string snapshotLifetime — expect 400"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Bad2",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
@@ -112,7 +112,7 @@ echo
 
 echo "07. PATCH snapshotLifetime=PT3H on Two — expiresAt recomputed (~10800s out)"
 echo "==========================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two --payload '{"snapshotLifetime":"PT3H"}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two --payload '{"snapshotLifetime":"PT3H"}'
 echo
 showSnapshot urn:ngsi-ld:Snapshot:Two
 echo
@@ -121,7 +121,7 @@ echo
 
 echo "08. PATCH bad snapshotLifetime — expect 400"
 echo "==========================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two --payload '{"snapshotLifetime":"P-1D"}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two --payload '{"snapshotLifetime":"P-1D"}'
 echo
 echo
 
@@ -410,6 +410,6 @@ Content-Length: 214
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

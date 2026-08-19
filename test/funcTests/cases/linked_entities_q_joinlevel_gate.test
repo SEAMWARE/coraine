@@ -20,35 +20,35 @@ Linked entities — q sub-query nesting bounded by joinLevel, else 400 (§ 4.5.2
 query linked-entities join
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. q one level deep (ref{b==5}), default joinLevel 1 → 200 (1 <= 1)"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=ref%7Bb%3D%3D5%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=ref%7Bb%3D%3D5%7D'
 echo
 echo
 
 
 echo "02. q two levels deep (a{b{c==5}}), default joinLevel 1 → 400 (2 > 1)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%3D%3D5%7D%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%3D%3D5%7D%7D'
 echo
 echo
 
 
 echo "03. q two levels deep + joinLevel=2 → 200 (2 <= 2)"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%3D%3D5%7D%7D&joinLevel=2'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%3D%3D5%7D%7D&joinLevel=2'
 echo
 echo
 
 
 echo "04. q three levels deep (a{b{c{d==5}}}) + joinLevel=2 → 400 (3 > 2)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%7Bd%3D%3D5%7D%7D%7D&joinLevel=2'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=a%7Bb%7Bc%7Bd%3D%3D5%7D%7D%7D&joinLevel=2'
 echo
 echo
 
@@ -111,4 +111,4 @@ Content-Length: 191
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

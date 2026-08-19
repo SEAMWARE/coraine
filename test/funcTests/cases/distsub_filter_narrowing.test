@@ -23,10 +23,10 @@ DistSub - filter narrowing intersects parent.entities × reg.information
 create distops subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -50,7 +50,7 @@ payload='{
     { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -67,35 +67,35 @@ payload='{
     { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. Sub urn:S1 (all Vehicles) on CB — two derivatives, narrowed"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "04. GET on CP1 — urn:S1:1 narrowed to urn:V1; urn:S1:2 narrowed to urn:V2"
 echo "========================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "05. Sub urn:S2 (Vehicle id=urn:V1) on CB — disjoint with CSR-B"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"id":"urn:V1","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"id":"urn:V1","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
 echo
 echo
 
 
 echo "06. GET on CP1 — only urn:S2:1 on CSR-A; CSR-B skipped (disjoint)"
 echo "================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -268,7 +268,7 @@ Content-Length: 1176
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

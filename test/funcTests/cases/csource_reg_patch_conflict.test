@@ -23,8 +23,8 @@ CSourceRegistration PATCH mode-conflict re-check (§ 12.2.3.4)
 registration error validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -35,7 +35,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 10 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -51,21 +51,21 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V1"}], "attributeNames": ["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "03. PATCH R1 mode=exclusive → 409 (collides with the local Vehicle:V1)"
 echo "======================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 --payload '{"mode": "exclusive"}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 --payload '{"mode": "exclusive"}'
 echo
 echo
 
 
 echo "04. GET R1 — the rejected PATCH left the registration inclusive"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 | grep -E '"mode"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 | grep -E '"mode"'
 echo
 echo
 
@@ -81,7 +81,7 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V2"}], "attributeNames": ["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -96,21 +96,21 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V2"}], "attributeNames": ["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "07. PATCH R3 mode=redirect → 409 (overlaps the existing exclusive R2)"
 echo "====================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R3 --payload '{"mode": "redirect"}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R3 --payload '{"mode": "redirect"}'
 echo
 echo
 
 
 echo "08. GET R3 — the rejected PATCH left the registration inclusive"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R3 | grep -E '"mode"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R3 | grep -E '"mode"'
 echo
 echo
 
@@ -126,21 +126,21 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities": [{"type": "Vehicle", "id": "urn:ngsi-ld:Vehicle:V3"}], "attributeNames": ["temperature"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "10. PATCH R4 mode=exclusive → 204 (no conflict, so the update applies)"
 echo "======================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R4 --payload '{"mode": "exclusive"}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R4 --payload '{"mode": "exclusive"}' | grep HTTP
 echo
 echo
 
 
 echo "11. GET R4 — the valid PATCH turned it exclusive"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R4 | grep -E '"mode"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R4 | grep -E '"mode"'
 echo
 echo
 
@@ -227,5 +227,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

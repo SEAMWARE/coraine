@@ -36,7 +36,7 @@
 //              follow the targets' Relationships, etc.
 // tenantP    : tenant for db.entityRetrieve calls.
 //
-// Returns a KjArray allocated in swRest.kjsonP. Entities the broker
+// Returns a KjArray allocated in corRest.kjsonP. Entities the broker
 // does not hold locally are skipped (per § 4.5.23 "limited to avoid
 // cascades"). distOps integration is a follow-up slice.
 //

@@ -18,16 +18,16 @@ Default notification — a value-neutral update still notifies
 subscription notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
 
 echo "01. Subscribe + create E with P=5"
 echo "================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:7701/notify","accept":"application/json"}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E","type":"T","P":{"type":"Property","value":5}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:7701/notify","accept":"application/json"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E","type":"T","P":{"type":"Property","value":5}}' | head -1
 sleep 0.3
 ftClientReset
 echo done
@@ -37,7 +37,7 @@ echo
 
 echo "02. PATCH P value 5->5 (no value change) — still NOTIFIES by default"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P -X PATCH --payload '{"value":5}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E/attrs/P -X PATCH --payload '{"value":5}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -88,6 +88,6 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop

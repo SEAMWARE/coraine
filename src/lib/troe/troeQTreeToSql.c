@@ -14,7 +14,7 @@
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swNgsild/LdQ.h"                             // LdQNode
+#include "corNgsild/LdQ.h"                             // LdQNode
 
 #include "troe/troeQTreeToSql.h"                      // Own interface
 

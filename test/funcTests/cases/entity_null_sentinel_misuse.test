@@ -19,30 +19,30 @@ urn:ngsi-ld:null delete-marker misused on create/replace -> 400 BadRequestData
 entity error validation create replace
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. CREATE: Property value = urn:ngsi-ld:null"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
 echo
 echo
 
 
 echo "02. CREATE: Relationship object = urn:ngsi-ld:null"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T","rel":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T","rel":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
 echo
 echo
 
 
 echo "03. Setup urn:ngsi-ld:T:3 then REPLACE with a null-sentinel Property value"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","speed":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","speed":{"type":"Property","value":1}}'
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:3' -X PUT --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:3' -X PUT --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
 echo
 echo
 
@@ -103,4 +103,4 @@ Content-Length: 240
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

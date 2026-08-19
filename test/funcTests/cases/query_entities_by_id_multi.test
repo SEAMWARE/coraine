@@ -12,8 +12,8 @@ GET /entities?id=x,y filters by multiple entity ids
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,7 +34,7 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -49,7 +49,7 @@ payload='{
     "value": 50
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -64,14 +64,14 @@ payload='{
     "value": "blue"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET entities?id=urn:e1,urn:e3 - E1 and E3 returned, E2 excluded"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?id=urn:e1,urn:e3&type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?id=urn:e1,urn:e3&type=Vehicle'
 echo
 echo
 
@@ -137,5 +137,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

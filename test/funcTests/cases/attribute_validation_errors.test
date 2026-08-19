@@ -25,180 +25,180 @@ Attribute body validation — malformed attributes rejected; type change per spe
 entity attr error validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Property with both value and object -> 400"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:1", "type": "T", "P1": { "type": "Property", "value": 1, "object": "urn:x" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:1", "type": "T", "P1": { "type": "Property", "value": 1, "object": "urn:x" } }'
 echo
 echo
 
 
 echo "02. Relationship with a value field -> 400"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:2", "type": "T", "R1": { "type": "Relationship", "object": "urn:x", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:2", "type": "T", "R1": { "type": "Relationship", "object": "urn:x", "value": 1 } }'
 echo
 echo
 
 
 echo "03. GeoProperty with an object field -> 400"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:3", "type": "T", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ 1, 2 ] }, "object": "urn:x" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:3", "type": "T", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ 1, 2 ] }, "object": "urn:x" } }'
 echo
 echo
 
 
 echo "04. LanguageProperty with a value field -> 400"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:4", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "en": "hi" }, "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:4", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "en": "hi" }, "value": 1 } }'
 echo
 echo
 
 
 echo "05. VocabProperty with a value field -> 400"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:5", "type": "T", "V1": { "type": "VocabProperty", "vocab": "term", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:5", "type": "T", "V1": { "type": "VocabProperty", "vocab": "term", "value": 1 } }'
 echo
 echo
 
 
 echo "06. JsonProperty with a value field -> 400"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:6", "type": "T", "J1": { "type": "JsonProperty", "json": { "a": 1 }, "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:6", "type": "T", "J1": { "type": "JsonProperty", "json": { "a": 1 }, "value": 1 } }'
 echo
 echo
 
 
 echo "07. Relationship without an object -> 400"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:7", "type": "T", "R1": { "type": "Relationship" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:7", "type": "T", "R1": { "type": "Relationship" } }'
 echo
 echo
 
 
 echo "08. LanguageProperty without a languageMap -> 400"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:8", "type": "T", "L1": { "type": "LanguageProperty" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:8", "type": "T", "L1": { "type": "LanguageProperty" } }'
 echo
 echo
 
 
 echo "09. VocabProperty without a vocab -> 400"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:9", "type": "T", "V1": { "type": "VocabProperty" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:9", "type": "T", "V1": { "type": "VocabProperty" } }'
 echo
 echo
 
 
 echo "10. JsonProperty without a json -> 400"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:10", "type": "T", "J1": { "type": "JsonProperty" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:10", "type": "T", "J1": { "type": "JsonProperty" } }'
 echo
 echo
 
 
 echo "11. unitCode on a Relationship -> 400"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:11", "type": "T", "R1": { "type": "Relationship", "object": "urn:x", "unitCode": "CEL" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:11", "type": "T", "R1": { "type": "Relationship", "object": "urn:x", "unitCode": "CEL" } }'
 echo
 echo
 
 
 echo "12. objectType on a Property -> 400"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:12", "type": "T", "P1": { "type": "Property", "value": 1, "objectType": "X" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:12", "type": "T", "P1": { "type": "Property", "value": 1, "objectType": "X" } }'
 echo
 echo
 
 
 echo "13. valueType on a Relationship -> 400"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:13", "type": "T", "R1": { "type": "Relationship", "object": "urn:x", "valueType": "X" } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:13", "type": "T", "R1": { "type": "Relationship", "object": "urn:x", "valueType": "X" } }'
 echo
 echo
 
 
 echo "14. languageMap with an empty language key -> 400"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:14", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "": "hi" } } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:14", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "": "hi" } } }'
 echo
 echo
 
 
 echo "15. languageMap value that is an empty string -> 400"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:15", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "en": "" } } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:15", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "en": "" } } }'
 echo
 echo
 
 
 echo "16. languageMap value that is not a string -> 400"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:16", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "en": 12 } } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:16", "type": "T", "L1": { "type": "LanguageProperty", "languageMap": { "en": 12 } } }'
 echo
 echo
 
 
 echo "17. Replace Entity (PUT) changes attr type -> 204 (allowed, wholesale replace)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S17", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S17", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:E:S17' -X PUT --payload '{ "id": "urn:E:S17", "type": "T", "A1": { "type": "Relationship", "object": "urn:x" } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:S17' -X PUT --payload '{ "id": "urn:E:S17", "type": "T", "A1": { "type": "Relationship", "object": "urn:x" } }'
 echo
 echo
 
 
 echo "18. Replace Attribute (PUT /attrs) changes attr type -> 204 (allowed)"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S18", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S18", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:E:S18/attrs/A1' -X PUT --payload '{ "type": "Relationship", "object": "urn:x" }'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:S18/attrs/A1' -X PUT --payload '{ "type": "Relationship", "object": "urn:x" }'
 echo
 echo
 
 
 echo "19. Merge (PATCH entity) changes attr type -> 400 (forbidden, RFC 7396)"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S19", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S19", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:E:S19' -X PATCH --payload '{ "A1": { "type": "Relationship", "object": "urn:x" } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:S19' -X PATCH --payload '{ "A1": { "type": "Relationship", "object": "urn:x" } }'
 echo
 echo
 
 
 echo "20. Append-overwrite (POST /attrs) changes attr type -> 204 (allowed)"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S20", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S20", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:E:S20/attrs' -X POST --payload '{ "A1": { "type": "Relationship", "object": "urn:x" } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:S20/attrs' -X POST --payload '{ "A1": { "type": "Relationship", "object": "urn:x" } }'
 echo
 echo
 
 
 echo "21. Partial Attribute Update (PATCH /attrs/x) changes attr type -> 400 (forbidden)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S21", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S21", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:E:S21/attrs/A1' -X PATCH --payload '{ "type": "Relationship", "object": "urn:x" }'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:S21/attrs/A1' -X PATCH --payload '{ "type": "Relationship", "object": "urn:x" }'
 echo
 echo
 
 
 echo "22. Update Attributes (PATCH /attrs) changes attr type -> 204 (allowed, § 5.6.2)"
 echo "======================================================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S22", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E:S22", "type": "T", "A1": { "type": "Property", "value": 1 } }' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:E:S22/attrs' -X PATCH --payload '{ "A1": { "type": "Relationship", "object": "urn:x" } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:S22/attrs' -X PATCH --payload '{ "A1": { "type": "Relationship", "object": "urn:x" } }'
 echo
 echo
 
 
 echo "23. Valid entity with every attribute type -> 201"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
   "id": "urn:E:OK", "type": "T",
   "P1": { "type": "Property", "value": 1, "unitCode": "CEL", "valueType": "X" },
   "R1": { "type": "Relationship", "object": "urn:x", "objectType": "X" },
@@ -555,5 +555,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/entities - all JSON value types (BSON round-trip)
 create entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -61,14 +61,14 @@ payload='{
     "value": 3.14
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity E1 - verify float round-trip"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E1
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E1
 echo
 echo
 
@@ -83,14 +83,14 @@ payload='{
     "value": true
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET entity E2 - verify boolean true round-trip"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E2
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E2
 echo
 echo
 
@@ -105,14 +105,14 @@ payload='{
     "value": false
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. GET entity E3 - verify boolean false round-trip"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E3
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E3
 echo
 echo
 
@@ -127,14 +127,14 @@ payload='{
     "value": null
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "08. GET entity E4 - must not exist"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E4
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E4
 echo
 echo
 
@@ -149,14 +149,14 @@ payload='{
     "value": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "10. GET entity E5 - verify small integer round-trip"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E5
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E5
 echo
 echo
 
@@ -171,14 +171,14 @@ payload='{
     "value": 5000000000
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "12. GET entity E6 - verify large integer round-trip"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E6
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E6
 echo
 echo
 
@@ -196,14 +196,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "14. GET entity E7 - verify nested object round-trip"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E7
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E7
 echo
 echo
 
@@ -218,14 +218,14 @@ payload='{
     "value": ["alpha", "beta", "gamma"]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "16. GET entity E8 - verify array round-trip"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E8
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E8
 echo
 echo
 
@@ -240,14 +240,14 @@ payload='{
     "value": 22.5
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "18. GET entity E9 - verify dotted key round-trip"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:vt:E9
+corCurl --url /ngsi-ld/v1/entities/urn:vt:E9
 echo
 echo
 
@@ -525,5 +525,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

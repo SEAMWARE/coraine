@@ -17,15 +17,15 @@ CSR-Sub timeInterval — periodic notifications (§ 5.11.7)
 csr-sub subscription periodic
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
 echo "01. Register a CSR (target Vehicle.speed)"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id":"urn:ngsi-ld:CSR:R1",
   "type":"ContextSourceRegistration",
   "endpoint":"http://example.org/csource",
@@ -37,7 +37,7 @@ echo
 
 echo "02. Create CSR-sub with timeInterval=1"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:CSRTimeInterval",
   "type":"Subscription",
   "timeInterval": 1,
@@ -98,6 +98,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

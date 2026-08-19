@@ -16,14 +16,14 @@ TRoE - attr-modify and entity-delete events captured by troeRamdb
 troe patch delete
 
 --INIT--
-swDbDrop
-swBrokerStart --troe ramdb --apiPlugins admin
+corDbDrop
+coraineStart --troe ramdb --apiPlugins admin
 
 --RUN--
 
 echo "01. POST entity urn:V1 with one attr"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
 echo
 echo
 echo
@@ -31,20 +31,20 @@ echo
 
 echo "02. PATCH /entities/urn:V1/attrs/speed — value change"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' | head -1
 echo
 
 
 echo "03. DELETE /entities/urn:V1"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
 echo
 echo
 
 
 echo "04. GET /admin/troe/dump — three events: created, attrModified, deleted"
 echo "======================================================================="
-swCurl --url /admin/troe/dump | python3 -c "
+corCurl --url /admin/troe/dump | python3 -c "
 import sys, json, re
 hdr = ''
 body = ''
@@ -92,5 +92,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

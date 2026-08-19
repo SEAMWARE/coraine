@@ -9,16 +9,16 @@
 //
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckRegistration.h"            // ldCheckRegistration
-#include "swNgsild/LdOp.h"                           // LdOpUpdateRegistration
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheItemLookup, ldRegCacheItemRemove, ldRegCacheItemAdd
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubMatchingSubIds, ldCsrSubOnRegUpdate
-#include "swNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckRegistration.h"            // ldCheckRegistration
+#include "corNgsild/LdOp.h"                           // LdOpUpdateRegistration
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheItemLookup, ldRegCacheItemRemove, ldRegCacheItemAdd
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubMatchingSubIds, ldCsrSubOnRegUpdate
+#include "corNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -34,10 +34,10 @@
 //
 bool patchCsourceRegistration(void)
 {
-  const char* regId    = swRest.in.wildcard[0];
-  KjNode*     fragment = swRest.in.requestTree;
+  const char* regId    = corRest.in.wildcard[0];
+  KjNode*     fragment = corRest.in.requestTree;
 
-  if (ldCheckRegistration(fragment, LdOpUpdateRegistration, /*merged*/false, &swRest.kalloc) == false)
+  if (ldCheckRegistration(fragment, LdOpUpdateRegistration, /*merged*/false, &corRest.kalloc) == false)
     return true;
 
   if (db.registrationUpdate == NULL)
@@ -58,7 +58,7 @@ bool patchCsourceRegistration(void)
   // excludes the match-path readers. Held across the DB round-trips so the
   // cache always reflects the DB write that this PATCH performed.
   //
-  Tenant*     tenantP   = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP   = (Tenant*) corNgsild.tenantP;
   LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
   char**      wasMatchingIds = NULL;
 
@@ -68,7 +68,7 @@ bool patchCsourceRegistration(void)
   {
     LdRegCacheItem* oldItemP = ldRegCacheItemLookup(regCacheP, regId);
     if (oldItemP != NULL)
-      wasMatchingIds = ldCsrSubMatchingSubIds((LdSubCache*) tenantP->regSubCacheP, oldItemP, &swRest.kalloc);
+      wasMatchingIds = ldCsrSubMatchingSubIds((LdSubCache*) tenantP->regSubCacheP, oldItemP, &corRest.kalloc);
   }
 
   //
@@ -96,7 +96,7 @@ bool patchCsourceRegistration(void)
     return true;
   }
 
-  ldRegSubMerge(mergedRegP, fragment, swRest.kjsonP);
+  ldRegSubMerge(mergedRegP, fragment, corRest.kjsonP);
 
   //
   // § 5.9.3 — re-validate the COMPLETE merged result before persisting. The
@@ -108,7 +108,7 @@ bool patchCsourceRegistration(void)
   // mandatory/consistency shape while tolerating a stored-and-elapsed expiresAt
   // and the server-owned fields the stored registration carries.
   //
-  if (ldCheckRegistration(mergedRegP, LdOpCreateRegistration, /*merged*/true, &swRest.kalloc) == false)
+  if (ldCheckRegistration(mergedRegP, LdOpCreateRegistration, /*merged*/true, &corRest.kalloc) == false)
   {
     ldRegCacheUnlock(regCacheP);
     return true;  // ldCheckRegistration already raised the 400
@@ -121,7 +121,7 @@ bool patchCsourceRegistration(void)
   // cached, pre-update) entry: a PATCH must not install a registration that a
   // direct create would have rejected with 409.
   //
-  if (regConflictCheck(mergedRegP, regModeOf(mergedRegP), regId, &swRest.kalloc))
+  if (regConflictCheck(mergedRegP, regModeOf(mergedRegP), regId, &corRest.kalloc))
   {
     ldRegCacheUnlock(regCacheP);
     return true;  // regConflictCheck already raised the 409 ldError
@@ -146,7 +146,7 @@ bool patchCsourceRegistration(void)
   if (regCacheP != NULL)
   {
     ldRegCacheItemRemove(regCacheP, regId);
-    newItemP = ldRegCacheItemAdd(regCacheP, mergedRegP, &swRest.kalloc);
+    newItemP = ldRegCacheItemAdd(regCacheP, mergedRegP, &corRest.kalloc);
   }
 
   //
@@ -157,6 +157,6 @@ bool patchCsourceRegistration(void)
 
   ldRegCacheUnlock(regCacheP);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

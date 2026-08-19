@@ -19,14 +19,14 @@ Set-Attribute-Value null body raises InvalidRequest, except JsonProperty (§ 10.
 attribute value validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create entity with a Property and a JsonProperty"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities \
+corCurl --url /ngsi-ld/v1/entities \
   --payload '{"id":"urn:ngsi-ld:E1","type":"T","temp":{"type":"Property","value":5},"doc":{"type":"JsonProperty","json":{"a":1}}}' | head -1
 echo
 echo
@@ -34,28 +34,28 @@ echo
 
 echo "02. PUT temp/value with JSON null → 400 InvalidRequest"
 echo "======================================================"
-swCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value' --payload 'null'
+corCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value' --payload 'null'
 echo
 echo
 
 
 echo "03. PUT temp/value with \"urn:ngsi-ld:null\" → 400 InvalidRequest"
 echo "================================================================"
-swCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value' --payload '"urn:ngsi-ld:null"'
+corCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value' --payload '"urn:ngsi-ld:null"'
 echo
 echo
 
 
 echo "04. PUT doc/value with null on a JsonProperty → 204 (allowed)"
 echo "============================================================"
-swCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/doc/value' --payload 'null' | head -1
+corCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/doc/value' --payload 'null' | head -1
 echo
 echo
 
 
 echo "05. PUT temp/value with a real value → 204 (control)"
 echo "===================================================="
-swCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value' --payload '42' | head -1
+corCurl -X PUT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value' --payload '42' | head -1
 echo
 echo
 
@@ -109,5 +109,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

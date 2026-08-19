@@ -8,20 +8,20 @@ DistOps — crossed registrations forward to multiple sources
 --TAGS--
 distops registration entityMap
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 ftClientStart --port 7712 --status 200
 --RUN--
 echo "01. Register A@7711 (E:1 property a) and B@7712 (E:1 property b)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:A","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"id":"urn:ngsi-ld:E:1","type":"T"}],"propertyNames":["a"]}]}' | grep HTTP
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:B","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","operations":["retrieveOps"],"information":[{"entities":[{"id":"urn:ngsi-ld:E:1","type":"T"}],"propertyNames":["b"]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:A","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"id":"urn:ngsi-ld:E:1","type":"T"}],"propertyNames":["a"]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:B","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","operations":["retrieveOps"],"information":[{"entities":[{"id":"urn:ngsi-ld:E:1","type":"T"}],"propertyNames":["b"]}]}' | grep HTTP
 echo
 echo
 echo "02. GET ?type=T — forwards to BOTH sources (one request each)"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T' > /dev/null
 sleep 0.5
 echo "source A (7711):"; ftClientDump --port 7711 | python3 -c "import sys,json;print('  requests:',len(json.load(sys.stdin)))"
 echo "source B (7712):"; ftClientDump --port 7712 | python3 -c "import sys,json;print('  requests:',len(json.load(sys.stdin)))"
@@ -45,4 +45,4 @@ source B (7712):
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
+coraineStop

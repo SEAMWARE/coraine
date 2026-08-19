@@ -20,9 +20,9 @@ TRoE timescale - aggregatedValues on Boolean and String
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -48,21 +48,21 @@ payload='{
     {"type":"Property","value":"running","observedAt":"2026-04-28T14:30:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. totalCount + distinctCount per 2h bucket — works for Bool + String"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=totalCount,distinctCount&aggrPeriodDuration=PT2H'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=totalCount,distinctCount&aggrPeriodDuration=PT2H'
 echo
 echo
 
 
 echo "03. avg + min + max — Boolean works (true=1/false=0), String emits lex min/max"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max&aggrPeriodDuration=PT2H'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max&aggrPeriodDuration=PT2H'
 echo
 echo
 
@@ -279,6 +279,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

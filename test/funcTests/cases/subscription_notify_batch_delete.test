@@ -20,15 +20,15 @@ Batch Entity Delete — {id,type,deletedAt} payload (§ 5.8.6)
 batch delete notification subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Seed V1, V2, V3"
 echo "==================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
@@ -39,14 +39,14 @@ echo
 
 echo "02. Sub S1 (Vehicle) with entityDeleted trigger"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["entityDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["entityDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
 
 echo "03. Batch Delete [V1, V2, VX] — 207 partial"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V2","urn:VX"]'
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V2","urn:VX"]'
 echo
 echo
 
@@ -147,6 +147,6 @@ Content-Length: 301
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

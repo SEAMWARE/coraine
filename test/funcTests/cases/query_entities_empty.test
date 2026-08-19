@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities on empty database returns empty array
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -25,7 +25,7 @@ swBrokerStart
 
 echo "01. GET /entities?type=Vehicle on empty database - 200 OK with empty array"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
@@ -44,5 +44,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

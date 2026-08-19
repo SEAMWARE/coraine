@@ -24,58 +24,58 @@ languageMap keys must be RFC 5646 language tags (or @none)
 languageproperty validation rfc5646
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. valid: en, en-US, zh-Hans-CN, @none"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello","en-US":"hi","zh-Hans-CN":"ni hao","@none":"fallback"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello","en-US":"hi","zh-Hans-CN":"ni hao","@none":"fallback"}}}'
 echo
 echo
 
 echo "02. digits only: '123'"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","name":{"type":"LanguageProperty","languageMap":{"123":"nope"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","name":{"type":"LanguageProperty","languageMap":{"123":"nope"}}}'
 echo
 echo
 
 echo "03. punctuation: '!!'"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","name":{"type":"LanguageProperty","languageMap":{"!!":"nope"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","name":{"type":"LanguageProperty","languageMap":{"!!":"nope"}}}'
 echo
 echo
 
 echo "04. underscore instead of hyphen: 'en_US'"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"T","name":{"type":"LanguageProperty","languageMap":{"en_US":"nope"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"T","name":{"type":"LanguageProperty","languageMap":{"en_US":"nope"}}}'
 echo
 echo
 
 echo "05. trailing hyphen: 'en-'"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E5","type":"T","name":{"type":"LanguageProperty","languageMap":{"en-":"nope"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E5","type":"T","name":{"type":"LanguageProperty","languageMap":{"en-":"nope"}}}'
 echo
 echo
 
 echo "06. single letter: 'e'"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E6","type":"T","name":{"type":"LanguageProperty","languageMap":{"e":"nope"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E6","type":"T","name":{"type":"LanguageProperty","languageMap":{"e":"nope"}}}'
 echo
 echo
 
 echo "07. a whole sentence as a key"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E7","type":"T","name":{"type":"LanguageProperty","languageMap":{"this is not a language":"nope"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E7","type":"T","name":{"type":"LanguageProperty","languageMap":{"this is not a language":"nope"}}}'
 echo
 echo
 
 echo "08. the NGSI-LD Null encoding {@none: urn:ngsi-ld:null} must keep working"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E8","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello"}}}'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E8/attrs --payload '{"name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}'
-swCurl --url /ngsi-ld/v1/entities/urn:E8
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E8","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello"}}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E8/attrs --payload '{"name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}'
+corCurl --url /ngsi-ld/v1/entities/urn:E8
 echo
 echo
 
@@ -212,4 +212,4 @@ Content-Length: 36
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

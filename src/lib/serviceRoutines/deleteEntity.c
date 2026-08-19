@@ -11,8 +11,8 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/SwRestVerb.h"                       // SwVerbDelete
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/CorRestVerb.h"                       // CorVerbDelete
 
 #include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
 #include "kjson/KjNode.h"                            // KjNode
@@ -20,19 +20,19 @@
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
-#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityDelete
+#include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityDeleted
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
 
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -53,7 +53,7 @@ static char* deleteUrl(const char* endpoint, const char* entityId)
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);
   int         idLen   = strlen(entityId);
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1);
+  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
   strcpy(url, endpoint);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, entityId);
@@ -68,9 +68,9 @@ static char* deleteUrl(const char* endpoint, const char* entityId)
 //
 bool deleteEntity(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
+  const char* entityId = corRest.in.wildcard[0];
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   //
   // Dispatch — § 5.6.6.4. Skipped when:
@@ -81,7 +81,7 @@ bool deleteEntity(void)
   //     preventing the forward is the only thing loop-detection
   //     demands; the request itself is legitimate).
   //
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
@@ -89,11 +89,11 @@ bool deleteEntity(void)
   int     forwardFailCount    = 0;       // forwarded entries that failed (non-2xx, non-404)
   bool    forwardTimedOut     = false;   // that failed forward was a broker per-CSR timeout
 
-  bool dispatch = (swNgsild.local == false
+  bool dispatch = (corNgsild.local == false
                   
                    && tenantP->regCacheP != NULL);
 
-  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
   // Loops are no longer pre-empted here: dispatch runs, the entry builder marks
   // loop-blocked CSRs, and ldDistOpLoopReap turns the exclusive/redirect ones
@@ -101,7 +101,7 @@ bool deleteEntity(void)
 
   if (dispatch)
   {
-    char** typeArr = swNgsild.typeV;
+    char** typeArr = corNgsild.typeV;
 
     LdRegCacheItem** exclV  = NULL;
     LdRegCacheItem** redirV = NULL;
@@ -126,7 +126,7 @@ bool deleteEntity(void)
 
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
-                                  swRest.serviceP->ldOp, "deleteEntity",
+                                  corRest.serviceP->ldOp, "deleteEntity",
                                   entityId, /*perRi=*/false, NULL, NULL,
                                   errorsArrayP, &items);
 
@@ -137,7 +137,7 @@ bool deleteEntity(void)
     // into 508 (entity held externally, unreachable via the loop).
     n = ldDistOpLoopReap(items, n);
 
-    ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
+    ldDistOpEntriesPerform(items, n, CorVerbDelete, ownAlias);
 
     for (int i = 0; i < n; i++)
     {
@@ -177,7 +177,7 @@ bool deleteEntity(void)
     anySucceeded = true;
 
     if (tenantP->subCacheP != NULL && entityP != NULL)
-      ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, entityP, swRest.requestStartTime);
+      ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, entityP, corRest.requestStartTime);
 
     // TRoE: entity-level tombstone. Attribute timelines are still
     // queryable; the temporal-query reader joins this row to scope
@@ -189,13 +189,13 @@ bool deleteEntity(void)
         KjNode* tn = kjLookup(entityP, "type");
         if (tn != NULL && tn->type == KjString) etype = tn->value.s;
       }
-      TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+      TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
       memset(tevP, 0, sizeof(*tevP));
       tevP->op             = TroeOpEntityDeleted;
       tevP->tenantP        = tenantP;
       tevP->entityId       = entityId;
       tevP->entityType     = etype;
-      tevP->modifiedAtNs   = swRest.requestStartTime;
+      tevP->modifiedAtNs   = corRest.requestStartTime;
       tevP->entitySnapshot = entityP;     // pre-delete snapshot, NULL-safe
       troeDeferEntityEvent(tevP);
     }
@@ -226,28 +226,28 @@ bool deleteEntity(void)
 
   if (errorsCount == 0)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
+  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
+    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(respBodyP, successArrayP);
   kjChildAdd(respBodyP, errorsArrayP);
 
-  swRest.out.responseTree   = respBodyP;
+  corRest.out.responseTree   = respBodyP;
 
   // § 6.3.5 / § 7.3.x — single authoritative source → its single-source code
   // (504/502/409), distributed over several sources → 207. See patchEntity.
   if (anySucceeded)
-    swRest.out.httpStatusCode = 207;
+    corRest.out.httpStatusCode = 207;
   else if (singleAuthoritative && errorsCount == 1)
-    swRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
+    corRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
   else
-    swRest.out.httpStatusCode = 207;
+    corRest.out.httpStatusCode = 207;
 
   return true;
 }

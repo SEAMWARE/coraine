@@ -20,10 +20,10 @@ DistSub - idPattern intersection narrows the derivative
 create distops subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -49,49 +49,49 @@ payload='{
     { "entities": [ { "idPattern": "^urn:V[0-9]+$", "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Sub urn:S1 (Vehicle, no id constraint)"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "03. GET on CP1 — urn:S1:1 carries reg's idPattern"
 echo "================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. Sub urn:S2 (Vehicle id=urn:V42) — within reg's pattern"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"id":"urn:V42","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"id":"urn:V42","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
 echo
 echo
 
 
 echo "05. GET on CP1 — urn:S2:1 narrowed to id=urn:V42"
 echo "================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "06. Sub urn:S3 (Vehicle id=urn:Bus99) — outside reg's pattern"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S3","type":"Subscription","entities":[{"id":"urn:Bus99","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s3"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S3","type":"Subscription","entities":[{"id":"urn:Bus99","type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s3"}}}'
 echo
 echo
 
 
 echo "07. GET on CP1 — urn:S3 NOT fanned out (id outside pattern)"
 echo "==========================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -277,7 +277,7 @@ Content-Length: 800
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

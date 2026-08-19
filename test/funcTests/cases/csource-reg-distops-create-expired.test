@@ -12,8 +12,8 @@ DistOps - expired CSRs are ignored by createEntity dispatch
 create distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 201
 
 --RUN--
@@ -48,7 +48,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -72,7 +72,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -89,14 +89,14 @@ payload='{
   "speed": { "type": "Property", "value": 42 },
   "color": { "type": "Property", "value": "red" }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET V1 local=true → color still there, speed is not"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
 echo
 
@@ -166,5 +166,5 @@ Content-Length: REGEX(\d+)
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

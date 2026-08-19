@@ -21,15 +21,15 @@ Batch Entity Update — per-fragment notifications with data[]
 batch notification subscription update
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Seed V1, V2"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
 ]'
@@ -39,14 +39,14 @@ echo
 
 echo "02. Sub S1 (Vehicle)"
 echo "===================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
 
 echo "03. Batch Update V1 + V2 + VX (missing)"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":11}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":22}},
   {"id":"urn:VX","type":"Vehicle","speed":{"type":"Property","value":999}}
@@ -72,7 +72,7 @@ echo
 
 echo "06. Multi-instance V1 — 3 fragments, 3 data[] entries"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}
@@ -244,6 +244,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

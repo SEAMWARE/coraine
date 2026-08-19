@@ -19,49 +19,49 @@ Delete attribute instance-not-found reports the instance, not the entity (§ 5.6
 delete attribute datasetId
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create entity whose 'temp' attr has ONLY a datasetId instance"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temp":{"type":"Property","value":5,"datasetId":"urn:ds:1"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temp":{"type":"Property","value":5,"datasetId":"urn:ds:1"}}' | head -1
 echo
 echo
 
 
 echo "02. DELETE temp with no datasetId — default instance absent → 404 (names the instance)"
 echo "======================================================================================"
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp'
 echo
 echo
 
 
 echo "03. DELETE temp with a datasetId no instance carries → 404 (names the datasetId)"
 echo "================================================================================"
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp?datasetId=urn:ds:9'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp?datasetId=urn:ds:9'
 echo
 echo
 
 
 echo "04. DELETE on a genuinely absent entity → 404 entity not found (unchanged)"
 echo "========================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:NOPE/attrs/temp'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:NOPE/attrs/temp'
 echo
 echo
 
 
 echo "05. DELETE a genuinely absent attribute → 404 attribute not found (unchanged)"
 echo "============================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/nosuch'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/nosuch'
 echo
 echo
 
 
 echo "06. DELETE the datasetId instance that DOES exist → 204 (control)"
 echo "================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp?datasetId=urn:ds:1' | head -1
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp?datasetId=urn:ds:1' | head -1
 echo
 echo
 
@@ -142,5 +142,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

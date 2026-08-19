@@ -19,10 +19,10 @@ Batch Entity Update — inclusive CSR, local + forwarded
 batch entity update
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -31,7 +31,7 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1,V2,V3 on CB (no CSR yet — local only)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
@@ -42,7 +42,7 @@ echo
 
 echo "02. Seed the same V1,V2,V3 on CP1 (so CP1 has state to update)"
 echo "=============================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
@@ -53,14 +53,14 @@ echo
 
 echo "03. Register CB→CP1 inclusive (Vehicle, updateBatch)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["updateBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["updateBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "04. Batch update V1.speed=99 + V2.speed=88 on CB → 204"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}
 ]'
@@ -70,35 +70,35 @@ echo
 
 echo "05. GET CB V1 — speed=99, color=red preserved"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "06. GET CP1 V1 — speed=99 (forwarded)"
 echo "====================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "07. GET CP1 V2 — speed=88 (forwarded in same batch)"
 echo "==================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
 echo
 echo
 
 
 echo "08. GET CP1 V3 — speed=30 untouched (not in the batch)"
 echo "======================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
 echo
 echo
 
 
 echo "09. Multi-instance V1 in one batch — array order wins on BOTH sides"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":200}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":300}}
@@ -109,14 +109,14 @@ echo
 
 echo "10. GET CB V1 — speed=300 (last instance)"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "11. GET CP1 V1 — speed=300 (CP1 merged 3 forwarded instances in order)"
 echo "======================================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
@@ -277,7 +277,7 @@ Content-Length: 58
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

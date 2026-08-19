@@ -14,8 +14,8 @@
 #include <stdlib.h>                                   // free
 #include <stdio.h>                                    // snprintf
 
-#include "swRest/SwRestState.h"                       // swRest
-#include "swRest/SwRestVerb.h"                        // SwVerbPut
+#include "corRest/CorRestState.h"                       // corRest
+#include "corRest/CorRestVerb.h"                        // CorVerbPut
 
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
@@ -25,26 +25,26 @@
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 
-#include "swJsonld/swldInit.h"                        // swldCoreContext, SWLD_CORE_CONTEXT_URL
-#include "swJsonld/swldCompactTree.h"                 // swldCompactTreeWith
+#include "corJsonld/corLdInit.h"                        // corLdCoreContext, CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdCompactTree.h"                 // corLdCompactTreeWith
 
-#include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckEntity.h"                   // ldCheckEntity
-#include "swNgsild/LdOp.h"                            // LdOpReplaceEntity
-#include "swNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
-#include "swNgsild/LdProblem.h"                       // LD_ERROR_CONFLICT
-#include "swNgsild/LdSubCache.h"                      // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
-#include "swNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
+#include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckEntity.h"                   // ldCheckEntity
+#include "corNgsild/LdOp.h"                            // LdOpReplaceEntity
+#include "corNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
+#include "corNgsild/LdProblem.h"                       // LD_ERROR_CONFLICT
+#include "corNgsild/LdSubCache.h"                      // LdSubCache
+#include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
+#include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
 
-#include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
-#include "swNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
-#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
-#include "swNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
-#include "swNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
+#include "corNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
+#include "corNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
+#include "corNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
+#include "corNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -124,7 +124,7 @@ static char* replaceUrl(const char* endpoint, const char* entityId)
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);
   int         idLen   = strlen(entityId);
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + 1);
+  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
   strcpy(url, endpoint);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, entityId);
@@ -145,7 +145,7 @@ static char* renderFragmentWithContext(KjNode* fragP)
     kjChildRemove(fragP, atCtx);
 
   int   bufSize = kjFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
   kjFastRender(fragP, buf);
   return buf;
@@ -164,7 +164,7 @@ static int forwardReplaceEntity(LdRegCacheItem* csr,
                                 const char**    errorDetailPP)
 {
   char* body = renderFragmentWithContext(fragP);
-  return ldDistOpSend(csr, SwVerbPut,
+  return ldDistOpSend(csr, CorVerbPut,
                       replaceUrl(csr->endpoint, entityId),
                       body, strlen(body), ownAlias, errorDetailPP);
 }
@@ -177,13 +177,13 @@ static int forwardReplaceEntity(LdRegCacheItem* csr,
 //
 bool replaceEntity(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
-  KjNode*     entityP  = swRest.in.requestTree;
+  const char* entityId = corRest.in.wildcard[0];
+  KjNode*     entityP  = corRest.in.requestTree;
 
   //
   // Validate payload as a full entity (id + type mandatory, no null-marker).
   //
-  if (ldCheckEntity(entityP, LdOpReplaceEntity, NULL, &swRest.kalloc) == false)
+  if (ldCheckEntity(entityP, LdOpReplaceEntity, NULL, &corRest.kalloc) == false)
     return true;
 
   //
@@ -198,15 +198,15 @@ bool replaceEntity(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   //
   // § 9.3.3 guard — a ?local=true write must not produce local data that an
   // exclusive or redirect registration claims.
   //
-  if (swNgsild.local == true && tenantP->regCacheP != NULL)
+  if (corNgsild.local == true && tenantP->regCacheP != NULL)
   {
     const char* cRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) tenantP->regCacheP,
-                                                          entityId, entityP, &swRest.kalloc);
+                                                          entityId, entityP, &corRest.kalloc);
     if (cRegId != NULL)
     {
       ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
@@ -236,7 +236,7 @@ bool replaceEntity(void)
 
   //
   // Type-change guard: if a local entity exists, its stored type must match
-  // the body's type (Replace Entity must not alter type — swBroker policy,
+  // the body's type (Replace Entity must not alter type — coraine policy,
   // stricter than spec's local "completely replace"). Decide this BEFORE
   // any forward: a partial success where local refuses for type reasons
   // would be hard to express in a BatchOperationResult.
@@ -268,7 +268,7 @@ bool replaceEntity(void)
   // input. Exclusive/redirect DETACH (chop); inclusive CLONE (keep
   // local copy for the post-dispatch remains).
   //
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
@@ -276,9 +276,9 @@ bool replaceEntity(void)
   int     forwardFailCount    = 0;       // forwarded entries that failed (non-2xx, non-404)
   bool    forwardTimedOut     = false;   // that failed forward was a broker per-CSR timeout
 
-  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
-  bool dispatch = (swNgsild.local == false
+  bool dispatch = (corNgsild.local == false
                   
                    && tenantP->regCacheP != NULL);
 
@@ -331,7 +331,7 @@ bool replaceEntity(void)
 
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
-                                  swRest.serviceP->ldOp, "replaceEntity",
+                                  corRest.serviceP->ldOp, "replaceEntity",
                                   entityId, /*perRi=*/true, entityId, NULL,
                                   errorsArrayP, &items);
 
@@ -340,7 +340,7 @@ bool replaceEntity(void)
     {
       bool isExclusive = (items[i].modeIdx == 0);
 
-      KjNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, swRest.kjsonP,
+      KjNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, corRest.kjsonP,
                                               /*detach=*/isExclusive);
       if (fragP == NULL) continue;
 
@@ -353,13 +353,13 @@ bool replaceEntity(void)
         // Excl/redirect attrs are chopped (won't be replaced locally); flag so
         // a fully-loop-blocked replace flattens its terminal 404 to 508 (§ 6.3.18).
         if (items[i].errorMode)
-          swNgsild.loopBlocked508 = true;
+          corNgsild.loopBlocked508 = true;
         continue;
       }
 
       // fragP is private (detached or cloned) — compact in place with the
       // per-CSR forward context before rendering the wire body.
-      swldCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr));
+      corLdCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr));
 
       char* body = renderFragmentWithContext(fragP);
       items[kept] = items[i];
@@ -376,12 +376,12 @@ bool replaceEntity(void)
     for (int i = 0; i < n; i++)
     {
       if (items[i].modeIdx != 1) continue;  // redirect only
-      KjNode* drop = ldEntityFragmentForInfo(entityP, items[i].riP, swRest.kjsonP,
+      KjNode* drop = ldEntityFragmentForInfo(entityP, items[i].riP, corRest.kjsonP,
                                               /*detach=*/true);
       (void) drop;  // freed with the arena
     }
 
-    ldDistOpEntriesPerform(items, kept, SwVerbPut, ownAlias);
+    ldDistOpEntriesPerform(items, kept, CorVerbPut, ownAlias);
 
     for (int i = 0; i < kept; i++)
     {
@@ -431,7 +431,7 @@ bool replaceEntity(void)
     // 'now'. oldStored is non-NULL here (localExists implies it).
     KjNode*  oldCreatedAt  = kjLookup(oldStored, "createdAt");
     int64_t  keepCreatedAt = (oldCreatedAt != NULL && oldCreatedAt->type == KjInt) ? oldCreatedAt->value.i : 0;
-    ldApiEntityToDbModel(entityP, &swRest.kalloc, keepCreatedAt);
+    ldApiEntityToDbModel(entityP, &corRest.kalloc, keepCreatedAt);
 
     KjNode* replacedOld = NULL;
     int     r           = db.entityReplace(tenantP, entityId, entityP, &replacedOld);
@@ -470,13 +470,13 @@ bool replaceEntity(void)
         KjNode* typeNode = kjLookup(entityP, "type");
         const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
 
-        TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+        TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
         memset(tevP, 0, sizeof(*tevP));
         tevP->op             = TroeOpEntityReplaced;
         tevP->tenantP        = tenantP;
         tevP->entityId       = entityId;
         tevP->entityType     = etype;
-        tevP->modifiedAtNs   = swRest.requestStartTime;
+        tevP->modifiedAtNs   = corRest.requestStartTime;
         tevP->entitySnapshot = entityP;
         troeDeferEntityEvent(tevP);
 
@@ -491,14 +491,14 @@ bool replaceEntity(void)
           if (strcmp(attrP->name, "createdAt")  == 0)    continue;
           if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
 
-          TroeEvent* aevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+          TroeEvent* aevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(aevP, 0, sizeof(*aevP));
           aevP->op             = TroeOpAttrReplaced;
           aevP->tenantP        = tenantP;
           aevP->entityId       = entityId;
           aevP->entityType     = etype;
           aevP->attrName       = attrP->name;
-          aevP->modifiedAtNs   = swRest.requestStartTime;
+          aevP->modifiedAtNs   = corRest.requestStartTime;
           aevP->attrSnapshot   = attrP;
           aevP->entitySnapshot = entityP;
           troeDeferAttrEvent(aevP);
@@ -532,28 +532,28 @@ bool replaceEntity(void)
 
   if (errorsCount == 0)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
+  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
+    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(respBodyP, successArrayP);
   kjChildAdd(respBodyP, errorsArrayP);
 
-  swRest.out.responseTree   = respBodyP;
+  corRest.out.responseTree   = respBodyP;
 
   // § 6.3.5 / § 7.3.x — single authoritative source → its single-source code
   // (504/502/409), distributed over several sources → 207. See patchEntity.
   if (anySucceeded)
-    swRest.out.httpStatusCode = 207;
+    corRest.out.httpStatusCode = 207;
   else if (singleAuthoritative && errorsCount == 1)
-    swRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
+    corRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
   else
-    swRest.out.httpStatusCode = 207;
+    corRest.out.httpStatusCode = 207;
 
   return true;
 }

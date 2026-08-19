@@ -17,10 +17,10 @@ q attrPath — sub-attribute filtering, segment-wise context round-trip
 context q query subscription
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -46,14 +46,14 @@ payload='{
   "type": "T",
   "m": {"type": "Property", "value": 1, "s": {"type": "Property", "value": 5}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 payload='{
   "id": "urn:E2",
   "type": "T",
   "m": {"type": "Property", "value": 1, "s": {"type": "Property", "value": 2}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -61,7 +61,7 @@ echo
 
 echo "02. ?q=m.s>3 via ctxA — only E1"
 echo "================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=m.s%3E3' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=m.s%3E3' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -69,7 +69,7 @@ echo
 
 echo "03. ?q=m.s (sub-attr exists) via ctxA — both"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=m.s' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=m.s' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -88,9 +88,9 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 \
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"q"'
 echo
 echo
@@ -98,7 +98,7 @@ echo
 
 echo "05. GET via core — segment-wise %-encoding, raw dot separator"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep '"q"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep '"q"'
 echo
 echo
 
@@ -115,7 +115,7 @@ payload='{
   "type": "T",
   "m": {"type": "Property", "value": {"c": {"d": 7}}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -123,7 +123,7 @@ echo
 
 echo "07. ?q=m[c.d]>5 via ctxA — value-path match: only E3"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=m%5Bc.d%5D%3E5' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=m%5Bc.d%5D%3E5' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -131,7 +131,7 @@ echo
 
 echo "08. ?q=m[c.d] (value-member exists) — only E3"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=m%5Bc.d%5D' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=m%5Bc.d%5D' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
 echo
 echo
@@ -150,11 +150,11 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S2 \
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S2 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"q"'
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S2 | grep '"q"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S2 | grep '"q"'
 echo
 echo
 
@@ -210,5 +210,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

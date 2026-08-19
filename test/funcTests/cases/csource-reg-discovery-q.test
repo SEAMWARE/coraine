@@ -16,14 +16,14 @@ CSource registration discovery with q filter (on CSR user-properties)
 registration discovery q
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. Create 3 CSRs with different user-properties"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:A",
   "type": "ContextSourceRegistration",
   "endpoint": "http://a.example",
@@ -32,7 +32,7 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "organization": {"type":"Property","value":"acme"},
   "tier":         {"type":"Property","value":"gold"}
 }' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:B",
   "type": "ContextSourceRegistration",
   "endpoint": "http://b.example",
@@ -41,7 +41,7 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "organization": {"type":"Property","value":"acme"},
   "tier":         {"type":"Property","value":"silver"}
 }' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:C",
   "type": "ContextSourceRegistration",
   "endpoint": "http://c.example",
@@ -56,35 +56,35 @@ echo
 
 echo "02. q=tier==\"gold\" → A + C"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="gold"' | grep -E '"id"' | sort
+corCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="gold"' | grep -E '"id"' | sort
 echo
 echo
 
 
 echo "03. q=organization==\"acme\" → A + B"
 echo "==================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=organization=="acme"' | grep -E '"id"' | sort
+corCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=organization=="acme"' | grep -E '"id"' | sort
 echo
 echo
 
 
 echo "04. q=tier==\"gold\";organization==\"acme\" → A only"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="gold";organization=="acme"' | grep -E '"id"' | sort
+corCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="gold";organization=="acme"' | grep -E '"id"' | sort
 echo
 echo
 
 
 echo "05. q=tier==\"gold\" + type=Vehicle → A + C (combined filters)"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'type=Vehicle&q=tier=="gold"' | grep -E '"id"' | sort
+corCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'type=Vehicle&q=tier=="gold"' | grep -E '"id"' | sort
 echo
 echo
 
 
 echo "06. q=tier==\"platinum\" → empty"
 echo "==============================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="platinum"' | grep -c '"id"'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations' --urlParams 'q=tier=="platinum"' | grep -c '"id"'
 echo
 echo
 
@@ -126,5 +126,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

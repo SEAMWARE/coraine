@@ -19,10 +19,10 @@ Batch upsert/update — every matching redirect CSR receives the forward
 batch distops registration upsert update
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart --port 7711 --status 204
 ftClientStart --port 7712 --status 204
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
   "operations": ["redirectionOps", "upsertBatch", "updateBatch"],
   "information": [{"entities": [{"idPattern": "urn:V.*", "type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
 payload='{
   "id": "urn:CSR:R2",
   "type": "ContextSourceRegistration",
@@ -54,7 +54,7 @@ payload='{
   "operations": ["redirectionOps", "upsertBatch", "updateBatch"],
   "information": [{"entities": [{"idPattern": "urn:V.*", "type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
 echo
 echo
 
@@ -65,7 +65,7 @@ payload='[
   {"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 1}},
   {"id": "urn:V2", "type": "Vehicle", "speed": {"type": "Property", "value": 2}}
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
 echo
 echo
 
@@ -90,7 +90,7 @@ payload='[
   {"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 11}},
   {"id": "urn:V2", "type": "Vehicle", "speed": {"type": "Property", "value": 22}}
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
 echo
 echo
 
@@ -213,6 +213,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop --port 7711
 ftClientStop --port 7712

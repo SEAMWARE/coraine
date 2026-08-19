@@ -1,7 +1,7 @@
-# swBroker
+# coraine
 
 A lightweight **NGSI-LD Context Broker** written in C, targeting **ETSI GS CIM 009
-v1.9.1**. swBroker is small, fast, and — most importantly — **plugin-driven**:
+v1.9.1**. coraine is small, fast, and — most importantly — **plugin-driven**:
 storage backends, temporal history, extra API surfaces and (soon) the wire
 protocol itself are all `.so` plugins loaded at startup. The core broker speaks
 NGSI-LD; the plugins decide *where data lives*, *what extra endpoints exist* and
@@ -29,7 +29,7 @@ For a feature-by-feature breakdown of what's implemented, see
 
 ## Plugin architecture
 
-> **This is the heart of swBroker.** The broker binary contains the NGSI-LD
+> **This is the heart of coraine.** The broker binary contains the NGSI-LD
 > protocol logic, the REST layer, the JSON-LD engine and the subscription
 > matcher. It contains **no storage code and no temporal code**. Those — plus any
 > non-NGSI-LD admin/ops endpoints — are dynamically loaded shared objects. You
@@ -42,7 +42,7 @@ There are **four** kinds of plugin:
 - **Current-state DB** — where entities, subscriptions and registrations live.
   Loaded via `--database` / `-db`; resolves to `<base>/db/currentState/<name>.so`;
   register symbol `dbRegister`; fills the `DbDriver` struct (`db`). **One active at
-  a time.** Bundled: `mongoc` (default), `swRamDB`.
+  a time.** Bundled: `mongoc` (default), `corRamDB`.
 
 - **History DB** — the temporal evolution of entities (TRoE — Temporal
   Representation of Entities). Loaded via `--troe` / `-troe`; resolves to
@@ -69,14 +69,14 @@ next plugin axis to land.
 
 The base directory defaults to **`/opt/seamware/plugins`** and is overridable by
 the **`SEAMWARE_PLUGIN_DIR`** environment variable
-(`swPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR")` in
-`swBroker.c`). `make install` copies the bundled plugins into this tree:
+(`corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR")` in
+`coraine.c`). `make install` copies the bundled plugins into this tree:
 
 ```
 /opt/seamware/plugins/
 ├── db/currentState/
 │   ├── mongoc.so          # MongoDB-backed store
-│   └── swRamDB.so         # in-memory store
+│   └── corRamDB.so         # in-memory store
 ├── troe/temporal/
 │   ├── none.so            # no-op (temporal disabled)
 │   ├── ramdb.so           # in-memory history (dev/test)
@@ -90,23 +90,23 @@ which bypasses base-dir resolution — handy for pointing at a freshly-built `.s
 in a build tree without installing:
 
 ```sh
-swBroker --database $PWD/BUILD_DEBUG/src/plugins/currentState/swRamDB/swRamDB.so
+coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corRamDB/corRamDB.so
 ```
 
 ### How loading works (the mechanism)
 
 `src/lib/plugin/pluginLoader.c` does, per plugin:
 
-1. `swPluginResolve(base, category, subcategory, name, path, …)` → builds the `.so`
+1. `corPluginResolve(base, category, subcategory, name, path, …)` → builds the `.so`
    path (skipped when `name` already looks like a path).
-2. `swPluginOpen(path, "<symbol>", …)` → `dlopen` + `dlsym` for the register symbol
+2. `corPluginOpen(path, "<symbol>", …)` → `dlopen` + `dlsym` for the register symbol
    (`dbRegister` / `troeRegister` / `apiRegister`). Handles are tracked for
-   `swPluginCloseAll()` at shutdown.
+   `corPluginCloseAll()` at shutdown.
 3. The register function is called with a zeroed driver struct, which it fills with
    its function pointers.
 
 Plugins do **not** statically link the NGSI-LD/k-lib symbols — the broker is linked
-`rdynamic`, so a plugin `.so` resolves `kjson`, `swNgsild`, etc. from the running
+`rdynamic`, so a plugin `.so` resolves `kjson`, `corNgsild`, etc. from the running
 broker at `dlopen` time. Keep that in mind: a plugin must be built against the
 **same** lib headers as the broker it will be loaded into.
 
@@ -116,7 +116,7 @@ A plugin can publish its own command-line options. It sets `driverP->args`
 (a `KArg*` array) in its register function; the broker **peeks** at
 `--database`/`--troe`/`--apiPlugins` *before* the main parse, loads the plugins,
 then splices each plugin's `args` into the global arg table so they show up in
-`--help` and parse normally. This is why `swBroker --help` shows different options
+`--help` and parse normally. This is why `coraine --help` shows different options
 depending on which DB/TRoE plugin you selected.
 
 ### NULL-allowed methods → graceful 501
@@ -126,7 +126,7 @@ convention: a **NULL function pointer means "unsupported"**, and the service
 routine returns **501 Not Implemented** (or treats it as a no-op where the spec
 allows). Examples called out in the headers: `subscriptionStatsFlush`,
 `snapshot*`, `tenantDrop`, and the whole context-persistence quartet
-(`contextSave/Delete/List/Get`) are NULL on `swRamDB`. This is how the in-memory
+(`contextSave/Delete/List/Get`) are NULL on `corRamDB`. This is how the in-memory
 driver legitimately ships without persistence.
 
 ### The driver interfaces
@@ -144,7 +144,7 @@ the headers — read these before writing a plugin:
   `eventList`); read paths return `EntityTemporal` trees. Error codes: `TROE_OK`,
   `TROE_NOT_FOUND`, `TROE_UPDATED`, `TROE_ERR`.
 - **`src/lib/plugin/ApiPlugin.h`** — extra endpoints. A flat
-  `SwRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
+  `CorRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
   optional `args`, and `init`/`close`/`versionInfo` hooks.
 
 ### Bundled plugins
@@ -152,7 +152,7 @@ the headers — read these before writing a plugin:
 | Plugin | Category | Notes |
 |--------|----------|-------|
 | **mongoc** | DB | MongoDB via `libmongoc` v2; `$geoNear` aggregation, persistence, context hosting, per-tenant DBs. The default (`--database mongoc`). Needs the mongo-c **v2** driver at build time. |
-| **swRamDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
+| **corRamDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
 | **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
 | **ramdb** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
@@ -161,7 +161,7 @@ the headers — read these before writing a plugin:
 ### Writing a new plugin (sketch)
 
 A DB plugin is one `.so` exporting `void dbRegister(DbDriver*)`. Minimal shape,
-mirroring `src/plugins/currentState/swRamDB/ramdbRegister.c`:
+mirroring `src/plugins/currentState/corRamDB/ramdbRegister.c`:
 
 ```c
 #include "db/DbDriver.h"
@@ -183,7 +183,7 @@ void dbRegister(DbDriver* driverP)
 ```
 
 Build it as a `SHARED` library that drops `myStore.so` into
-`<base>/db/currentState/`, then run `swBroker --database myStore`. The existing
+`<base>/db/currentState/`, then run `coraine --database myStore`. The existing
 plugin `CMakeLists.txt` files (e.g.
 `src/plugins/currentState/mongoc/CMakeLists.txt`) are the template — note they
 **don't** link the broker's libs (resolved at runtime), only their own backend
@@ -194,29 +194,29 @@ deps (`mongoc2`, `geos_c`, …). API and TRoE plugins follow the same pattern wi
 
 ## Building
 
-swBroker links a constellation of sibling repos (k-libs + sw-libs) plus several
+coraine links a constellation of sibling repos (k-libs + Cor-Libs) plus several
 system libraries. The repos must sit as **siblings** under one parent (default
 `~/git`), because the build references `../<lib>/lib<lib>.a`.
 
 ### Fastest path — bootstrap script
 
-If you're starting from scratch, the `bootstrap-swlibs.sh` script (kept next to
+If you're starting from scratch, the `bootstrap-corlibs.sh` script (kept next to
 the repos under `~/git`) clones every dependency at pinned versions and builds the
-whole lib stack via the `swLibs` umbrella. Then:
+whole lib stack via the `corLibs` umbrella. Then:
 
 ```sh
-cd ~/git/swBroker
+cd ~/git/coraine
 make di            # debug build + install (binary + plugins → /opt/seamware, /usr/local/bin)
 ```
 
 ### Dependency stack
 
 - **k-libs** (gitlab.com/kzangeli): `kbase kalloc klog khash kjson kargs ktrace kprom`
-- **sw-libs** (github.com/kzangeli): `swRest swNgsild swJsonld swPlugin`
-- **umbrella / test runner**: `swLibs`, `swTest`
+- **Cor-Libs** (github.com/kzangeli): `corRest corNgsild corJsonld corPlugin`
+- **umbrella / test runner**: `corLibs`, `corTest`
 
-`make` auto-rebuilds `swRest`/`swNgsild`/`swJsonld` (the broker's `libs` target);
-the k-libs and `swPlugin` must already be built (the umbrella or bootstrap handles
+`make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);
+the k-libs and `corPlugin` must already be built (the umbrella or bootstrap handles
 that).
 
 ### System packages (Debian/Ubuntu)
@@ -231,8 +231,8 @@ that).
 | TimescaleDB plugin | `libpq-dev` |
 | Toolchain | `cmake build-essential` |
 
-> Don't need Mongo? Build without it: `cmake -DSW_FEATURE_MONGOC=OFF` and run with
-> `--database swRamDB`. The mongo-c v2 driver is the most common build snag.
+> Don't need Mongo? Build without it: `cmake -DCOR_FEATURE_MONGOC=OFF` and run with
+> `--database corRamDB`. The mongo-c v2 driver is the most common build snag.
 
 ### Make targets
 
@@ -244,7 +244,7 @@ that).
 | `make ci` / `make cdi` | clean + the above |
 | `make install` | copy broker + plugins → `/usr/local/bin`, `/opt/seamware/plugins`, `/opt/seamware/etc` |
 | `make clean` | remove build trees |
-| `make test` | run the functional test suite (`swTest`) |
+| `make test` | run the functional test suite (`corTest`) |
 | `make coverage` | unit coverage report (`coverage/index.html`) |
 | `make coverage-etsi` | full ETSI TP suite coverage (`coverage-etsi/index.html`) |
 
@@ -253,11 +253,11 @@ permissions or pre-create the dirs.
 
 ### Feature flags
 
-`CMakeLists.txt` exposes `SW_FEATURE_*` options (subscriptions, registrations,
+`CMakeLists.txt` exposes `COR_FEATURE_*` options (subscriptions, registrations,
 geoq, scopes, datasetId, multi-type, context download/hosting, tenants, mongoc,
 admin API, metrics, geo-dispatch on location/observationSpace/operationSpace). All
 default ON except the observation/operation-space dispatch. Toggle with
-`cmake -DSW_FEATURE_X=OFF`. Note: most flags currently gate *which sources compile
+`cmake -DCOR_FEATURE_X=OFF`. Note: most flags currently gate *which sources compile
 in*; the corresponding `#ifdef`s in the C are still being filled in, so turning one
 off may drop symbols referenced elsewhere — treat them as scaffolding for now.
 
@@ -270,13 +270,13 @@ no API plugins.
 
 ```sh
 # In-memory, foreground, pretty JSON, admin API on — zero external services:
-swBroker --database swRamDB --troe none --apiPlugins admin --foreground -pp 2
+coraine --database corRamDB --troe none --apiPlugins admin --foreground -pp 2
 
 # Default (Mongo) on a custom port:
-swBroker --port 1027 --database mongoc
+coraine --port 1027 --database mongoc
 
 # Full plugin help (includes the selected plugins' own args):
-swBroker --apiPlugins admin --database mongoc --usage
+coraine --apiPlugins admin --database mongoc --usage
 ```
 
 Selected common options (`--usage` for the full list):
@@ -299,9 +299,9 @@ Selected common options (`--usage` for the full list):
 ## Project layout
 
 ```
-swBroker/
+coraine/
 ├── src/
-│   ├── app/swBroker/        # main(), arg table, plugin wiring, NGSI-LD service map
+│   ├── app/coraine/        # main(), arg table, plugin wiring, NGSI-LD service map
 │   ├── lib/
 │   │   ├── plugin/          # pluginLoader.c + ApiPlugin.h  (the loader)
 │   │   ├── db/              # DbDriver.h  (current-state plugin contract) + tenant
@@ -311,11 +311,11 @@ swBroker/
 │   │   ├── forwarding/      # distributed-ops (CSR) forwarding
 │   │   └── metrics/         # Prometheus via kprom
 │   └── plugins/
-│       ├── currentState/    # mongoc, swRamDB   (DB plugins)
+│       ├── currentState/    # mongoc, corRamDB   (DB plugins)
 │       ├── temporal/        # none, ramdb, timescale  (TRoE plugins)
 │       ├── api/admin/       # admin API plugin
 │       └── shared/          # geoMatch.c etc. shared across plugins
-├── test/funcTests/          # swTest functional tests
+├── test/funcTests/          # corTest functional tests
 ├── doc/                     # implementation status, feature overview, port triage
 ├── CMakeLists.txt           # real build (feature flags, lib wiring)
 └── makefile                 # convenience wrapper (release/debug/install/test/coverage)
@@ -325,11 +325,11 @@ swBroker/
 
 ## Testing
 
-Functional tests run through `swTest` (installed by the `swLibs` umbrella into
-`~/git/swLibs/bin/swTest`):
+Functional tests run through `corTest` (installed by the `corLibs` umbrella into
+`~/git/corLibs/bin/corTest`):
 
 ```sh
-make test                    # whole suite against a swRamDB broker
+make test                    # whole suite against a corRamDB broker
 ```
 
 Tests live under `test/funcTests/`. Coverage:

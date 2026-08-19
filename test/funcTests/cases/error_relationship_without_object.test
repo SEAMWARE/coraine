@@ -12,8 +12,8 @@ Entity create rejected when a Relationship attribute carries no object
 error attr create
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -31,7 +31,7 @@ payload='{
     "value": "1234"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
@@ -54,4 +54,4 @@ Content-Length: 255
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

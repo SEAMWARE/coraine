@@ -12,8 +12,8 @@ PATCH /entityMaps/{id} — Update EntityMap (§ 5.14.2)
 entity entitymap patch query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -40,11 +40,11 @@ swBrokerStart
 
 echo "01. Seed entities + create map"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":2}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":2}}'
 echo
-MAP_ID=$(swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 echo "Map: ${MAP_ID:0:10}..."
 echo
 echo
@@ -52,49 +52,49 @@ echo
 
 echo "02. PATCH expiresAt → 204"
 echo "========================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
 echo
 echo
 
 
 echo "03. GET map → expiresAt reflects new value"
 echo "=========================================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '"expiresAt"'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '"expiresAt"'
 echo
 echo
 
 
 echo "04. PATCH with id field → 400"
 echo "============================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"id":"urn:other","expiresAt":"2099-01-01T00:00:00.000Z"}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"id":"urn:other","expiresAt":"2099-01-01T00:00:00.000Z"}'
 echo
 echo
 
 
 echo "05. PATCH with output-only entityMap alongside expiresAt → 204, ignored"
 echo "======================================================================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2098-01-01T00:00:00.000Z","entityMap":{"urn:X":["@none"]}}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2098-01-01T00:00:00.000Z","entityMap":{"urn:X":["@none"]}}'
 echo
 echo
 
 
 echo "06. PATCH with invalid expiresAt → 400"
 echo "======================================"
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"not a date"}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"not a date"}'
 echo
 echo
 
 
 echo "07. PATCH with empty body → 400"
 echo "==============================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{}'
 echo
 echo
 
 
 echo "08. PATCH non-existent map → 404"
 echo "================================"
-swCurl --url "/ngsi-ld/v1/entityMaps/urn:NoSuch" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
+corCurl --url "/ngsi-ld/v1/entityMaps/urn:NoSuch" -X PATCH --payload '{"expiresAt":"2099-01-01T00:00:00.000Z"}'
 echo
 echo
 
@@ -103,14 +103,14 @@ echo "09. GET map → step 05 left the output-only members untouched"
 echo "============================================================"
 # The bogus {"urn:X":["@none"]} from step 05 must NOT have replaced the
 # broker-generated mapping, and expiresAt must show step 05's value.
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '"expiresAt"|urn:V1|urn:V2|urn:X'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '"expiresAt"|urn:V1|urn:V2|urn:X'
 echo
 echo
 
 
 echo "10. PATCH with output-only linkedMaps alongside expiresAt → 204, ignored"
 echo "========================================================================"
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2097-01-01T00:00:00.000Z","linkedMaps":{"urn:reg:1":"urn:map:1"}}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"expiresAt":"2097-01-01T00:00:00.000Z","linkedMaps":{"urn:reg:1":"urn:map:1"}}'
 echo
 echo
 
@@ -119,7 +119,7 @@ echo "11. PATCH with ONLY output-only members → 400 (they count as absent)"
 echo "===================================================================="
 # Ignoring them means treating them as not provided, so the mandatory
 # expiresAt is missing — a Mandatory Field Missing 400, not Immutable Field.
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"entityMap":{"urn:X":["@none"]},"linkedMaps":{"urn:reg:1":"urn:map:1"}}'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" -X PATCH --payload '{"entityMap":{"urn:X":["@none"]},"linkedMaps":{"urn:reg:1":"urn:map:1"}}'
 echo
 echo
 
@@ -261,4 +261,4 @@ Content-Length: 185
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

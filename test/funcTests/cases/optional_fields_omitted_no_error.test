@@ -11,25 +11,25 @@ Subscription / registration / entity with only mandatory fields create cleanly
 --TAGS--
 subscription registration entity error
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 --RUN--
 
 echo "01. Create subscription (minimal fields)"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "type": "Subscription", "entities": [ { "type": "FillingSensor" } ], "notification": { "endpoint": { "uri": "http://receiver.example.org/notify" } } }' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{ "type": "Subscription", "entities": [ { "type": "FillingSensor" } ], "notification": { "endpoint": { "uri": "http://receiver.example.org/notify" } } }' | head -1
 echo
 echo
 
 echo "02. Create registration (minimal fields)"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "Vehicle" } ] } ], "endpoint": "http://my.csource.org:1026" }' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "Vehicle" } ] } ], "endpoint": "http://my.csource.org:1026" }' | head -1
 echo
 echo
 
 echo "03. Create entity (minimal fields)"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E1", "type": "T" }' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "urn:E1", "type": "T" }' | head -1
 echo
 echo
 
@@ -38,7 +38,7 @@ echo
 # NGSILD-Warning 199 alongside the locally-served entity.
 echo "04. GET the entity back"
 echo "======================="
-swCurl --url '/ngsi-ld/v1/entities/urn:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1'
 echo
 echo
 
@@ -75,5 +75,5 @@ Content-Length: 36
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

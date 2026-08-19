@@ -12,8 +12,8 @@ Query Entities with orderBy (§ 4.23)
 entity orderby query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ for v in \
   '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120},"name":{"type":"Property","value":"Alice"}}' \
   '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50},"name":{"type":"Property","value":"Alice"}}' \
   '{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":90},"name":{"type":"Property","value":"Bob"}}'; do
-  swCurl --url /ngsi-ld/v1/entities --payload "$v"
+  corCurl --url /ngsi-ld/v1/entities --payload "$v"
   echo
 done
 echo
@@ -41,21 +41,21 @@ echo
 
 echo "02. orderBy=speed → ascending"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=speed;desc → descending"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed;desc&options=keyValues'
 echo
 echo
 
 
 echo "04. orderBy=name,speed → name asc, then speed asc for ties"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name,speed&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name,speed&options=keyValues'
 echo
 echo
 
@@ -63,10 +63,10 @@ echo
 echo "05. orderBy on missing attr → missing sorts last"
 echo "================================================="
 # Add one vehicle without 'name'
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":999}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":999}}'
 echo
 echo
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name&options=keyValues'
 echo
 echo
 
@@ -265,5 +265,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ Update Subscription - urn:ngsi-ld:null delete-marker (TS 104-175 clause-8 / § 5
 subscription update delete
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,14 +46,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve - q + expiresAt present"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
 echo
 echo
 
@@ -64,14 +64,14 @@ payload='{
   "q": "urn:ngsi-ld:null",
   "expiresAt": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
 echo
 echo
 
 
 echo "04. Retrieve - q + expiresAt gone, throttling kept"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1
 echo
 echo
 
@@ -81,7 +81,7 @@ echo "==========================================="
 payload='{
   "throttling": null
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
 echo
 echo
 
@@ -91,7 +91,7 @@ echo "======================================================="
 payload='{
   "notification": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:DM1 --payload "$payload"
 echo
 echo
 
@@ -113,7 +113,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -250,4 +250,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -19,8 +19,8 @@ Subscription PATCH body validation errors (§ 5.8.3)
 subscription error validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,154 +33,154 @@ payload='{
   "watchedAttributes": ["temperature"],
   "notification": {"endpoint": {"uri": "http://localhost:9999/n"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "02. PATCH 'type' that is not 'Subscription' → 400"
 echo "================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Building"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Building"}'
 echo
 echo
 
 
 echo "03. PATCH 'entities' that is not an array → 400"
 echo "==============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": "x"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": "x"}'
 echo
 echo
 
 
 echo "04. PATCH 'entities' as an empty array → 400"
 echo "============================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": []}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": []}'
 echo
 echo
 
 
 echo "05. PATCH 'watchedAttributes' that is not an array → 400"
 echo "======================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"watchedAttributes": "x"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"watchedAttributes": "x"}'
 echo
 echo
 
 
 echo "06. PATCH 'q' that is not a string → 400"
 echo "========================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"q": 5}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"q": 5}'
 echo
 echo
 
 
 echo "07. PATCH 'geoQ' that is not a JSON object → 400"
 echo "================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ": "x"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ": "x"}'
 echo
 echo
 
 
 echo "08. PATCH 'geoQ:geometry' with an invalid value → 400"
 echo "====================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ": {"geometry": "Banana", "coordinates": [1,2]}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ": {"geometry": "Banana", "coordinates": [1,2]}}'
 echo
 echo
 
 
 echo "09. PATCH 'notification' that is not an object → 400"
 echo "===================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": "x"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": "x"}'
 echo
 echo
 
 
 echo "10. PATCH 'notification' as an empty object → 400"
 echo "================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {}}'
 echo
 echo
 
 
 echo "11. PATCH 'notification:endpoint' that is not an object → 400"
 echo "============================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"endpoint": "x"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"endpoint": "x"}}'
 echo
 echo
 
 
 echo "12. PATCH 'notification:endpoint:uri' that is not a URI → 400"
 echo "============================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"endpoint": {"uri": "not a uri"}}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"endpoint": {"uri": "not a uri"}}}'
 echo
 echo
 
 
 echo "13. PATCH 'notification:format' with an unsupported value → 400"
 echo "=============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "banana"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "banana"}}'
 echo
 echo
 
 
 echo "14. PATCH 'expiresAt' that is not a valid DateTime → 400"
 echo "======================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"expiresAt": "banana"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"expiresAt": "banana"}'
 echo
 echo
 
 
 echo "15. PATCH 'expiresAt' that is in the past → 400"
 echo "==============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"expiresAt": "2000-01-01T00:00:00Z"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"expiresAt": "2000-01-01T00:00:00Z"}'
 echo
 echo
 
 
 echo "16. PATCH 'throttling' that is negative → 400"
 echo "============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"throttling": -3}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"throttling": -3}'
 echo
 echo
 
 
 echo "17. PATCH deleting BOTH 'entities' and 'watchedAttributes' → 400 (no selector left)"
 echo "==================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": "urn:ngsi-ld:null", "watchedAttributes": "urn:ngsi-ld:null"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"entities": "urn:ngsi-ld:null", "watchedAttributes": "urn:ngsi-ld:null"}'
 echo
 echo
 
 
 echo "18. PATCH carrying the read-only 'id' alongside a real field → 400"
 echo "=================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"id": "urn:ngsi-ld:null", "description": "d"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"id": "urn:ngsi-ld:null", "description": "d"}'
 echo
 echo
 
 
 echo "19. PATCH whose only member is the read-only 'type' → 400"
 echo "========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Subscription"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Subscription"}'
 echo
 echo
 
 
 echo "20. A valid PATCH (and a 'type' echo alongside it) → 204"
 echo "========================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Subscription", "description": "updated"}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"type": "Subscription", "description": "updated"}' | grep HTTP
 echo
 echo
 
 
 echo "21. GET — the rejected PATCHes left the subscription intact; the valid one applied"
 echo "=================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 | grep -E '"description"|"uri"|"watchedAttributes"|temperature'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 | grep -E '"description"|"uri"|"watchedAttributes"|temperature'
 echo
 echo
 
 
 echo "22. PATCH a partial 'notification' (only 'format') → 204 (a fragment need not re-send the endpoint)"
 echo "=================================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "concise"}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "concise"}}' | grep HTTP
 echo
 echo
 
@@ -194,14 +194,14 @@ payload='{
   "timeInterval": 30,
   "notification": {"endpoint": {"uri": "http://localhost:9999/n"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "24. PATCH deleting 'timeInterval' from the periodic subscription → 400 (would un-periodic it)"
 echo "============================================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"timeInterval": "urn:ngsi-ld:null"}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"timeInterval": "urn:ngsi-ld:null"}'
 echo
 echo
 
@@ -540,5 +540,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

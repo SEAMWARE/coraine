@@ -12,8 +12,8 @@ DistOps - exclusive registration without createEntity in operations yields parti
 create distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 201
 
 --RUN--
@@ -47,7 +47,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -66,14 +66,14 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. GET urn:V1 ?local=true → only color, speed never stored"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
 echo
 
@@ -137,5 +137,5 @@ Content-Length: 103
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

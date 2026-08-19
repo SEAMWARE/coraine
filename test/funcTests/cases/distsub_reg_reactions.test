@@ -24,10 +24,10 @@ DistSub - reg-create + reg-delete reactions on entity-subs
 create delete distops registration subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -44,14 +44,14 @@ swBrokerStart -role CP1 -dist
 
 echo "01. Create sub urn:S1 on CB (no CSRs yet)"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "02. GET /subscriptions on CP1 — no derivative yet"
 echo "================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -68,35 +68,35 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. GET /subscriptions on CP1 — derived urn:S1:1 now present"
 echo "============================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "05. DELETE the CSR on CB → cleanup derivatives"
 echo "=============================================="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
 echo
 echo
 
 
 echo "06. GET /subscriptions on CP1 — derivative gone"
 echo "==============================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "07. GET /subscriptions on CB — local sub still there"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -219,7 +219,7 @@ Content-Length: 340
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

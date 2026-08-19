@@ -21,9 +21,9 @@ Subscription geoQ — near (maxDistance/donut), custom geoproperty, LineString/M
 geo subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
   "geoQ": {"georel": "near;maxDistance==200000", "geometry": "Point", "coordinates": '$MADRID', "geoproperty": "location"},
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 
 echo "02. near;minDistance + maxDistance — donut 100..300 km around Madrid"
@@ -51,7 +51,7 @@ payload='{
   "geoQ": {"georel": "near;minDistance==100000;maxDistance==300000", "geometry": "Point", "coordinates": '$MADRID', "geoproperty": "location"},
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 
 echo "03. intersects on a custom geoproperty 'area' (not location)"
@@ -63,7 +63,7 @@ payload='{
   "geoQ": {"georel": "intersects", "geometry": "Polygon", "coordinates": [[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]], "geoproperty": "area"},
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 
 echo "04. intersects against LineString and MultiPoint entity geometries"
@@ -75,7 +75,7 @@ payload='{
   "geoQ": {"georel": "intersects", "geometry": "Polygon", "coordinates": [[[-6,38],[-2,38],[-2,42],[-6,42],[-6,38]]], "geoproperty": "location"},
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -84,17 +84,17 @@ echo "05. Entities — one matching + one NON-matching per near/donut subscripti
 echo "=========================================================================="
 # Near: ~50 km NE of Madrid → inside 200 km radius → MATCH
 payload='{"id": "urn:ngsi-ld:Near:in",  "type": "Near", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-3.2,40.7]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 # Near: Barcelona ~500 km → outside 200 km radius → NO match
 payload='{"id": "urn:ngsi-ld:Near:out", "type": "Near", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [2.17,41.39]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 
 # Donut: ~50 km from Madrid → inside the 100 km hole → NO match
 payload='{"id": "urn:ngsi-ld:Donut:hole", "type": "Donut", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-3.2,40.7]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 # Donut: ~200 km from Madrid → in the 100..300 km annulus → MATCH
 payload='{"id": "urn:ngsi-ld:Donut:ring", "type": "Donut", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-1.13,38.99]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -102,7 +102,7 @@ echo
 echo "06. Entity with the geometry on a custom geoproperty 'area' → MATCH"
 echo "==================================================================="
 payload='{"id": "urn:ngsi-ld:CustomGeoprop:1", "type": "CustomGeoprop", "area": {"type": "GeoProperty", "value": {"type": "Polygon", "coordinates": [[[-4,39],[0,39],[0,43],[-4,43],[-4,39]]]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -110,9 +110,9 @@ echo
 echo "07. LineString + MultiPoint entities crossing the reference polygon → MATCH both"
 echo "================================================================================="
 payload='{"id": "urn:ngsi-ld:Shapes:line", "type": "Shapes", "location": {"type": "GeoProperty", "value": {"type": "LineString", "coordinates": [[-8,40],[0,40]]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 payload='{"id": "urn:ngsi-ld:Shapes:mp", "type": "Shapes", "location": {"type": "GeoProperty", "value": {"type": "MultiPoint", "coordinates": [[-9,35],[-4,40]]}}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -174,5 +174,5 @@ HTTP/1.1 201 Created
       "subscriptionId": "urn:ngsi-ld:Subscription:Shapes",
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

@@ -17,8 +17,8 @@ DELETE entity with an unresolvable @context Link still succeeds (204)
 entity context
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -29,21 +29,21 @@ payload='{
   "type": "A",
   "name": { "type": "Property", "value": "1" }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. DELETE E1 with a Link @context that cannot be downloaded -> 204"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1 -X DELETE -H 'Link: <https://fiware.github.io/NGSI-LD_TestSuite/error/noContext.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1 -X DELETE -H 'Link: <https://fiware.github.io/NGSI-LD_TestSuite/error/noContext.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
 
 echo "03. GET E1 -> 404 (it is gone)"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
 echo
 echo
 
@@ -84,4 +84,4 @@ Content-Length: 168
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

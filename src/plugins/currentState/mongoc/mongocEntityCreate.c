@@ -14,7 +14,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocKjTreeToBson.h"               // mongocKjTreeToBson
-#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityCreate.h"               // Own interface
 
@@ -52,7 +52,7 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
     mongoc_collection_destroy(collP);
     mongoc_client_pool_push(poolP, clientP);
     KT_E("mongoc: entityCreate: '%s' is a GeoProperty here but already held as another type", geoClashP);
-    swNgsild.geoConflictAttr = geoClashP;
+    corNgsild.geoConflictAttr = geoClashP;
     return DB_GEO_TYPE_CONFLICT;
   }
 
@@ -90,7 +90,7 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
       if (mixedP != NULL)
       {
         KT_E("mongoc: entityCreate: '%s' is held as a GeoProperty here and written as another type", mixedP);
-        swNgsild.geoConflictAttr = mixedP;
+        corNgsild.geoConflictAttr = mixedP;
         return DB_GEO_TYPE_CONFLICT;
       }
 

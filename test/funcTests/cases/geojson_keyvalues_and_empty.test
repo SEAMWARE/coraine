@@ -23,32 +23,32 @@ GeoJSON: empty FeatureCollection and options=keyValues
 entity query geojson keyValues
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed two Cities with location + name + population"
 echo "====================================================="
 payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } }, "name": { "type": "Property", "value": "Berlin" }, "population": { "type": "Property", "value": 3600000 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{ "id": "urn:ngsi-ld:City:2", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [2.3, 48.9] } }, "name": { "type": "Property", "value": "Paris" }, "population": { "type": "Property", "value": 2100000 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET /entities?type=Nope as GeoJSON → 200 empty FeatureCollection"
 echo "==================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities?type=Nope'
+corCurl --out geojson --url '/ngsi-ld/v1/entities?type=Nope'
 echo
 echo
 
 
 echo "03. GET /entities/City:1 GeoJSON + options=keyValues → simplified properties, geometry kept"
 echo "==========================================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'options=keyValues'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' --urlParams 'options=keyValues'
 
 --EXPECT--
 01. Seed two Cities with location + name + population
@@ -116,4 +116,4 @@ Content-Length: 425
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -29,14 +29,14 @@ error
 ld-json
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. CREATE ld+json, one element missing @context → 400 (whole request)"
 echo "======================================================================"
-swCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle"}
 ]'
 echo
@@ -45,7 +45,7 @@ echo
 
 echo "02. CREATE ld+json, mixed (V1 has @context, V2 missing) → 400 (whole request)"
 echo "============================================================================="
-swCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"},
   {"id":"urn:V2","type":"Vehicle"}
 ]'
@@ -55,7 +55,7 @@ echo
 
 echo "03. CREATE ld+json, every element carries @context → 201"
 echo "========================================================"
-swCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"},
   {"id":"urn:V2","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}
 ]'
@@ -65,7 +65,7 @@ echo
 
 echo "04. CREATE application/json, one element carries @context → 400 (whole request)"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V3","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}
 ]'
 echo
@@ -74,7 +74,7 @@ echo
 
 echo "05. CREATE application/json, no element carries @context → 201"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V4","type":"Vehicle"}
 ]'
 echo
@@ -83,7 +83,7 @@ echo
 
 echo "06. UPSERT ld+json, element missing @context → 400 (same rule, all batch ops)"
 echo "============================================================================"
-swCurl --in jsonld --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V5","type":"Vehicle"}
 ]'
 echo
@@ -92,7 +92,7 @@ echo
 
 echo "07. MERGE application/json, element carries @context → 400"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V4","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}
 ]'
 echo
@@ -101,7 +101,7 @@ echo
 
 echo "08. DELETE application/json (array of id strings) — exempt → 204"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V4"]'
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V4"]'
 echo
 echo
 
@@ -223,5 +223,5 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@
 #include <stddef.h>                               // NULL
 
 #include "kjson/kjBuilder.h"                      // kjObject, kjChildAdd
-#include "swRest/SwRestState.h"                   // swRest
-#include "swNgsild/swNgsild.h"                    // ldError, LD_ERROR_*
+#include "corRest/CorRestState.h"                   // corRest
+#include "corNgsild/corNgsild.h"                    // ldError, LD_ERROR_*
 
 #include "troe/TroeDriver.h"                      // troe
 
@@ -31,11 +31,11 @@ bool adminGetTroeDump(void)
     return true;
   }
 
-  Kjson*  kjsonP = swRest.kjsonP;
+  Kjson*  kjsonP = corRest.kjsonP;
   KjNode* root   = kjObject(kjsonP, NULL);
 
-  troe.dumpInfo(&swRest.kalloc, root);
+  troe.dumpInfo(&corRest.kalloc, root);
 
-  swRest.out.responseTree = root;
+  corRest.out.responseTree = root;
   return true;
 }

@@ -16,44 +16,44 @@ q not-exists operator (q=!attr) on GET
 q query validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed E1 {P}, E2 {Q} (no P), E3 {P,R}"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","Q":{"type":"Property","value":1}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E3","type":"T","P":{"type":"Property","value":1},"R":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","Q":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E3","type":"T","P":{"type":"Property","value":1},"R":{"type":"Property","value":1}}' | head -1
 echo
 echo
 
 
 echo "02. q=!P — only E2 (the one without P)"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=%21P'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=%21P'
 echo
 echo
 
 
 echo "03. q=P — E1 and E3 (sanity, the ones with P)"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=P'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=P'
 echo
 echo
 
 
 echo "04. q=!R — E1 and E2 (the ones without R)"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=%21R'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=%21R'
 echo
 echo
 
 
 echo "05. q=!P==5 — not-exists cannot take a comparison — 400"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=%21P==5'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=%21P==5'
 echo
 echo
 
@@ -166,4 +166,4 @@ Content-Length: 198
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

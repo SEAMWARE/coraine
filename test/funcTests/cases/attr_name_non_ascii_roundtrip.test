@@ -15,8 +15,8 @@ Non-ASCII characters in an attribute name round-trip
 entity attr query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,7 +28,7 @@ swBrokerStart
 
 echo "01. Create entity with a non-ASCII attribute name"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
   "id": "http://a.b.c/entity/E1",
   "type": "xxx",
   "Straße": { "type": "Property", "value": "Strasse" }
@@ -39,14 +39,14 @@ echo
 
 echo "02. GET the entity by id"
 echo "========================"
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/entity/E1'
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/entity/E1'
 echo
 echo
 
 
 echo "03. GET all entities of type xxx"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=xxx'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=xxx'
 echo
 echo
 
@@ -103,5 +103,5 @@ Content-Length: 141
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

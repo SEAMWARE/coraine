@@ -1,4 +1,4 @@
-# swBroker Implementation Status
+# coraine Implementation Status
 
 Version: post-0.2.0
 Date: 2026-04-20
@@ -7,12 +7,12 @@ Date: 2026-04-20
 
 ## Architecture
 
-swBroker is a lightweight NGSI-LD Context Broker built in C on top of:
+coraine is a lightweight NGSI-LD Context Broker built in C on top of:
 - **k-libs** (kalloc, kjson, ktrace, kargs, kbase, khash, klog, kprom)
-- **sw-libs** (swRest, swJsonld, swNgsild, swPlugin)
+- **Cor-Libs** (corRest, corJsonld, corNgsild, corPlugin)
 
 Database and API functionality are loaded as **plugins** (`/opt/seamware/plugins`):
-- **DB plugins**: `swRamDB` (in-memory, GEOS geo-filtering, per-tenant isolation), `mongoc` (MongoDB via libmongoc, $geoNear aggregation)
+- **DB plugins**: `corRamDB` (in-memory, GEOS geo-filtering, per-tenant isolation), `mongoc` (MongoDB via libmongoc, $geoNear aggregation)
 - **API plugins**: `admin` (health, version, log, tenants, plugins)
 
 ---
@@ -156,7 +156,7 @@ Functional tests: `delete_entity.test`, `csource-reg-distops-delete-{exclusive,m
 Implements Merge Entity per § 5.6.17 using the merge-patch procedure of § 5.5.12
 (RFC 7396 adaptation with `"urn:ngsi-ld:null"` as the delete marker, since
 NGSI-LD forbids bare JSON null). Surgical semantics throughout: only what the
-fragment names is touched. swRamDB mutates the live stored tree in place.
+fragment names is touched. corRamDB mutates the live stored tree in place.
 mongoc fetches the target, applies the merge in memory, and writes only the
 changed attributes as `$set` / `$unset` ops — a PATCH on one attribute of a
 2000-attribute entity writes only that attribute plus the entity-level
@@ -206,7 +206,7 @@ Functional tests: `patch_entity.test`, `patch_entity_datasetid.test`,
 **Status: Complete**
 
 Implements Replace Entity per § 5.6.18 using the procedure of § 5.5.12.
-Atomic replace at the driver level: swRamDB detaches the old tree and
+Atomic replace at the driver level: corRamDB detaches the old tree and
 grafts a clone of the new one in place; mongoc uses
 `mongoc_collection_find_and_modify_with_opts` so the find/replace/return-old
 is a single server-side operation. The service routine pre-retrieves the
@@ -277,7 +277,7 @@ format.
 | Per-RegistrationInfo slice via `ldEntityFragmentForInfo` | Done |
 | op-check on `appendAttrs` (exclusive/redirect → notUpdated) | Done |
 | Via loop detect + per-CSR proactive skip | Done |
-| swRamDB `entityAttrsSet` — in-place tree mutation | Done |
+| corRamDB `entityAttrsSet` — in-place tree mutation | Done |
 | mongoc `entityAttrsSet` — fetch + apply + `$set` of touched attrs only | Done |
 
 Functional tests: `post_entity_attrs.test` (core: overwrite,
@@ -315,7 +315,7 @@ ldCheckEntity time the op is LdOpUpdateEntity, which accepts the
 | DistOps — inclusive clone + forward via PATCH/attrs | Done |
 | op-check on `updateAttrs` (exclusive/redirect → notUpdated) | Done |
 | Via loop detect + per-CSR proactive skip | Done |
-| swRamDB `entityAttrsSet` (shared with Append) | Done |
+| corRamDB `entityAttrsSet` (shared with Append) | Done |
 | mongoc `entityAttrsSet` (shared with Append) | Done |
 
 Functional tests: `patch_entity_attrs.test` (core: update + append +
@@ -347,11 +347,11 @@ and concurrent-download dedup.
 
 | Aspect | Notes |
 |--------|-------|
-| Persistence (mongoc) | Hosted + Cached survive restart; reserved DB `swBroker` (rejected as a tenant `-dbName`); reload-on-startup repopulates the cache. Implicit is intentionally not persisted |
+| Persistence (mongoc) | Hosted + Cached survive restart; reserved DB `coraine` (rejected as a tenant `-dbName`); reload-on-startup repopulates the cache. Implicit is intentionally not persisted |
 | Persistence (ramdb) | None — by design |
-| Concurrent-download dedup | `swldCacheDownloadingAdd/Remove/Check` serialises a single download per URL; concurrent waiters poll the cache (3s timeout) |
+| Concurrent-download dedup | `corLdCacheDownloadingAdd/Remove/Check` serialises a single download per URL; concurrent waiters poll the cache (3s timeout) |
 | Hosted id | Broker-minted `urn:ngsi-ld:Context:<counter>-<epochSeconds>` |
-| Hosted body shapes | Object form fully supported; array form via `swldContextFromTree` (each URL element is downloaded as Implicit and side-cached, inline objects too) |
+| Hosted body shapes | Object form fully supported; array form via `corLdContextFromTree` (each URL element is downloaded as Implicit and side-cached, inline objects too) |
 | Errors | 415 wrong Content-Type, 400 missing/invalid body, 400 reload-on-non-Cached, 404 unknown id, 503 download failure (`LdContextNotAvailable`), 501 plugin without persistence (Phase B fallback) |
 | Concurrency model | `pthread_mutex_t` on the cache (lookup/insert/remove/snapshot). DB ops use the standard mongoc client pool — no shared collection handle, so no second-tier sem needed |
 
@@ -502,7 +502,7 @@ Entity operations:
 - `entityQuery` — GET /entities
 - `entityDelete` — DELETE /entities/{id}
 - `entityMerge` — PATCH /entities/{id}; reuses `ldEntityMerge` in
-  swNgsild, fronted in each driver by a `*EntityMergeOne` helper so Batch
+  corNgsild, fronted in each driver by a `*EntityMergeOne` helper so Batch
   Merge (§ 5.6.20) can share the core
 - `entityReplace` — PUT /entities/{id}; atomic via in-place swap (ramdb)
   or `find_and_modify` (mongoc); returns the pre-image for notifications
@@ -516,7 +516,7 @@ Plus: `tenantSetup`, `geoMatchFunc`, `versionInfo`, `init`, `close`.
 Already added: `entityAttrsSet` — used by POST /entities/{id}/attrs.
 It's a plain "apply this fragment's attrs/instances to the target
 entity (add-or-replace per attrName+dsKey)" primitive, not a merge
-(no RFC 7396 recursion, no null-delete). Available in both swRamDB
+(no RFC 7396 recursion, no null-delete). Available in both corRamDB
 and mongoc.
 
 Future endpoints that may need new ops:

@@ -16,15 +16,15 @@ Reserved sub-attribute names (observedAt / unitCode) forbidden as Attribute name
 validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. observedAt as an Attribute name — 400"
 echo "========================================="
 payload='{ "id": "urn:ngsi-ld:R1", "type": "T", "observedAt": "2022-02-16T17:05:00Z" }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -32,7 +32,7 @@ echo
 echo "02. unitCode as an Attribute name — 400"
 echo "======================================="
 payload='{ "id": "urn:ngsi-ld:R2", "type": "T", "unitCode": "CEL" }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -40,14 +40,14 @@ echo
 echo "03. observedAt + unitCode as sub-attributes — accepted"
 echo "======================================================"
 payload='{ "id": "urn:ngsi-ld:R3", "type": "T", "temperature": { "type": "Property", "value": 21, "unitCode": "CEL", "observedAt": "2022-02-16T17:05:00Z" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET R3 — sub-attributes preserved"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:R3
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:R3
 echo
 echo
 
@@ -117,4 +117,4 @@ Content-Length: 173
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

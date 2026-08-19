@@ -11,10 +11,10 @@
 #include <stdbool.h>                                     // bool
 #include <stdint.h>                                      // int64_t
 
-#include "swNgsild/LdGeoRel.h"                           // LdGeoRel
-#include "swNgsild/LdQ.h"                               // LdQNode
-#include "swNgsild/LdScopeExpr.h"                        // LdScopeExpr
-#include "swNgsild/LdTypeExpr.h"                         // LdTypeExpr
+#include "corNgsild/LdGeoRel.h"                           // LdGeoRel
+#include "corNgsild/LdQ.h"                               // LdQNode
+#include "corNgsild/LdScopeExpr.h"                        // LdScopeExpr
+#include "corNgsild/LdTypeExpr.h"                         // LdTypeExpr
 
 
 
@@ -58,7 +58,7 @@ typedef struct DbQueryFilter
   // useful ProblemDetails body (not the generic 500 placeholder).
   //
   // errType / errTitle MUST point at string-literal lifetime (e.g. one
-  // of the LD_ERROR_* macros in swNgsild/LdProblem.h) — ldError stores
+  // of the LD_ERROR_* macros in corNgsild/LdProblem.h) — ldError stores
   // them as raw pointers without copying.
   int           errStatus;       // HTTP status to surface (400, 500, …)
   const char*   errType;         // ProblemDetails type URI (LD_ERROR_*)

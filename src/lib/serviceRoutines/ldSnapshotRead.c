@@ -17,17 +17,17 @@
 
 #include "kjson/KjNode.h"                                // KjNode
 
-#include "swRest/SwRestState.h"                          // swRest
-#include "swRest/swRestOutHeader.h"                      // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                          // corRest
+#include "corRest/corRestOutHeader.h"                      // corRestOutHeaderAdd
 
-#include "swJsonld/swldExpand.h"                         // swldExpand
+#include "corJsonld/corLdExpand.h"                         // corLdExpand
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemLookup
-#include "swNgsild/ldOrderSort.h"                        // ldOrderSort
-#include "swNgsild/ldPickOmit.h"                         // ldPickOmit
-#include "swNgsild/ldPagination.h"                       // ldPaginationTrim, ldPaginationLinkHeader
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemLookup
+#include "corNgsild/ldOrderSort.h"                        // ldOrderSort
+#include "corNgsild/ldPickOmit.h"                         // ldPickOmit
+#include "corNgsild/ldPagination.h"                       // ldPaginationTrim, ldPaginationLinkHeader
 
 #include "db/DbDriver.h"                                 // db, DB_OK, DB_NOT_FOUND
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
@@ -39,10 +39,10 @@
 
 static const char* readSnapshotIdHeader(void)
 {
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
+  for (int i = 0; i < corRest.in.httpHeaderCount; i++)
   {
-    if (strcasecmp(swRest.in.httpHeaderV[i].key, "NGSILD-Snapshot") == 0)
-      return swRest.in.httpHeaderV[i].value;
+    if (strcasecmp(corRest.in.httpHeaderV[i].key, "NGSILD-Snapshot") == 0)
+      return corRest.in.httpHeaderV[i].value;
   }
   return NULL;
 }
@@ -59,7 +59,7 @@ LdSnapshotCacheItem* ldSnapshotItemFromHeader(bool* seenP)
 
   *seenP = true;
 
-  Tenant* tP = (Tenant*) swNgsild.tenantP;
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
   LdSnapshotCache* cacheP = (tP != NULL) ? (LdSnapshotCache*) tP->snapshotCacheP : NULL;
   if (cacheP == NULL)
   {
@@ -76,8 +76,8 @@ LdSnapshotCacheItem* ldSnapshotItemFromHeader(bool* seenP)
     return NULL;
   }
 
-  itemP->lastUsedAt = swRest.requestStartTime;
-  swRestOutHeaderAdd("NGSILD-Snapshot", itemP->id);
+  itemP->lastUsedAt = corRest.requestStartTime;
+  corRestOutHeaderAdd("NGSILD-Snapshot", itemP->id);
   return itemP;
 }
 
@@ -108,10 +108,10 @@ bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId)
     return true;
   }
 
-  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
-    ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+  if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
+    ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
-  swRest.out.responseTree = entityP;
+  corRest.out.responseTree = entityP;
   return true;
 }
 
@@ -122,7 +122,7 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
   Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
   if (snapTenantP == NULL)
   {
-    swRest.out.responseTree = NULL;
+    corRest.out.responseTree = NULL;
     return true;
   }
 
@@ -130,46 +130,46 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
   // re-pointed at the snap tenant. No distop fan-out (§ 5.5.15 forces
   // local scope), so this is a single db.entityQuery call.
   DbQueryFilter filter = {0};
-  filter.idV       = swNgsild.idV;
-  filter.idPattern = swNgsild.idPattern;
-  filter.typeV     = swNgsild.typeV;
-  filter.typeExpr  = swNgsild.typeExpr;
-  filter.scopeExpr = swNgsild.scopeExpr;
-  filter.qExpr     = swNgsild.qExpr;
-  filter.geoRel      = swNgsild.geoRel;
-  filter.geometry    = swNgsild.geometry;
-  filter.coordinates = swNgsild.coordinates;
-  filter.geoproperty = swNgsild.geoproperty
-                         ? swNgsild.geoproperty
-                         : swldExpand(swNgsild.contextP, "location", &swRest.kalloc, NULL, NULL);
-  filter.limit  = (swNgsild.limit > 0) ? swNgsild.limit + 1 : 0;
-  filter.offset = swNgsild.offset;
-  filter.count  = swNgsild.count;
+  filter.idV       = corNgsild.idV;
+  filter.idPattern = corNgsild.idPattern;
+  filter.typeV     = corNgsild.typeV;
+  filter.typeExpr  = corNgsild.typeExpr;
+  filter.scopeExpr = corNgsild.scopeExpr;
+  filter.qExpr     = corNgsild.qExpr;
+  filter.geoRel      = corNgsild.geoRel;
+  filter.geometry    = corNgsild.geometry;
+  filter.coordinates = corNgsild.coordinates;
+  filter.geoproperty = corNgsild.geoproperty
+                         ? corNgsild.geoproperty
+                         : corLdExpand(corNgsild.contextP, "location", &corRest.kalloc, NULL, NULL);
+  filter.limit  = (corNgsild.limit > 0) ? corNgsild.limit + 1 : 0;
+  filter.offset = corNgsild.offset;
+  filter.count  = corNgsild.count;
 
   KjNode* arrayP = NULL;
   int rc = db.entityQuery(snapTenantP, &filter, &arrayP);
   if (rc != DB_OK || arrayP == NULL)
   {
-    swRest.out.responseTree = NULL;
+    corRest.out.responseTree = NULL;
     return true;
   }
 
-  if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
-    ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount, swNgsild.collation);
+  if (corNgsild.orderByV != NULL && corNgsild.orderByCount > 0)
+    ldOrderSort(arrayP, corNgsild.orderByV, corNgsild.orderByCount, corNgsild.collation);
 
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending; keep next when more pages remain (hasMore).
-  bool hasMore = ldPaginationTrim(arrayP, swNgsild.limit);
+  bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
   if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
 
-  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
     for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
-      ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+      ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
   }
 
-  swRest.out.responseTree = arrayP;
+  corRest.out.responseTree = arrayP;
   return true;
 }
 
@@ -180,7 +180,7 @@ bool ldSnapshotWriteGuard(void)
   if (readSnapshotIdHeader() == NULL)
     return true;
 
-  if (swRest.in.verb == SwVerbGet || swRest.in.verb == SwVerbHead)
+  if (corRest.in.verb == CorVerbGet || corRest.in.verb == CorVerbHead)
     return true;
 
   ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",

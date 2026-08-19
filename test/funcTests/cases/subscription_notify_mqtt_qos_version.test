@@ -19,13 +19,13 @@ Subscription notification - MQTT QoS + MQTT-Version round-trip (§ 7.2)
 subscription notification mqtt
 
 --INIT--
-swDbDrop
+corDbDrop
 echo "listener 11883
 allow_anonymous true" > /tmp/mqtt-qosver-mosquitto.conf
 mosquitto -d -c /tmp/mqtt-qosver-mosquitto.conf
 sleep 0.3
 ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -66,21 +66,21 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "03. POST a Vehicle (triggers S1 → QoS=1, v3.1.1)"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "04. POST a Drone (triggers S2 → QoS=2, v5.0)"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"Drone","altitude":{"type":"Property","value":120}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"Drone","altitude":{"type":"Property","value":120}}'
 echo
 echo
 
@@ -148,8 +148,8 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop
 pkill -f "mosquitto -d -c /tmp/mqtt-qosver-mosquitto.conf" 2>/dev/null
 \rm -f /tmp/mqtt-qosver-mosquitto.conf

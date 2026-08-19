@@ -28,9 +28,9 @@ TRoE timescale - temporal q reaches sub-attributes, value components, ranges, li
 troe timescale postgres temporal q sub-attributes query
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -48,7 +48,7 @@ payload='{
 }'
 echo "01. Seed urn:V1"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -67,21 +67,21 @@ payload='{
 }'
 echo "02. Seed urn:V2"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. Core API oracle: q=speed.accuracy>5 selects urn:V2"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed.accuracy>5&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed.accuracy>5&format=simplified'
 echo
 echo
 
 
 echo "04. Temporal: q=speed.accuracy>5 must select urn:V2 too, NOT filter on speed"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>5&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>5&format=temporalValues'
 echo
 echo
 
@@ -89,35 +89,35 @@ echo
 echo "05. Temporal: q=speed.accuracy>50 — accuracy is 1 and 9, so nothing matches"
 echo "     (filtering on speed instead would wrongly return urn:V2, whose speed is 99)"
 echo "=============================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>50&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>50&format=temporalValues'
 echo
 echo
 
 
 echo "06. Temporal: sub-attribute string, q=speed.grade==\"high\" selects urn:V2"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.grade==%22high%22&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.grade==%22high%22&format=temporalValues'
 echo
 echo
 
 
 echo "07. Temporal: value component, q=speed.meta[x.y]>5 selects urn:V2"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.meta%5Bx.y%5D>5&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.meta%5Bx.y%5D>5&format=temporalValues'
 echo
 echo
 
 
 echo "08. Temporal: range, q=speed==1..50 selects urn:V1"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed==1..50&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed==1..50&format=temporalValues'
 echo
 echo
 
 
 echo "09. Temporal: value list, q=speed==10,77 selects urn:V1"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed==10,77&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed==10,77&format=temporalValues'
 echo
 echo
 
@@ -125,28 +125,28 @@ echo
 echo "10. Temporal: DateTime, q=speed.observedAt>2026-03-01T00:00:00Z selects urn:V2"
 echo "     (observedAt is lifted into its own column, not stored in sub_attrs)"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.observedAt>2026-03-01T00:00:00Z&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.observedAt>2026-03-01T00:00:00Z&format=temporalValues'
 echo
 echo
 
 
 echo "11. Temporal: sub-attribute existence, q=speed.accuracy selects both"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy&format=temporalValues'
 echo
 echo
 
 
 echo "12. Temporal: AND of two sub-attribute terms, q=speed.accuracy>5;speed.grade==\"high\""
 echo "===================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>5;speed.grade==%22high%22&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed.accuracy>5;speed.grade==%22high%22&format=temporalValues'
 echo
 echo
 
 
 echo "13. Temporal: negated range, q=speed!=1..50 selects urn:V2"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed!=1..50&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z&q=speed!=1..50&format=temporalValues'
 echo
 echo
 
@@ -452,6 +452,6 @@ Content-Length: 195
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

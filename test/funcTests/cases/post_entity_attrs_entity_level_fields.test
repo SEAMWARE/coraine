@@ -8,8 +8,8 @@
 --NAME--
 POST /entities/{id}/attrs - id/type/scope/timestamps in body (§ 5.6.3.4, § 5.2.2)
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --TAGS--
 entity
@@ -33,14 +33,14 @@ payload='{
   "scope": "/s1",
   "speed": {"type":"Property","value":50}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. POST /attrs with id in body → 400 BadRequestData"
 echo "====================================================="
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"id":"urn:V1","foo":{"type":"Property","value":1}}'
 echo
 echo
@@ -48,7 +48,7 @@ echo
 
 echo "03. POST /attrs adding new type → unioned"
 echo "========================================="
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"type":"Car","foo":{"type":"Property","value":1}}'
 echo
 echo
@@ -56,7 +56,7 @@ echo
 
 echo "04. POST /attrs replacing scope (overwrite default) → /s2"
 echo "========================================================="
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"scope":"/s2","bar":{"type":"Property","value":2}}'
 echo
 echo
@@ -64,7 +64,7 @@ echo
 
 echo "05. POST /attrs with createdAt/modifiedAt in body → ignored (204)"
 echo "================================================================="
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"createdAt":"2000-01-01T00:00:00Z","modifiedAt":"2000-01-01T00:00:00Z","baz":{"type":"Property","value":3}}'
 echo
 echo
@@ -72,7 +72,7 @@ echo
 
 echo "06. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -156,5 +156,5 @@ Content-Length: 304
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

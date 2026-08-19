@@ -11,7 +11,7 @@
 #include "ktrace/kTrace.h"                           // KT_E
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
@@ -56,12 +56,12 @@ int mongocSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arr
 
   mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, &opts, NULL);
 
-  KjNode* resultArray = kjArray(swRest.kjsonP, NULL);
+  KjNode* resultArray = kjArray(corRest.kjsonP, NULL);
 
   const bson_t* doc;
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    KjNode* subP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    KjNode* subP = mongocBsonToKjTree(&corRest.kalloc, doc);
     if (subP != NULL)
     {
       mongocInjectTypeAfterId(subP, "Subscription");

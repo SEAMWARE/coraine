@@ -17,15 +17,15 @@ Batch Entity Merge — per-fragment notifications with data[]
 batch merge notification subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Seed V1, V2"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
 ]'
@@ -35,14 +35,14 @@ echo
 
 echo "02. Sub S1 (Vehicle)"
 echo "===================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
 
 echo "03. Batch Merge V1.size=large + V2.color=blue"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","size":{"type":"Property","value":"large"}},
   {"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}
 ]'
@@ -67,7 +67,7 @@ echo
 
 echo "06. Batch Merge delete V1.color via urn:ngsi-ld:null"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","color":"urn:ngsi-ld:null"}
 ]'
 echo
@@ -185,6 +185,6 @@ Date: REGEX(.*)
 []
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

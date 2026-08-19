@@ -27,17 +27,17 @@ TRoE timescale - trailing period reports its nominal end (§ 4.5.19.1)
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:V1 speed: 10@12:07, 20@13:07, 30@14:07 (each hour, at :07)"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T12:07:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T13:07:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T14:07:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T12:07:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T13:07:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T14:07:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -48,14 +48,14 @@ echo "========================================================="
 echo "    3 periods, each :03 to :03 — the LAST one ends 15:03 (nominal),"
 echo "    NOT 14:07 where the samples stop"
 echo
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT1H'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT1H'
 echo
 echo
 
 
 echo "03. Same data, P1D — ONE period 12:03 -> next day 12:03"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z&format=aggregatedValues&aggrMethods=min,max&aggrPeriodDuration=P1D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z&format=aggregatedValues&aggrMethods=min,max&aggrPeriodDuration=P1D'
 echo
 echo
 
@@ -65,7 +65,7 @@ echo "==============================================================="
 echo "    timeAt 12:03 + endTimeAt 14:33 + PT1H -> 12:03..13:03, 13:03..14:03,"
 echo "    14:03..14:33 (the client's own upper bound, not a data edge)"
 echo
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T12:03:00Z&endTimeAt=2026-04-28T14:33:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT1H'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T12:03:00Z&endTimeAt=2026-04-28T14:33:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT1H'
 echo
 echo
 
@@ -185,5 +185,5 @@ Content-Length: 378
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

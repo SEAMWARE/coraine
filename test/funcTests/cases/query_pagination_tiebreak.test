@@ -21,8 +21,8 @@ Pagination is consistent over a same-createdAt (batch-created) set — _id tiebr
 query pagination batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,21 +30,21 @@ payload=$(python3 -c 'import json; print(json.dumps([{"id": f"urn:ngsi-ld:B:{i:0
 
 echo "01. Batch-create 22 entities (urn:ngsi-ld:B:00 .. B:21), all same createdAt"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | grep -c "urn:ngsi-ld:B:"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | grep -c "urn:ngsi-ld:B:"
 echo
 echo
 
 
 echo "02. GET limit=11 offset=0 — first page, ids B:00 .. B:10 in order"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=BP&limit=11&offset=0' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=BP&limit=11&offset=0' | grep '"id"'
 echo
 echo
 
 
 echo "03. GET limit=11 offset=11 — second page, ids B:11 .. B:21, no overlap/skip"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=BP&limit=11&offset=11' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=BP&limit=11&offset=11' | grep '"id"'
 echo
 echo
 
@@ -86,4 +86,4 @@ echo
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

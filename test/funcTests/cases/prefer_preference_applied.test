@@ -17,21 +17,21 @@ HTTP: Prefer / Preference-Applied (§ 6.3.6)
 http prefer
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. With Prefer: ngsi-ld=1.9.1 → response carries Preference-Applied"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Prefer: ngsi-ld=1.9.1" 2>&1 | grep -i "^Preference-Applied:"
+corCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Prefer: ngsi-ld=1.9.1" 2>&1 | grep -i "^Preference-Applied:"
 echo
 echo
 
 
 echo "02. Without Prefer → no Preference-Applied"
 echo "==========================================="
-n=$(swCurl --url /ngsi-ld/v1/info/sourceIdentity 2>&1 | grep -ci "^Preference-Applied:")
+n=$(corCurl --url /ngsi-ld/v1/info/sourceIdentity 2>&1 | grep -ci "^Preference-Applied:")
 echo "  Preference-Applied count: $n"
 echo
 echo
@@ -39,7 +39,7 @@ echo
 
 echo "03. Prefer with no ngsi-ld= → no Preference-Applied (different Prefer use)"
 echo "=========================================================================="
-n=$(swCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Prefer: body=ld+json" 2>&1 | grep -ci "^Preference-Applied:")
+n=$(corCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Prefer: body=ld+json" 2>&1 | grep -ci "^Preference-Applied:")
 echo "  Preference-Applied count: $n"
 echo
 echo
@@ -62,5 +62,5 @@ Preference-Applied: ngsi-ld=1.9.1
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -21,15 +21,15 @@ Subscription notification — endpoint.accept rendering (§ 5.2.14)
 subscription notification geojson
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Subscription with accept = application/geo+json"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:geo",
   "type":"Subscription",
   "entities":[{"type":"Sensor"}],
@@ -46,7 +46,7 @@ echo
 
 echo "02. POST a Sensor with location → geo+json notification (FeatureCollection)"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:S1",
   "type":"Sensor",
   "temp":{"type":"Property","value":22},
@@ -67,7 +67,7 @@ echo
 
 echo "04. Subscription with accept = application/ld+json"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:ldj",
   "type":"Subscription",
   "entities":[{"type":"Drone"}],
@@ -84,7 +84,7 @@ echo
 
 echo "05. POST a Drone → ld+json notification (Entity array)"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:D1",
   "type":"Drone",
   "altitude":{"type":"Property","value":120}
@@ -232,5 +232,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

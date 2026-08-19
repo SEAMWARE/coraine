@@ -50,19 +50,19 @@
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjLookup.h"                          // kjLookup
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForDiscovery
-#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
-#include "swNgsild/ldPickOmit.h"                     // ldPickOmit
-#include "swNgsild/ldLangReduce.h"                   // ldLangReduce
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
-#include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
-#include "swNgsild/LdNormalizeInput.h"               // ldWrapAsGeoProperty
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForDiscovery
+#include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
+#include "corNgsild/ldPickOmit.h"                     // ldPickOmit
+#include "corNgsild/ldLangReduce.h"                   // ldLangReduce
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
+#include "corNgsild/ldPagination.h"                   // ldPaginationLinkHeader
+#include "corNgsild/LdNormalizeInput.h"               // ldWrapAsGeoProperty
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -161,7 +161,7 @@ static bool intervalNs(KjNode* intervalP, uint64_t* startNsP, uint64_t* endNsP)
 //
 static bool csrTemporalMatch(KjNode* regTree)
 {
-  const char* tp = swNgsild.timeproperty;
+  const char* tp = corNgsild.timeproperty;
   bool isManagement = (tp != NULL && (strcmp(tp, "createdAt")  == 0 ||
                                        strcmp(tp, "modifiedAt") == 0 ||
                                        strcmp(tp, "deletedAt")  == 0));
@@ -185,18 +185,18 @@ static bool csrTemporalMatch(KjNode* regTree)
   //   after  timeAt        → CSR has data observed after  timeAt → interval.end   ≥ timeAt (or open-ended)
   //   between qStart qEnd  → CSR's interval overlaps with [qStart, qEnd]
   //
-  if (strcmp(swNgsild.timerel, "between") == 0)
+  if (strcmp(corNgsild.timerel, "between") == 0)
   {
-    uint64_t qStart = swNgsild.timeAtNs;
-    uint64_t qEnd   = swNgsild.endTimeAtNs;
+    uint64_t qStart = corNgsild.timeAtNs;
+    uint64_t qEnd   = corNgsild.endTimeAtNs;
     // Overlap: interval [startNs, endNs|∞] intersects [qStart, qEnd].
     if (endNs == 0)
       return startNs <= qEnd;
     return (startNs <= qEnd) && (endNs >= qStart);
   }
 
-  uint64_t qAt = swNgsild.timeAtNs;
-  if (strcmp(swNgsild.timerel, "before") == 0)
+  uint64_t qAt = corNgsild.timeAtNs;
+  if (strcmp(corNgsild.timerel, "before") == 0)
     return startNs <= qAt;
   // after
   if (endNs == 0) return true;       // open-ended interval extends to +∞
@@ -207,10 +207,10 @@ static bool csrTemporalMatch(KjNode* regTree)
 
 bool getCsourceRegistrations(void)
 {
-  bool hasAttrs = (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL);
-  bool hasPick  = (swNgsild.pickV  != NULL && swNgsild.pickV[0]  != NULL);
-  bool hasQ     = (swNgsild.q      != NULL && swNgsild.q[0]      != 0);
-  bool hasCsf   = (swNgsild.csf    != NULL && swNgsild.csf[0]    != 0);
+  bool hasAttrs = (corNgsild.attrsV != NULL && corNgsild.attrsV[0] != NULL);
+  bool hasPick  = (corNgsild.pickV  != NULL && corNgsild.pickV[0]  != NULL);
+  bool hasQ     = (corNgsild.q      != NULL && corNgsild.q[0]      != 0);
+  bool hasCsf   = (corNgsild.csf    != NULL && corNgsild.csf[0]    != 0);
 
   // § 6.8.3.2 Table 6.8.3.2-1: `attrs` is a deprecated synonym for
   // `pick + q`. Accept either, but never both at once.
@@ -222,9 +222,9 @@ bool getCsourceRegistrations(void)
   }
 
   // Filter whitelist. 501 anything we haven't implemented.
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
-    const char* key = swRest.in.uriParamV[i].key;
+    const char* key = corRest.in.uriParamV[i].key;
     if (paramSupported(key) == false)
     {
       ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
@@ -238,10 +238,10 @@ bool getCsourceRegistrations(void)
   // idPattern are also accepted — they bound the candidate set at least
   // as tightly as type (id is an explicit URI list, idPattern is a regex
   // applied to EntityInfo.id) and ETSI 037_10_01 exercises ?id=A,B alone.
-  bool hasType = (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL);
-  bool hasId   = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL);
-  bool hasIdPattern = (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0);
-  bool hasGeo       = (swNgsild.georel != NULL && swNgsild.georel[0] != 0);
+  bool hasType = (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL);
+  bool hasId   = (corNgsild.idV != NULL && corNgsild.idV[0] != NULL);
+  bool hasIdPattern = (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0);
+  bool hasGeo       = (corNgsild.georel != NULL && corNgsild.georel[0] != 0);
   if (!hasType && !hasAttrs && !hasPick && !hasQ && !hasCsf && !hasId && !hasIdPattern && !hasGeo)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Too Wide Query",
@@ -253,31 +253,31 @@ bool getCsourceRegistrations(void)
   // tier, etc.), not on target entities. ldEntityMatchQ walks the NGSI-LD
   // Property shape { "type": "Property", "value": X } regardless of the
   // host object, so CSRs with user-Properties work out of the box.
-  // swNgsild.qExpr is already parsed (with attrs expanded via the request
+  // corNgsild.qExpr is already parsed (with attrs expanded via the request
   // @context) by ldUrlParams at pre-service time — just reuse it.
   //
   // On THIS route q and csf address the same thing (the registrations), so
   // both are honoured, conjunctively. Everywhere else csf selects the CSRs
   // to consult while q filters the Entities they return.
-  LdQNode* regFilterV[2] = { hasQ   ? swNgsild.qExpr   : NULL,
-                             hasCsf ? swNgsild.csfExpr : NULL };
+  LdQNode* regFilterV[2] = { hasQ   ? corNgsild.qExpr   : NULL,
+                             hasCsf ? corNgsild.csfExpr : NULL };
 
-  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
 
-  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
+  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
 
   if (cacheP != NULL)
   {
-    char** entityIdFilter = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
-                            ? swNgsild.idV : NULL;
+    char** entityIdFilter = (corNgsild.idV != NULL && corNgsild.idV[0] != NULL)
+                            ? corNgsild.idV : NULL;
 
     // attrs wins when supplied (deprecated but honoured); otherwise pick.
-    char** attrsFilter = hasAttrs ? swNgsild.attrsV : (hasPick ? swNgsild.pickV : NULL);
+    char** attrsFilter = hasAttrs ? corNgsild.attrsV : (hasPick ? corNgsild.pickV : NULL);
 
     LdRegCacheItem** matchV = NULL;
-    int matchN = ldRegCacheMatchForDiscovery(cacheP, swNgsild.typeV,
-                                              entityIdFilter, swNgsild.idPattern,
+    int matchN = ldRegCacheMatchForDiscovery(cacheP, corNgsild.typeV,
+                                              entityIdFilter, corNgsild.idPattern,
                                               attrsFilter, &matchV);
 
     // Post-filters compact matchV in-place. Order: q (CSR user-Properties)
@@ -298,13 +298,13 @@ bool getCsourceRegistrations(void)
       passN = n;
     }
 
-    if (swNgsild.scopeExpr != NULL)
+    if (corNgsild.scopeExpr != NULL)
     {
       int n = 0;
       for (int i = 0; i < passN; i++)
       {
         KjNode* scopeP = (matchV[i]->regTree != NULL) ? kjLookup(matchV[i]->regTree, "scope") : NULL;
-        if (ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
+        if (ldEntityMatchScope(scopeP, corNgsild.scopeExpr))
           matchV[n++] = matchV[i];
       }
       passN = n;
@@ -328,7 +328,7 @@ bool getCsourceRegistrations(void)
         bool hasMgmt = (kjLookup(tree, "managementInterval")  != NULL ||
                         kjLookup(tree, "https://uri.etsi.org/ngsi-ld/managementInterval")  != NULL);
 
-        if (swNgsild.timerel == NULL)
+        if (corNgsild.timerel == NULL)
         {
           // No temporal query → keep only "latest-info" CSRs (no intervals).
           if (!hasObs && !hasMgmt)
@@ -348,9 +348,9 @@ bool getCsourceRegistrations(void)
     // § 5.10.2.4 geoQ: filter by overlap with the CSR's geo-coverage field
     // (location / observationSpace / operationSpace) selected by the
     // request's geoproperty (default: location).
-    if (swNgsild.geoRel != NULL && cacheP->csrGeoMatchFunc != NULL)
+    if (corNgsild.geoRel != NULL && cacheP->csrGeoMatchFunc != NULL)
     {
-      const char* prop = swNgsild.geoproperty;
+      const char* prop = corNgsild.geoproperty;
       bool isObs = (prop != NULL) && (strcmp(prop, "observationSpace") == 0 ||
                                       strcmp(prop, "https://uri.etsi.org/ngsi-ld/observationSpace") == 0);
       bool isOp  = (prop != NULL) && (strcmp(prop, "operationSpace") == 0 ||
@@ -362,34 +362,34 @@ bool getCsourceRegistrations(void)
         KjNode* csrGeoP = isObs ? matchV[i]->observationSpaceP
                           : isOp ? matchV[i]->operationSpaceP
                           : matchV[i]->locationP;
-        if (cacheP->csrGeoMatchFunc(csrGeoP, swNgsild.geoRel, swNgsild.geometry, swNgsild.coordinates))
+        if (cacheP->csrGeoMatchFunc(csrGeoP, corNgsild.geoRel, corNgsild.geometry, corNgsild.coordinates))
           matchV[n++] = matchV[i];
       }
       passN = n;
     }
 
-    int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-    int limit = (swNgsild.limit  > 0) ? swNgsild.limit  : passN;
+    int skip  = (corNgsild.offset > 0) ? corNgsild.offset : 0;
+    int limit = (corNgsild.limit  > 0) ? corNgsild.limit  : passN;
 
     // § 5.10.2.5 — return filtered RegistrationInfo. Compile the request
     // idPattern once for reuse across all matching items.
     regex_t  idRegex;
     bool     haveIdRegex = false;
-    if (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0)
+    if (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
     {
-      if (regcomp(&idRegex, swNgsild.idPattern, REG_EXTENDED | REG_NOSUB) == 0)
+      if (regcomp(&idRegex, corNgsild.idPattern, REG_EXTENDED | REG_NOSUB) == 0)
         haveIdRegex = true;
     }
 
-    char** attrsFilterRsp = hasAttrs ? swNgsild.attrsV : (hasPick ? swNgsild.pickV : NULL);
-    char** idFilterV      = (swNgsild.idV != NULL && swNgsild.idV[0] != NULL)
-                            ? swNgsild.idV : NULL;
+    char** attrsFilterRsp = hasAttrs ? corNgsild.attrsV : (hasPick ? corNgsild.pickV : NULL);
+    char** idFilterV      = (corNgsild.idV != NULL && corNgsild.idV[0] != NULL)
+                            ? corNgsild.idV : NULL;
 
     for (int i = skip; i < passN && (i - skip) < limit; i++)
     {
       if (matchV[i]->regTree != NULL)
       {
-        KjNode* clone = kjClone(swRest.kjsonP, matchV[i]->regTree);
+        KjNode* clone = kjClone(corRest.kjsonP, matchV[i]->regTree);
 
         // § 5.10.2.5 — strip every information[] entry that doesn't match the request's discovery filter. The pre-parsed
         // infoV linked list is in lockstep with the regTree's "information" array, so we iterate both in parallel and unlink
@@ -405,7 +405,7 @@ bool getCsourceRegistrations(void)
             {
               KjNode*    nextChild = childP->next;
               LdRegInfo* nextRi    = riP->next;
-              if (!ldRegInfoDiscoveryMatches(riP, idFilterV, swNgsild.typeV,
+              if (!ldRegInfoDiscoveryMatches(riP, idFilterV, corNgsild.typeV,
                                               haveIdRegex ? &idRegex : NULL,
                                               attrsFilterRsp))
                 kjChildRemove(infoP, childP);
@@ -418,22 +418,22 @@ bool getCsourceRegistrations(void)
         // omit strips listed members from the response (mirror of pick,
         // applied on the OUTPUT side only — pick narrows reg matching;
         // omit just trims the response).
-        if (swNgsild.omitV != NULL && swNgsild.omitV[0] != NULL)
-          ldPickOmit(clone, NULL, swNgsild.omitV);
+        if (corNgsild.omitV != NULL && corNgsild.omitV[0] != NULL)
+          ldPickOmit(clone, NULL, corNgsild.omitV);
 
         // lang reduces LanguageProperty attrs on user-Properties.
-        if (swNgsild.lang != NULL)
-          ldLangReduce(clone, swNgsild.lang, &swRest.kalloc);
+        if (corNgsild.lang != NULL)
+          ldLangReduce(clone, corNgsild.lang, &corRest.kalloc);
 
         // § 5.2.9 — the CSR geo-coverage fields (location/observationSpace/operationSpace) are bare GeoJSON on the
         // wire, on both the discovery list and the single-CSR retrieve endpoints. (ETSI forge issue #119: fixtures
         // 037_05/07/08 assert the GeoProperty wrapper on the list endpoint, inconsistent with 033_01_03.)
 
         // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
-        if (swNgsild.sysAttrs == false)
+        if (corNgsild.sysAttrs == false)
           ldStripSysAttrs(clone);
         else
-          ldSysTimestampsToIso(clone, &swRest.kalloc);
+          ldSysTimestampsToIso(clone, &corRest.kalloc);
 
         kjChildAdd(arrayP, clone);
       }
@@ -451,17 +451,17 @@ bool getCsourceRegistrations(void)
       ldPaginationLinkHeader(hasMore);
 
     // § 6.3.5 NGSILD-Results-Count header when ?count=true.
-    if (swNgsild.count)
+    if (corNgsild.count)
     {
-      char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+      char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
       snprintf(countStr, 32, "%d", passN);
-      swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+      corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
     }
   }
 
   ldContextResolve();
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = arrayP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = arrayP;
   return true;
 }

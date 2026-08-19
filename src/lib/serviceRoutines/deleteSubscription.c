@@ -9,17 +9,17 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/KjNode.h"                            // KjNode
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove
-#include "swNgsild/LdPernotCache.h"                  // LdPernotCache
-#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemRemove
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldDistSub.h"                      // ldDistSubCascadeDelete
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemRemove
+#include "corNgsild/LdPernotCache.h"                  // LdPernotCache
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemRemove
+#include "corNgsild/LdRegCache.h"                     // LdRegCache
+#include "corNgsild/ldDistSub.h"                      // ldDistSubCascadeDelete
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -34,7 +34,7 @@
 //
 bool deleteSubscription(void)
 {
-  const char* subId = swRest.in.wildcard[0];
+  const char* subId = corRest.in.wildcard[0];
 
   if (db.subscriptionDelete == NULL)
   {
@@ -48,7 +48,7 @@ bool deleteSubscription(void)
   // round-trip.
   //
   {
-    Tenant* _t = (Tenant*) swNgsild.tenantP;
+    Tenant* _t = (Tenant*) corNgsild.tenantP;
     if (_t != NULL && _t->regSubCacheP != NULL
         && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, subId) != NULL)
     {
@@ -57,7 +57,7 @@ bool deleteSubscription(void)
     }
   }
 
-  int r = db.subscriptionDelete((Tenant*) swNgsild.tenantP, subId);
+  int r = db.subscriptionDelete((Tenant*) corNgsild.tenantP, subId);
 
   if (r == DB_NOT_FOUND)
   {
@@ -76,7 +76,7 @@ bool deleteSubscription(void)
   // remote derivative before freeing the cache item; failures don't
   // block the local delete.
   //
-  Tenant*     tenantP   = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP   = (Tenant*) corNgsild.tenantP;
   LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;
 
   // Under the sub wrlock: pin the item (so the cascade can use it after we drop
@@ -96,7 +96,7 @@ bool deleteSubscription(void)
 
   if (itemP != NULL && itemP->subordinateP != NULL && tenantP->regCacheP != NULL)
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     ldDistSubCascadeDelete(itemP, (LdRegCache*) tenantP->regCacheP, ownAlias);
   }
   if (itemP != NULL)
@@ -105,6 +105,6 @@ bool deleteSubscription(void)
   if (tenantP->pernotCacheP != NULL)
     ldPernotCacheItemRemove((LdPernotCache*) tenantP->pernotCacheP, subId);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

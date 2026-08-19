@@ -12,8 +12,8 @@ DistOps GET § 6.3.5 — abnormal source → 200 + NGSILD-Warning (299/199/111)
 distops error registration query warning
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 403
 ftClientStart --port 7712 --status 500
 ftClientStart --port 7713 --status 200
@@ -44,70 +44,70 @@ ftClientStart --port 7715 --status 200
 
 echo "01. Seed a local Vehicle"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80}}'
 echo
 echo
 
 
 echo "02. Register inclusive CSR → healthy source (7713)"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Ok","type":"ContextSourceRegistration","endpoint":"http://localhost:7713","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Ok","type":"ContextSourceRegistration","endpoint":"http://localhost:7713","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "03. GET list with only a healthy source → 200, NO NGSILD-Warning"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
 
 echo "04. Register inclusive CSR → 403 source (7711)"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Forbidden","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Forbidden","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "05. GET list → 200 + NGSILD-Warning 299 for the 403 source"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
 
 echo "06. GET single entity /entities/urn:V1 → 200 + NGSILD-Warning 299"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
 
 echo "07. Register inclusive CSR → 500 source (7712)"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:ServerErr","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:ServerErr","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "08. GET list → both error sources listed (comma-joined 299 warn-values)"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
 
 echo "09. Register inclusive CSR → slow source (7714), management.timeout 200ms"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Slow","type":"ContextSourceRegistration","endpoint":"http://localhost:7714","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"management":{"timeout":200},"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Slow","type":"ContextSourceRegistration","endpoint":"http://localhost:7714","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"management":{"timeout":200},"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "10. GET list → slow source times out: NGSILD-Warning 199 for 7714 (§ 6.3.5)"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
@@ -117,15 +117,15 @@ echo "=========================================================="
 # Program 7715 to answer a forwarded GET /entities with HTTP 200 but a body that
 # is NOT valid JSON — a non-NGSI-LD payload received within the timeout (§ 6.3.5
 # warning code 111 - Revalidation Failed).
-swCurl --port 7715 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":200,"raw":"this is not a valid NGSI-LD payload {["}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Invalid","type":"ContextSourceRegistration","endpoint":"http://localhost:7715","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --port 7715 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":200,"raw":"this is not a valid NGSI-LD payload {["}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Invalid","type":"ContextSourceRegistration","endpoint":"http://localhost:7715","mode":"inclusive","operations":["retrieveEntity","queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "12. GET list → invalid-payload source → NGSILD-Warning 111 (§ 6.3.5)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
@@ -133,13 +133,13 @@ echo
 echo "13. § 6.3.5: a 404 source is NOT abnormal → no NGSILD-Warning at all"
 echo "===================================================================="
 # Isolate the 404 case: drop the error/slow/invalid sources, leave only 7713 (→ 404).
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Forbidden > /dev/null
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:ServerErr > /dev/null
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Slow > /dev/null
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Invalid > /dev/null
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Forbidden > /dev/null
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:ServerErr > /dev/null
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Slow > /dev/null
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Invalid > /dev/null
 ftClientStop --port 7713
 ftClientStart --port 7713 --status 404
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' 2>&1 | grep -iE '^(HTTP|NGSILD-Warning)'
 echo
 echo
 
@@ -256,5 +256,5 @@ ftClientStop --port 7712
 ftClientStop --port 7713
 ftClientStop --port 7714
 ftClientStop --port 7715
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

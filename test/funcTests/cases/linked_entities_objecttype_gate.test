@@ -27,10 +27,10 @@ Linked entities — join follows a non-local relationship only with a type-match
 retrieve linked-entities registration distops
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -62,7 +62,7 @@ payload='{
     "value": "from-CP1-E2"
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -77,7 +77,7 @@ payload='{
     "value": "from-CP1-E3"
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -92,7 +92,7 @@ payload='{
     "value": "from-CP1-E5"
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -114,7 +114,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -129,7 +129,7 @@ payload='{
     "value": "local-E4"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -158,14 +158,14 @@ payload='{
     "object": "urn:E3"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "07. GET urn:E1?join=inline&joinLevel=1 — only local + type-matched remote are inlined"
 echo "====================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:E1?join=inline&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?join=inline&joinLevel=1'
 echo
 echo
 
@@ -281,5 +281,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1

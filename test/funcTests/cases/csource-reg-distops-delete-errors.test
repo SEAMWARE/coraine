@@ -12,8 +12,8 @@ DistOps - deleteEntity error modes (ftClient mocks): excl-no-op → 409, dead+li
 delete distops error registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 204
 ftClientStart --port 7712 --status 503
 
@@ -38,14 +38,14 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. DELETE urn:V1 → 409 Conflict (CSR claims + refuses op, no local)"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
 echo
 echo
 
@@ -60,7 +60,7 @@ payload='{
   "operations": ["deleteEntity"],
   "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:CSR:LiveDel",
@@ -70,14 +70,14 @@ payload='{
   "operations": ["deleteEntity"],
   "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. DELETE urn:V2 → Dead fails, Live succeeds → 207"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X DELETE
 echo
 echo
 
@@ -165,5 +165,5 @@ Content-Length: 335
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

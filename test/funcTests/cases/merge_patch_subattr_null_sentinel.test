@@ -18,8 +18,8 @@ Merge PATCH — urn:ngsi-ld:null on a (non-existing) sub-attribute is a no-op
 entity patch merge sub-attributes
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,7 +30,7 @@ payload='{
   "type": "T",
   "controlledAsset": {"type": "Relationship", "object": "urn:ngsi-ld:Asset:1"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -45,14 +45,14 @@ payload='{
     "valid": "urn:ngsi-ld:null"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET E1 — unaffected by the failed PATCH (no observedAt)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -67,14 +67,14 @@ payload='{
     "valid": "urn:ngsi-ld:null"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "05. GET E1 — observedAt applied, 'valid' never created (no-op delete)"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -154,4 +154,4 @@ Content-Length: 178
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

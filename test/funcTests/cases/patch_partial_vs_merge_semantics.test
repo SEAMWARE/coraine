@@ -34,14 +34,14 @@ PATCH semantics - partial-update vs merge, § 8.4.2 vs § 8.4.3
 entity patch merge partial-update multi-instance validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed urn:D1 - temperature 25 with unitCode CEL + observedAt"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:D1",
   "type": "Device",
   "temperature": { "type": "Property", "value": 25, "unitCode": "CEL", "observedAt": "2022-03-14T01:59:26.535Z" },
@@ -53,19 +53,19 @@ echo
 
 echo "02. § 8.4.2 EXAMPLE 1 - partial ATTRIBUTE update -> unitCode SURVIVES"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:D1/attrs/temperature -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs/temperature -X PATCH --payload '{
   "type": "Property",
   "value": 100,
   "observedAt": "2022-03-14T13:00:00.000Z"
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:D1
+corCurl --url /ngsi-ld/v1/entities/urn:D1
 echo
 echo
 
 
 echo "03. Put unitCode back"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X POST --urlParams 'options=overwrite' --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X POST --urlParams 'options=overwrite' --payload '{
   "temperature": { "type": "Property", "value": 25, "unitCode": "CEL", "observedAt": "2022-03-14T01:59:26.535Z" }
 }' | head -1
 echo
@@ -74,38 +74,38 @@ echo
 
 echo "04. § 8.4.2 EXAMPLE 2 - the SAME fragment as update-ATTRIBUTES -> unitCode GONE"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X PATCH --payload '{
   "temperature": { "type": "Property", "value": 100, "observedAt": "2022-03-14T13:00:00.000Z" }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:D1
+corCurl --url /ngsi-ld/v1/entities/urn:D1
 echo
 echo
 
 
 echo "05. § 8.4.2 EXAMPLE 3 - an NGSI-LD Null VALUE deletes the whole Attribute"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X PATCH --payload '{
   "temperature": { "type": "Property", "value": "urn:ngsi-ld:null" }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:D1
+corCurl --url /ngsi-ld/v1/entities/urn:D1
 echo
 echo
 
 
 echo "06. type in an Entity Fragment is ADDITIVE, never a replacement"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs -X PATCH --payload '{
   "type": "Sensor",
   "other": { "type": "Property", "value": "still untouched" }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:D1
+corCurl --url /ngsi-ld/v1/entities/urn:D1
 echo
 echo
 
 
 echo "07. Seed urn:B1 - an OBJECT value + a datasetId-only instance"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:B1",
   "type": "Building",
   "address": { "type": "Property", "value": { "street": "Strasse des 17. Juni", "city": "Berlin", "country": "Germany" } },
@@ -119,30 +119,30 @@ echo "08. § 8.4.3 EXAMPLE 2 - MERGE descends into the object value"
 echo "==========================================================="
 echo "    street updated, country removed by the NGSI-LD Null, city untouched"
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:B1 -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:B1 -X PATCH --payload '{
   "address": { "type": "Property", "value": { "street": "Pariser Platz", "country": "urn:ngsi-ld:null" } }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:B1
+corCurl --url /ngsi-ld/v1/entities/urn:B1
 echo
 echo
 
 
 echo "09. MERGE with an unknown datasetId -> ADDED as a new instance"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:B1 -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:B1 -X PATCH --payload '{
   "speed": { "type": "Property", "value": 99, "datasetId": "urn:ds:B" }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:B1 --urlParams 'attrs=speed'
+corCurl --url /ngsi-ld/v1/entities/urn:B1 --urlParams 'attrs=speed'
 echo
 echo
 
 
 echo "10. update-ATTRIBUTES with an unknown datasetId -> ADDED too (§ 8.4.2)"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:B1/attrs -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs -X PATCH --payload '{
   "speed": { "type": "Property", "value": 77, "datasetId": "urn:ds:C" }
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:B1 --urlParams 'attrs=speed'
+corCurl --url /ngsi-ld/v1/entities/urn:B1 --urlParams 'attrs=speed'
 echo
 echo
 
@@ -349,5 +349,5 @@ Content-Length: 324
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

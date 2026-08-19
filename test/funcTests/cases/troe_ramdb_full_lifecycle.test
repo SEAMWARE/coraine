@@ -20,14 +20,14 @@ TRoE - full lifecycle: create / patch entity / put attr / delete attr / delete e
 troe lifecycle
 
 --INIT--
-swDbDrop
-swBrokerStart --troe ramdb --apiPlugins admin
+corDbDrop
+coraineStart --troe ramdb --apiPlugins admin
 
 --RUN--
 
 echo "01. POST entity urn:V1 with speed=42"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
 echo
 echo
 echo
@@ -35,32 +35,32 @@ echo
 
 echo "02. PATCH /entities/urn:V1 — add color, change speed"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":80},"color":{"type":"Property","value":"red"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":80},"color":{"type":"Property","value":"red"}}' | head -1
 echo
 
 
 echo "03. PUT /entities/urn:V1/attrs/speed — wholesale replace"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload '{"type":"Property","value":120}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT --payload '{"type":"Property","value":120}' | head -1
 echo
 
 
 echo "04. DELETE /entities/urn:V1/attrs/color"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/color -X DELETE | head -1
 echo
 
 
 echo "05. DELETE /entities/urn:V1"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
 echo
 echo
 
 
 echo "06. GET /admin/troe/dump — six events in order"
 echo "=============================================="
-swCurl --url /admin/troe/dump | python3 -c "
+corCurl --url /admin/troe/dump | python3 -c "
 import sys, json, re
 hdr = ''
 body = ''
@@ -117,5 +117,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

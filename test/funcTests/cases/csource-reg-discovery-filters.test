@@ -23,14 +23,14 @@ GET /csourceRegistrations — scopeQ / csf / omit / lang filters
 registration discovery query
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. Register CSR_North (scope=/Madrid/North, organization=Acme)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:North",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -45,7 +45,7 @@ echo
 
 echo "02. Register CSR_South (scope=/Madrid/South, organization=Beta)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:South",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9998",
@@ -59,7 +59,7 @@ echo
 
 echo "03. ?type=Vehicle&scopeQ=/Madrid/North → only CSR:North"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&scopeQ=%2FMadrid%2FNorth'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&scopeQ=%2FMadrid%2FNorth'
 echo
 echo
 
@@ -68,21 +68,21 @@ echo "04. ?type=Vehicle&csf=organization%3D%3D%22Acme%22 → only CSR:North"
 echo "==================================================================="
 echo "    csf is the spec-correct name for 'filter on CSR user-Properties'."
 echo "    On this route q addresses the registrations too, so both apply."
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&csf=organization%3D%3D%22Acme%22'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&csf=organization%3D%3D%22Acme%22'
 echo
 echo
 
 
 echo "05. ?type=Vehicle&omit=secret → 'secret' stripped from each item"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&omit=secret'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&omit=secret'
 echo
 echo
 
 
 echo "06. ?q=organization==Acme&csf=organization==Beta → conjunctive, so empty"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&q=organization%3D%3D%22Acme%22&csf=organization%3D%3D%22Beta%22'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&q=organization%3D%3D%22Acme%22&csf=organization%3D%3D%22Beta%22'
 echo
 echo
 
@@ -250,5 +250,5 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

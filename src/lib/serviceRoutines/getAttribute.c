@@ -15,20 +15,20 @@
 #include <stddef.h>                                   // NULL
 #include <string.h>                                   // strcmp
 
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjBuilder.h"                          // kjArray, kjObject, kjString, kjInteger, kjChildAdd
 #include "kjson/kjLookup.h"                           // kjLookup
 
-#include "swJsonld/swldCompact.h"                     // swldCompact
-#include "swJsonld/swldExpand.h"                      // swldExpand
-#include "swJsonld/swldInit.h"                        // swldCoreContext
+#include "corJsonld/corLdCompact.h"                     // corLdCompact
+#include "corJsonld/corLdExpand.h"                      // corLdExpand
+#include "corJsonld/corLdInit.h"                        // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                        // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdRegCache.h"                      // LdRegCache
-#include "swNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentAttrs
-#include "swNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardAttr, ldDiscoveryShouldForward
-#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdRegCache.h"                      // LdRegCache
+#include "corNgsild/ldDiscovery.h"                     // ldDiscoveryRegAugmentAttrs
+#include "corNgsild/ldDiscoveryForward.h"              // ldDiscoveryForwardAttr, ldDiscoveryShouldForward
+#include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -37,9 +37,9 @@
 
 
 
-static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
+static const char* shortOrSelf(CorLdContext* ctxP, const char* iri)
 {
-  const char* compact = swldCompact(ctxP, iri);
+  const char* compact = corLdCompact(ctxP, iri);
   return (compact != NULL) ? compact : iri;
 }
 
@@ -47,8 +47,8 @@ static const char* shortOrSelf(SwldContext* ctxP, const char* iri)
 
 bool getAttribute(void)
 {
-  Tenant*     tenantP  = (Tenant*) swNgsild.tenantP;
-  const char* attrWild = swRest.in.wildcard[0];
+  Tenant*     tenantP  = (Tenant*) corNgsild.tenantP;
+  const char* attrWild = corRest.in.wildcard[0];
 
   if (db.attrList == NULL)
   {
@@ -57,9 +57,9 @@ bool getAttribute(void)
     return true;
   }
 
-  SwldContext* ctxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+  CorLdContext* ctxP = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
 
-  const char* attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  const char* attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL)
     attrIri = attrWild;
 
@@ -72,14 +72,14 @@ bool getAttribute(void)
     return true;
   }
 
-  if (!swNgsild.local && tenantP->regCacheP != NULL)
+  if (!corNgsild.local && tenantP->regCacheP != NULL)
     ldDiscoveryRegAugmentAttrs(aggregated, (LdRegCache*) tenantP->regCacheP, true);
 
-  if (!swNgsild.local && !swNgsild.noForward &&
+  if (!corNgsild.local && !corNgsild.noForward &&
       tenantP->regCacheP != NULL &&
       ldDiscoveryShouldForward())
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     ldDiscoveryForwardAttr(aggregated, (LdRegCache*) tenantP->regCacheP,
                            attrIri, attrWild, ownAlias);
   }
@@ -106,36 +106,36 @@ bool getAttribute(void)
   // Attribute (§ 5.2.28): id, type, attributeName, attributeCount,
   //                       attributeTypes, typeNames
   //
-  KjNode* body = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(body, kjString(swRest.kjsonP, "id",            attrIri));
-  kjChildAdd(body, kjString(swRest.kjsonP, "type",          "Attribute"));
-  kjChildAdd(body, kjString(swRest.kjsonP, "attributeName", shortOrSelf(ctxP, attrIri)));
+  KjNode* body = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(body, kjString(corRest.kjsonP, "id",            attrIri));
+  kjChildAdd(body, kjString(corRest.kjsonP, "type",          "Attribute"));
+  kjChildAdd(body, kjString(corRest.kjsonP, "attributeName", shortOrSelf(ctxP, attrIri)));
 
   KjNode* countP = kjLookup(entry, "attrCount");
-  kjChildAdd(body, kjInteger(swRest.kjsonP, "attributeCount",
+  kjChildAdd(body, kjInteger(corRest.kjsonP, "attributeCount",
                              (countP != NULL) ? countP->value.i : 0));
 
-  KjNode* at = kjArray(swRest.kjsonP, "attributeTypes");
+  KjNode* at = kjArray(corRest.kjsonP, "attributeTypes");
   KjNode* atSrc = kjLookup(entry, "attrTypes");
   if (atSrc != NULL && atSrc->type == KjArray)
   {
     for (KjNode* t = atSrc->value.firstChildP; t != NULL; t = t->next)
       if (t->type == KjString)
-        kjChildAdd(at, kjString(swRest.kjsonP, NULL, t->value.s));
+        kjChildAdd(at, kjString(corRest.kjsonP, NULL, t->value.s));
   }
   kjChildAdd(body, at);
 
-  KjNode* tn = kjArray(swRest.kjsonP, "typeNames");
+  KjNode* tn = kjArray(corRest.kjsonP, "typeNames");
   KjNode* tnSrc = kjLookup(entry, "typeNames");
   if (tnSrc != NULL && tnSrc->type == KjArray)
   {
     for (KjNode* t = tnSrc->value.firstChildP; t != NULL; t = t->next)
       if (t->type == KjString)
-        kjChildAdd(tn, kjString(swRest.kjsonP, NULL, shortOrSelf(ctxP, t->value.s)));
+        kjChildAdd(tn, kjString(corRest.kjsonP, NULL, shortOrSelf(ctxP, t->value.s)));
   }
   kjChildAdd(body, tn);
 
-  swRest.out.responseTree   = body;
-  swRest.out.httpStatusCode = 200;
+  corRest.out.responseTree   = body;
+  corRest.out.httpStatusCode = 200;
   return true;
 }

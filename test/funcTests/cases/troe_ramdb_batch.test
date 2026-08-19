@@ -17,14 +17,14 @@ TRoE - batch create / update / delete events captured
 troe batch
 
 --INIT--
-swDbDrop
-swBrokerStart --troe ramdb --apiPlugins admin
+corDbDrop
+coraineStart --troe ramdb --apiPlugins admin
 
 --RUN--
 
 echo "01. POST /entityOperations/create — 3 entities"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":50}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":60}}
@@ -35,7 +35,7 @@ echo
 
 echo "02. POST /entityOperations/update — modify 2 entities"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":100}}
 ]' | head -1
@@ -45,14 +45,14 @@ echo
 
 echo "03. POST /entityOperations/delete — drop 2 entities"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V3"]' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1","urn:V3"]' | head -1
 echo
 echo
 
 
 echo "04. GET /admin/troe/dump — 3 created + 2 attrModified + 2 deleted"
 echo "================================================================="
-swCurl --url /admin/troe/dump | python3 -c "
+corCurl --url /admin/troe/dump | python3 -c "
 import sys, json, re
 hdr = ''
 body = ''
@@ -105,5 +105,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

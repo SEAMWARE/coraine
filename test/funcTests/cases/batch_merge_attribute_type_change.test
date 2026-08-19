@@ -20,42 +20,42 @@ Batch Merge rejects an attribute type change per-entity (§ 10.3.5)
 entity validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 echo "01. Seed two entities, each with a Property 'a' -> 201, 201"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B1","type":"T","a":{"type":"Property","value":1}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B2","type":"T","a":{"type":"Property","value":2}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B1","type":"T","a":{"type":"Property","value":1}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B2","type":"T","a":{"type":"Property","value":2}}' | grep HTTP
 echo
 echo
 
 
 echo "02. Batch merge: B1 changes 'a' to a Relationship (forbidden), B2 valid value update -> 207"
 echo "==========================================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:ngsi-ld:B1","type":"T","a":{"type":"Relationship","object":"urn:ngsi-ld:x"}},{"id":"urn:ngsi-ld:B2","type":"T","a":{"value":99}}]'
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:ngsi-ld:B1","type":"T","a":{"type":"Relationship","object":"urn:ngsi-ld:x"}},{"id":"urn:ngsi-ld:B2","type":"T","a":{"value":99}}]'
 echo
 echo
 
 
 echo "03. B1 is untouched (still Property 'a' = 1)"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:B1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:B1?options=keyValues
 echo
 echo
 
 
 echo "04. B2 got its valid update ('a' = 99)"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:B2?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:B2?options=keyValues
 echo
 echo
 
 
 echo "05. A batch merge with no type change still succeeds -> 204"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:ngsi-ld:B2","type":"T","a":{"value":100}}]' | grep HTTP
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:ngsi-ld:B2","type":"T","a":{"value":100}}]' | grep HTTP
 echo
 echo
 
@@ -131,4 +131,4 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

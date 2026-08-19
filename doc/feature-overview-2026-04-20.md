@@ -1,7 +1,7 @@
-# swBroker — as of April 20, 2026
+# coraine — as of April 20, 2026
 
 Lightweight NGSI-LD Context Broker in C. Plugin architecture for DB
-(swRamDB in-memory, mongoc/MongoDB) and API extensions.
+(corRamDB in-memory, mongoc/MongoDB) and API extensions.
 Spec target: **ETSI GS CIM 009 v1.9.1**.
 
 ---
@@ -90,7 +90,7 @@ Health, version, log control, tenant listing, plugin listing.
 
 ---
 
-## Performance (swBroker vs Orion-LD)
+## Performance (coraine vs Orion-LD)
 
 Measured 2026-04-15 on 20-core laptop. wrk -t4 -c50 -d5s, median of 3
 runs. 5-attr Vehicle entity (~600B). GET returns 20 entities per page.
@@ -115,7 +115,7 @@ runs. 5-attr Vehicle entity (~600B). GET returns 20 entities per page.
 ### Projected: binary forwarding protocol for distributed ops
 
 The forwarding plugin architecture is designed for a future binary
-transport (`swBin://`) between trusted broker instances. HTTP forwarding
+transport (`corBin://`) between trusted broker instances. HTTP forwarding
 pays per hop: JSON render + HTTP framing + JSON parse + @context
 expand/compact — twice (request + response). A binary protocol
 eliminates all four layers and transmits the in-memory entity tree

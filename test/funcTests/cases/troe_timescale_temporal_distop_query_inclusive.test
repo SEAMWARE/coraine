@@ -23,12 +23,12 @@ TRoE timescale - temporal distop query, inclusive
 troe timescale postgres temporal distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swTroeInit
-swTroeInit -role CP1
-swBrokerStart        --troe timescale -dist
-swBrokerStart -role CP1 --troe timescale -dist
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist
+coraineStart -role CP1 --troe timescale -dist
 
 --RUN--
 
@@ -47,7 +47,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -55,11 +55,11 @@ echo
 echo "02. Seed CB with urn:V1 + urn:V2 (2 instances each)"
 echo "==================================================="
 payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
 payload='{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":15,"observedAt":"2026-04-28T09:30:00Z"}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":25,"observedAt":"2026-04-28T10:30:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":25,"observedAt":"2026-04-28T10:30:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -68,11 +68,11 @@ echo
 echo "03. Seed CP1 with urn:V1 + urn:V3 (2 instances each)"
 echo "===================================================="
 payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
 payload='{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-28T13:00:00Z"}}'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -80,7 +80,7 @@ echo
 
 echo "04. GET /temporal/entities?type=Vehicle on CB — 3 entities, V1 merged"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z'
 echo
 echo
 
@@ -186,9 +186,9 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
-swTroeDrop
-swTroeDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

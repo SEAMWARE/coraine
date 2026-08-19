@@ -15,11 +15,11 @@
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "kbase/kStringInArray.h"                    // kStringInArray
-#include "swJsonld/swldExpand.h"                     // swldExpand, swldAlreadyExpanded
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_*
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldDistOp.h"                       // ldDistOpEndpointIsSelf
+#include "corJsonld/corLdExpand.h"                     // corLdExpand, corLdAlreadyExpanded
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldDistOp.h"                       // ldDistOpEndpointIsSelf
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -57,7 +57,7 @@ static bool attrSetsOverlap(char** attrsA, char** attrsB)
 // attrIRIArray - extract an attributeNames array as a NULL-terminated
 //                array of EXPANDED IRIs.
 //
-// swldExpandTree intentionally doesn't @vocab-coerce array values (would
+// corLdExpandTree intentionally doesn't @vocab-coerce array values (would
 // launder bad input past validators), so attributeNames items arrive in this
 // routine as their short-name form. The cached items are
 // stored expanded (ldRegCache.c attrIRIArrayExtract) so we expand the new
@@ -83,9 +83,9 @@ static char** attrIRIArray(KjNode* arrP, KAlloc* allocP)
     if (sP->type != KjString)
       continue;
     char* s = sP->value.s;
-    if (swldAlreadyExpanded(s) == false)
+    if (corLdAlreadyExpanded(s) == false)
     {
-      char* expanded = swldExpand(NULL, s, allocP, NULL, NULL);
+      char* expanded = corLdExpand(NULL, s, allocP, NULL, NULL);
       if (expanded != NULL)
         s = expanded;
     }
@@ -229,7 +229,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
     return true;
 
   // Walk entity attrs (skipping system fields). The local entity's attr names
-  // are already expanded IRIs (post-swldExpand at create time).
+  // are already expanded IRIs (post-corLdExpand at create time).
   for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL)
@@ -295,7 +295,7 @@ bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KA
     }
   }
 
-  Tenant*       tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant*       tenantP = (Tenant*) corNgsild.tenantP;
   LdRegCache*   cacheP  = (LdRegCache*) tenantP->regCacheP;
 
   KjNode* infoArrayP = kjLookup(regP, LD_VOCAB_INFORMATION);

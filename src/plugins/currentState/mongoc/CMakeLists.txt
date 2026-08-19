@@ -35,11 +35,11 @@ SET(SOURCES
   ${CMAKE_SOURCE_DIR}/src/plugins/shared/geoMatch.c
 )
 
-IF (SW_FEATURE_CONTEXT_HOSTING)
+IF (COR_FEATURE_CONTEXT_HOSTING)
   LIST(APPEND SOURCES mongocContext.c)
 ENDIF()
 
-IF (SW_FEATURE_SUBSCRIPTIONS)
+IF (COR_FEATURE_SUBSCRIPTIONS)
   LIST(APPEND SOURCES
     mongocSubscriptionCreate.c
     mongocSubscriptionRetrieve.c
@@ -51,7 +51,7 @@ IF (SW_FEATURE_SUBSCRIPTIONS)
   )
 ENDIF()
 
-IF (SW_FEATURE_REGISTRATIONS)
+IF (COR_FEATURE_REGISTRATIONS)
   LIST(APPEND SOURCES
     mongocRegistrationCreate.c
     mongocRegistrationRetrieve.c

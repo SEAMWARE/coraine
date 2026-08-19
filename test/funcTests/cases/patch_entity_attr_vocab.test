@@ -24,8 +24,8 @@ PATCH /entities/{id}/attrs/{attr} - VocabProperty vocab string -> array
 vocab-property entity patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     "vocab": "sensor"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -55,14 +55,14 @@ echo "====================================================================="
 payload='{
   "vocab": [ "sensor1", "actuator" ]
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/v1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/v1 --payload "$payload"
 echo
 echo
 
 
 echo "03. GET urn:E1 - v1 vocab is the new array"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
@@ -109,5 +109,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ GET entity with single attribute with datasetId returns object with datasetId
 datasetid entity retrieve
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,14 +33,14 @@ payload='{
     "datasetId": "urn:sensor:radar"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity E1 - speed with datasetId returned"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
@@ -77,5 +77,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -11,8 +11,8 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/SwRestVerb.h"                       // SwVerbPatch
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/CorRestVerb.h"                       // CorVerbPatch
 
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
@@ -22,31 +22,31 @@
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swJsonld/swldInit.h"                       // swldCoreContext, SWLD_CORE_CONTEXT_URL
-#include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext, CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
-#include "swNgsild/swNgsild.h"                       // ldError, ldCheckEntity, LdOp*, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
-#include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
-#include "swNgsild/ldEntityMerge.h"                  // LdMergeReport
-#include "swNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
-#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "corNgsild/corNgsild.h"                       // ldError, ldCheckEntity, LdOp*, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckEntity.h"                  // ldCheckEntity
+#include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
+#include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
+#include "corNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
+#include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
-#include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
+#include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
 #include "ktrace/kTrace.h"                           // KT_T
-#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/patchEntity.h"             // Own interface
 
@@ -102,16 +102,16 @@ static char* mergeUrl(const char* endpoint, const char* entityId)
   // pre-resolve them against; the flag is the only thing that can carry the
   // intent across.
   //
-  const char* fmt  = (swNgsild.format == LdFormatSimplified) ? "format=simplified" : NULL;
-  const char* lang = (swNgsild.lang       != NULL && swNgsild.lang[0]       != 0) ? swNgsild.lang       : NULL;
-  const char* obs  = (swNgsild.observedAt != NULL && swNgsild.observedAt[0] != 0) ? swNgsild.observedAt : NULL;
+  const char* fmt  = (corNgsild.format == LdFormatSimplified) ? "format=simplified" : NULL;
+  const char* lang = (corNgsild.lang       != NULL && corNgsild.lang[0]       != 0) ? corNgsild.lang       : NULL;
+  const char* obs  = (corNgsild.observedAt != NULL && corNgsild.observedAt[0] != 0) ? corNgsild.observedAt : NULL;
 
   int qLen = 0;
   if (fmt  != NULL)  qLen += 1 + strlen(fmt);
   if (lang != NULL)  qLen += 1 + 5 + strlen(lang);          // "&lang=" + value
   if (obs  != NULL)  qLen += 1 + 11 + strlen(obs);          // "&observedAt=" + value
 
-  char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qLen + 1);
+  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qLen + 1);
   char* p   = url;
 
   memcpy(p, endpoint, baseLen);  p += baseLen;
@@ -155,7 +155,7 @@ static char* renderFragmentWithContext(KjNode* fragP)
     kjChildRemove(fragP, atCtx);
 
   int   bufSize = kjFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
   kjFastRender(fragP, buf);
   return buf;
@@ -174,7 +174,7 @@ static int forwardMergeEntity(LdRegCacheItem* csr,
                               const char**    errorDetailPP)
 {
   char* body = renderFragmentWithContext(fragP);
-  return ldDistOpSend(csr, SwVerbPatch,
+  return ldDistOpSend(csr, CorVerbPatch,
                       mergeUrl(csr->endpoint, entityId),
                       body, strlen(body), ownAlias, errorDetailPP);
 }
@@ -187,26 +187,26 @@ static int forwardMergeEntity(LdRegCacheItem* csr,
 //
 bool patchEntity(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
-  KjNode*     fragment = swRest.in.requestTree;
+  const char* entityId = corRest.in.wildcard[0];
+  KjNode*     fragment = corRest.in.requestTree;
 
   //
   // Validate the fragment. LdOpMergeEntity allows partial payloads (no
   // mandatory id/type) and permits "urn:ngsi-ld:null" at the top level as a
   // delete-marker.
   //
-  if (ldCheckEntity(fragment, LdOpMergeEntity, NULL, &swRest.kalloc) == false)
+  if (ldCheckEntity(fragment, LdOpMergeEntity, NULL, &corRest.kalloc) == false)
     return true;
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   //
   // § 9.3.3 guard — a ?local=true write must not produce local data that an
   // exclusive or redirect registration claims.
   //
-  if (swNgsild.local == true && tenantP->regCacheP != NULL)
+  if (corNgsild.local == true && tenantP->regCacheP != NULL)
   {
     const char* cRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) tenantP->regCacheP,
-                                                          entityId, fragment, &swRest.kalloc);
+                                                          entityId, fragment, &corRest.kalloc);
     if (cRegId != NULL)
     {
       ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
@@ -226,7 +226,7 @@ bool patchEntity(void)
   // fails or partially succeeds:
   //   { "success": [entityId], "errors": [BatchEntityError] }
   //
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract: when the whole operation is served by
@@ -240,9 +240,9 @@ bool patchEntity(void)
 
   bool inputHadAttrs = hasNonKeywordAttr(fragment);
 
-  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
-  bool dispatch = (swNgsild.local == false
+  bool dispatch = (corNgsild.local == false
                   
                    && tenantP->regCacheP != NULL);
 
@@ -298,7 +298,7 @@ bool patchEntity(void)
 
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
-                                  swRest.serviceP->ldOp, "mergeEntity",
+                                  corRest.serviceP->ldOp, "mergeEntity",
                                   entityId, /*perRi=*/true, entityId, NULL,
                                   errorsArrayP, &items);
 
@@ -321,7 +321,7 @@ bool patchEntity(void)
     {
       bool isExclusive = (items[i].modeIdx == 0);
 
-      KjNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, swRest.kjsonP,
+      KjNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, corRest.kjsonP,
                                               /*detach=*/isExclusive);
       if (fragP == NULL) continue;
 
@@ -336,13 +336,13 @@ bool patchEntity(void)
         // Excl/redirect attrs are chopped (won't merge locally); flag so a
         // fully-loop-blocked merge flattens its terminal 404 to 508 (§ 6.3.18).
         if (items[i].errorMode)
-          swNgsild.loopBlocked508 = true;
+          corNgsild.loopBlocked508 = true;
         continue;
       }
 
       // fragP is private (detached or cloned) — compact in place with the
       // per-CSR forward context before rendering the wire body.
-      swldCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr));
+      corLdCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr));
 
       char* body = renderFragmentWithContext(fragP);
       items[kept] = items[i];
@@ -359,12 +359,12 @@ bool patchEntity(void)
     for (int i = 0; i < n; i++)
     {
       if (items[i].modeIdx != 1) continue;  // redirect only
-      KjNode* drop = ldEntityFragmentForInfo(fragment, items[i].riP, swRest.kjsonP,
+      KjNode* drop = ldEntityFragmentForInfo(fragment, items[i].riP, corRest.kjsonP,
                                               /*detach=*/true);
       (void) drop;  // freed with the arena
     }
 
-    ldDistOpEntriesPerform(items, kept, SwVerbPatch, ownAlias);
+    ldDistOpEntriesPerform(items, kept, CorVerbPatch, ownAlias);
 
     for (int i = 0; i < kept; i++)
     {
@@ -402,7 +402,7 @@ bool patchEntity(void)
 
   if (localOp)
   {
-    ldApiEntityToDbModel(fragment, &swRest.kalloc, 0);
+    ldApiEntityToDbModel(fragment, &corRest.kalloc, 0);
 
     //
     // Merge in the broker: fetch the current entity, deep-merge the fragment
@@ -421,7 +421,7 @@ bool patchEntity(void)
       // without ?lang=, unsupported attribute type for a simplified scalar,
       // attribute type change attempt, ...) and return false.
       //
-      if (ldEntityMerge(mergedEntity, fragment, &report, swRest.requestStartTime, swRest.kjsonP) == false)
+      if (ldEntityMerge(mergedEntity, fragment, &report, corRest.requestStartTime, corRest.kjsonP) == false)
         return true;
 
       int car = db.entityChangesApply(tenantP, entityId, mergedEntity, &report);
@@ -456,7 +456,7 @@ bool patchEntity(void)
         KjNode* tn = kjLookup(mergedEntity, "type");
         if (tn != NULL && tn->type == KjString) etype = tn->value.s;
         troeDeferAttrEventsFromMerge(tenantP, entityId, etype, mergedEntity, &report,
-                                     swRest.requestStartTime);
+                                     corRest.requestStartTime);
       }
     }
     else if (localR != DB_NOT_FOUND)
@@ -486,19 +486,19 @@ bool patchEntity(void)
 
   if (errorsCount == 0)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
+  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, entityId));
+    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(respBodyP, successArrayP);
   kjChildAdd(respBodyP, errorsArrayP);
 
-  swRest.out.responseTree   = respBodyP;
+  corRest.out.responseTree   = respBodyP;
 
   //
   // § 6.3.5 / § 7.3.x status code for the all-failed case:
@@ -508,11 +508,11 @@ bool patchEntity(void)
   //   - distributed over several sources → 207 Multi-Status
   //
   if (anySucceeded)
-    swRest.out.httpStatusCode = 207;
+    corRest.out.httpStatusCode = 207;
   else if (singleAuthoritative && errorsCount == 1)
-    swRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
+    corRest.out.httpStatusCode = (forwardFailCount == 1) ? (forwardTimedOut ? 504 : 502) : 409;
   else
-    swRest.out.httpStatusCode = 207;
+    corRest.out.httpStatusCode = 207;
 
   return true;
 }

@@ -25,36 +25,36 @@ Snapshot persistence + restart reload (§ 5.16, Phase #140)
 snapshot persist
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed three Vehicles"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
 echo
 echo
 
 
 echo "02. Create two snapshots"
 echo "========================"
-swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:All","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:All","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
 echo
-swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Fast","type":"Snapshot","snapshotPriority":7,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>50"}]}'
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:Fast","type":"Snapshot","snapshotPriority":7,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>50"}]}'
 echo
 echo
 
 
 echo "03. Restart the broker (no DB drop)"
 echo "==================================="
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo "(restarted)"
 echo
 echo
@@ -62,58 +62,58 @@ echo
 
 echo "04. GET /snapshots/All — survives restart"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
 echo
 echo
 
 
 echo "05. GET /snapshots/Fast — survives restart, snapshotPriority preserved"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
 echo
 echo
 
 
 echo "06. Snapshot read on All — frozen entities still in snap-tenant DB"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
 echo
 echo
 
 
 echo "07. Snapshot read on Fast — only V2 (frozen)"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Fast'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Fast'
 echo
 echo
 
 
 echo "08. PATCH All priority → 9; restart; verify it stuck"
 echo "===================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All --payload '{"snapshotPriority":9}'
-swBrokerStop
-swBrokerStart
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All --payload '{"snapshotPriority":9}'
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
 echo
 echo
 
 
 echo "09. DELETE Fast; restart; verify it's gone (404)"
 echo "================================================"
-swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
-swBrokerStop
-swBrokerStart
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+corCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
 echo
 echo
 
 
 echo "10. DELETE /snapshots?q=snapshotPriority>5 → 204; restart; All gone too"
 echo "======================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
-swBrokerStop
-swBrokerStart
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
 echo
 echo
 
@@ -399,6 +399,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

@@ -17,8 +17,8 @@ Concise Property with a sub-Relationship — create, concise GET, PATCH, GET
 attr sub-attributes format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -32,14 +32,14 @@ payload='{
     "providedBy": { "object": "urn:ngsi-ld:Building:barn001" }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET (concise)"
 echo "================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1?format=concise'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1?format=concise'
 echo
 echo
 
@@ -52,14 +52,14 @@ payload='{
     "providedBy": { "object": "urn:ngsi-ld:Building:barn001" }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "04. GET (concise) — unchanged"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1?format=concise'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1?format=concise'
 echo
 echo
 
@@ -126,4 +126,4 @@ Content-Length: 157
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

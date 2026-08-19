@@ -29,8 +29,8 @@ Default user @context — fallback only when the request brings no @context
 context entity
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
 
 contextServerPush /jsonldContexts/duc '{
@@ -46,7 +46,7 @@ contextServerPush /jsonldContexts/ctxB '{
   }
 }'
 
-swBrokerStart --defaultUserContext http://localhost:7080/jsonldContexts/duc
+coraineStart --defaultUserContext http://localhost:7080/jsonldContexts/duc
 
 --RUN--
 
@@ -57,21 +57,21 @@ payload='{
   "type": "Room",
   "temperature": {"type": "Property", "value": 21}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. GET urn:R1 naked json — duc compacts to short names + advertises duc Link"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:R1
+corCurl --url /ngsi-ld/v1/entities/urn:R1
 echo
 echo
 
 
 echo "03. GET urn:R1 via ctxB — duc IRIs are unmapped → full IRIs (stored under duc)"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:R1 \
+corCurl --url /ngsi-ld/v1/entities/urn:R1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -84,7 +84,7 @@ payload='{
   "type": "Room",
   "temperature": {"type": "Property", "value": 19}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -92,21 +92,21 @@ echo
 
 echo "05. GET urn:R2 naked json — stored via ctxB, so duc can't shorten its terms"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:R2
+corCurl --url /ngsi-ld/v1/entities/urn:R2
 echo
 echo
 
 
 echo "06. GET ?type=Room naked json — duc expands Room→duc/Room → matches R1"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Room' | grep -c urn:R1
+corCurl --url '/ngsi-ld/v1/entities?type=Room' | grep -c urn:R1
 echo
 echo
 
 
 echo "07. GET ?type=Room via ctxB — Room→core vocab (not duc/Room) → no R1 match"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Room' \
+corCurl --url '/ngsi-ld/v1/entities?type=Room' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:R1
 echo
 echo
@@ -114,7 +114,7 @@ echo
 
 echo "08. GET urn:R1 as ld+json, no Link — duc carried INLINE as @context in body"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:R1 --out jsonld
+corCurl --url /ngsi-ld/v1/entities/urn:R1 --out jsonld
 echo
 echo
 
@@ -216,5 +216,5 @@ Content-Length: 161
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

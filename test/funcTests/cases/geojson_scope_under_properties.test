@@ -24,8 +24,8 @@ GeoJSON Feature — scope and expiresAt under properties (§ 5.3.3.3.1)
 geojson scope
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,14 +39,14 @@ payload='{
   "speed":{"type":"Property","value":50},
   "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET it as GeoJSON — scope and expiresAt under properties, no id there"
 echo "========================================================================"
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:V1'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:V1'
 echo
 echo
 
@@ -54,7 +54,7 @@ echo
 echo "03. GET it as GeoJSON with options=sysAttrs — entity createdAt/modifiedAt"
 echo "    under properties, per-Attribute ones nested in each Attribute"
 echo "========================================================================"
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=sysAttrs'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=sysAttrs'
 echo
 echo
 
@@ -160,4 +160,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

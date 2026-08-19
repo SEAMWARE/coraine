@@ -20,16 +20,16 @@
 #include <stdio.h>                                   // snprintf
 #include <time.h>                                    // time, gmtime_r, strftime
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd
 #include "kjson/kjClone.h"                           // kjClone
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swNgsild/swNgsild.h"                       // swNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                       // corNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
-#include "swBrokerVersion.h"                         // SWBROKER_VERSION (-Isrc/app/swBroker)
+#include "coraineVersion.h"                         // CORAINE_VERSION (-Isrc/app/coraine)
 #include "serviceRoutines/getSourceIdentity.h"       // Own interface
 
 
@@ -78,17 +78,17 @@ bool getSourceIdentity(void)
   // on this broker (see the tenantPreServiceHook bypass).
   //
   const char* tenant = NULL;
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
+  for (int i = 0; i < corRest.in.httpHeaderCount; i++)
   {
-    if (swRest.in.httpHeaderV[i].key == NULL) continue;
-    if (strcasecmp(swRest.in.httpHeaderV[i].key, "NGSILD-Tenant") == 0)
+    if (corRest.in.httpHeaderV[i].key == NULL) continue;
+    if (strcasecmp(corRest.in.httpHeaderV[i].key, "NGSILD-Tenant") == 0)
     {
-      tenant = swRest.in.httpHeaderV[i].value;
+      tenant = corRest.in.httpHeaderV[i].value;
       break;
     }
   }
 
-  const char* alias = ldCsourceAliasForTenant(tenant, &swRest.kalloc);
+  const char* alias = ldCsourceAliasForTenant(tenant, &corRest.kalloc);
   if (alias == NULL)
   {
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
@@ -104,7 +104,7 @@ bool getSourceIdentity(void)
   //
   static const char idPrefix[] = "urn:ngsi-ld:ContextSource:";
   int   aliasLen = strlen(alias);
-  char* idBuf    = (char*) kaAlloc(&swRest.kalloc, sizeof(idPrefix) + aliasLen);
+  char* idBuf    = (char*) kaAlloc(&corRest.kalloc, sizeof(idPrefix) + aliasLen);
   strcpy(idBuf, idPrefix);
   strcpy(idBuf + sizeof(idPrefix) - 1, alias);
 
@@ -113,22 +113,22 @@ bool getSourceIdentity(void)
   uptimeIso(uptimeBuf, sizeof(uptimeBuf));
   nowIsoUtc(timeAtBuf, sizeof(timeAtBuf));
 
-  KjNode* body = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(body, kjString(swRest.kjsonP, "id",                   idBuf));
-  kjChildAdd(body, kjString(swRest.kjsonP, "type",                 "ContextSourceIdentity"));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceAlias",   alias));
+  KjNode* body = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(body, kjString(corRest.kjsonP, "id",                   idBuf));
+  kjChildAdd(body, kjString(corRest.kjsonP, "type",                 "ContextSourceIdentity"));
+  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceAlias",   alias));
   // § 5.2.40 — broker product + version
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceName",    "swBroker"));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceVersion", SWBROKER_VERSION));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceUptime",  uptimeBuf));
-  kjChildAdd(body, kjString(swRest.kjsonP, "contextSourceTimeAt",  timeAtBuf));
+  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceName",    "coraine"));
+  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceVersion", CORAINE_VERSION));
+  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceUptime",  uptimeBuf));
+  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceTimeAt",  timeAtBuf));
 
   // § 5.2.40 contextSourceExtras — opaque JSON, never @context-expanded.
   // Cloned into the request arena so the response renderer doesn't mutate
   // the long-lived startup-parsed tree.
   if (ldContextSourceExtras != NULL)
   {
-    KjNode* extras = kjClone(swRest.kjsonP, ldContextSourceExtras);
+    KjNode* extras = kjClone(corRest.kjsonP, ldContextSourceExtras);
     if (extras != NULL)
     {
       extras->name = (char*) "contextSourceExtras";
@@ -136,8 +136,8 @@ bool getSourceIdentity(void)
     }
   }
 
-  swNgsild.rawResponse      = true;
-  swRest.out.responseTree   = body;
-  swRest.out.httpStatusCode = 200;
+  corNgsild.rawResponse      = true;
+  corRest.out.responseTree   = body;
+  corRest.out.httpStatusCode = 200;
   return true;
 }

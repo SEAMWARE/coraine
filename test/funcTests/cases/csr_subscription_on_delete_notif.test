@@ -16,9 +16,9 @@ CSR Subscription - noLongerMatching notification on CSR deletion
 csr-sub delete subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -35,21 +35,21 @@ swBrokerStart -dist
 
 echo "01. Register CSR-A (Vehicle propertyNames=[speed])"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "02. Register CSR-B (Device)"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Device"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Device"}]}]}'
 echo
 echo
 
 
 echo "03. Subscribe S1 (Vehicle + watchedAttributes=[speed])"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
 echo
 echo
 
@@ -63,7 +63,7 @@ echo
 
 echo "05. Delete CSR-A"
 echo "================"
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A
 echo
 echo
 
@@ -77,7 +77,7 @@ echo
 
 echo "07. Delete CSR-B (didn't match S1)"
 echo "=================================="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:B
 echo
 echo
 
@@ -345,6 +345,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

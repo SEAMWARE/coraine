@@ -19,9 +19,9 @@ CSR Subscription - initial newlyMatching notification on subscribe
 csr-sub subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -41,28 +41,28 @@ swBrokerStart -dist
 
 echo "01. Register CSR-A (Vehicle propertyNames=[speed])"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "02. Register CSR-B (Temperature propertyNames=[temperature])"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
 echo
 echo
 
 
 echo "03. Register CSR-C (Vehicle, all attrs)"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "04. Create CSR-sub S1 (Vehicle + watchedAttributes=[speed])"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
@@ -76,7 +76,7 @@ echo
 
 echo "06. Create CSR-sub S2 (Temperature + watchedAttributes=[humidity]) — no match"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Temperature"}],"watchedAttributes":["humidity"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Temperature"}],"watchedAttributes":["humidity"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
@@ -277,6 +277,6 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

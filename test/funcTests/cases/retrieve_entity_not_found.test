@@ -12,7 +12,7 @@ GET /entities/{id} for non-existing entity returns 404
 entity retrieve
 
 --INIT--
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -22,7 +22,7 @@ swBrokerStart
 
 echo "01. GET /entities/urn:nonexistent - 404 Not Found"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:nonexistent
+corCurl --url /ngsi-ld/v1/entities/urn:nonexistent
 echo
 echo
 
@@ -45,4 +45,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

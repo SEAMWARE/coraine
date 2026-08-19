@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/entities - key error cases
 create entity error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -114,21 +114,21 @@ swBrokerStart
 
 echo "01. Payload not a JSON object (JSON array)"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '[1, 2, 3]'
+corCurl --url /ngsi-ld/v1/entities --payload '[1, 2, 3]'
 echo
 echo
 
 
 echo "02. Empty payload (no body)"
 echo "==========================="
-swCurl -X POST --url /ngsi-ld/v1/entities
+corCurl -X POST --url /ngsi-ld/v1/entities
 echo
 echo
 
 
 echo "03. Empty JSON object {}"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entities --payload '{}'
+corCurl --url /ngsi-ld/v1/entities --payload '{}'
 echo
 echo
 
@@ -139,7 +139,7 @@ payload='{
   "id": 14,
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -150,7 +150,7 @@ payload='{
   "id": "",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -161,7 +161,7 @@ payload='{
   "id": "not-a-uri",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -172,7 +172,7 @@ payload='{
   "id": "urn:",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -183,7 +183,7 @@ payload='{
   "id": "urn:has space",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -195,7 +195,7 @@ payload='{
   "id": "urn:e2",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -207,14 +207,14 @@ payload='{
   "@id": "urn:e2",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "11. Missing type (id present)"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e1"}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e1"}'
 echo
 echo
 
@@ -225,7 +225,7 @@ payload='{
   "id": "urn:e1",
   "type": 42
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -237,7 +237,7 @@ payload='{
   "type": "T",
   "type": "T2"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -249,7 +249,7 @@ payload='{
   "type": "T",
   "@type": "T2"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -261,7 +261,7 @@ payload='{
   "type": "T",
   "scope": 42
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -276,7 +276,7 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -291,7 +291,7 @@ payload='{
     "value": 200
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -305,7 +305,7 @@ payload='{
     "type": "Property"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -321,7 +321,7 @@ payload='{
     "object": "urn:bad"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -336,7 +336,7 @@ payload='{
     "object": 14
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -351,7 +351,7 @@ payload='{
     "object": ""
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -366,7 +366,7 @@ payload='{
     "object": "not-a-uri"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -382,7 +382,7 @@ payload='{
     "observedAt": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -398,7 +398,7 @@ payload='{
     "observedAt": ""
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -414,7 +414,7 @@ payload='{
     "observedAt": "not-a-date"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -430,7 +430,7 @@ payload='{
     "unitCode": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -446,7 +446,7 @@ payload='{
     "datasetId": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -462,7 +462,7 @@ payload='{
     "datasetId": ""
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -478,7 +478,7 @@ payload='{
     "datasetId": "not-a-uri"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -494,7 +494,7 @@ payload='{
     "object": "urn:x"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -510,7 +510,7 @@ payload='{
     "value": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -522,7 +522,7 @@ payload='{
   "type": "T",
   "speed": []
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -534,7 +534,7 @@ payload='{
   "type": "T",
   "speed": [42, 43]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -555,7 +555,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -578,7 +578,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -593,7 +593,7 @@ payload='{
     "value": "not an object"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -610,7 +610,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -628,7 +628,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -645,7 +645,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -663,7 +663,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -681,7 +681,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -699,7 +699,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -717,7 +717,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -735,7 +735,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -753,7 +753,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -771,7 +771,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -789,7 +789,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -807,7 +807,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -825,7 +825,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -843,7 +843,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -861,7 +861,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -879,7 +879,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -897,7 +897,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -912,7 +912,7 @@ payload='{
     "languageMap": "not an object"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -929,7 +929,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -944,7 +944,7 @@ payload='{
     "vocab": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -959,7 +959,7 @@ payload='{
     "valueList": "not-an-array"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -974,7 +974,7 @@ payload='{
     "objectList": "not-an-array"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -989,7 +989,7 @@ payload='{
     "objectList": [42, 43]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1004,7 +1004,7 @@ payload='{
     "objectList": ["not-a-uri"]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1015,7 +1015,7 @@ payload='{
   "id": "urn:e61",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: text/plain' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: text/plain' --payload "$payload"
 echo
 echo
 
@@ -1026,7 +1026,7 @@ payload='{
   "id": "urn:e62",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
 echo
 echo
 
@@ -1038,7 +1038,7 @@ payload='{
   "id": "urn:e63",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1050,7 +1050,7 @@ payload='{
   "id": "urn:e64",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' -H 'Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' -H 'Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' --payload "$payload"
 echo
 echo
 
@@ -1066,7 +1066,7 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
 echo
 echo
 
@@ -1077,7 +1077,7 @@ payload='{
   "id": "urn:e66",
   "type": []
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1088,7 +1088,7 @@ payload='{
   "id": "urn:e67",
   "type": [14]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1099,7 +1099,7 @@ payload='{
   "id": "urn:e68",
   "type": [""]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1110,7 +1110,7 @@ payload='{
   "id": "entity_pattern=urn:x",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -1121,7 +1121,7 @@ payload='{
   "id": "1urn:x",
   "type": "T"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -2216,5 +2216,5 @@ Content-Length: 151
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

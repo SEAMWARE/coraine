@@ -35,51 +35,51 @@ NGSI-LD Null is refused where deletion has no meaning (§ 8.2.3)
 validation delete languageproperty
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create with a first-level null marker (concise) → 400"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N1","type":"T","speed":"urn:ngsi-ld:null"}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N1","type":"T","speed":"urn:ngsi-ld:null"}'
 echo
 echo
 
 
 echo "02. Create with a Property value of null marker → 400"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N2","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N2","type":"T","speed":{"type":"Property","value":"urn:ngsi-ld:null"}}'
 echo
 echo
 
 
 echo "03. Create with a Relationship object of null marker → 400"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N3","type":"T","owner":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N3","type":"T","owner":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
 echo
 echo
 
 
 echo "04. Create with languageMap {@none: null marker} → 400"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N4","type":"T","name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N4","type":"T","name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}'
 echo
 echo
 
 
 echo "05. Nothing was created"
 echo "======================="
-swCurl --url '/ngsi-ld/v1/entities/urn:N4' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:N4' | head -1
 echo
 echo
 
 
 echo "06. Legal: a merge fragment deletes a Property with the marker"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:OK","type":"T","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:OK --payload '{"type":"T","color":"urn:ngsi-ld:null"}' | head -1
-swCurl --url '/ngsi-ld/v1/entities/urn:OK' | grep -E '"speed"|"color"'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:OK","type":"T","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:OK --payload '{"type":"T","color":"urn:ngsi-ld:null"}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:OK' | grep -E '"speed"|"color"'
 echo
 echo
 
@@ -88,16 +88,16 @@ echo "07. Legal: a merge fragment deletes a LanguageProperty the same way"
 echo "==================================================================="
 # The form refused on a Create in step 04 is exactly the one that has to work
 # here — this is the § 5.2.6.4.6 deletion encoding.
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:OK2","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello"}},"speed":{"type":"Property","value":1}}' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:OK2 --payload '{"type":"T","name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}' | head -1
-swCurl --url '/ngsi-ld/v1/entities/urn:OK2' | grep -E '"name"|"speed"'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:OK2","type":"T","name":{"type":"LanguageProperty","languageMap":{"en":"hello"}},"speed":{"type":"Property","value":1}}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:OK2 --payload '{"type":"T","name":{"type":"LanguageProperty","languageMap":{"@none":"urn:ngsi-ld:null"}}}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:OK2' | grep -E '"name"|"speed"'
 echo
 echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 
 --EXPECT--
 01. Create with a first-level null marker (concise) → 400

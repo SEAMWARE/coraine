@@ -18,8 +18,8 @@ Deep sub-attribute nesting (5 levels): q on a.b.c.d.e + sysAttrs timestamps on G
 entity attr query sysAttrs notification subscription
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -34,7 +34,7 @@ ftClientStart
 
 echo "01. Subscribe to type T with sysAttrs notifications"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions -X POST --payload '{
   "id": "urn:ngsi-ld:Subscription:S1",
   "type": "Subscription",
   "entities": [ { "type": "T" } ],
@@ -49,7 +49,7 @@ echo
 
 echo "02. Create entity with 5 levels of nested sub-attributes"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
   "id": "urn:ngsi-ld:Deep:1",
   "type": "T",
   "a": { "type": "Property", "value": "A",
@@ -64,21 +64,21 @@ echo
 
 echo "03. q=a.b.c.d.e==4 — matches"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=a.b.c.d.e==4&attrs=a'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=a.b.c.d.e==4&attrs=a'
 echo
 echo
 
 
 echo "04. q=a.b.c.d.e==5 — no match"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=a.b.c.d.e==5'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=a.b.c.d.e==5'
 echo
 echo
 
 
 echo "05. GET by id, sysAttrs — timestamps (ISO) at all 5 levels"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Deep:1' --urlParams 'sysAttrs=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Deep:1' --urlParams 'sysAttrs=true'
 echo
 echo
 
@@ -270,5 +270,5 @@ Content-Length: REGEX(\d+)
 
 --TEARDOWN--
 ftClientStop
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

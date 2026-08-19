@@ -29,15 +29,15 @@ q on a DateTime-valued Property - d[@value] as a quoted string comparison
 q query datetime timeproperty value-type
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 payload='{ "id": "urn:E1", "type": "T", "d": { "type": "Property", "value": { "@type": "DateTime", "@value": "2026-01-01T00:00:00Z" } } }'
 echo "01. Seed urn:E1 (d = 2026-01-01)"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -45,49 +45,49 @@ echo
 payload='{ "id": "urn:E2", "type": "T", "d": { "type": "Property", "value": { "@type": "DateTime", "@value": "2026-09-01T00:00:00Z" } } }'
 echo "02. Seed urn:E2 (d = 2026-09-01)"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. q=d>2026-05-01T00:00:00Z — the value is an object, so nothing matches"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=d>2026-05-01T00:00:00Z&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d>2026-05-01T00:00:00Z&format=simplified'
 echo
 echo
 
 
 echo "04. q=d[@value]>2026-05-01T00:00:00Z — unquoted parses as a DateTime, still nothing"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D>2026-05-01T00:00:00Z&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D>2026-05-01T00:00:00Z&format=simplified'
 echo
 echo
 
 
 echo "05. q=d[@value]>\"2026-05-01T00:00:00Z\" — quoted: string compare, selects urn:E2"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D>%222026-05-01T00:00:00Z%22&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D>%222026-05-01T00:00:00Z%22&format=simplified'
 echo
 echo
 
 
 echo "06. q=d[@value]<\"2026-05-01T00:00:00Z\" — the complement, selects urn:E1"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D<%222026-05-01T00:00:00Z%22&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D<%222026-05-01T00:00:00Z%22&format=simplified'
 echo
 echo
 
 
 echo "07. q=d[@value]==\"2026-09-01T00:00:00Z\" — equality selects urn:E2"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D==%222026-09-01T00:00:00Z%22&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@value%5D==%222026-09-01T00:00:00Z%22&format=simplified'
 echo
 echo
 
 
 echo "08. q=d[@type]==\"DateTime\" — the type member is reachable too, both match"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@type%5D==%22DateTime%22&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d%5B@type%5D==%22DateTime%22&format=simplified'
 echo
 echo
 
@@ -230,5 +230,5 @@ Content-Length: 261
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

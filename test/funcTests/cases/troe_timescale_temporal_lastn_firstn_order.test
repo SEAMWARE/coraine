@@ -20,39 +20,39 @@ TRoE temporal pagination order — lastN descending, firstN ascending
 troe timescale postgres temporal lastN firstN order
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "00. Seed urn:V1 speed=10/20/30/40 at 09:00/10:00/11:00/12:00"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}'
 echo
 echo
 
 
 echo "01. lastN=2 — the 2 most recent, DESCENDING by observedAt: 40 then 30"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=2'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=2'
 echo
 echo
 
 
 echo "02. firstN=2 — the 2 earliest, ASCENDING by observedAt: 10 then 20"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2'
 echo
 echo
 
 
 echo "03. neither — all 4, sw default ascending (10,20,30,40)"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
 echo
 echo
 
@@ -182,4 +182,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

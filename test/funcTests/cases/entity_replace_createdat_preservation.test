@@ -12,7 +12,7 @@
 # createdAt is set when it first entered the system and must survive a Replace.
 # modifiedAt is stamped fresh on every write.
 #
-# swCurl sorts JSON keys, so the root entity createdAt/modifiedAt sort ahead of
+# corCurl sorts JSON keys, so the root entity createdAt/modifiedAt sort ahead of
 # "speed"; entityTs anchors on the root (2-space) indent to capture the ENTITY
 # timestamp, not an attribute's (which gets a fresh createdAt on Replace).
 #
@@ -23,8 +23,8 @@ Replace Entity (PUT) preserves entity-level createdAt, drops client timestamps (
 entity replace createdAt sysAttrs
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -43,14 +43,14 @@ payload='{
     "value": 50
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. GET sysAttrs=true → entity.createdAt is system-stamped, not the 1999 value"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/repl_cat_initial.txt 2>&1
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/repl_cat_initial.txt 2>&1
 ENTITY_CREATED=$(entityTs createdAt /tmp/repl_cat_initial.txt)
 echo "entity.createdAt captured: $([ -n "$ENTITY_CREATED" ] && echo OK || echo FAIL)"
 case "$ENTITY_CREATED" in
@@ -78,14 +78,14 @@ payload='{
     "value": 99
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload "$payload" | head -1
 echo
 echo
 
 
 echo "05. GET sysAttrs=true → entity.createdAt preserved across the Replace"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/repl_cat_after.txt 2>&1
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?sysAttrs=true' > /tmp/repl_cat_after.txt 2>&1
 ENTITY_CREATED2=$(entityTs createdAt /tmp/repl_cat_after.txt)
 [ "$ENTITY_CREATED" = "$ENTITY_CREATED2" ] && echo "entity.createdAt preserved: OK" || echo "entity.createdAt CHANGED: $ENTITY_CREATED -> $ENTITY_CREATED2"
 echo
@@ -131,5 +131,5 @@ entity.modifiedAt bumped: OK
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 \rm -f /tmp/repl_cat_initial.txt /tmp/repl_cat_after.txt

@@ -23,8 +23,8 @@ Entity geo-query — the georel matrix (mongoc pushdown, with its approximations
 geo query georel
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ swBrokerStart
 
 echo "01. Create big — a Polygon that CONTAINS the reference square"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:geo:big",
   "type": "Geo",
   "location": {
@@ -58,7 +58,7 @@ echo
 
 echo "02. Create equal — a Polygon EQUAL to the reference square"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:geo:equal",
   "type": "Geo",
   "location": {
@@ -74,7 +74,7 @@ echo
 
 echo "03. Create ovlp — a Polygon PROPERLY OVERLAPPING the reference square"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:geo:ovlp",
   "type": "Geo",
   "location": {
@@ -90,7 +90,7 @@ echo
 
 echo "04. Create inside — a Polygon WITHIN the reference square"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:geo:inside",
   "type": "Geo",
   "location": {
@@ -106,7 +106,7 @@ echo
 
 echo "05. Create far — a Point well outside the reference square"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:geo:far",
   "type": "Geo",
   "location": {
@@ -122,7 +122,7 @@ echo
 
 echo "06. Create nogeo — an Entity with NO location GeoProperty"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:geo:nogeo",
   "type": "Geo",
   "weight": {
@@ -138,49 +138,49 @@ BASE="/ngsi-ld/v1/entities?type=Geo&geometry=Polygon&coordinates=$R"
 
 echo "07. georel=within → equal, inside"
 echo "================================="
-swCurl --url "$BASE&georel=within" | grep '"id"'
+corCurl --url "$BASE&georel=within" | grep '"id"'
 echo
 echo
 
 echo "08. georel=intersects → big, equal, inside, ovlp"
 echo "================================================"
-swCurl --url "$BASE&georel=intersects" | grep '"id"'
+corCurl --url "$BASE&georel=intersects" | grep '"id"'
 echo
 echo
 
 echo "09. georel=contains → APPROXIMATION: inside and ovlp leak in (pushed down as intersects)"
 echo "============================================================================="
-swCurl --url "$BASE&georel=contains" | grep '"id"'
+corCurl --url "$BASE&georel=contains" | grep '"id"'
 echo
 echo
 
 echo "10. georel=overlaps → APPROXIMATION: big leaks in (intersects but not within)"
 echo "============================================================================="
-swCurl --url "$BASE&georel=overlaps" | grep '"id"'
+corCurl --url "$BASE&georel=overlaps" | grep '"id"'
 echo
 echo
 
 echo "11. georel=equals → equal"
 echo "========================="
-swCurl --url "$BASE&georel=equals" | grep '"id"'
+corCurl --url "$BASE&georel=equals" | grep '"id"'
 echo
 echo
 
 echo "12. georel=equals, ring from another vertex → APPROXIMATION: no match"
 echo "====================================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Geo&geometry=Polygon&coordinates=%5B%5B%5B0,4%5D,%5B4,4%5D,%5B4,0%5D,%5B0,0%5D,%5B0,4%5D%5D%5D&georel=equals" | grep '"id"'
+corCurl --url "/ngsi-ld/v1/entities?type=Geo&geometry=Polygon&coordinates=%5B%5B%5B0,4%5D,%5B4,4%5D,%5B4,0%5D,%5B0,0%5D,%5B0,4%5D%5D%5D&georel=equals" | grep '"id"'
 echo
 echo
 
 echo "13. georel=disjoint → far only, nogeo does NOT match (§ 7.2.4)"
 echo "=============================================================="
-swCurl --url "$BASE&georel=disjoint" | grep '"id"'
+corCurl --url "$BASE&georel=disjoint" | grep '"id"'
 echo
 echo
 
 echo "14. georel=disjoint with count=true → the count agrees with the body"
 echo "===================================================================="
-swCurl --url "$BASE&georel=disjoint&count=true" | grep -i "NGSILD-Results-Count"
+corCurl --url "$BASE&georel=disjoint&count=true" | grep -i "NGSILD-Results-Count"
 echo
 echo
 
@@ -293,5 +293,5 @@ NGSILD-Results-Count: 1
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

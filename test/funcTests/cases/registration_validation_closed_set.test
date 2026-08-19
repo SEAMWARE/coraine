@@ -12,8 +12,8 @@ Context Source Registration - closed-set members, idPattern regex, management ra
 error registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "management": { "timeout": 0 }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -55,7 +55,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "management": { "cooldown": 0 }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -68,7 +68,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "management": { "timeout": -5 }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "management": { "timeout": 5, "cooldown": 2 }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -94,7 +94,7 @@ payload='{
   "endpoint": "http://x",
   "information": [ { "entities": [ { "type": "X", "idPattern": "[" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -106,7 +106,7 @@ payload='{
   "endpoint": "http://x",
   "information": [ { "entities": [ { "type": "X", "idPattern": "" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -119,7 +119,7 @@ payload='{
   "endpoint": "http://x",
   "information": [ { "entities": [ { "type": "X", "idPattern": "urn:ngsi-ld:X:.*" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -131,7 +131,7 @@ payload='{
   "endpoint": "http://x",
   "information": [ { "entities": [ { "type": "X", "bogus": "y" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -143,7 +143,7 @@ payload='{
   "endpoint": "http://x",
   "information": [ { "entities": [ { "type": "X" } ], "bogus": "y" } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -156,7 +156,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "contextSourceInfo": [ { "key": "accept", "value": "application/json", "bogus": "y" } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -169,7 +169,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "management": { "bogus": "y" }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -187,14 +187,14 @@ payload='{
   "lastSuccess": "2020-01-01T00:00:00Z",
   "lastFailure": "2020-01-02T00:00:00Z"
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "13. GET of #12 - read-only members are absent"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:readonly
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:Reg:readonly
 echo
 echo
 
@@ -208,7 +208,7 @@ payload='{
   "information": [ { "entities": [ { "type": "X" } ] } ],
   "myFreeProperty": "anything"
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -424,5 +424,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

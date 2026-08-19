@@ -22,8 +22,8 @@ CSourceRegistration validation — extra fields
 registration error validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -32,7 +32,7 @@ swBrokerStart -dist
 
 echo "01. description: empty string → 400"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-desc",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -45,7 +45,7 @@ echo
 
 echo "02. description: \"hello\" → 201"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:good-desc",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -58,7 +58,7 @@ echo
 
 echo "03. registrationName: 42 (not a string) → 400"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-rn",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -71,7 +71,7 @@ echo
 
 echo "04. scope: empty array → 400"
 echo "============================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-scope",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -84,7 +84,7 @@ echo
 
 echo "05. scope: string array → 201"
 echo "============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:good-scope",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -97,7 +97,7 @@ echo
 
 echo "06. refreshRate: \"5 minutes\" (free-form, not ISO 8601) → 400"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-rr",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -110,7 +110,7 @@ echo
 
 echo "07. refreshRate: \"PT5M\" → 201"
 echo "============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:good-rr",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -123,7 +123,7 @@ echo
 
 echo "08. observationInterval: missing startAt → 400"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-oi",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -136,7 +136,7 @@ echo
 
 echo "09. observationInterval: endAt before startAt → 400"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-oi2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -149,7 +149,7 @@ echo
 
 echo "10. observationInterval: startAt only → 201"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:good-oi",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -162,7 +162,7 @@ echo
 
 echo "11. management.cacheDuration: \"PT1H\" + management.timeout: 30 → 201"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:good-mgmt",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -175,7 +175,7 @@ echo
 
 echo "12. management.timeout: -5 → 400"
 echo "================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-mgmt",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -188,7 +188,7 @@ echo
 
 echo "13. management.localOnly: \"yes\" (not boolean) → 400"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:bad-mgmt2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -379,5 +379,5 @@ Content-Length: 175
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -8,27 +8,27 @@ PATCH Subscription — all individual fields; timeInterval+watchedAttributes →
 --TAGS--
 subscription
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 echo "01. Create a minimal subscription"
 echo "================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S:1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S:1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:9999/n"}}}' | grep HTTP
 echo
 echo
 echo "02. PATCH every change-triggered field at once → 204"
 echo "===================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1 --payload '{"description":"d","entities":[{"type":"T2"}],"watchedAttributes":["a","b"],"q":"a>1","throttling":5,"notification":{"endpoint":{"uri":"http://localhost:8888/x"},"attributes":["a"],"format":"keyValues"},"expiresAt":"2030-01-01T00:00:00Z"}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1 --payload '{"description":"d","entities":[{"type":"T2"}],"watchedAttributes":["a","b"],"q":"a>1","throttling":5,"notification":{"endpoint":{"uri":"http://localhost:8888/x"},"attributes":["a"],"format":"keyValues"},"expiresAt":"2030-01-01T00:00:00Z"}' | grep HTTP
 echo
 echo
 echo "03. GET — every field reflects the PATCH"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1
 echo
 echo
 echo "04. timeInterval + watchedAttributes together → 400 (mutually exclusive)"
 echo "========================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1 --payload '{"timeInterval":10,"watchedAttributes":["a"]}' | grep -E 'HTTP|title'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S:1 --payload '{"timeInterval":10,"watchedAttributes":["a"]}' | grep -E 'HTTP|title'
 echo
 echo
 --EXPECT--
@@ -91,4 +91,4 @@ HTTP/1.1 400 Bad Request
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -1,4 +1,4 @@
-# valgrind suppressions for the swBroker functest suite (--vt).
+# valgrind suppressions for the coraine functest suite (--vt).
 #
 # Scope: only genuinely-unavoidable noise from third-party libraries that the
 # broker links but does not own (mongo C driver / libbson, OpenSSL, libpq,
@@ -24,7 +24,7 @@
 
 # Same glibc per-thread resolver state (resolv_conf), cached by ANY getaddrinfo
 # the broker makes on a worker thread that is not joined at exit — remote
-# @context download (swldContextFromUrl), CSR source-identity probe
+# @context download (corLdContextFromUrl), CSR source-identity probe
 # (ldProbeSourceIdentity), distributed-op / notification forwarding, etc. The
 # lost block is always glibc's __resolv_conf_allocate, never a broker
 # allocation, so key on that frame (any caller) rather than one code path.

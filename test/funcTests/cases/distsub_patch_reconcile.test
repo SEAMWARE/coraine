@@ -17,10 +17,10 @@ DistSub - PATCH overlap-recompute (delete stale + fanout new)
 patch distops subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -63,35 +63,35 @@ payload='{
     { "entities": [ { "type": "Sensor" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. Create sub urn:S1 (entities=[Vehicle]) on CB"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "04. GET on CP1 — only Vehicle derivative"
 echo "========================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "05. PATCH urn:S1 — switch entities to [Sensor]"
 echo "=============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"entities":[{"type":"Sensor"}]}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"entities":[{"type":"Sensor"}]}'
 echo
 echo
 
 
 echo "06. GET on CP1 — Vehicle deriv gone; new Sensor derivative present"
 echo "=================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -200,7 +200,7 @@ Content-Length: 369
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

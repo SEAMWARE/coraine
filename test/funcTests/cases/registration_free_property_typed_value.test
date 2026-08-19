@@ -12,8 +12,8 @@ Registration free (non-spec) property - typed value-object validation + round-tr
 registration validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 echo "01. Create a registration carrying a free DateTime value-object property -> 201"
@@ -25,14 +25,14 @@ payload='{
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
   "ts": { "@type": "DateTime", "@value": "2030-01-01T00:00:00Z" }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. GET it back -> the free value-object round-trips verbatim (no lossy transform)"
 echo "================================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:FP1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:FP1
 echo
 echo
 
@@ -46,7 +46,7 @@ payload='{
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
   "ts": { "@type": "DateTime", "@value": "banana" }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -60,7 +60,7 @@ payload='{
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
   "weight": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": 42 }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -74,7 +74,7 @@ payload='{
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
   "weight": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": "not-a-number" }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -162,4 +162,4 @@ Content-Length: 273
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -26,9 +26,9 @@ Snapshot-aware reads (§ 5.16, Phase 2b)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
@@ -39,14 +39,14 @@ payload='{
   "type": "Vehicle",
   "speed": {"type":"Property","value":42}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{
   "id": "urn:ngsi-ld:Vehicle:V2",
   "type": "Vehicle",
   "speed": {"type":"Property","value":80}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -58,65 +58,65 @@ payload='{
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "03. Mutate live V1 (speed → 999); delete live V2"
 echo "================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
 echo
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
 echo
 echo
 
 
 echo "04. GET /entities/V1 (live) → speed 999"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "05. GET /entities/V1 with NGSILD-Snapshot → frozen speed 42"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "06. GET /entities/V2 (live) → 404 (deleted)"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
 echo
 echo
 
 
 echo "07. GET /entities/V2 with NGSILD-Snapshot → still readable, frozen"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "08. GET /entities?type=Vehicle with NGSILD-Snapshot → both, frozen"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "09. GET /entities/{id} with unknown NGSILD-Snapshot → 404"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:NoSuch'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:NoSuch'
 echo
 echo
 
 
 echo "10. GET /entities/{id} not-in-snapshot → 404"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:Other -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:Other -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
@@ -301,6 +301,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

@@ -24,10 +24,10 @@ EntityMap linkedMaps populated by distributed creation (§ 5.14.4.4)
 entitymap distops query
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -36,43 +36,43 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed CP1: V2, V3"
 echo "===================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
 echo
 echo
 
 
 echo "02. Seed CB: V1"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "03. Register CB→CP1 (R1) inclusive"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "04. Sanity: distop GET /entities?type=Vehicle merges V1 + V2 + V3"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=id&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=id&options=keyValues'
 echo
 echo
 
 
 echo "05. GET /entityMaps?type=Vehicle on CB — captures local + remote, populates linkedMaps"
 echo "======================================================================================="
-swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id'
 echo
 echo
 
 
 echo "06. Confirm linkedMaps shape: keyed by CSR id, values are remote-EntityMap URIs"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id' | grep -E '"linkedMaps"|"urn:CSR:R1"' | sed -E 's|EntityMap:[a-f0-9]{12}|EntityMap:STABLE_ID|g'
+corCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id' | grep -E '"linkedMaps"|"urn:CSR:R1"' | sed -E 's|EntityMap:[a-f0-9]{12}|EntityMap:STABLE_ID|g'
 echo
 echo
 
@@ -181,7 +181,7 @@ Content-Length: 335
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

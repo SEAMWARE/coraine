@@ -23,53 +23,53 @@ q over a LanguageProperty with the all-languages selector L[*]== / ~= / != (§ 7
 langProp q query subscription notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
 
 echo "01. Seed LanguageProperties: L1 string, L2 array in de, L3 no pain, L4 array in en"
 echo "=================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L1","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":"pain","es":"dolor"}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L2","type":"D","description":{"type":"LanguageProperty","languageMap":{"fr":"douleur","de":["schmerz","pain"]}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L3","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":"joy","es":"alegria"}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L4","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":["pain","ache"]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L1","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":"pain","es":"dolor"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L2","type":"D","description":{"type":"LanguageProperty","languageMap":{"fr":"douleur","de":["schmerz","pain"]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L3","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":"joy","es":"alegria"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L4","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":["pain","ache"]}}}' | head -1
 echo
 echo
 
 
 echo "02. q=description[*]==\"pain\" — any language: L1 (en), L2 (de array), L4 (en array)"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id'
 echo
 echo
 
 
 echo "03. q=description[*]~=pain — pattern in any language: L1, L2, L4"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pain&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pain&attrs=description&options=keyValues&orderBy=id'
 echo
 echo
 
 
 echo "04. q=description[*]!=\"pain\" — NO language equals pain: L3 only"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&attrs=description&options=keyValues&orderBy=id'
 echo
 echo
 
 
 echo "05. q=description[en]==\"pain\" — specific language (control): L1 + L4 (en array element)"
 echo "========================================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5Ben%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5Ben%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id'
 echo
 echo
 
 
 echo "06. q=description[*]==\"nope\" — no match"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22nope%22'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22nope%22'
 echo
 echo
 
@@ -77,15 +77,15 @@ echo
 echo "07. Subscription q=description[*]==\"pain\" on type W (in-memory matcher)"
 echo "======================================================================="
 EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Slang","type":"Subscription","entities":[{"type":"W"}],"q":"description[*]==\"pain\"","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Slang","type":"Subscription","entities":[{"type":"W"}],"q":"description[*]==\"pain\"","notification":{"endpoint":'"$EP"'}}' | head -1
 echo
 echo
 
 
 echo "08. W1 (de array has pain) notifies; W2 (only joy) does not"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W1","type":"W","description":{"type":"LanguageProperty","languageMap":{"fr":"douleur","de":["schmerz","pain"]}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W2","type":"W","description":{"type":"LanguageProperty","languageMap":{"en":"joy"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W1","type":"W","description":{"type":"LanguageProperty","languageMap":{"fr":"douleur","de":["schmerz","pain"]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W2","type":"W","description":{"type":"LanguageProperty","languageMap":{"en":"joy"}}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -315,6 +315,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop

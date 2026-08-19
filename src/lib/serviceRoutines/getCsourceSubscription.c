@@ -9,22 +9,22 @@
 //
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd, kjChildRemove
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjLookup.h"                          // kjLookup
 
-#include "swNgsild/swNgsild.h"                       // ldError, ldContextResolve, swNgsild
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
-#include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
-#include "swNgsild/LdSubStatus.h"                    // ldSubStatusToString
-#include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
-#include "swNgsild/LdVocab.h"                         // LD_VOCAB_STATUS, LD_VOCAB_EXPIRES_AT
-#include "swNgsild/ldCheckDateTime.h"                 // ldIsoToNanoseconds
+#include "corNgsild/corNgsild.h"                       // ldError, ldContextResolve, corNgsild
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
+#include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
+#include "corNgsild/LdSubStatus.h"                    // ldSubStatusToString
+#include "corNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
+#include "corNgsild/LdVocab.h"                         // LD_VOCAB_STATUS, LD_VOCAB_EXPIRES_AT
+#include "corNgsild/ldCheckDateTime.h"                 // ldIsoToNanoseconds
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -34,9 +34,9 @@
 
 bool getCsourceSubscription(void)
 {
-  const char* subId = swRest.in.wildcard[0];
+  const char* subId = corRest.in.wildcard[0];
 
-  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
   LdSubCacheItem* itemP = (cacheP != NULL) ? ldSubCacheItemLookup(cacheP, subId) : NULL;
@@ -50,8 +50,8 @@ bool getCsourceSubscription(void)
 
   ldContextResolve();
 
-  KjNode* subP = kjClone(swRest.kjsonP, itemP->subTree);
-  ldSubscriptionCompactQ(subP, itemP->qExpr, swNgsild.contextP, &swRest.kalloc);
+  KjNode* subP = kjClone(corRest.kjsonP, itemP->subTree);
+  ldSubscriptionCompactQ(subP, itemP->qExpr, corNgsild.contextP, &corRest.kalloc);
   ldSubscriptionCountersInject(subP, itemP);
 
   // Hide the internal marker
@@ -82,7 +82,7 @@ bool getCsourceSubscription(void)
     if (statusP != NULL && statusP->type == KjString)
       statusP->value.s = liveStatus;
     else if (statusP == NULL)
-      kjChildAdd(subP, kjString(swRest.kjsonP, "status", liveStatus));
+      kjChildAdd(subP, kjString(corRest.kjsonP, "status", liveStatus));
   }
 
   //
@@ -95,7 +95,7 @@ bool getCsourceSubscription(void)
   if (expiresAtP != NULL && expiresAtP->type == KjString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
-    if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+    if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
     {
       KjNode* statusP = kjLookup(subP, LD_VOCAB_STATUS);
       if (statusP != NULL && statusP->type == KjString)
@@ -104,12 +104,12 @@ bool getCsourceSubscription(void)
   }
 
   // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
-  if (swNgsild.sysAttrs == false)
+  if (corNgsild.sysAttrs == false)
     ldStripSysAttrs(subP);
   else
-    ldSysTimestampsToIso(subP, &swRest.kalloc);
+    ldSysTimestampsToIso(subP, &corRest.kalloc);
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = subP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = subP;
   return true;
 }

@@ -7,22 +7,22 @@ PATCH ContextSourceRegistration — all individual fields
 --TAGS--
 registration
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 --RUN--
 echo "01. Create a minimal registration"
 echo "================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:9001","information":[{"entities":[{"type":"T"}]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:9001","information":[{"entities":[{"type":"T"}]}]}' | grep HTTP
 echo
 echo
 echo "02. PATCH description + endpoint + mode + operations + information → 204"
 echo "======================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"description":"rd","endpoint":"http://localhost:9002","mode":"inclusive","operations":["retrieveOps"],"information":[{"entities":[{"type":"T2"}]}]}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 --payload '{"description":"rd","endpoint":"http://localhost:9002","mode":"inclusive","operations":["retrieveOps"],"information":[{"entities":[{"type":"T2"}]}]}' | grep HTTP
 echo
 echo
 echo "03. GET — every field reflects the PATCH"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1
 echo
 echo
 --EXPECT--
@@ -67,4 +67,4 @@ Content-Length: 304
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

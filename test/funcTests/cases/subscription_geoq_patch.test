@@ -19,9 +19,9 @@ Subscription PATCH replaces geoQ — old geometry discarded, new one applied
 geo subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -55,7 +55,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -71,7 +71,7 @@ payload='{
     "value": {"type": "Point", "coordinates": [-3.691944, 40.418889]}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -87,7 +87,7 @@ payload='{
     "value": {"type": "Point", "coordinates": [2.352222, 48.856614]}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -117,7 +117,7 @@ payload='{
     "geoproperty": "location"
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -X PATCH --payload "$payload"
 echo
 echo
 
@@ -133,7 +133,7 @@ payload='{
     "value": {"type": "Point", "coordinates": [13.404954, 52.520008]}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -149,7 +149,7 @@ payload='{
     "value": {"type": "Point", "coordinates": [-9.139337, 38.722252]}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -312,5 +312,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

@@ -11,23 +11,23 @@
 #include <pthread.h>                                     // pthread_mutex_t
 
 #include "ktrace/kTrace.h"                               // KT_I
-#include "swRest/SwRestState.h"                          // swRest
-#include "swNgsild/SwNgsild.h"                           // swNgsild
-#include "swNgsild/ldExpandParams.h"                     // ldExpandParams
-#include "swNgsild/ldParamsValidate.h"                   // ldParamsValidate
-#include "swNgsild/ldError.h"                            // ldError
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_NONEXISTENT_TENANT
+#include "corRest/CorRestState.h"                          // corRest
+#include "corNgsild/CorNgsild.h"                           // corNgsild
+#include "corNgsild/ldExpandParams.h"                     // ldExpandParams
+#include "corNgsild/ldParamsValidate.h"                   // ldParamsValidate
+#include "corNgsild/ldError.h"                            // ldError
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_NONEXISTENT_TENANT
 
-#include "swNgsild/LdSubCache.h"                         // LdSubCache
-#include "swNgsild/ldSubCache.h"                         // ldSubCacheCreate, ldSubCacheItemAdd
-#include "swNgsild/LdPernotCache.h"                      // LdPernotCache
-#include "swNgsild/ldPernotCache.h"                      // ldPernotCacheCreate
-#include "swNgsild/LdEntityMap.h"                         // LdEntityMapStore
-#include "swNgsild/ldEntityMap.h"                         // ldEntityMapStoreCreate
-#include "swNgsild/LdSnapshotCache.h"                     // ldSnapshotCacheCreate, ldSnapshotCacheItemAdd, ldSnapshotCacheItemDelete
+#include "corNgsild/LdSubCache.h"                         // LdSubCache
+#include "corNgsild/ldSubCache.h"                         // ldSubCacheCreate, ldSubCacheItemAdd
+#include "corNgsild/LdPernotCache.h"                      // LdPernotCache
+#include "corNgsild/ldPernotCache.h"                      // ldPernotCacheCreate
+#include "corNgsild/LdEntityMap.h"                         // LdEntityMapStore
+#include "corNgsild/ldEntityMap.h"                         // ldEntityMapStoreCreate
+#include "corNgsild/LdSnapshotCache.h"                     // ldSnapshotCacheCreate, ldSnapshotCacheItemAdd, ldSnapshotCacheItemDelete
 #include "db/snapshotTenant.h"                            // snapshotTenantCreate, snapshotTenantDestroy
-#include "swNgsild/LdRegCache.h"                          // LdRegCache
-#include "swNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
+#include "corNgsild/LdRegCache.h"                          // LdRegCache
+#include "corNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
 #include "kjson/kjLookup.h"                              // kjLookup
 
 #include "db/DbDriver.h"                                // db
@@ -217,11 +217,11 @@ Tenant* tenantFromRequest(bool autoCreate)
   //
   const char* tenantName = NULL;
 
-  for (int i = 0; i < swRest.in.httpHeaderCount; i++)
+  for (int i = 0; i < corRest.in.httpHeaderCount; i++)
   {
-    if (strcasecmp(swRest.in.httpHeaderV[i].key, "NGSILD-Tenant") == 0)
+    if (strcasecmp(corRest.in.httpHeaderV[i].key, "NGSILD-Tenant") == 0)
     {
-      tenantName = swRest.in.httpHeaderV[i].value;
+      tenantName = corRest.in.httpHeaderV[i].value;
       break;
     }
   }
@@ -240,11 +240,11 @@ Tenant* tenantFromRequest(bool autoCreate)
   if (tP != NULL)
   {
     // Echo tenant header in response (NGSI-LD spec 6.3.14)
-    SwRestKeyValue* hV = swRest.out.headerV;
-    int ix = swRest.out.headerCount;
+    CorRestKeyValue* hV = corRest.out.headerV;
+    int ix = corRest.out.headerCount;
     hV[ix].key   = "NGSILD-Tenant";
     hV[ix].value = tP->name;
-    swRest.out.headerCount++;
+    corRest.out.headerCount++;
     return tP;
   }
 
@@ -274,11 +274,11 @@ Tenant* tenantFromRequest(bool autoCreate)
   }
 
   // Echo tenant header in response
-  SwRestKeyValue* hV = swRest.out.headerV;
-  int ix = swRest.out.headerCount;
+  CorRestKeyValue* hV = corRest.out.headerV;
+  int ix = corRest.out.headerCount;
   hV[ix].key   = "NGSILD-Tenant";
   hV[ix].value = tP->name;
-  swRest.out.headerCount++;
+  corRest.out.headerCount++;
 
   return tP;
 }
@@ -290,7 +290,7 @@ Tenant* tenantFromRequest(bool autoCreate)
 // tenantPreServiceHook - resolve tenant before every service routine
 //
 // Uses the HTTP verb to decide: POST/PATCH/DELETE auto-create, GET rejects unknown.
-// Stores the result in swNgsild.tenantP.
+// Stores the result in corNgsild.tenantP.
 // Returns true to continue to service routine, false to skip (error already set).
 //
 bool tenantPreServiceHook(void)
@@ -301,21 +301,21 @@ bool tenantPreServiceHook(void)
   // or not that tenant has been created on this broker. Bypass the
   // tenant lookup so unknown tenants still get a valid probe response.
   //
-  if (swRest.in.urlPath != NULL && strcmp(swRest.in.urlPath, "/ngsi-ld/v1/info/sourceIdentity") == 0)
+  if (corRest.in.urlPath != NULL && strcmp(corRest.in.urlPath, "/ngsi-ld/v1/info/sourceIdentity") == 0)
     return true;
 
-  bool autoCreate = (swRest.in.verb != SwVerbGet);
+  bool autoCreate = (corRest.in.verb != CorVerbGet);
 
   Tenant* tP = tenantFromRequest(autoCreate);
 
   if (tP == NULL)
     return false;
 
-  swNgsild.tenantP = tP;
+  corNgsild.tenantP = tP;
 
   // Expand vocab-bearing URL params (type, pick, omit, etc.) now that
   // @context is resolved and all params are parsed.
-  ldExpandParams(&swRest.kalloc);
+  ldExpandParams(&corRest.kalloc);
 
   // Cross-parameter sanity (pick/omit conflicts, attrs+pick mutex,
   // geo-query shape, etc.). Hooking here — rather than only inside
@@ -607,10 +607,10 @@ static void tenantRegCacheLoad(Tenant* tP)
   int count = 0;
   for (KjNode* regP = arrayP->value.firstChildP; regP != NULL; regP = regP->next)
   {
-    // swRest.kalloc is the startup buffer here (swBroker main reset it right
+    // corRest.kalloc is the startup buffer here (coraine main reset it right
     // after the cache reloads) — fine as the transient arena for resolving a
     // CSR's forwarding @context.
-    ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP, &swRest.kalloc);
+    ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP, &corRest.kalloc);
     count++;
   }
 
@@ -717,7 +717,7 @@ bool tenantRegCacheItemRefresh(Tenant* tP, const char* regId)
 
   ldRegCacheWrLock((LdRegCache*) tP->regCacheP);
   ldRegCacheItemRemove((LdRegCache*) tP->regCacheP, regId);
-  ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP, &swRest.kalloc);
+  ldRegCacheItemAdd((LdRegCache*) tP->regCacheP, regP, &corRest.kalloc);
   ldRegCacheUnlock((LdRegCache*) tP->regCacheP);
 
   return true;

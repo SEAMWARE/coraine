@@ -32,28 +32,28 @@ Snapshot split-mode capture: per-attribute merge across CSRs (§ 5.16, Phase #14
 snapshot distops
 
 --INIT--
-swDbDrop
-swSnapDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corSnapDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
 echo "01. Seed V1 fragments — CP1 has speed, CP2 has color"
 echo "===================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "02. Register CSR on CB → CP1 (inclusive, speed)"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP1_PORT'",
@@ -67,7 +67,7 @@ echo
 
 echo "03. Register CSR on CB → CP2 (inclusive, color)"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP2_PORT'",
@@ -81,7 +81,7 @@ echo
 
 echo "04. Snapshot in default (split) mode capturing Vehicles"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Merged",
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
@@ -92,30 +92,30 @@ echo
 
 echo "05. Snapshot read — V1 with BOTH speed and color (merged)"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged'
 echo
 echo
 
 
 echo "06. Mutate live V1 on CP1 (speed → 999); delete on CP2"
 echo "======================================================"
-swCurl --port $CP1_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
+corCurl --port $CP1_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
 echo
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "07. Snapshot still shows merged V1 with original values"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged'
 echo
 echo
 
 
 echo "08. Snapshot q=speed>20 — V1 merged (post-filter sees full entity)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged'
 echo
 echo
 
@@ -260,10 +260,10 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop -role CP2
-swBrokerStop -role CP1
-swBrokerStop
-swSnapDrop
-swDbDrop -role CP2
-swDbDrop -role CP1
-swDbDrop
+coraineStop -role CP2
+coraineStop -role CP1
+coraineStop
+corSnapDrop
+corDbDrop -role CP2
+corDbDrop -role CP1
+corDbDrop

@@ -12,8 +12,8 @@ DistOps forward § 6.5.4 — contextSourceInfo cannot override reg-derived / HTT
 distops registration tenant
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 
 --RUN--
@@ -34,7 +34,7 @@ ftClientStart --port 7711 --status 200
 echo "01. Register CSR on tenant 'beta' — tenant rewrite=backend + contextSourceInfo"
 echo "    trying to override NGSILD-Tenant and Host (plus an allowed X-Custom)"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payload '{
   "id": "urn:ngsi-ld:CSR:1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:7711",
@@ -54,7 +54,7 @@ echo
 
 echo "02. GET ?type=T on tenant 'beta' → triggers the forward"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H 'NGSILD-Tenant: beta' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H 'NGSILD-Tenant: beta' > /dev/null
 echo "forwarded request headers:"
 ftClientDump --port 7711 | grep -E '"(NGSILD-Tenant|Host|X-Custom)"'
 echo
@@ -84,5 +84,5 @@ forwarded request headers:
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

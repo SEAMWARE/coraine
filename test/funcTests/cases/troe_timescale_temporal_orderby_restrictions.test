@@ -18,36 +18,36 @@ TRoE timescale - GET /temporal/entities orderBy accepted on any member (§ 5.7.4
 troe timescale postgres temporal query orderby validation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. orderBy=id (no local flag) -> 200"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id'
 echo
 echo
 
 
 echo "02. orderBy=speed (attribute name) -> 200"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=speed'
 echo
 echo
 
 
 echo "03. orderBy=id with local=true -> 200"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id&local=true'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id&local=true'
 echo
 echo
 
 
 echo "04. orderBy=name.createdAt (sub-property) -> 200"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=name.createdAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=name.createdAt'
 echo
 echo
 
@@ -102,6 +102,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

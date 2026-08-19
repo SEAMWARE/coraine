@@ -12,8 +12,8 @@ Geo-query filtering (georel, geometry, coordinates, geoproperty)
 entity geo query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -57,7 +57,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -75,7 +75,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -93,49 +93,49 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET entities near Madrid within 600 km - should get E1 and E2"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
 
 echo "05. GET entities near Madrid within 50 km - should get only E1"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
 
 echo "06. GET entities within Iberian Peninsula polygon - should get E1 and E2"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=within&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,44\],\[-10,44\],\[-10,35\]\]\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=within&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,44\],\[-10,44\],\[-10,35\]\]\]'
 echo
 echo
 
 
 echo "07. GET entities intersecting France polygon - should get E3"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Polygon&coordinates=\[\[\[-5,42\],\[9,42\],\[9,52\],\[-5,52\],\[-5,42\]\]\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Polygon&coordinates=\[\[\[-5,42\],\[9,42\],\[9,52\],\[-5,52\],\[-5,42\]\]\]'
 echo
 echo
 
 
 echo "08. GET entities disjoint from Iberian Peninsula polygon - should get E3"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=disjoint&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,44\],\[-10,44\],\[-10,35\]\]\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=disjoint&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,44\],\[-10,44\],\[-10,35\]\]\]'
 echo
 echo
 
 
 echo "09. Retrieve entity E1 - verify GeoJSON returned correctly"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
@@ -162,35 +162,35 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "11. GET entities with geoproperty=operationArea, georel=intersects with Madrid"
 echo "=============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Point&coordinates=\[0,40\]&geoproperty=operationArea'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Point&coordinates=\[0,40\]&geoproperty=operationArea'
 echo
 echo
 
 
 echo "12. GET entities near Madrid, minDistance=400000, maxDistance=600000 - E2 only (tight ring)"
 echo "========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D400000%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D400000%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
 
 echo "13. GET entities with georel=overlaps, polygon spanning Iberia+France - no match (Point vs Polygon)"
 echo "==================================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=overlaps&geometry=Polygon&coordinates=\[\[\[-10,35\],\[10,35\],\[10,52\],\[-10,52\],\[-10,35\]\]\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=overlaps&geometry=Polygon&coordinates=\[\[\[-10,35\],\[10,35\],\[10,52\],\[-10,52\],\[-10,35\]\]\]'
 echo
 echo
 
 
 echo "14. GET entities with georel=contains, operationArea contains Point [0,40] - should get E4"
 echo "=========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=contains&geometry=Point&coordinates=\[0,40\]&geoproperty=operationArea'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=contains&geometry=Point&coordinates=\[0,40\]&geoproperty=operationArea'
 echo
 echo
 
@@ -208,35 +208,35 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "16. GET entities with geoproperty=observationPoint, georel=near - should get E5"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Sensor&georel=near%3BmaxDistance%3D%3D100000&geometry=Point&coordinates=\[10.0,50.0\]&geoproperty=observationPoint'
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&georel=near%3BmaxDistance%3D%3D100000&geometry=Point&coordinates=\[10.0,50.0\]&geoproperty=observationPoint'
 echo
 echo
 
 
 echo "17. GET entities near Madrid, minDistance=100000 - should get E2 (not E1, too close)"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D100000&geometry=Point&coordinates=\[-3.703,40.417\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D100000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
 
 echo "18. GET entities near Madrid, minDistance=100000, maxDistance=600000 - ring: E2 only"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D100000%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D100000%3BmaxDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
 
 echo "19. GET entities near Madrid, minDistance=600000 - should get E3 (Paris)"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BminDistance%3D%3D600000&geometry=Point&coordinates=\[-3.703,40.417\]'
 echo
 echo
 
@@ -254,35 +254,35 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "21. Polygon-vs-Polygon: operationArea within larger polygon - should get E4"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=within&geometry=Polygon&coordinates=\[\[\[-10,30\],\[10,30\],\[10,50\],\[-10,50\],\[-10,30\]\]\]&geoproperty=operationArea'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=within&geometry=Polygon&coordinates=\[\[\[-10,30\],\[10,30\],\[10,50\],\[-10,50\],\[-10,30\]\]\]&geoproperty=operationArea'
 echo
 echo
 
 
 echo "22. Polygon-vs-Polygon: operationArea intersects partially overlapping polygon"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Polygon&coordinates=\[\[\[0,38\],\[10,38\],\[10,48\],\[0,48\],\[0,38\]\]\]&geoproperty=operationArea'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=intersects&geometry=Polygon&coordinates=\[\[\[0,38\],\[10,38\],\[10,48\],\[0,48\],\[0,38\]\]\]&geoproperty=operationArea'
 echo
 echo
 
 
 echo "23. LineString-vs-Polygon: route disjoint from faraway polygon - should get E6"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Route&georel=disjoint&geometry=Polygon&coordinates=\[\[\[50,50\],\[60,50\],\[60,60\],\[50,60\],\[50,50\]\]\]&geoproperty=path'
+corCurl --url '/ngsi-ld/v1/entities?type=Route&georel=disjoint&geometry=Polygon&coordinates=\[\[\[50,50\],\[60,50\],\[60,60\],\[50,60\],\[50,50\]\]\]&geoproperty=path'
 echo
 echo
 
 
 echo "24. LineString intersects polygon covering Spain - should get E6"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Route&georel=intersects&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,45\],\[-10,45\],\[-10,35\]\]\]&geoproperty=path'
+corCurl --url '/ngsi-ld/v1/entities?type=Route&georel=intersects&geometry=Polygon&coordinates=\[\[\[-10,35\],\[5,35\],\[5,45\],\[-10,45\],\[-10,35\]\]\]&geoproperty=path'
 echo
 echo
 
@@ -1091,5 +1091,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

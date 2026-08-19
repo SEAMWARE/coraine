@@ -8,18 +8,18 @@ DistOps forward — query by URL-encoded expanded type IRI
 --TAGS--
 distops registration
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 --RUN--
 echo "01. Register CSR for type Vehicle -> ftClient"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | grep HTTP
 echo
 echo
 echo "02. GET ?type=<expanded Vehicle IRI, URL-encoded> — forwarded (type reaches source)"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fdefault-context%2FVehicle' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fdefault-context%2FVehicle' > /dev/null
 sleep 0.5
 ftClientDump --port 7711 | python3 -c "
 import sys,json
@@ -41,4 +41,4 @@ GET /ngsi-ld/v1/entities type=Vehicle
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
+coraineStop

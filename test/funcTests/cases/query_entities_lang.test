@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - lang parameter reduces LanguageProperty in query resu
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -41,7 +41,7 @@ payload='{
     "value": 80
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -63,21 +63,21 @@ payload='{
     "value": 20
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. GET /entities?type=T&lang=en - all LanguageProperty attrs reduced"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&lang=en'
+corCurl --url '/ngsi-ld/v1/entities?type=T&lang=en'
 echo
 echo
 
 
 echo "04. GET /entities?type=T (no lang) - LanguageProperty attrs intact"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T'
+corCurl --url '/ngsi-ld/v1/entities?type=T'
 echo
 echo
 
@@ -186,5 +186,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

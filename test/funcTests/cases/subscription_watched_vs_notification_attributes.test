@@ -20,15 +20,15 @@ Subscription notification — watchedAttributes (trigger) vs notification.attrib
 subscription notification watchedAttributes
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Create Vehicle V1 (speed, temperature, color)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:ngsi-ld:Vehicle:V1",
   "type":"Vehicle",
   "speed":{"type":"Property","value":50},
@@ -41,7 +41,7 @@ echo
 
 echo "02. Subscription: watchedAttributes=[speed], notification.attributes=[temperature]"
 echo "================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:wva",
   "type":"Subscription",
   "entities":[{"type":"Vehicle"}],
@@ -57,7 +57,7 @@ echo
 
 echo "03. Update temperature only (NOT watched) → no notification"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs' -X PATCH --payload '{
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs' -X PATCH --payload '{
   "temperature":{"type":"Property","value":22}
 }'
 echo
@@ -70,7 +70,7 @@ echo
 
 echo "04. Update speed (watched) → notification, body carries ONLY temperature"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs' -X PATCH --payload '{
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs' -X PATCH --payload '{
   "speed":{"type":"Property","value":60}
 }'
 echo
@@ -149,5 +149,5 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

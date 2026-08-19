@@ -17,21 +17,21 @@
 #include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
 #include "kjson/kjParse.h"                            // kjParse
 
-#include "swRest/SwRestState.h"                       // swRest
-#include "swRest/SwRestVerb.h"                        // SwVerbGet
+#include "corRest/CorRestState.h"                       // corRest
+#include "corRest/CorRestVerb.h"                        // CorVerbGet
 
-#include "swNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
-#include "swNgsild/SwNgsild.h"                        // ldDistributed, swNgsild
-#include "swNgsild/LdProj.h"                          // LdProjItem, ldProjectionFindChild, ldProjectionTopLevelNames
-#include "swNgsild/ldPickOmit.h"                      // ldPickOmit
-#include "swNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode
-#include "swNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieve
-#include "swNgsild/ldDistOp.h"                        // ldDistOpSendReceive, ldDistOpCsrWouldLoop
-#include "swNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
-#include "swNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
-#include "swNgsild/ldStripAtContext.h"                // ldStripAtContext
+#include "corNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
+#include "corNgsild/CorNgsild.h"                        // ldDistributed, corNgsild
+#include "corNgsild/LdProj.h"                          // LdProjItem, ldProjectionFindChild, ldProjectionTopLevelNames
+#include "corNgsild/ldPickOmit.h"                      // ldPickOmit
+#include "corNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode
+#include "corNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieve
+#include "corNgsild/ldDistOp.h"                        // ldDistOpSendReceive, ldDistOpCsrWouldLoop
+#include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
+#include "corNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
+#include "corNgsild/ldStripAtContext.h"                // ldStripAtContext
 
-#include "swJsonld/swldExpandTree.h"                  // swldExpandTree
+#include "corJsonld/corLdExpandTree.h"                  // corLdExpandTree
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -95,9 +95,9 @@ static void visitedFree(VisitedNode* head)
 //
 static VisitedNode* visitedSeedFromContainedBy(VisitedNode* head)
 {
-  if (swNgsild.containedByV == NULL) return head;
-  for (int i = 0; swNgsild.containedByV[i] != NULL; i++)
-    head = visitedAppend(head, swNgsild.containedByV[i]);
+  if (corNgsild.containedByV == NULL) return head;
+  for (int i = 0; corNgsild.containedByV[i] != NULL; i++)
+    head = visitedAppend(head, corNgsild.containedByV[i]);
   return head;
 }
 
@@ -288,7 +288,7 @@ static char** instObjectTypeV(KjNode* instP)
 
   if (otP->type == KjString && otP->value.s != NULL)
   {
-    char** v = (char**) kaAlloc(&swRest.kalloc, 2 * sizeof(char*));
+    char** v = (char**) kaAlloc(&corRest.kalloc, 2 * sizeof(char*));
     v[0] = otP->value.s;
     v[1] = NULL;
     return v;
@@ -303,7 +303,7 @@ static char** instObjectTypeV(KjNode* instP)
     if (n == 0)
       return NULL;
 
-    char** v = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
+    char** v = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
     int    i = 0;
     for (KjNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
       if (eP->type == KjString && eP->value.s != NULL)
@@ -374,8 +374,8 @@ static void flatAddTarget(const char*    tid,
   // trees carry expanded IRIs). renderHook converts to API form afterwards.
   if (subPick != NULL || subOmit != NULL)
   {
-    char** subPickV = (subPick != NULL) ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)  : NULL;
-    char** subOmitV = (subOmit != NULL) ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false) : NULL;
+    char** subPickV = (subPick != NULL) ? ldProjectionTopLevelNames(subPick, &corRest.kalloc, true)  : NULL;
+    char** subOmitV = (subOmit != NULL) ? ldProjectionTopLevelNames(subOmit, &corRest.kalloc, false) : NULL;
     ldPickOmit(targetEntityP, subPickV, subOmitV);
   }
 
@@ -487,7 +487,7 @@ static void flatBfs(KjNode*         outArr,
 //
 KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 {
-  KjNode* outArr = kjArray(swRest.kjsonP, NULL);
+  KjNode* outArr = kjArray(corRest.kjsonP, NULL);
   if (primaryP == NULL)
     return outArr;
 
@@ -504,8 +504,8 @@ KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
   visited                 = visitedSeedFromContainedBy(visited);
   FlatFrontier*  frontier = (FlatFrontier*) malloc(sizeof(FlatFrontier));
   frontier[0].entityP     = primaryP;
-  frontier[0].pickSub     = swNgsild.pickTree;
-  frontier[0].omitSub     = swNgsild.omitTree;
+  frontier[0].pickSub     = corNgsild.pickTree;
+  frontier[0].omitSub     = corNgsild.omitTree;
   flatBfs(outArr, frontier, 1, joinLevel, tenantP, &visited);
 
   visitedFree(visited);
@@ -545,8 +545,8 @@ void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tena
   for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
   {
     frontier[idx].entityP = eP;
-    frontier[idx].pickSub = swNgsild.pickTree;
-    frontier[idx].omitSub = swNgsild.omitTree;
+    frontier[idx].pickSub = corNgsild.pickTree;
+    frontier[idx].omitSub = corNgsild.omitTree;
     idx++;
   }
 
@@ -576,8 +576,8 @@ void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* te
 
 
 
-#include "swNgsild/ldEntityToApi.h"                   // ldEntityToApi
-#include "swNgsild/ldStripSysAttrs.h"                 // ldStripSysAttrs
+#include "corNgsild/ldEntityToApi.h"                   // ldEntityToApi
+#include "corNgsild/ldStripSysAttrs.h"                 // ldStripSysAttrs
 
 
 
@@ -626,14 +626,14 @@ static KjNode* inlineFetchTarget(const char*   tid,
   // expanded IRIs, matching the storage form of attribute names.
   if (subPick != NULL || subOmit != NULL)
   {
-    char** subPickV = (subPick != NULL) ? ldProjectionTopLevelNames(subPick, &swRest.kalloc, true)  : NULL;
-    char** subOmitV = (subOmit != NULL) ? ldProjectionTopLevelNames(subOmit, &swRest.kalloc, false) : NULL;
+    char** subPickV = (subPick != NULL) ? ldProjectionTopLevelNames(subPick, &corRest.kalloc, true)  : NULL;
+    char** subOmitV = (subOmit != NULL) ? ldProjectionTopLevelNames(subOmit, &corRest.kalloc, false) : NULL;
     ldPickOmit(targetP, subPickV, subOmitV);
   }
 
   // Convert the target itself to API (post-order). Its inlined children are
   // already API-converted from the recursion above.
-  ldEntityToApi(targetP, &swRest.kalloc);
+  ldEntityToApi(targetP, &corRest.kalloc);
 
   return targetP;
 }
@@ -704,7 +704,7 @@ static void inlineWalk(KjNode*       entityP,
       {
         // Multivalued object → `entity` is an ARRAY holding one inlined linked
         // entity per followable target URI, in object order (§ C.2.2.1.2).
-        KjNode* entityArr = kjArray(swRest.kjsonP, "entity");
+        KjNode* entityArr = kjArray(corRest.kjsonP, "entity");
         for (KjNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
         {
           if (oP->type != KjString)                               continue;
@@ -739,7 +739,7 @@ KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 
   VisitedNode* visited = visitedAppend(NULL, primaryId);
   visited              = visitedSeedFromContainedBy(visited);
-  inlineWalk(primaryP, joinLevel, &visited, tenantP, swNgsild.pickTree, swNgsild.omitTree);
+  inlineWalk(primaryP, joinLevel, &visited, tenantP, corNgsild.pickTree, corNgsild.omitTree);
   visitedFree(visited);
 
   return primaryP;
@@ -869,7 +869,7 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
       // the existing entries in the notification's data[] array. Strip
       // sysAttrs unless the subscription explicitly asked for them, so
       // the linked entity matches the primary's behavior.
-      ldEntityToApi(targetEntityP, &swRest.kalloc);
+      ldEntityToApi(targetEntityP, &corRest.kalloc);
       if (!sysAttrs)
         ldStripSysAttrs(targetEntityP);
 
@@ -922,7 +922,7 @@ static KjNode* notifFetchTarget(const char* tid, int joinLevel, bool sysAttrs, V
     return NULL;
   }
 
-  ldEntityToApi(targetEntityP, &swRest.kalloc);
+  ldEntityToApi(targetEntityP, &corRest.kalloc);
   if (!sysAttrs)
     ldStripSysAttrs(targetEntityP);
   *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
@@ -987,7 +987,7 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
       else if (objP->type == KjArray)
       {
         // Multivalued object → `entity` is an ARRAY of inlined linked entities.
-        KjNode* entityArr = kjArray(swRest.kjsonP, "entity");
+        KjNode* entityArr = kjArray(corRest.kjsonP, "entity");
         for (KjNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
         {
           if (oP->type != KjString)                                 continue;

@@ -26,9 +26,9 @@ TRoE timescale - calendar aggrPeriodDuration (P#M / P#Y)
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -43,37 +43,37 @@ payload='{
     {"type":"Property","value":30,"observedAt":"2026-03-15T00:00:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 echo "02. P1M over Q1 - three buckets of DIFFERENT widths (31/28/31 days)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
 echo
 echo
 
 echo "03. P2M over Q1 - two buckets, the second clipped to endTimeAt"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=P2M'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=P2M'
 echo
 echo
 
 echo "04. P1Y - one bucket per year, so all three samples land together"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2027-01-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=P1Y'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2027-01-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg,totalCount&aggrPeriodDuration=P1Y'
 echo
 echo
 
 echo "05. P1M15D - both halves: a calendar month, then 15 fixed days"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M15D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-01T00:00:00Z&endTimeAt=2026-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M15D'
 echo
 echo
 
 echo "06. Day clamp: start 01-31 + P1M is 02-28 (not 03-03)"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-31T00:00:00Z&endTimeAt=2026-05-01T00:00:00Z&format=aggregatedValues&aggrMethods=totalCount&aggrPeriodDuration=P1M'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-01-31T00:00:00Z&endTimeAt=2026-05-01T00:00:00Z&format=aggregatedValues&aggrMethods=totalCount&aggrPeriodDuration=P1M'
 echo
 echo
 
@@ -86,8 +86,8 @@ payload='{
     {"type":"Property","value":5,"observedAt":"2024-02-10T00:00:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V2?timerel=between&timeAt=2024-01-31T00:00:00Z&endTimeAt=2024-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=totalCount&aggrPeriodDuration=P1M'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V2?timerel=between&timeAt=2024-01-31T00:00:00Z&endTimeAt=2024-04-01T00:00:00Z&format=aggregatedValues&aggrMethods=totalCount&aggrPeriodDuration=P1M'
 echo
 echo
 
@@ -303,4 +303,4 @@ Content-Length: 200
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

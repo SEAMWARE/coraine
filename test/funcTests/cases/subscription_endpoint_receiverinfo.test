@@ -15,8 +15,8 @@ Subscription notification - endpoint.receiverInfo as outbound headers (§ 5.2.15
 subscription notification receiverinfo
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart --port 7711 --status 200
 
 --RUN--
@@ -37,14 +37,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. Trigger a notification"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
 echo
 echo
 
@@ -75,5 +75,5 @@ HTTP/1.1 201 Created
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

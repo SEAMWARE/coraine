@@ -17,70 +17,70 @@ join + joinLevel URL parameter validation
 url-param retrieve query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed an entity"
 echo "=================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "02. GET entity with join=flat — accepted"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat'
 echo
 echo
 
 
 echo "03. GET entity with join=inline&joinLevel=2 — accepted"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=2'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=inline&joinLevel=2'
 echo
 echo
 
 
 echo "04. GET entity with join=@none — accepted (semantically inert)"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=@none'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=@none'
 echo
 echo
 
 
 echo "05. GET entity with join=garbage — 400"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=garbage'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=garbage'
 echo
 echo
 
 
 echo "06. GET entity with joinLevel=0 — 400"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=0'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=0'
 echo
 echo
 
 
 echo "07. GET entity with joinLevel=-3 — 400"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=-3'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=-3'
 echo
 echo
 
 
 echo "08. GET entity with joinLevel=abc — 400"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=abc'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?joinLevel=abc'
 echo
 echo
 
 
 echo "09. GET /entities (query) with join=flat&joinLevel=1 — accepted"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=1'
 echo
 echo
 
@@ -239,5 +239,5 @@ Content-Length: 120
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

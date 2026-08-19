@@ -21,7 +21,7 @@
 #include "ktrace/kTrace.h"                               // KT_E
 #include "kjson/KjNode.h"                                // KjNode
 
-#include "swRest/SwRestState.h"                          // swRest (kalloc arena)
+#include "corRest/CorRestState.h"                          // corRest (kalloc arena)
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
@@ -90,7 +90,7 @@ int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
       {
         if (idV[i] != NULL && strcmp(idV[i], foundId) == 0)
         {
-          snapshotsV[i] = mongocBsonToKjTree(&swRest.kalloc, docP);
+          snapshotsV[i] = mongocBsonToKjTree(&corRest.kalloc, docP);
           resultsV[i]   = DB_OK;  // optimistic; downgraded if bulk fails
           break;
         }

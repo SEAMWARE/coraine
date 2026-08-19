@@ -41,9 +41,9 @@ Multi-attribute rendering: concise per-instance (§ 5.3.2.3) and simplified data
 format concise simplified multi-attr datasetId subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -63,30 +63,30 @@ payload='{
                 "note": { "type": "Property", "value": "n" } },
               { "type": "Property", "value": 2 } ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. concise - every instance compacts: type gone, a value-only instance becomes the bare value"
 echo "=============================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=concise'
+corCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=concise'
 echo
 echo
 
 
 echo "03. simplified - a dataset map keyed by datasetId, the default instance under @none"
 echo "==================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=simplified'
+corCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=simplified'
 echo
 echo
 
 
 echo "04. The query and single-attribute paths render it the same way"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&format=concise'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&format=concise'
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:MA:1/attrs/speed --urlParams 'format=simplified'
+corCurl --url /ngsi-ld/v1/entities/urn:MA:1/attrs/speed --urlParams 'format=simplified'
 echo
 echo
 
@@ -98,8 +98,8 @@ payload='{ "id": "urn:MA:2", "type": "T",
   "single": "one",
   "speed":  [ { "value": 55, "datasetId": "urn:ds:1" }, 54.5 ],
   "held":   [ { "object": "urn:o:1", "datasetId": "urn:ds:1" }, { "object": "urn:o:2" } ] }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:MA:2
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:MA:2
 echo
 echo
 
@@ -109,12 +109,12 @@ echo "===================================================="
 payload='{ "id": "urn:S:concise", "type": "Subscription", "entities": [{"type": "T"}],
            "notification": { "format": "concise",
                              "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 payload='{ "id": "urn:S:simplified", "type": "Subscription", "entities": [{"type": "T"}],
            "notification": { "format": "simplified",
                              "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:MA:1/attrs --payload '{ "single": { "type": "Property", "value": "two" } }' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:MA:1/attrs --payload '{ "single": { "type": "Property", "value": "two" } }' | head -1
 echo
 echo
 
@@ -125,7 +125,7 @@ ftClientDump
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
 
 --EXPECT--

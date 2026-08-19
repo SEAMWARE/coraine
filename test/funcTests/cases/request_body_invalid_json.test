@@ -19,35 +19,35 @@ Syntactically invalid JSON body -> 400 InvalidRequest (parse layer)
 entity error validation create batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. POST /entities with an unclosed brace -> 400 InvalidRequest"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T"'
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T"'
 echo
 echo
 
 
 echo "02. POST /entities with a trailing comma -> 400 InvalidRequest"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T",}'
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T",}'
 echo
 echo
 
 
 echo "03. PATCH /entities/{id}/attrs with broken JSON -> 400 InvalidRequest"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:9/attrs' -X PATCH --header 'Content-Type: application/json' --payload '{"speed": {"type":"Property","value":}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:9/attrs' -X PATCH --header 'Content-Type: application/json' --payload '{"speed": {"type":"Property","value":}}'
 echo
 echo
 
 
 echo "04. POST /entityOperations/create with broken JSON array -> 400 InvalidRequest"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create -X POST --header 'Content-Type: application/json' --payload '[{"id":"urn:ngsi-ld:T:3","type":"T"]'
+corCurl --url /ngsi-ld/v1/entityOperations/create -X POST --header 'Content-Type: application/json' --payload '[{"id":"urn:ngsi-ld:T:3","type":"T"]'
 echo
 echo
 
@@ -117,4 +117,4 @@ Content-Length: 160
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

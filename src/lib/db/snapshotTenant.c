@@ -24,7 +24,7 @@
 // nameSuffix - format "-_snap_<seq>" into the supplied buffer.
 //
 // Leading dash on the suffix matters: it lets the dbName always look
-// like "<prefix>-..." so existing tenant-cleanup tooling (swDbDrop's
+// like "<prefix>-..." so existing tenant-cleanup tooling (corDbDrop's
 // "n===prefix || n.startsWith(prefix+'-')" filter) catches snap-tenant
 // DBs without modification.
 //

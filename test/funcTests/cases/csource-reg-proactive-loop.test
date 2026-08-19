@@ -12,10 +12,10 @@ DistOps - proactive loop detect via /info/sourceIdentity probe
 registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --csourceAlias cb-alias -dist
-swBrokerStart -role CP1 --csourceAlias cp1-alias -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --csourceAlias cb-alias -dist
+coraineStart -role CP1 --csourceAlias cp1-alias -dist
 
 --RUN--
 
@@ -40,21 +40,21 @@ swBrokerStart -role CP1 --csourceAlias cp1-alias -dist
 
 echo "01. GET /info/sourceIdentity on CB (default tenant)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/info/sourceIdentity
+corCurl --url /ngsi-ld/v1/info/sourceIdentity
 echo
 echo
 
 
 echo "02. GET /info/sourceIdentity on CP1"
 echo "==================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/info/sourceIdentity
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/info/sourceIdentity
 echo
 echo
 
 
 echo "03. GET /info/sourceIdentity on CB with tenant t1"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/info/sourceIdentity -H 'NGSILD-Tenant: t1'
+corCurl --url /ngsi-ld/v1/info/sourceIdentity -H 'NGSILD-Tenant: t1'
 echo
 echo
 
@@ -69,7 +69,7 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -80,14 +80,14 @@ echo "================================================================"
 # reactive Via-loop check would then catch on the forwarded request —
 # but the forward round-trip would have happened. With the probe, the
 # forward never fires.
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "06. Seed CP1 with urn:V2; register CB→CP1 CSR on CB"
 echo "==================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 payload='{
   "id": "urn:CSR:CBtoCP1",
@@ -97,7 +97,7 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -106,14 +106,14 @@ echo "07. GET urn:V2 on CB with Via: 1.1 cp1-alias → proactive skip → 404"
 echo "==================================================================="
 # The probe learned that urn:CSR:CBtoCP1 points at cp1-alias. The
 # incoming Via already has cp1-alias, so forwarding would loop.
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -H "Via: 1.1 cp1-alias"
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -H "Via: 1.1 cp1-alias"
 echo
 echo
 
 
 echo "08. GET urn:V2 on CB without Via → forward proceeds → 200"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2
+corCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -134,7 +134,7 @@ Content-Length: REGEX(\d+)
     "gitSha": "REGEX([0-9a-f]+)",
     "version": "0.2.0"
   },
-  "contextSourceName": "swBroker",
+  "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(.*)",
   "contextSourceUptime": "REGEX(.*)",
   "contextSourceVersion": "0.3",
@@ -159,7 +159,7 @@ Content-Length: REGEX(\d+)
     "gitSha": "REGEX([0-9a-f]+)",
     "version": "0.2.0"
   },
-  "contextSourceName": "swBroker",
+  "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(.*)",
   "contextSourceUptime": "REGEX(.*)",
   "contextSourceVersion": "0.3",
@@ -184,7 +184,7 @@ Content-Length: REGEX(\d+)
     "gitSha": "REGEX([0-9a-f]+)",
     "version": "0.2.0"
   },
-  "contextSourceName": "swBroker",
+  "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(.*)",
   "contextSourceUptime": "REGEX(.*)",
   "contextSourceVersion": "0.3",
@@ -273,7 +273,7 @@ Content-Length: 100
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -19,8 +19,8 @@ Subscription q gates notifications — EQ / OR / AND / exists / not-exists
 subscription notification q
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -29,9 +29,9 @@ EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
 
 echo "01. q=P1==5 on T1 — M1 (P1=5) notifies, N1 (P1=6) does not"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T1"}],"q":"P1==5","notification":{"endpoint":'"$EP"'}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M1","type":"T1","P1":{"type":"Property","value":5}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N1","type":"T1","P1":{"type":"Property","value":6}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T1"}],"q":"P1==5","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M1","type":"T1","P1":{"type":"Property","value":5}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N1","type":"T1","P1":{"type":"Property","value":6}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -41,9 +41,9 @@ echo
 
 echo "02. q=S==\"abc\" on T2 — M2 notifies, N2 does not"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S2","type":"Subscription","entities":[{"type":"T2"}],"q":"S==\"abc\"","notification":{"endpoint":'"$EP"'}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M2","type":"T2","S":{"type":"Property","value":"abc"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N2","type":"T2","S":{"type":"Property","value":"xyz"}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S2","type":"Subscription","entities":[{"type":"T2"}],"q":"S==\"abc\"","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M2","type":"T2","S":{"type":"Property","value":"abc"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N2","type":"T2","S":{"type":"Property","value":"xyz"}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -53,9 +53,9 @@ echo
 
 echo "03. q=A==1|B==2 (OR) on T3 — M3 (B=2) notifies, N3 (A=9,B=9) does not"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S3","type":"Subscription","entities":[{"type":"T3"}],"q":"A==1|B==2","notification":{"endpoint":'"$EP"'}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M3","type":"T3","B":{"type":"Property","value":2}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N3","type":"T3","A":{"type":"Property","value":9},"B":{"type":"Property","value":9}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S3","type":"Subscription","entities":[{"type":"T3"}],"q":"A==1|B==2","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M3","type":"T3","B":{"type":"Property","value":2}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N3","type":"T3","A":{"type":"Property","value":9},"B":{"type":"Property","value":9}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -65,9 +65,9 @@ echo
 
 echo "04. q=A==1;B==2 (AND) on T4 — M4 (A=1,B=2) notifies, N4 (A=1,B=9) does not"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S4","type":"Subscription","entities":[{"type":"T4"}],"q":"A==1;B==2","notification":{"endpoint":'"$EP"'}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":2}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":9}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S4","type":"Subscription","entities":[{"type":"T4"}],"q":"A==1;B==2","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":2}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":9}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -77,9 +77,9 @@ echo
 
 echo "05. q=P (exists) on T5 — M5 (has P) notifies, N5 (no P) does not"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S5","type":"Subscription","entities":[{"type":"T5"}],"q":"P","notification":{"endpoint":'"$EP"'}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M5","type":"T5","P":{"type":"Property","value":1}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N5","type":"T5","Other":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S5","type":"Subscription","entities":[{"type":"T5"}],"q":"P","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M5","type":"T5","P":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N5","type":"T5","Other":{"type":"Property","value":1}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -89,9 +89,9 @@ echo
 
 echo "06. q=!P (not-exists) on T6 — M6 (no P) notifies, N6 (has P) does not"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S6","type":"Subscription","entities":[{"type":"T6"}],"q":"!P","notification":{"endpoint":'"$EP"'}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M6","type":"T6","Other":{"type":"Property","value":1}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N6","type":"T6","P":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S6","type":"Subscription","entities":[{"type":"T6"}],"q":"!P","notification":{"endpoint":'"$EP"'}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M6","type":"T6","Other":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N6","type":"T6","P":{"type":"Property","value":1}}' | head -1
 sleep 0.3
 ftClientDump
 ftClientReset
@@ -321,6 +321,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop

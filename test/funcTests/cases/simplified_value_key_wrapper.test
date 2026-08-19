@@ -9,7 +9,7 @@
 # JsonProperty and VocabProperty keep their value-key wrapper
 # (languageMap / json / vocab); a plain Property / Relationship reduce to the
 # bare value / object. Regression test for the simplified-format fix in
-# swNgsild (ldRender.c::ldToSimplified + ldSimplifyEntity.c) — previously the
+# corNgsild (ldRender.c::ldToSimplified + ldSimplifyEntity.c) — previously the
 # wrapper was wrongly dropped, emitting the bare value.
 #
 --NAME--
@@ -19,8 +19,8 @@ Simplified format keeps the value-key wrapper for Language/Json/VocabProperty
 format langprop vocab-property json-property entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -63,14 +63,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET simplified - wrapper kept for Language/Json/Vocab, bare for Property/Relationship"
 echo "========================================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:E1?format=simplified'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?format=simplified'
 echo
 echo
 
@@ -122,5 +122,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

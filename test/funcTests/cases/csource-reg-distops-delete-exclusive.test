@@ -12,10 +12,10 @@ DistOps - deleteEntity forwarded to exclusive registration
 delete distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -29,7 +29,7 @@ swBrokerStart -role CP1 -dist
 echo "01. Seed CP1 with V1"
 echo "===================="
 payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -44,28 +44,28 @@ payload='{
   "operations": ["deleteEntity", "retrieveEntity"],
   "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. DELETE urn:V1 on CB → forwards to CP1 → 204"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
 echo
 echo
 
 
 echo "04. GET urn:V1 on CP1 directly → 404 (deleted)"
 echo "=============================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "05. Second DELETE on CB → 404 (nothing left anywhere)"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE
 echo
 echo
 
@@ -132,7 +132,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

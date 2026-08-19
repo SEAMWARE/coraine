@@ -18,8 +18,8 @@ Subscription notification — endpoint URI query parameters are preserved on the
 subscription notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -28,8 +28,8 @@ EP='{"uri":"http://localhost:7701/notify?subId=urn:ngsi-ld:S1&tag=routeA","accep
 
 echo "01. Subscribe with an endpoint URI carrying ?subId=...&tag=routeA, then trigger"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":1}}' | grep HTTP
 echo
 echo
 
@@ -57,5 +57,5 @@ HTTP/1.1 201 Created
     "verb": "POST"
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

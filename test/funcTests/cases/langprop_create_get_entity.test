@@ -17,7 +17,7 @@
 #
 # NOTE: expects authored offline (spec + orion-ld parity) — NOT yet confirmed
 #       against a live run. Read-side lang reduction is IMPLEMENTED in sw
-#       (swNgsild/ldLangReduce.c), so high-confidence parity; Content-Length left
+#       (corNgsild/ldLangReduce.c), so high-confidence parity; Content-Length left
 #       as REGEX since byte counts differ from orion-ld. VERIFY key-sort order in
 #       the L object and the lang=ex first-key fallback on first run.
 #
@@ -28,8 +28,8 @@ LanguageProperty - create + GET (normalized/concise/simplified) + lang reduction
 langprop entity format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -62,63 +62,63 @@ payload='{
     "Sub-R": { "object": "urn:E2" }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET normalized"
 echo "=================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
 echo
 echo
 
 
 echo "03. GET concise"
 echo "==============="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=concise'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=concise'
 echo
 echo
 
 
 echo "04. GET simplified"
 echo "=================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified'
 echo
 echo
 
 
 echo "05. GET normalized, lang=en"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=en'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=en'
 echo
 echo
 
 
 echo "06. GET concise, lang=en"
 echo "========================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=concise&lang=en'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=concise&lang=en'
 echo
 echo
 
 
 echo "07. GET simplified, lang=en"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified&lang=en'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified&lang=en'
 echo
 echo
 
 
 echo "08. GET normalized, lang=ex (absent) - first-key fallback"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=ex'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=ex'
 echo
 echo
 
 
 echo "09. GET simplified, lang=sv"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified&lang=sv'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=simplified&lang=sv'
 echo
 echo
 
@@ -330,5 +330,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

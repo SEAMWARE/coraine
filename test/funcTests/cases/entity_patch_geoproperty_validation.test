@@ -22,8 +22,8 @@ PATCH leaving an invalid GeoProperty geometry is rejected (400, not persisted)
 entity validation geo
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 echo "01. Seed an entity with a valid Point GeoProperty -> 201"
@@ -33,49 +33,49 @@ payload='{
   "type": "T",
   "myGeo": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "02. Merge Entity: geometry -> Polygon with no coordinates -> 400"
 echo "==============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1 --payload '{"myGeo":{"value":{"type":"Polygon"}}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1 --payload '{"myGeo":{"value":{"type":"Polygon"}}}'
 echo
 echo
 
 
 echo "03. Partial Attribute Update: value -> Polygon with no coordinates -> 400"
 echo "========================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs/myGeo --payload '{"value":{"type":"Polygon"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs/myGeo --payload '{"value":{"type":"Polygon"}}'
 echo
 echo
 
 
 echo "04. Update Attributes (explicit GeoProperty): bad geometry -> 400"
 echo "================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs --payload '{"myGeo":{"type":"GeoProperty","value":{"type":"Polygon"}}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs --payload '{"myGeo":{"type":"GeoProperty","value":{"type":"Polygon"}}}'
 echo
 echo
 
 
 echo "05. The stored GeoProperty is untouched by the rejected PATCHes"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1?options=keyValues
 echo
 echo
 
 
 echo "06. A valid GeoProperty PATCH still succeeds -> 204"
 echo "==================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs/myGeo --payload '{"value":{"type":"Point","coordinates":[5,6]}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1/attrs/myGeo --payload '{"value":{"type":"Point","coordinates":[5,6]}}' | grep HTTP
 echo
 echo
 
 
 echo "07. GET confirms the valid update persisted"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:GE1?options=keyValues
 echo
 echo
 
@@ -184,6 +184,6 @@ Content-Length: 128
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 
-swBrokerStop
+coraineStop

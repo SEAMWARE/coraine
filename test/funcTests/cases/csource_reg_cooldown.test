@@ -18,8 +18,8 @@ CSR management.cooldown — failed endpoint not re-contacted until cooldown elap
 csource registration distops cooldown
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -42,21 +42,21 @@ payload='{
   "management": { "cooldown": 2000 },
   "information": [{"entities": [{"id": "urn:V1", "type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. POST urn:V1 → 207, forward fails (connection refused)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":1}}'
 echo
 echo
 
 
 echo "03. POST urn:V1 again immediately → 207, endpoint in cooldown"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":2}}'
 echo
 echo
 
@@ -64,7 +64,7 @@ echo
 sleep 2.2
 echo "04. POST urn:V1 after the cooldown → 207, forward attempted again"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":3}}'
 echo
 echo
 
@@ -128,4 +128,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

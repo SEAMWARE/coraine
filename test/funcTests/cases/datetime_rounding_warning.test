@@ -26,56 +26,56 @@ DateTime fraction beyond nanosecond resolution warns with NGSILD-Warning 214
 datetime warning observedAt validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. 6 digits — well inside nanosecond resolution, no warning"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.123456Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.123456Z"}}'
 echo
 echo
 
 
 echo "02. 9 digits — stored whole, only rendered shorter, no warning"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D2","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.123456789Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D2","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.123456789Z"}}'
 echo
 echo
 
 
 echo "03. 10 digits ending in '0' — rounds to the same instant, still no warning"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D3","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567890Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D3","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567890Z"}}'
 echo
 echo
 
 
 echo "04. 10 digits ending in '1' — precision is lost, NGSILD-Warning 214"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D4","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567891Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D4","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567891Z"}}'
 echo
 echo
 
 
 echo "05. 14 digits, all discarded ones '0' — no loss, no warning"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D5","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.12345678900000Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D5","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.12345678900000Z"}}'
 echo
 echo
 
 
 echo "06. 13 digits with non-zero tail — NGSILD-Warning 214, emitted once"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D6","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567891234Z"},"q":{"type":"Property","value":2,"observedAt":"2026-01-01T00:00:00.9876543219876Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D6","type":"T","p":{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00.1234567891234Z"},"q":{"type":"Property","value":2,"observedAt":"2026-01-01T00:00:00.9876543219876Z"}}'
 echo
 echo
 
 
 echo "07. The stored instant, rounded to nanoseconds then rendered at 6 digits"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:D4?options=sysAttrs
+corCurl --url /ngsi-ld/v1/entities/urn:D4?options=sysAttrs
 echo
 echo
 
@@ -168,5 +168,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

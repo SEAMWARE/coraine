@@ -12,8 +12,8 @@ PATCH /entities/{id}/attrs - Update Attributes (§ 5.6.2)
 entity patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,7 +35,7 @@ payload='{
   "speed": {"type":"Property","value":50},
   "color": {"type":"Property","value":"red"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -47,14 +47,14 @@ payload='{
   "brand": {"type":"Property","value":"Acme"},
   "color": "urn:ngsi-ld:null"
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET V1 — speed=99, brand=Acme, no color"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -65,21 +65,21 @@ payload='{
   "gone":   "urn:ngsi-ld:null",
   "weight": {"type":"Property","value":1500}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "05. GET V1 — weight=1500"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "06. PATCH attrs on missing entity → 404"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities/urn:DoesNotExist/attrs -X PATCH --payload '{"speed":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities/urn:DoesNotExist/attrs -X PATCH --payload '{"speed":{"type":"Property","value":1}}'
 echo
 echo
 
@@ -178,5 +178,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

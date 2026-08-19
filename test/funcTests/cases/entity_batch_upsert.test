@@ -25,14 +25,14 @@ POST /entityOperations/upsert — Batch Entity Upsert (§ 5.6.9)
 batch entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Upsert 3 new — all created → 201"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}
@@ -43,7 +43,7 @@ echo
 
 echo "02. GET V1 — speed=10, color=red"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
@@ -51,7 +51,7 @@ echo
 echo "03. Upsert existing V1 with only speed — default REPLACE mode → 204"
 echo "==================================================================="
 # First fragment becomes the new state: color disappears.
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
 ]'
 echo
@@ -60,7 +60,7 @@ echo
 
 echo "04. GET V1 — speed=99, no color (replaced)"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
@@ -68,7 +68,7 @@ echo
 echo "05. Upsert existing V2 with only color, ?options=update → 204"
 echo "============================================================="
 # Update mode: V2 merged; speed=20 stays, color added.
-swCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
   {"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -77,7 +77,7 @@ echo
 
 echo "06. GET V2 — speed=20 AND color=blue"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
 echo
 echo
 
@@ -85,7 +85,7 @@ echo
 echo "07. Mixed new + existing → 201 (at least one created)"
 echo "====================================================="
 # V4 new, V3 existing with replace (replaces whole thing).
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":40}},
   {"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}
 ]'
@@ -95,14 +95,14 @@ echo
 
 echo "08. GET V3 — only color=green (replaced; speed=30 gone)"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V3?options=keyValues
 echo
 echo
 
 
 echo "09. GET V4 — speed=40 (created fresh)"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V4?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V4?options=keyValues
 echo
 echo
 
@@ -112,7 +112,7 @@ echo "==========================================================================
 # V5 doesn't exist. Default-mode (replace). Array-order: first creates V5
 # with speed=100, second REPLACES with color=pink (speed gone), third
 # REPLACES again with speed=300 (color gone). Final V5 has only speed=300.
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V5","type":"Vehicle","color":{"type":"Property","value":"pink"}},
   {"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":300}}
@@ -123,7 +123,7 @@ echo
 
 echo "11. GET V5 — only speed=300 (last replace dropped color)"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V5?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V5?options=keyValues
 echo
 echo
 
@@ -132,7 +132,7 @@ echo "12. Multi-instance existing V1 — every fragment REPLACES (§ 5.5.11.2 de
 echo "============================================================================="
 # V1 currently {speed:99}. Array: frag1 {foo:1} → V1 = {foo:1};
 # frag2 {bar:2} → V1 = {bar:2} (foo gone). Final V1 has only bar.
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","foo":{"type":"Property","value":1}},
   {"id":"urn:V1","type":"Vehicle","bar":{"type":"Property","value":2}}
 ]'
@@ -142,28 +142,28 @@ echo
 
 echo "13. GET V1 — only bar=2 (final replace dropped foo and speed)"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "14. Empty array → 400"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[]'
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[]'
 echo
 echo
 
 
 echo "15. null element → 400"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
 echo
 echo
 
 
 echo "16. Non-array body → 400"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '{"id":"urn:V1","type":"Vehicle"}'
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '{"id":"urn:V1","type":"Vehicle"}'
 echo
 echo
 
@@ -397,5 +397,5 @@ Content-Length: 176
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

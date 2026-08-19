@@ -14,34 +14,34 @@ DistOps — exclusive source's attribute wins over a newer inclusive copy (§ 4.
 --TAGS--
 distops registration
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 ftClientStart --port 7712 --status 200
 --RUN--
 echo "01. Source A@7711 (exclusive): speed=100 observedAt 2020 (older)"
 echo "==============================================================="
-swCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "/entities", "status": 200, "body": [ { "id": "urn:E1", "type": "Vehicle", "speed": { "type": "Property", "value": 100, "observedAt": "2020-01-01T00:00:00Z" } } ] }' | grep HTTP
+corCurl --port 7711 --url /mock/reply --payload '{ "verb": "GET", "path": "/entities", "status": 200, "body": [ { "id": "urn:E1", "type": "Vehicle", "speed": { "type": "Property", "value": 100, "observedAt": "2020-01-01T00:00:00Z" } } ] }' | grep HTTP
 echo
 
 
 echo "02. Source B@7712 (inclusive): speed=999 observedAt 2099 (newer)"
 echo "==============================================================="
-swCurl --port 7712 --url /mock/reply --payload '{ "verb": "GET", "path": "/entities", "status": 200, "body": [ { "id": "urn:E1", "type": "Vehicle", "speed": { "type": "Property", "value": 999, "observedAt": "2099-01-01T00:00:00Z" } } ] }' | grep HTTP
+corCurl --port 7712 --url /mock/reply --payload '{ "verb": "GET", "path": "/entities", "status": 200, "body": [ { "id": "urn:E1", "type": "Vehicle", "speed": { "type": "Property", "value": 999, "observedAt": "2099-01-01T00:00:00Z" } } ] }' | grep HTTP
 echo
 
 
 echo "03. Register exclusive CSR A (urn:E1 speed) then inclusive CSR B (urn:E1 speed)"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "id": "urn:CSR:A", "type": "ContextSourceRegistration", "endpoint": "http://localhost:7711", "mode": "exclusive", "operations": ["retrieveOps"], "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ], "propertyNames": ["speed"] } ] }' | grep HTTP
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "id": "urn:CSR:B", "type": "ContextSourceRegistration", "endpoint": "http://localhost:7712", "mode": "inclusive", "operations": ["retrieveOps"], "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ], "propertyNames": ["speed"] } ] }' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "id": "urn:CSR:A", "type": "ContextSourceRegistration", "endpoint": "http://localhost:7711", "mode": "exclusive", "operations": ["retrieveOps"], "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ], "propertyNames": ["speed"] } ] }' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "id": "urn:CSR:B", "type": "ContextSourceRegistration", "endpoint": "http://localhost:7712", "mode": "inclusive", "operations": ["retrieveOps"], "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ], "propertyNames": ["speed"] } ] }' | grep HTTP
 echo
 echo
 
 
 echo "04. GET ?type=Vehicle — exclusive speed (100, older) wins over inclusive (999, newer)"
 echo "===================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' | grep -E '"(value|observedAt)"'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' | grep -E '"(value|observedAt)"'
 echo
 echo
 --EXPECT--
@@ -68,6 +68,6 @@ HTTP/1.1 201 Created
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 

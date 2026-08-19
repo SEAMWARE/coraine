@@ -25,10 +25,10 @@ context
 link-header
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/test '{
   "@context": {
@@ -58,7 +58,7 @@ payload='[
 
 echo "01. Batch create with application/json + Link header"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create \
+corCurl --url /ngsi-ld/v1/entityOperations/create \
   -X POST \
   --in application/json \
   --payload "$payload" \
@@ -69,14 +69,14 @@ echo
 
 echo "02. GET /entities/B1 with NO Link header — expanded IRIs from Link-time @context"
 echo "================================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B1
 echo
 echo
 
 
 echo "03. GET /entities/B1 with the same Link header — bare short names"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B1 \
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:B1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/test>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 
@@ -141,5 +141,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

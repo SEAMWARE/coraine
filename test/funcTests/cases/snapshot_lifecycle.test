@@ -22,19 +22,19 @@ Snapshot lifecycle ops (§ 5.16, Phase 3)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed two Vehicles"
 echo "====================="
 payload='{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -42,105 +42,105 @@ echo
 echo "02. Create snapshot capturing Vehicles"
 echo "======================================"
 payload='{"id":"urn:ngsi-ld:Snapshot:S1","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "03. PATCH /snapshots/S1 — bump priority to 9"
 echo "============================================"
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotPriority":9}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotPriority":9}'
 echo
 echo
 
 
 echo "04. GET /snapshots/S1 → snapshotPriority=9"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 echo
 echo
 
 
 echo "05. PATCH /snapshots/S1 — try to mutate immutable id → 400"
 echo "=========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"id":"urn:ngsi-ld:Snapshot:Other"}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"id":"urn:ngsi-ld:Snapshot:Other"}'
 echo
 echo
 
 
 echo "06. PATCH /snapshots/S1 — try to mutate snapshotQueries → 400"
 echo "============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotQueries":[{"type":"Query","entities":[{"type":"Building"}]}]}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotQueries":[{"type":"Query","entities":[{"type":"Building"}]}]}'
 echo
 echo
 
 
 echo "07. PATCH /snapshots/S1 — invalid priority 11 → 400"
 echo "==================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotPriority":11}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotPriority":11}'
 echo
 echo
 
 
 echo "08. PATCH /snapshots/Unknown → 404"
 echo "=================================="
-swCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch --payload '{"snapshotPriority":2}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch --payload '{"snapshotPriority":2}'
 echo
 echo
 
 
 echo "09. POST /snapshots/S1/clone (no body) → 201, server-generated id"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{}'
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{}'
 echo
 echo
 
 
 echo "10. POST /snapshots/S1/clone with explicit id → 201"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy","snapshotPriority":7}'
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy","snapshotPriority":7}'
 echo
 echo
 
 
 echo "11. GET S1Copy → frozen entities visible via NGSILD-Snapshot"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:S1Copy'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:S1Copy'
 echo
 echo
 
 
 echo "12. POST /snapshots/Unknown/clone → 404"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch/clone --payload '{}'
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch/clone --payload '{}'
 echo
 echo
 
 
 echo "13. POST /snapshots/S1/clone → AlreadyExists (S1Copy already taken)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy"}'
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy"}'
 echo
 echo
 
 
 echo "14. DELETE /snapshots?q=snapshotPriority>5 → 204; only S1 (prio 9) and S1Copy (prio 7) match"
 echo "============================================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
 echo
 echo
 
 
 echo "15. GET /snapshots/S1 → 404 (purged)"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 echo
 echo
 
 
 echo "16. GET /snapshots/S1Copy → 404 (purged)"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1Copy
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1Copy
 echo
 echo
 
@@ -148,7 +148,7 @@ echo
 echo "17. DELETE /snapshots with a match-all q → 204, purges remaining"
 echo "================================================================"
 # q is mandatory (§ 16.7.4); purging everything is asked for explicitly.
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
 echo
 echo
 
@@ -444,6 +444,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

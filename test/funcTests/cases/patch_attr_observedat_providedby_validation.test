@@ -16,8 +16,8 @@ PATCH attribute observedAt / providedBy validation
 error attr patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
     "unitCode": "CEL"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
@@ -56,14 +56,14 @@ payload='{
     "providedBy": { "object" : "8" }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET — entity as created"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
 echo
 echo
 
@@ -76,14 +76,14 @@ payload='{
     "providedBy": { "object" : "8" }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "05. GET — entity as created"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
 echo
 echo
 
@@ -96,14 +96,14 @@ payload='{
     "observedAt": "not-a-valid-datetime"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "07. GET — entity as created, broker alive"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:TemperatureSensor:001
 echo
 echo
 
@@ -240,4 +240,4 @@ Content-Length: 233
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

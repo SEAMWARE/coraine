@@ -18,8 +18,8 @@ Batch multi-instance arrival order (§ 4.6.6)
 entity batch order multi-instance
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,14 +30,14 @@ payload='[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":20},"obs":{"type":"Property","value":"second"}},
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30},"obs":{"type":"Property","value":"third"}}
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" -X POST | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" -X POST | head -1
 echo
 echo
 
 
 echo "02. GET — last (newest) instance won"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"(value)"'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 | grep -E '"(value)"'
 echo
 echo
 
@@ -55,5 +55,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

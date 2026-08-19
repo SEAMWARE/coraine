@@ -15,17 +15,17 @@ TRoE timescale - GET temporal evolution of one entity
 troe timescale postgres temporal
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. POST entity + 2 PATCHes"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":99}' >/dev/null
 echo "done"
 echo
 echo
@@ -33,7 +33,7 @@ echo
 
 echo "02. GET /temporal/entities/urn:V1 — id, type, 3 speed instances"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr = ''
 body = ''
@@ -78,6 +78,6 @@ done
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

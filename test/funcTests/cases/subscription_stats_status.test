@@ -16,15 +16,15 @@ Subscription notification.status (§ 5.2.14.2)
 subscription stats notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart --port 7711 --status 200
 
 --RUN--
 
 echo "01. Create sub S1 pointing at ftClient (--status 200, success path)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
@@ -36,14 +36,14 @@ echo
 
 echo "02. Trigger a successful notification"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "03. GET S1 → notification.status = \"ok\""
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
 echo
 echo
 
@@ -59,14 +59,14 @@ echo
 
 echo "05. Trigger a failing notification"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}'
 echo
 echo
 
 
 echo "06. GET S1 → notification.status = \"failed\" (lastFailure now newer than lastSuccess)"
 echo "======================================================================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
 echo
 echo
 
@@ -75,14 +75,14 @@ echo "07. Recover ftClient to --status 200, fire one more → status flips back 
 echo "================================================================================="
 ftClientStop --port 7711
 ftClientStart --port 7711 --status 200
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":50}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":50}}'
 echo
 echo
 
 
 echo "08. GET S1 → notification.status = \"ok\" again"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
 echo
 echo
 
@@ -159,5 +159,5 @@ Date: REGEX(.*)
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

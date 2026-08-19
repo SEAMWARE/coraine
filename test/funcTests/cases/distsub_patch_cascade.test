@@ -20,10 +20,10 @@ DistSub - PATCH cascade to remote derivatives
 patch distops subscription distsub
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -48,42 +48,42 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Create local sub urn:S1 on CB → fans out urn:S1:1 to CP1"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
 echo
 echo
 
 
 echo "03. GET /subscriptions on CP1 — derived sub, no watchedAttributes yet"
 echo "====================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. PATCH urn:S1 on CB — add watchedAttributes=[speed]"
 echo "======================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"watchedAttributes":["speed"]}'
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"watchedAttributes":["speed"]}'
 echo
 echo
 
 
 echo "05. GET /subscriptions on CP1 — derived sub now has watchedAttributes"
 echo "====================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "06. GET /subscriptions on CB — local sub has watchedAttributes"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions
+corCurl --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -220,7 +220,7 @@ Content-Length: 388
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -20,8 +20,8 @@ Multi-instance attribute with conflicting identities in one payload is rejected
 entity multi-attr datasetid validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
     {"type": "Property", "value": 99}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -57,7 +57,7 @@ payload='{
     {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -72,9 +72,9 @@ payload='{
     {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"value"|datasetId' | sort
+corCurl --url /ngsi-ld/v1/entities/urn:V3 | grep -E '"value"|datasetId' | sort
 echo
 echo
 
@@ -89,9 +89,9 @@ payload='{
     {"type": "Property", "value": 99, "datasetId": "urn:dsY"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V4 | grep -E '"value"|datasetId' | sort
+corCurl --url /ngsi-ld/v1/entities/urn:V4 | grep -E '"value"|datasetId' | sort
 echo
 echo
 
@@ -149,5 +149,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

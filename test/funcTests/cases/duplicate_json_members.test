@@ -19,15 +19,15 @@ Duplicate JSON members rejected (except inside opaque JsonProperty json)
 validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Duplicate top-level Attribute (P1 twice) — 400"
 echo "=================================================="
 payload='{ "id": "urn:ngsi-ld:D1", "type": "T", "P1": { "type": "Property", "value": 1 }, "P1": { "type": "Property", "value": 2 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -35,7 +35,7 @@ echo
 echo "02. Duplicate sub-attribute (unitCode twice) — 400"
 echo "=================================================="
 payload='{ "id": "urn:ngsi-ld:D2", "type": "T", "P": { "type": "Property", "value": 1, "unitCode": "A", "unitCode": "B" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -43,7 +43,7 @@ echo
 echo "03. Duplicate member inside a value object (@value twice) — 400"
 echo "==============================================================="
 payload='{ "id": "urn:ngsi-ld:D3", "type": "T", "P": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00Z", "@value": "2019-01-01T00:00:00Z" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -51,14 +51,14 @@ echo
 echo "04. Duplicate keys inside a JsonProperty 'json' value — accepted (opaque)"
 echo "========================================================================="
 payload='{ "id": "urn:ngsi-ld:D4", "type": "T", "J": { "type": "JsonProperty", "json": { "a": 1, "a": 2 } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "05. GET D4 — JsonProperty stored"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:D4
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:D4
 echo
 echo
 
@@ -145,4 +145,4 @@ Content-Length: 133
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

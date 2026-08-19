@@ -22,9 +22,9 @@ Subscription geoQ — string coordinates normalized to array, persisted across r
 geo subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -53,22 +53,22 @@ payload='{
     "endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. GET S1 — coordinates normalized to a JSON array"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
 
 echo "03. Restart broker (sub reloads from the DB)"
 echo "============================================"
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo "restarted"
 echo
 echo
@@ -76,7 +76,7 @@ echo
 
 echo "04. GET S1 — still a JSON array (persisted to DB, not just cached)"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
@@ -92,7 +92,7 @@ payload='{
     "value": {"type": "Point", "coordinates": [-3.691944, 40.418889]}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -292,5 +292,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

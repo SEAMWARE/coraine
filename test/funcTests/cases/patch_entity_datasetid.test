@@ -12,8 +12,8 @@ PATCH /entities/{id} - Merge Entity with datasetId and simplified form
 datasetid entity patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,28 +36,28 @@ payload='{
     {"type": "Property", "value": 98, "datasetId": "urn:sensor:radar"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. PATCH with simplified form: add color"
 echo "========================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload '{"color": "red"}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload '{"color": "red"}'
 echo
 echo
 
 
 echo "03. GET - verify simplified color became a Property"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
 echo
 echo
 
 
 echo "04. PATCH default speed (no datasetId) — value goes to 150"
 echo "=========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload '{"speed":{"value":150}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload '{"speed":{"value":150}}'
 echo
 echo
 
@@ -71,14 +71,14 @@ payload='{
     "datasetId": "urn:sensor:radar"
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2 --payload "$payload"
 echo
 echo
 
 
 echo "06. GET - both instances reflect their respective new values"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2
 echo
 echo
 
@@ -179,5 +179,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

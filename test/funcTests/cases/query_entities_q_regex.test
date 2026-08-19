@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - q parameter regex filters (~= and !~=)
 entity q query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ payload='{
     "value": "Madrid Central"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -52,7 +52,7 @@ payload='{
     "value": "Barcelona Norte"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -67,35 +67,35 @@ payload='{
     "value": "Madrid Sur"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. q=name~=Madrid - E1, E3"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3DMadrid'
+corCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3DMadrid'
 echo
 echo
 
 
 echo "05. q=name~=^Madrid - E1, E3"
 echo "============================"
-swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3D%5EMadrid'
+corCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3D%5EMadrid'
 echo
 echo
 
 
 echo "06. q=name~=Norte$ - E2"
 echo "======================="
-swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3DNorte%24'
+corCurl --url '/ngsi-ld/v1/entities?type=Location&q=name~%3DNorte%24'
 echo
 echo
 
 
 echo "07. q=name!~=Madrid - E2"
 echo "========================"
-swCurl --url '/ngsi-ld/v1/entities?type=Location&q=name!~%3DMadrid'
+corCurl --url '/ngsi-ld/v1/entities?type=Location&q=name!~%3DMadrid'
 echo
 echo
 
@@ -232,5 +232,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

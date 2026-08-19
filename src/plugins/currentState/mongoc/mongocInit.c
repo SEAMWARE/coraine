@@ -38,7 +38,7 @@ mongoc_client_pool_t*  poolP   = NULL;
 int mongocInit(void)
 {
   //
-  // The global DB (mongocGlobalDb, --globalDb, default "swBroker") is reserved
+  // The global DB (mongocGlobalDb, --globalDb, default "coraine") is reserved
   // for JSON-LD context persistence (NGSI-LD § 5.13 Context Hosting). Rejecting
   // it as the tenant DB name prevents silent collisions with the context store.
   //

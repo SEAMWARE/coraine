@@ -12,8 +12,8 @@ Deprecated ?options= URL param for format selection (keyValues, simplified, conc
 url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -43,63 +43,63 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entities with options=keyValues"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues'
 echo
 echo
 
 
 echo "03. GET entities with options=simplified"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=simplified'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=simplified'
 echo
 echo
 
 
 echo "04. GET entities with options=concise"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=concise'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=concise'
 echo
 echo
 
 
 echo "05. GET entities with options=normalized"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=normalized'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=normalized'
 echo
 echo
 
 
 echo "06. GET entities with options=sysAttrs"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=sysAttrs'
 echo
 echo
 
 
 echo "07. GET entities with options=keyValues,sysAttrs (combined)"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues,sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues,sysAttrs'
 echo
 echo
 
 
 echo "08. GET entities with format=concise AND options=keyValues (format wins)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=concise&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&format=concise&options=keyValues'
 echo
 echo
 
 
 echo "09. GET entities with options=keyValues AND format=concise (format wins regardless of order)"
 echo "============================================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&format=concise'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&format=concise'
 echo
 echo
 
@@ -288,5 +288,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

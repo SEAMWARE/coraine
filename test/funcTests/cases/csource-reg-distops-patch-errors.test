@@ -12,8 +12,8 @@ DistOps - patchEntity error modes (ftClient mocks): excl-no-op → 409, dead+liv
 distops error patch registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 204
 ftClientStart --port 7712 --status 503
 
@@ -43,14 +43,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. PATCH urn:V1 on CB: speed=9 → 409 (CSR claims speed + refuses op)"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
 echo
 echo
 
@@ -70,7 +70,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:CSR:LiveMerge",
@@ -85,14 +85,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. PATCH urn:V2: speed+color → Dead fails, Live succeeds → 207"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -X PATCH --payload '{"speed":{"type":"Property","value":50},"color":{"type":"Property","value":"teal"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X PATCH --payload '{"speed":{"type":"Property","value":50},"color":{"type":"Property","value":"teal"}}'
 echo
 echo
 
@@ -180,5 +180,5 @@ Content-Length: 337
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

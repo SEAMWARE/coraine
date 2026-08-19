@@ -19,11 +19,11 @@ CSR-sub notifications compact via the subscription's @context
 context csr-sub subscription notification
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -62,7 +62,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -82,7 +82,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" \
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -170,6 +170,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
 contextServerStop

@@ -17,8 +17,8 @@ Notification of a LanguageProperty with array-valued languageMap (+ lang filter)
 langProp subscription notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -31,7 +31,7 @@ payload='{
   "entities": [{"type":"T"}],
   "notification": { "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -45,7 +45,7 @@ payload='{
   "lang": "es",
   "notification": { "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -59,7 +59,7 @@ payload='{
   "lang": "fr",
   "notification": { "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -74,7 +74,7 @@ payload='{
     "languageMap": { "en": ["Hello", "Hi"], "es": ["Hola", "Buenas"] }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -233,6 +233,6 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop

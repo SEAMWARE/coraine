@@ -18,8 +18,8 @@ Pagination Link "type" attribute equals the originally-requested media type
 entity query pagination link accept
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -27,7 +27,7 @@ echo "01. Create 5 entities of type T"
 echo "==============================="
 for n in 1 2 3 4 5; do
   payload="{ \"id\": \"urn:ngsi-ld:T:$n\", \"type\": \"T\", \"n\": { \"type\": \"Property\", \"value\": $n } }"
-  swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+  corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 done
 echo "done"
 echo
@@ -36,21 +36,21 @@ echo
 
 echo "02. Accept: application/json → next-link type=\"application/json\""
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/json' | grep -i '^Link:'
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/json' | grep -i '^Link:'
 echo
 echo
 
 
 echo "03. Accept: application/ld+json → next-link type=\"application/ld+json\""
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/ld+json' | grep -i '^Link:'
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/ld+json' | grep -i '^Link:'
 echo
 echo
 
 
 echo "04. Accept: application/geo+json → next-link type=\"application/geo+json\""
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/geo+json' | grep -i '^Link:'
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=2' -H 'Accept: application/geo+json' | grep -i '^Link:'
 
 --EXPECT--
 01. Create 5 entities of type T
@@ -73,4 +73,4 @@ Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>;rel="next";type="applicatio
 ========================================================================
 Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>;rel="next";type="application/geo+json"
 --TEARDOWN--
-swBrokerStop
+coraineStop

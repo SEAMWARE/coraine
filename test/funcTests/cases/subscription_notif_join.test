@@ -15,16 +15,16 @@ Subscription notification - notification.join flat / inline (§ 5.2.14, § 4.5.2
 subscription notification linked-entities
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart --port 7711 --status 200
 
 --RUN--
 
 echo "01. Seed Person urn:P1 and Vehicle urn:V1 with parking → urn:P1"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:P1"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:P1"}}' | head -1
 echo
 echo
 
@@ -44,14 +44,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
 
 echo "03. Trigger - update V1 → notification carries V1 + P1 (flat array)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":99}}' | head -1
 echo
 echo
 
@@ -65,7 +65,7 @@ echo
 
 echo "05. Replace sub with sysAttrs:true and trigger again"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Flat -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Flat -X DELETE | head -1
 ftClientReset --port 7711 > /dev/null
 payload='{
   "id": "urn:ngsi-ld:Subscription:FlatSys",
@@ -81,8 +81,8 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":100}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":100}}' | head -1
 echo
 echo
 
@@ -131,5 +131,5 @@ HTTP/1.1 204 No Content
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

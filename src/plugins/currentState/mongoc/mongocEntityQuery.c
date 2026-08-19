@@ -15,13 +15,13 @@
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
 #include "kjson/kjBufferCreate.h"                    // kjBufferCreate
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
-#include "swNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
-#include "swNgsild/LdQ.h"                           // LdQNode, LdQTermNode, ...
-#include "swNgsild/LdScopeExpr.h"                    // LdScopeExpr
-#include "swNgsild/ldScopeMatch.h"                    // ldScopeToRegex
-#include "swNgsild/LdProblem.h"                       // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_INTERNAL_ERROR
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
+#include "corNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
+#include "corNgsild/LdQ.h"                           // LdQNode, LdQTermNode, ...
+#include "corNgsild/LdScopeExpr.h"                    // LdScopeExpr
+#include "corNgsild/ldScopeMatch.h"                    // ldScopeToRegex
+#include "corNgsild/LdProblem.h"                       // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_INTERNAL_ERROR
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
@@ -986,7 +986,7 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
     // matches here (Mongo cannot express containment in the other direction,
     // see LdGeoContains below), and the same-dimension rule is not applied.
     // The in-broker matcher (plugins/shared/geoMatch.c), which serves the
-    // swRamDB backend, subscriptions, snapshots and the temporal API, is
+    // corRamDB backend, subscriptions, snapshots and the temporal API, is
     // exact — so the two backends deliberately differ for those cases.
     //
     // The negation goes in a top-level $nor rather than next to the
@@ -1365,7 +1365,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   //
   if (countOnly)
   {
-    *arrayPP = kjArray(swRest.kjsonP, NULL);
+    *arrayPP = kjArray(corRest.kjsonP, NULL);
     bson_destroy(&opts);
     bson_destroy(&filter);
     mongoc_collection_destroy(collP);
@@ -1547,12 +1547,12 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   //
   // Build result array
   //
-  KjNode*       arrayP = kjArray(swRest.kjsonP, NULL);
+  KjNode*       arrayP = kjArray(corRest.kjsonP, NULL);
   const bson_t* doc;
 
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    KjNode* entityP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    KjNode* entityP = mongocBsonToKjTree(&corRest.kalloc, doc);
     kjChildAdd(arrayP, entityP);
   }
 

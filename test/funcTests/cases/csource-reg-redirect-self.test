@@ -28,8 +28,8 @@ Registration - a redirect registration may not name this broker (§ 12.2.2.4)
 registration validation distops redirect
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -42,7 +42,7 @@ payload='{
   "mode": "redirect",
   "information": [ { "entities": [ { "id": "urn:V1", "type": "Vehicle" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -58,7 +58,7 @@ payload='{
   "tenant": "t2",
   "information": [ { "entities": [ { "id": "urn:V2", "type": "Vehicle" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -73,7 +73,7 @@ payload='{
   "tenant": "t2",
   "information": [ { "entities": [ { "id": "urn:V3", "type": "Vehicle" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -89,7 +89,7 @@ payload='{
   "tenant": "t2",
   "information": [ { "entities": [ { "id": "urn:V4", "type": "Vehicle" } ], "attributeNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -103,14 +103,14 @@ payload='{
   "mode": "redirect",
   "information": [ { "entities": [ { "id": "urn:V5", "type": "Vehicle" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "06. PATCH the legal redirect to point HERE -> 409 (§ 12.2.3.4)"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere -X PATCH \
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere -X PATCH \
        --payload '{"endpoint": "http://localhost:'$CB_PORT'"}'
 echo
 echo
@@ -118,7 +118,7 @@ echo
 
 echo "07. PATCH the inclusive self-registration into a redirect -> 409"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc -X PATCH \
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc -X PATCH \
        --payload '{"mode": "redirect"}'
 echo
 echo
@@ -126,8 +126,8 @@ echo
 
 echo "08. The legal redirect is untouched, the inclusive one is still inclusive"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere | grep -E '"(endpoint|mode)"'
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc   | grep -E '"(endpoint|mode)"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Elsewhere | grep -E '"(endpoint|mode)"'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:SelfInc   | grep -E '"(endpoint|mode)"'
 echo
 echo
 
@@ -238,5 +238,5 @@ Content-Length: 212
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

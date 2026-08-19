@@ -12,8 +12,8 @@ HTTP media-type negotiation — unsupported Content-Type and unacceptable Accept
 error http format
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -24,14 +24,14 @@ swBrokerStart -dist
 
 echo "01. Create with Content-Type text/plain"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload 'Just a text' -H 'Content-Type: text/plain'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload 'Just a text' -H 'Content-Type: text/plain'
 echo
 echo
 
 
 echo "02. GET entities with Accept text/plain"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'prettyPrint=yes&spaces=2' -H 'Accept: text/plain'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'prettyPrint=yes&spaces=2' -H 'Accept: text/plain'
 echo
 echo
 
@@ -39,7 +39,7 @@ echo
 echo "03. Seed an entity to PATCH"
 echo "==========================="
 payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "P1": { "type": "Property", "value": 1 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -47,14 +47,14 @@ echo
 echo "04. PATCH with Content-Type application/merge-patch+json -> accepted (RFC 7396)"
 echo "==============================================================================="
 payload='{ "P1": "urn:ngsi-ld:null", "P2": { "type": "Property", "value": 2 } }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
 
 echo "05. GET — P1 deleted, P2 added (the merge-patch was applied)"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
 echo
 echo
 
@@ -62,14 +62,14 @@ echo
 echo "06. POST /entities with Content-Type application/merge-patch+json -> 415 (PATCH-only media type)"
 echo "==============================================================================================="
 payload='{ "id": "urn:ngsi-ld:T:E2", "type": "T" }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
 
 echo "07. PATCH with Content-Type text/plain -> 415"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload 'Just a text' -H 'Content-Type: text/plain'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload 'Just a text' -H 'Content-Type: text/plain'
 echo
 echo
 
@@ -82,7 +82,7 @@ echo
 echo "08. Batch Merge (POST /entityOperations/merge) with application/merge-patch+json -> 415 (PATCH-only media type)"
 echo "=============================================================================================================="
 payload='[ { "id": "urn:ngsi-ld:T:E1", "type": "T", "P2": { "type": "Property", "value": 3 } } ]'
-swCurl --url /ngsi-ld/v1/entityOperations/merge -X POST --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/entityOperations/merge -X POST --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
@@ -93,7 +93,7 @@ echo
 echo "09. Update Attributes (PATCH /entities/{id}/attrs) with application/merge-patch+json -> 204"
 echo "=========================================================================================="
 payload='{ "P3": { "type": "Property", "value": 9 } }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
@@ -101,7 +101,7 @@ echo
 echo "10. Seed a registration to PATCH"
 echo "================================"
 payload='{ "id": "urn:ngsi-ld:csr:R1", "type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "T" } ] } ], "endpoint": "http://localhost:9000" }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -109,7 +109,7 @@ echo
 echo "11. Update Registration (PATCH /csourceRegistrations/{id}) with application/merge-patch+json -> 204"
 echo "=================================================================================================="
 payload='{ "description": "patched via merge-patch media type" }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:csr:R1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:csr:R1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
@@ -117,7 +117,7 @@ echo
 echo "12. Partial Attribute Update (PATCH /entities/{id}/attrs/{attrId}) with application/merge-patch+json -> 204"
 echo "========================================================================================================="
 payload='{ "value": 7 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/P2 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/P2 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
@@ -125,7 +125,7 @@ echo
 echo "13. Seed a subscription to PATCH"
 echo "================================"
 payload='{ "id": "urn:ngsi-ld:Subscription:S1", "type": "Subscription", "entities": [ { "type": "T" } ], "notification": { "endpoint": { "uri": "http://localhost:9999/n" } } }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 echo
 
@@ -133,7 +133,7 @@ echo
 echo "14. Update Subscription (PATCH /subscriptions/{id}) with application/merge-patch+json -> 204"
 echo "==========================================================================================="
 payload='{ "description": "patched via merge-patch media type" }'
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 -X PATCH --payload "$payload" -H 'Content-Type: application/merge-patch+json'
 echo
 echo
 
@@ -147,7 +147,7 @@ echo
 # made and no § 6.3.5 NGSILD-Warning is emitted.
 echo "15. GET /entities/{id} with an unacceptable Accept (application/xml) -> 406 + representation list"
 echo "==============================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -H 'Accept: application/xml'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -H 'Accept: application/xml'
 echo
 echo
 
@@ -301,4 +301,4 @@ Content-Length: 220
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

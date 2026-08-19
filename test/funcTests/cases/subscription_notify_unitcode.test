@@ -18,8 +18,8 @@ Subscription notification — unitCode sub-attribute round-trips into the notifi
 subscription notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -28,8 +28,8 @@ EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
 
 echo "01. Subscribe to T, then create an entity whose Property carries unitCode=CEL"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temperature":{"type":"Property","value":5,"unitCode":"CEL"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":'"$EP"'}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","temperature":{"type":"Property","value":5,"unitCode":"CEL"}}' | grep HTTP
 echo
 echo
 
@@ -82,5 +82,5 @@ HTTP/1.1 201 Created
 ]
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

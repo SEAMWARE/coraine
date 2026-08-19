@@ -16,16 +16,16 @@ URL parameter ?local=true suppresses distops on /types, /attributes, /temporal/e
 url-param distops query temporal
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --troe ramdb -dist
-swBrokerStart -role CP1 --troe ramdb -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --troe ramdb -dist
+coraineStart -role CP1 --troe ramdb -dist
 
 --RUN--
 
 echo "01. Seed CP1: Sensor with temp"
 echo "=============================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22,"observedAt":"2026-04-01T00:00:00Z"}}'
 echo
 echo
@@ -33,7 +33,7 @@ echo
 
 echo "02. Seed CB: Vehicle with speed"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-01T00:00:00Z"}}'
 echo
 echo
@@ -48,49 +48,49 @@ payload='{
   "mode": "inclusive",
   "information": [{"entities": [{"type": "Sensor"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. GET /attributes (default) — speed + temp (forwarded)"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/attributes
+corCurl --url /ngsi-ld/v1/attributes
 echo
 echo
 
 
 echo "05. GET /attributes?local=true — only speed (no forward)"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/attributes --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/attributes --urlParams 'local=true'
 echo
 echo
 
 
 echo "06. GET /attributes/temp (default) — found via CP1"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/attributes/temp
+corCurl --url /ngsi-ld/v1/attributes/temp
 echo
 echo
 
 
 echo "07. GET /attributes/temp?local=true — 404 (not local)"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/attributes/temp --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/attributes/temp --urlParams 'local=true'
 echo
 echo
 
 
 echo "08. GET /temporal/entities/urn:S1 — accepted (plugin layer 501 is fine)"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z'
 echo
 echo
 
 
 echo "09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)"
 echo "============================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
 echo
 echo
 
@@ -235,7 +235,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -21,14 +21,14 @@
 context batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create P via context A (P -> https://A.example/P)"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{
   "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld", {"P": "https://A.example/P"}],
   "id": "urn:ngsi-ld:X:1", "type": "T", "P": {"type": "Property", "value": "fromA"}
 }' | grep HTTP
@@ -38,7 +38,7 @@ echo
 
 echo "02. PATCH P via context B (P -> https://B.example/P) — adds a second attribute"
 echo "=============================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:X:1/attrs -H 'Content-Type: application/ld+json' --payload '{
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:X:1/attrs -H 'Content-Type: application/ld+json' --payload '{
   "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld", {"P": "https://B.example/P"}],
   "P": {"type": "Property", "value": "fromB"}
 }' | grep HTTP
@@ -48,14 +48,14 @@ echo
 
 echo "03. GET (no @context) — BOTH A.example/P=fromA and B.example/P=fromB present"
 echo "============================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:X:1 | grep -E '"https://[AB].example/P"|"value"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:X:1 | grep -E '"https://[AB].example/P"|"value"'
 echo
 echo
 
 
 echo "04. Batch upsert — each element resolves its attrs against its own @context"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert -H 'Content-Type: application/ld+json' --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert -H 'Content-Type: application/ld+json' --payload '[
   {"@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld", {"w": "https://w.example/w"}], "id": "urn:ngsi-ld:U:1", "type": "T", "w": {"type": "Property", "value": 1}},
   {"@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld", {"z": "https://z.example/z"}], "id": "urn:ngsi-ld:U:2", "type": "T", "z": {"type": "Property", "value": 2}}
 ]' | grep HTTP
@@ -65,8 +65,8 @@ echo
 
 echo "05. GET U:1 (no @context) — w.example/w ; GET U:2 — z.example/z"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:U:1 | grep -oE '"https://w.example/w"'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:U:2 | grep -oE '"https://z.example/z"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:U:1 | grep -oE '"https://w.example/w"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:U:2 | grep -oE '"https://z.example/z"'
 echo
 echo
 
@@ -102,4 +102,4 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -25,8 +25,8 @@ CSR Subscription — notificationTrigger is not applicable (silently stripped)
 csr-sub subscription
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,14 +38,14 @@ payload='{
   "entities": [ { "type": "Vehicle" } ],
   "notification": { "endpoint": { "uri": "http://localhost/notify" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. GET urn:CSRsub:1 — body must NOT carry notificationTrigger"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:1
 echo
 echo
 
@@ -59,21 +59,21 @@ payload='{
   "notificationTrigger": [ "entityCreated", "entityDeleted" ],
   "notification": { "endpoint": { "uri": "http://localhost/notify2" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "04. GET urn:CSRsub:2 — notificationTrigger stripped at create, absent on read"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:2
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:2
 echo
 echo
 
 
 echo "05. List both — neither carries notificationTrigger"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions
+corCurl --url /ngsi-ld/v1/csourceSubscriptions
 echo
 echo
 
@@ -86,14 +86,14 @@ payload='{
   "entities": [ { "type": "Vehicle" } ],
   "notification": { "endpoint": { "uri": "http://localhost/notifyE" } }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
-swCurl --url /ngsi-ld/v1/subscriptions/urn:Sub:E1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:Sub:E1
 echo
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 
 --EXPECT--
 01. POST CSR-sub urn:CSRsub:1 without notificationTrigger

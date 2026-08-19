@@ -19,9 +19,9 @@ CSR Subscription - updated / newlyMatching / noLongerMatching on CSR PATCH
 csr-sub subscription update
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -43,14 +43,14 @@ swBrokerStart -dist
 
 echo "01. Register CSR-A (Vehicle propertyNames=[speed])"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "02. Subscribe S (Vehicle)"
 echo "========================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s"}}}'
 echo
 echo
 
@@ -64,7 +64,7 @@ echo
 
 echo "04. PATCH CSR-A propertyNames := [speed, color] (still Vehicle)"
 echo "==============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A --payload '{"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed","color"]}]}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A --payload '{"information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed","color"]}]}'
 echo
 echo
 
@@ -78,7 +78,7 @@ echo
 
 echo "06. PATCH CSR-A entities := [{type: Temperature}] (no longer Vehicle)"
 echo "====================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A --payload '{"information":[{"entities":[{"type":"Temperature"}]}]}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A --payload '{"information":[{"entities":[{"type":"Temperature"}]}]}'
 echo
 echo
 
@@ -92,7 +92,7 @@ echo
 
 echo "08. PATCH CSR-A entities := [{type: Vehicle}] (matches again)"
 echo "============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A --payload '{"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:A --payload '{"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
@@ -532,6 +532,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

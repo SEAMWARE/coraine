@@ -12,9 +12,9 @@
 #include <stdint.h>                                  // uint64_t
 #include <time.h>                                    // clock_gettime
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/SwRestVerb.h"                       // SwVerbPost
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/CorRestVerb.h"                       // CorVerbPost
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjClone.h"                           // kjClone
@@ -25,35 +25,35 @@
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swJsonld/swldInit.h"                       // swldCoreContext, SWLD_CORE_CONTEXT_URL
-#include "swJsonld/SwldContext.h"                    // SwldContext
-#include "swJsonld/swldCompactTree.h"                // swldCompactTreeWith
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext, CORLD_CORE_CONTEXT_URL
+#include "corJsonld/CorLdContext.h"                    // CorLdContext
+#include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
-#include "swNgsild/swNgsild.h"                       // ldError, ldCheckEntity, LdOp, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckEntity.h"                  // ldCheckEntity
-#include "swNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
-#include "swNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
+#include "corNgsild/corNgsild.h"                       // ldError, ldCheckEntity, LdOp, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckEntity.h"                  // ldCheckEntity
+#include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
+#include "corNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
 
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
-#include "swNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
+#include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 
 #include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
 
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
-#include "swNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
-#include "swNgsild/LdBatchErrors.h"                  // LdBatchErrorList, ldBatchErrorListAdd
-#include "swNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
+#include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected
+#include "corNgsild/LdBatchErrors.h"                  // LdBatchErrorList, ldBatchErrorListAdd
+#include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
-#include "swNgsild/LdGeoRel.h"                       // LdGeoRel, LdGeoWithin
+#include "corNgsild/LdGeoRel.h"                       // LdGeoRel, LdGeoWithin
 
 #include "ktrace/kTrace.h"                           // KT_T
-#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/postEntities.h"            // Own interface
 
@@ -124,14 +124,14 @@ static KjNode* wrapApiGeoPropAsStorage(KjNode* entityP, const char* apiPropName,
   if (attrP == NULL || attrP->type != KjObject)
     return NULL;
 
-  KjNode* synthetic = kjObject(swRest.kjsonP, NULL);
-  KjNode* prop      = kjObject(swRest.kjsonP, (char*) storagePropIri);
-  KjNode* wrapInst  = kjObject(swRest.kjsonP, "@none");
+  KjNode* synthetic = kjObject(corRest.kjsonP, NULL);
+  KjNode* prop      = kjObject(corRest.kjsonP, (char*) storagePropIri);
+  KjNode* wrapInst  = kjObject(corRest.kjsonP, "@none");
 
   // Borrow children of the API attr (type / value) into @none wrapper
   for (KjNode* c = attrP->value.firstChildP; c != NULL; c = c->next)
   {
-    KjNode* linked = kjClone(swRest.kjsonP, c);
+    KjNode* linked = kjClone(corRest.kjsonP, c);
     kjChildAdd(wrapInst, linked);
   }
 
@@ -150,7 +150,7 @@ static KjNode* wrapApiGeoPropAsStorage(KjNode* entityP, const char* apiPropName,
 // (location / observationSpace / operationSpace), check that the
 // entity's matching GeoProperty lies within the CSR's declared
 // boundary. Uses the DB plugin's registered GEOS callback so
-// swNgsild/swBroker main need no direct GEOS dependency.
+// corNgsild/coraine main need no direct GEOS dependency.
 //
 // Behaviour:
 //   - CSR has no geo fields → match (not restricted).
@@ -195,7 +195,7 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
       return false;   // entity has no matching geo property → fail this CSR
 
     int   cbSize = kjFastRenderSize(coordsP) + 1;
-    char* cbuf   = (char*) kaAlloc(&swRest.kalloc, cbSize);
+    char* cbuf   = (char*) kaAlloc(&corRest.kalloc, cbSize);
     kjFastRender(coordsP, cbuf);
 
     if (!db.geoMatchFunc(synthetic, &georel, typeP->value.s, cbuf, pairs[i].storageIri))
@@ -228,7 +228,7 @@ static char* renderFragmentWithContext(KjNode* fragP)
     kjChildRemove(fragP, atCtx);
 
   int   bufSize = kjFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
   kjFastRender(fragP, buf);
   return buf;
@@ -291,7 +291,7 @@ static const char* fragmentAttrList(KjNode* fragP)
 // -----------------------------------------------------------------------------
 //
 // Local appendBatchEntityError was a thin duplicate of the canonical
-// builder. It now lives in swNgsild as ldBatchErrorListAdd which records
+// builder. It now lives in corNgsild as ldBatchErrorListAdd which records
 // into a struct list and only materialises the JSON tree at finalize time.
 
 
@@ -331,13 +331,13 @@ static int forwardCreateEntity(LdRegCacheItem* csr,
   const char* path    = "/ngsi-ld/v1/entities";
   int         baseLen = strlen(csr->endpoint);
   int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
+  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
   strcpy(url, csr->endpoint);
   strcpy(url + baseLen, path);
 
   char* body = renderFragmentWithContext(fragP);
 
-  return ldDistOpSend(csr, SwVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
+  return ldDistOpSend(csr, CorVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
 }
 
 
@@ -348,7 +348,7 @@ static int forwardCreateEntity(LdRegCacheItem* csr,
 //
 bool postEntities(void)
 {
-  KjNode* entityP = swRest.in.requestTree;
+  KjNode* entityP = corRest.in.requestTree;
 
   //
   // Must have a JSON payload
@@ -356,7 +356,7 @@ bool postEntities(void)
   //
   // Validate the entity
   //
-  if (ldCheckEntity(entityP, LdOpCreateEntity, NULL, &swRest.kalloc) == false)
+  if (ldCheckEntity(entityP, LdOpCreateEntity, NULL, &corRest.kalloc) == false)
     return true;
 
   //
@@ -386,7 +386,7 @@ bool postEntities(void)
   // ?local=true. Passes: exclusive → redirect → inclusive → local.
   // Auxiliary is retrieve-only (§ 4.3.6.2) — never enters write dispatch.
   //
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   //
   // Failure tracking for partial-success 207 (§ 5.6.1.4 + § 6.4.3.1).
@@ -397,7 +397,7 @@ bool postEntities(void)
   // partial-success 207 from complete-failure 409.
   //
   LdBatchErrorList errors;
-  ldBatchErrorListInit(&errors, &swRest.kalloc);
+  ldBatchErrorListInit(&errors, &corRest.kalloc);
 
   bool anySucceeded = false;
 
@@ -408,10 +408,10 @@ bool postEntities(void)
   // enforces this implicitly by chopping the claimed slice; the local
   // path has to check explicitly.
   //
-  if (swNgsild.local == true && tenantP->regCacheP != NULL)
+  if (corNgsild.local == true && tenantP->regCacheP != NULL)
   {
     const char* conflictRegId = ldRegCacheLocalWriteConflictTree((LdRegCache*) tenantP->regCacheP,
-                                                                 entityId, entityP, &swRest.kalloc);
+                                                                 entityId, entityP, &corRest.kalloc);
     if (conflictRegId != NULL)
     {
       ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
@@ -421,7 +421,7 @@ bool postEntities(void)
     }
   }
 
-  if (swNgsild.local == false && tenantP->regCacheP != NULL)
+  if (corNgsild.local == false && tenantP->regCacheP != NULL)
   {
     // Type vector built from the entity's "type" — string or array per § 4.5.1.
     KjNode* typeP        = kjLookup(entityP, "type");
@@ -440,7 +440,7 @@ bool postEntities(void)
           if (t->type == KjString) n++;
         if (n > 0)
         {
-          typeArr = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
+          typeArr = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
           for (KjNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
             if (t->type == KjString)
@@ -472,7 +472,7 @@ bool postEntities(void)
           if (s->type == KjString) n++;
         if (n > 0)
         {
-          entityScopeV = (char**) kaAlloc(&swRest.kalloc, (n + 1) * sizeof(char*));
+          entityScopeV = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
           for (KjNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
             if (s->type == KjString)
@@ -495,7 +495,7 @@ bool postEntities(void)
                                                   entityId, typeArr, entityScopeV,
                                                   LdRegModeInclusive, &inclV);
 
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
     bool        loopSeen = ldDistOpLoopDetected(ownAlias);
 
     // A loop (our own alias already in the Via — § 9.7) no longer skips the
@@ -511,7 +511,7 @@ bool postEntities(void)
       // → inclusive). Phase 1 builds per-RegistrationInfo fragments, chops
       // claimed attrs from entityP (exclusive/redirect, NOT inclusive), and
       // pre-emits Conflict errors for unsupported-op cases. Phase 2 fires all
-      // forwards in parallel via swRestClientMulti; phase 3 walks results.
+      // forwards in parallel via corRestClientMulti; phase 3 walks results.
       //
       // The semantic order of chopping is preserved because phase 1 runs the
       // same exclusive → redirect → inclusive sweep. The forwards themselves
@@ -527,10 +527,10 @@ bool postEntities(void)
         for (int i = 0; i < counts[g]; i++)
           for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
       memset(items, 0, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      KjNode**             itemFrag = (KjNode**) kaAlloc(&swRest.kalloc, total * sizeof(KjNode*));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      KjNode**             itemFrag = (KjNode**) kaAlloc(&corRest.kalloc, total * sizeof(KjNode*));
       int                  itemCount = 0;
       memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -561,7 +561,7 @@ bool postEntities(void)
           }
           bool loop = loopSeen || ldDistOpCsrWouldLoop(csr, ownAlias);
 
-          bool opSupported = ldRegOpSupported(csr, swRest.serviceP->ldOp);
+          bool opSupported = ldRegOpSupported(csr, corRest.serviceP->ldOp);
 
           for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
           {
@@ -571,7 +571,7 @@ bool postEntities(void)
             // Redirect: clone here, one detach sweep after the loop —
             // multiple redirect CSRs covering the same entity all need
             // a copy. Inclusive: clone — local create keeps them.
-            KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, /*detach=*/(g == 0));
+            KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, corRest.kjsonP, /*detach=*/(g == 0));
             if (fragP == NULL) continue;
 
             if (!opSupported)
@@ -600,15 +600,15 @@ bool postEntities(void)
             }
 
             int   baseLen = strlen(csr->endpoint);
-            char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1);
+            char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
             strcpy(url, csr->endpoint);
             strcpy(url + baseLen, path);
 
             // Compact a clone for the wire — fragP stays expanded for the
             // error bookkeeping (fragmentShortAttrList) below, and CSRs may
             // compact with different contexts (csi.jsonldContext).
-            KjNode* wireP = kjClone(swRest.kjsonP, fragP);
-            swldCompactTreeWith(wireP, ldDistOpForwardContext(csr));
+            KjNode* wireP = kjClone(corRest.kjsonP, fragP);
+            corLdCompactTreeWith(wireP, ldDistOpForwardContext(csr));
 
             char* body = renderFragmentWithContext(wireP);
 
@@ -636,14 +636,14 @@ bool postEntities(void)
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!entityInfoCoversId(riP, entityId)) continue;
-          KjNode* drop = ldEntityFragmentForInfo(entityP, riP, swRest.kjsonP, /*detach=*/true);
+          KjNode* drop = ldEntityFragmentForInfo(entityP, riP, corRest.kjsonP, /*detach=*/true);
           (void) drop;
         }
       }
 
       if (itemCount > 0)
       {
-        ldDistOpSendMulti(items, itemCount, SwVerbPost, ownAlias, results);
+        ldDistOpSendMulti(items, itemCount, CorVerbPost, ownAlias, results);
 
         for (int i = 0; i < itemCount; i++)
         {
@@ -687,7 +687,7 @@ bool postEntities(void)
   }
   else
   {
-    ldApiEntityToDbModel(entityP, &swRest.kalloc, 0);
+    ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
 
     int r = db.entityCreate(tenantP, idP->value.s, entityP);
 
@@ -710,13 +710,13 @@ bool postEntities(void)
       // entitySnapshot at dispatch time to materialize per-attribute rows.
       KjNode* typeNode = kjLookup(entityP, "type");
       const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
-      TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+      TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
       memset(tevP, 0, sizeof(*tevP));
       tevP->op             = TroeOpEntityCreated;
       tevP->tenantP        = tenantP;
       tevP->entityId       = idP->value.s;
       tevP->entityType     = etype;
-      tevP->modifiedAtNs   = swRest.requestStartTime;
+      tevP->modifiedAtNs   = corRest.requestStartTime;
       tevP->entitySnapshot = entityP;
       troeDeferEntityEvent(tevP);
     }
@@ -800,16 +800,16 @@ bool postEntities(void)
   if (errorsCount == 0)
   {
     // 201 Created -- set Location and Link headers, no body
-    swRest.out.httpStatusCode = 201;
+    corRest.out.httpStatusCode = 201;
 
     // Per § 5.6.1 the Location must be a URI identifying the created resource.
     // That means the full API path /ngsi-ld/v1/entities/{id}, not just the id.
     const char* prefix  = "/ngsi-ld/v1/entities/";
     int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
-    char*       locBuf  = kaAlloc(&swRest.kalloc, locLen);
+    char*       locBuf  = kaAlloc(&corRest.kalloc, locLen);
     strcpy(locBuf, prefix);
     strcat(locBuf, idP->value.s);
-    swRestOutHeaderAdd("Location", locBuf);
+    corRestOutHeaderAdd("Location", locBuf);
 
     // § 6.3.6: no Link header on no-body responses.
 
@@ -820,16 +820,16 @@ bool postEntities(void)
   // Build BatchOperationResult response body (§ 5.2.17). Materialise the
   // errors[] tree now — this is the only path that needs it.
   //
-  KjNode* successArrayP = kjArray(swRest.kjsonP, "success");
+  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(swRest.kjsonP, NULL, idP->value.s));
+    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, idP->value.s));
 
-  KjNode* respBodyP = kjObject(swRest.kjsonP, NULL);
+  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, ldBatchErrorListToTree(&errors, swRest.kjsonP));
+  kjChildAdd(respBodyP, ldBatchErrorListToTree(&errors, corRest.kjsonP));
 
-  swRest.out.responseTree   = respBodyP;
-  swRest.out.httpStatusCode = 207;
+  corRest.out.responseTree   = respBodyP;
+  corRest.out.httpStatusCode = 207;
 
   return true;
 }

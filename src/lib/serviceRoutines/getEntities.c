@@ -17,39 +17,39 @@
 #include "kjson/kjParse.h"                           // kjParse
 #include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjChildAdd, kjChildRemove
 #include "kjson/kjChildReplace.h"                    // kjChildReplace
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestClient.h"                     // SwRestClientRequest, swRestClientSend
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
-#include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swJsonld/swldExpandTree.h"                 // swldExpandTree
-#include "swJsonld/swldCompact.h"                    // swldCompact
-#include "swJsonld/swldInit.h"                       // swldCoreContext
-#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
-#include "swNgsild/ldOrderSort.h"                    // ldOrderSort
-#include "swNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestClient.h"                     // CorRestClientRequest, corRestClientSend
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
+#include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
+#include "corJsonld/corLdCompact.h"                    // corLdCompact
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldParamsValidate.h"               // ldParamsValidate
+#include "corNgsild/ldOrderSort.h"                    // ldOrderSort
+#include "corNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
 #include "kalloc/kaStrdup.h"                        // kaStrdup
 #include "kjson/kjRender.h"                         // kjFastRender
 #include "kjson/kjRenderSize.h"                     // kjFastRenderSize
-#include "swNgsild/ldStripAtContext.h"              // ldStripAtContext
-#include "swNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
-#include "swRest/SwRestIn.h"                 // swAcceptParse, SwMimeType
-#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
-#include "swNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistScopeMerge
-#include "swNgsild/ldQAttrs.h"                       // ldQAttrs
-#include "swNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "swNgsild/ldTraceLevels.h"                  // LdTRegMatch
-#include "swNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop, ldDistOpForwardContext
-#include "swNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
-#include "swNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
-#include "swNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
-#include "swNgsild/ldQParse.h"                       // ldQParse, ldQStripLinked
-#include "swNgsild/LdTypeExpr.h"                     // ldTypeExprParse
-#include "swNgsild/LdScopeExpr.h"                    // ldScopeExprParse
-#include "swNgsild/LdGeoRel.h"                       // ldGeoRelParse
+#include "corNgsild/ldStripAtContext.h"              // ldStripAtContext
+#include "corNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
+#include "corRest/CorRestIn.h"                 // corAcceptParse, CorMimeType
+#include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
+#include "corNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistScopeMerge
+#include "corNgsild/ldQAttrs.h"                       // ldQAttrs
+#include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTraceLevels.h"                  // LdTRegMatch
+#include "corNgsild/ldDistOp.h"                       // ldDistOpCsrWouldLoop, ldDistOpForwardContext
+#include "corNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
+#include "corNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
+#include "corNgsild/ldQParse.h"                       // ldQParse, ldQStripLinked
+#include "corNgsild/LdTypeExpr.h"                     // ldTypeExprParse
+#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
+#include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter
@@ -59,7 +59,7 @@
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader, snapshotGetEntities
 
-#include "swBrokerTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/getEntities.h"             // Own interface
 
@@ -110,17 +110,17 @@ static void applyLinkedQPostFilter(KjNode* arrayP)
 {
   if (arrayP == NULL || arrayP->type != KjArray)
     return;
-  if (swNgsild.qExpr == NULL || !qHasLinked(swNgsild.qExpr))
+  if (corNgsild.qExpr == NULL || !qHasLinked(corNgsild.qExpr))
     return;
 
-  Tenant* tP = (Tenant*) swNgsild.tenantP;
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
 
   KjNode* entityP = arrayP->value.firstChildP;
   while (entityP != NULL)
   {
     KjNode* nextP = entityP->next;
 
-    if (!ldEntityMatchQEx(entityP, swNgsild.qExpr, linkedFetcher, tP))
+    if (!ldEntityMatchQEx(entityP, corNgsild.qExpr, linkedFetcher, tP))
       kjChildRemove(arrayP, entityP);
 
     entityP = nextP;
@@ -155,31 +155,31 @@ static void applyResultFilters(KjNode* arrayP)
     KjNode* nextP = entityP->next;
     bool    keep  = true;
 
-    if (keep && swNgsild.typeExpr != NULL)
+    if (keep && corNgsild.typeExpr != NULL)
     {
       KjNode* typeP = kjLookup(entityP, "type");
-      if (!ldEntityMatchType(typeP, swNgsild.typeExpr))
+      if (!ldEntityMatchType(typeP, corNgsild.typeExpr))
         keep = false;
     }
 
-    if (keep && swNgsild.qExpr != NULL)
+    if (keep && corNgsild.qExpr != NULL)
     {
-      if (!ldEntityMatchQEx(entityP, swNgsild.qExpr, linkedFetcher, (Tenant*) swNgsild.tenantP))
+      if (!ldEntityMatchQEx(entityP, corNgsild.qExpr, linkedFetcher, (Tenant*) corNgsild.tenantP))
         keep = false;
     }
 
-    if (keep && swNgsild.scopeExpr != NULL)
+    if (keep && corNgsild.scopeExpr != NULL)
     {
       KjNode* scopeP = kjLookup(entityP, "scope");
-      if (!ldEntityMatchScope(scopeP, swNgsild.scopeExpr))
+      if (!ldEntityMatchScope(scopeP, corNgsild.scopeExpr))
         keep = false;
     }
 
-    if (keep && swNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
+    if (keep && corNgsild.geoRel != NULL && db.geoMatchFunc != NULL)
     {
-      if (!db.geoMatchFunc(entityP, swNgsild.geoRel, swNgsild.geometry,
-                           swNgsild.coordinates,
-                           swNgsild.geoproperty ? swNgsild.geoproperty : "location"))
+      if (!db.geoMatchFunc(entityP, corNgsild.geoRel, corNgsild.geometry,
+                           corNgsild.coordinates,
+                           corNgsild.geoproperty ? corNgsild.geoproperty : "location"))
         keep = false;
     }
 
@@ -218,7 +218,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
   // forward exactly like pick does — the per-source projection is safe
   // (selection re-runs post-assembly), and without it the forward asks
   // the source for everything.
-  char** projV = (swNgsild.pickV != NULL) ? swNgsild.pickV : swNgsild.attrsV;
+  char** projV = (corNgsild.pickV != NULL) ? corNgsild.pickV : corNgsild.attrsV;
 
   if (projV == NULL)
     return NULL;
@@ -228,16 +228,16 @@ static char** computeWantedAttrs(KAlloc* kaP)
   while (projV[pickN] != NULL)
     pickN++;
 
-  char** qV   = ldQAttrs(swNgsild.qExpr, kaP);
+  char** qV   = ldQAttrs(corNgsild.qExpr, kaP);
   int    qN   = 0;
   if (qV != NULL)
     while (qV[qN] != NULL)
       qN++;
 
-  bool hasGeoQ        = (swNgsild.georel != NULL);
-  bool acceptGeoJson  = (swAcceptParse(swRest.in.accept) == SwMimeGeoJson);
+  bool hasGeoQ        = (corNgsild.georel != NULL);
+  bool acceptGeoJson  = (corAcceptParse(corRest.in.accept) == CorMimeGeoJson);
 
-  int cap = pickN + qN + 2 + swNgsild.orderByCount;
+  int cap = pickN + qN + 2 + corNgsild.orderByCount;
   char** wanted = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
   int    n      = 0;
 
@@ -258,9 +258,9 @@ static char** computeWantedAttrs(KAlloc* kaP)
 
   if (hasGeoQ)
   {
-    const char* gp = swNgsild.geoproperty
-                     ? swNgsild.geoproperty
-                     : swldExpand(swNgsild.contextP, "location", kaP, NULL, NULL);
+    const char* gp = corNgsild.geoproperty
+                     ? corNgsild.geoproperty
+                     : corLdExpand(corNgsild.contextP, "location", kaP, NULL, NULL);
     WANT_ADD(gp);
   }
 
@@ -271,8 +271,8 @@ static char** computeWantedAttrs(KAlloc* kaP)
     // an explicit param this was previously skipped, so a geo+json query with
     // a `pick` that did not list location forwarded a pick lacking it: the
     // Context Source then omitted location and the rendered geometry was null.
-    const char* gmName = (swNgsild.geometryProperty != NULL) ? swNgsild.geometryProperty : "location";
-    char* gmp = swldExpand(swNgsild.contextP, gmName, kaP, NULL, NULL);
+    const char* gmName = (corNgsild.geometryProperty != NULL) ? corNgsild.geometryProperty : "location";
+    char* gmp = corLdExpand(corNgsild.contextP, gmName, kaP, NULL, NULL);
     WANT_ADD(gmp);
   }
 
@@ -280,8 +280,8 @@ static char** computeWantedAttrs(KAlloc* kaP)
   // CSR must return the attr values that will be sorted on, otherwise the
   // merged entity has nothing to compare and the sort order silently
   // collapses (or worse, depends on which slice arrived first).
-  for (int i = 0; i < swNgsild.orderByCount; i++)
-    WANT_ADD(swNgsild.orderByV[i].attrName);
+  for (int i = 0; i < corNgsild.orderByCount; i++)
+    WANT_ADD(corNgsild.orderByV[i].attrName);
 
   #undef WANT_ADD
 
@@ -354,11 +354,11 @@ static const char* urlEncodeReserved(const char* s, KAlloc* kaP)
 // `ctx` MUST NOT be NULL — callers ensure that (e.g. CSR's forwardCtxP
 // is initialised to core at registration time).
 //
-static const char* compactForUrl(SwldContext* ctx, const char* iri, KAlloc* kaP)
+static const char* compactForUrl(CorLdContext* ctx, const char* iri, KAlloc* kaP)
 {
   if (iri == NULL || iri[0] == 0)
     return "";
-  const char* shorter = swldCompact(ctx, iri);
+  const char* shorter = corLdCompact(ctx, iri);
   if (shorter == NULL || shorter == iri)
     return urlEncodeReserved(iri, kaP);
   // Compaction returned a new pointer — assume it's a short alias from
@@ -367,12 +367,12 @@ static const char* compactForUrl(SwldContext* ctx, const char* iri, KAlloc* kaP)
 }
 
 
-static const char* buildPickParam(char** vec, KAlloc* kaP, SwldContext* csrCtx)
+static const char* buildPickParam(char** vec, KAlloc* kaP, CorLdContext* csrCtx)
 {
   if (vec == NULL || vec[0] == NULL)
     return "";
 
-  if (csrCtx == NULL) csrCtx = swldCoreContext();
+  if (csrCtx == NULL) csrCtx = corLdCoreContext();
 
   int totalLen = 0;
   for (int i = 0; vec[i] != NULL; i++)
@@ -416,7 +416,7 @@ static const char* buildPickParam(char** vec, KAlloc* kaP, SwldContext* csrCtx)
 // Returns the rendered "&pick=A,B,C" fragment, "" when no pick should
 // be sent (source exports everything AND user wants everything).
 //
-static const char* intersectAndPick(char** exportV, char** wanted, KAlloc* kaP, bool* outSkipP, SwldContext* csrCtx)
+static const char* intersectAndPick(char** exportV, char** wanted, KAlloc* kaP, bool* outSkipP, CorLdContext* csrCtx)
 {
   *outSkipP = false;
 
@@ -536,7 +536,7 @@ static void apiAttrToStorageWrap(KjNode* entityP)
       continue;
     }
 
-    KjNode* wrapperP = kjObject(swRest.kjsonP, curP->name);
+    KjNode* wrapperP = kjObject(corRest.kjsonP, curP->name);
     kjChildReplace(entityP, curP, wrapperP);
     curP->name = (char*) "@none";
     curP->next = NULL;
@@ -568,7 +568,7 @@ static void srcMapAdd(KjNode* srcMap, const char* entityId, const char* source)
   KjNode* arrP = kjLookup(srcMap, entityId);
   if (arrP == NULL)
   {
-    arrP = kjArray(swRest.kjsonP, entityId);
+    arrP = kjArray(corRest.kjsonP, entityId);
     kjChildAdd(srcMap, arrP);
   }
 
@@ -578,7 +578,7 @@ static void srcMapAdd(KjNode* srcMap, const char* entityId, const char* source)
       return;
   }
 
-  kjChildAdd(arrP, kjString(swRest.kjsonP, NULL, source));
+  kjChildAdd(arrP, kjString(corRest.kjsonP, NULL, source));
 }
 
 
@@ -622,31 +622,31 @@ static KjNode* forwardQueryToCSR(LdRegCacheItem* csr, const char* queryString)
   int baseLen = strlen(base);
   int pathLen = strlen(path);
   int qsLen   = strlen(queryString);
-  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, queryString);
 
-  SwRestClientRequest  req;
-  SwRestClientResponse resp;
+  CorRestClientRequest  req;
+  CorRestClientResponse resp;
 
-  swRestClientRequestInit(&req, SwVerbGet, url, &swRest.kalloc);
-  swRestClientRequestTimeout(&req, 5000, 10000);
+  corRestClientRequestInit(&req, CorVerbGet, url, &corRest.kalloc);
+  corRestClientRequestTimeout(&req, 5000, 10000);
 
-  int rc = swRestClientSend(&req, &resp);
-  swRestClientResponseCleanup(&resp);   // free the grown response header vector
+  int rc = corRestClientSend(&req, &resp);
+  corRestClientResponseCleanup(&resp);   // free the grown response header vector
   if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300)
     return NULL;
   if (resp.body == NULL || resp.bodyLen == 0)
     return NULL;
 
   // Parse response body (need mutable copy for kjParse)
-  char* bodyCopy = (char*) kaAlloc(&swRest.kalloc, resp.bodyLen + 1);
+  char* bodyCopy = (char*) kaAlloc(&corRest.kalloc, resp.bodyLen + 1);
   memcpy(bodyCopy, resp.body, resp.bodyLen);
   bodyCopy[resp.bodyLen] = 0;
 
-  KjNode* treeP = kjParse(swRest.kjsonP, bodyCopy);
+  KjNode* treeP = kjParse(corRest.kjsonP, bodyCopy);
   if (treeP != NULL)
     ldStripAtContext(treeP);
   return treeP;  // KjArray of entities (in API format)
@@ -685,30 +685,30 @@ static KjNode* forwardEntityMapToCSR(LdRegCacheItem* csr, const char* queryStrin
   int baseLen = strlen(base);
   int pathLen = strlen(path);
   int qsLen   = strlen(queryString);
-  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, queryString);
 
-  SwRestClientRequest  req;
-  SwRestClientResponse resp;
+  CorRestClientRequest  req;
+  CorRestClientResponse resp;
 
-  swRestClientRequestInit(&req, SwVerbGet, url, &swRest.kalloc);
-  swRestClientRequestTimeout(&req, 5000, 10000);
+  corRestClientRequestInit(&req, CorVerbGet, url, &corRest.kalloc);
+  corRestClientRequestTimeout(&req, 5000, 10000);
 
-  int rc = swRestClientSend(&req, &resp);
-  swRestClientResponseCleanup(&resp);   // free the grown response header vector
+  int rc = corRestClientSend(&req, &resp);
+  corRestClientResponseCleanup(&resp);   // free the grown response header vector
   if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300)
     return NULL;
   if (resp.body == NULL || resp.bodyLen == 0)
     return NULL;
 
-  char* bodyCopy = (char*) kaAlloc(&swRest.kalloc, resp.bodyLen + 1);
+  char* bodyCopy = (char*) kaAlloc(&corRest.kalloc, resp.bodyLen + 1);
   memcpy(bodyCopy, resp.body, resp.bodyLen);
   bodyCopy[resp.bodyLen] = 0;
 
-  KjNode* mapTreeP = kjParse(swRest.kjsonP, bodyCopy);
+  KjNode* mapTreeP = kjParse(corRest.kjsonP, bodyCopy);
   if (mapTreeP == NULL || mapTreeP->type != KjObject)
     return NULL;
 
@@ -722,13 +722,13 @@ static KjNode* forwardEntityMapToCSR(LdRegCacheItem* csr, const char* queryStrin
     return NULL;
 
   // Synthesize { "id": <entityId> } entries — feeds the existing merge loop.
-  KjNode* idArray = kjArray(swRest.kjsonP, NULL);
+  KjNode* idArray = kjArray(corRest.kjsonP, NULL);
   for (KjNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
   {
     if (entryP->name == NULL)
       continue;
-    KjNode* synth = kjObject(swRest.kjsonP, NULL);
-    kjChildAdd(synth, kjString(swRest.kjsonP, "id", entryP->name));
+    KjNode* synth = kjObject(corRest.kjsonP, NULL);
+    kjChildAdd(synth, kjString(corRest.kjsonP, "id", entryP->name));
     kjChildAdd(idArray, synth);
   }
 
@@ -764,7 +764,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   int pathLen = strlen(path);
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
-  char* url   = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + idLen + qsLen + 1);
+  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
@@ -778,7 +778,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   // § 5.14.4.4: when paginating from a local EntityMap that has a
   // linkedMaps entry for this CSR, forward the corresponding remote map
   // URI as NGSILD-EntityMap so the CP serves from its frozen snapshot.
-  SwRestKeyValue extraH;
+  CorRestKeyValue extraH;
   int            extraN = 0;
   char           mapHdr[160];
   if (remoteMapId != NULL && remoteMapId[0] != 0)
@@ -791,23 +791,23 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
 
   KT_T(KtDistOpRequest, "forward: GET %s", url);
 
-  int status = ldDistOpSendReceiveEx(csr, SwVerbGet, url, NULL, 0, ownAlias,
+  int status = ldDistOpSendReceiveEx(csr, CorVerbGet, url, NULL, 0, ownAlias,
                                       (extraN > 0) ? &extraH : NULL, extraN,
                                       &errDetail, &respBody, &respBodyLen);
   if (status < 200 || status >= 300 || respBody == NULL || respBodyLen == 0)
     return NULL;
 
-  KjNode* treeP = kjParse(swRest.kjsonP, respBody);
+  KjNode* treeP = kjParse(corRest.kjsonP, respBody);
   if (treeP == NULL)
     return NULL;
 
-  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
+  corLdExpandTree(treeP, corNgsild.contextP, &corRest.kalloc);
   ldStripAtContext(treeP);
   apiAttrToStorageWrap(treeP);
 
   // § 4.5.5.2 — entity-level expiresAt cascades to each Attribute, with
   // attr-level values further in the future shortened to entity-level.
-  ldExpiresAtPropagate(treeP, swRest.kjsonP);
+  ldExpiresAtPropagate(treeP, corRest.kjsonP);
   return treeP;
 }
 
@@ -884,9 +884,9 @@ static void mergeAttrsNonOverriding(KjNode* destP, KjNode* srcP)
 //
 static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
 {
-  if (swNgsild.id != NULL && swNgsild.id[0] != 0)
+  if (corNgsild.id != NULL && corNgsild.id[0] != 0)
     return "";
-  if (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0)
+  if (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
     return "";
 
   int   cap  = 512;
@@ -899,11 +899,11 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
     for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
     {
       // type filter: only entityInfos the query can match
-      if (swNgsild.typeV != NULL && eiP->type != NULL)
+      if (corNgsild.typeV != NULL && eiP->type != NULL)
       {
         bool typeMatch = false;
-        for (int t = 0; swNgsild.typeV[t] != NULL; t++)
-          if (strcmp(eiP->type, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
+        for (int t = 0; corNgsild.typeV[t] != NULL; t++)
+          if (strcmp(eiP->type, corNgsild.typeV[t]) == 0) { typeMatch = true; break; }
         if (!typeMatch)
           continue;
       }
@@ -950,7 +950,7 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
 //
 static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
 {
-  Kjson*  kjsonP = swRest.kjsonP;
+  Kjson*  kjsonP = corRest.kjsonP;
   KjNode* bodyP  = kjObject(kjsonP, NULL);
   kjChildAdd(bodyP, kjString(kjsonP, "type", "Query"));
 
@@ -1044,21 +1044,21 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
 // context (compactForUrl; ldQRender for q's embedded attribute terms), the
 // same algorithm buildSplitForwardQueryString uses.
 //
-static const char* buildQueryString(SwldContext* csrCtx)
+static const char* buildQueryString(CorLdContext* csrCtx)
 {
-  if (csrCtx == NULL) csrCtx = swldCoreContext();
+  if (csrCtx == NULL) csrCtx = corLdCoreContext();
 
-  char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
+  char* qs = (char*) kaAlloc(&corRest.kalloc, 4096);
   int   pos = 0;
 
-  // type — alias-bearing → emit from swNgsild.typeV via CSR ctx
-  if (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL)
+  // type — alias-bearing → emit from corNgsild.typeV via CSR ctx
+  if (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL)
   {
     strcpy(qs + pos, "type="); pos += 5;
-    for (int i = 0; swNgsild.typeV[i] != NULL; i++)
+    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
     {
       if (i > 0) qs[pos++] = ',';
-      const char* v = compactForUrl(csrCtx, swNgsild.typeV[i], &swRest.kalloc);
+      const char* v = compactForUrl(csrCtx, corNgsild.typeV[i], &corRest.kalloc);
       int vLen = strlen(v);
       strcpy(qs + pos, v); pos += vLen;
     }
@@ -1073,21 +1073,21 @@ static const char* buildQueryString(SwldContext* csrCtx)
   // terms OR-ed together and AND-ed onto the initial q:
   //     q=(<initial q>);(a|b|c)     — or just q=a|b|c without a q.
   //
-  char* qRendered = (swNgsild.qExpr != NULL) ? ldQRender(swNgsild.qExpr, csrCtx, &swRest.kalloc, false) : NULL;
+  char* qRendered = (corNgsild.qExpr != NULL) ? ldQRender(corNgsild.qExpr, csrCtx, &corRest.kalloc, false) : NULL;
   if (qRendered != NULL && qRendered[0] == 0) qRendered = NULL;
 
   char* attrsExists = NULL;
-  if (swNgsild.attrsV != NULL && swNgsild.attrsV[0] != NULL)
+  if (corNgsild.attrsV != NULL && corNgsild.attrsV[0] != NULL)
   {
     int cap = 2;
-    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
-      cap += strlen(swNgsild.attrsV[i]) * 3 + 1;
-    attrsExists = (char*) kaAlloc(&swRest.kalloc, cap);
+    for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
+      cap += strlen(corNgsild.attrsV[i]) * 3 + 1;
+    attrsExists = (char*) kaAlloc(&corRest.kalloc, cap);
     int apos = 0;
-    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
+    for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
     {
       if (i > 0) attrsExists[apos++] = '|';
-      const char* v = ldCompactOrEncode(swNgsild.attrsV[i], csrCtx, &swRest.kalloc, false);
+      const char* v = ldCompactOrEncode(corNgsild.attrsV[i], csrCtx, &corRest.kalloc, false);
       strcpy(attrsExists + apos, v);
       apos += strlen(v);
     }
@@ -1106,21 +1106,21 @@ static const char* buildQueryString(SwldContext* csrCtx)
       pos += sprintf(qs + pos, "%s", attrsExists);
   }
 
-  // geoproperty — alias-bearing (swNgsild.geoproperty is already expanded)
-  if (swNgsild.geoproperty != NULL && swNgsild.geoproperty[0] != 0)
+  // geoproperty — alias-bearing (corNgsild.geoproperty is already expanded)
+  if (corNgsild.geoproperty != NULL && corNgsild.geoproperty[0] != 0)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "geoproperty="); pos += 12;
-    const char* v = compactForUrl(csrCtx, swNgsild.geoproperty, &swRest.kalloc);
+    const char* v = compactForUrl(csrCtx, corNgsild.geoproperty, &corRest.kalloc);
     int vLen = strlen(v);
     strcpy(qs + pos, v); pos += vLen;
   }
 
   // All other URL params: forward raw (id, idPattern, scope, scopeQ,
   // georel, geometry, coordinates, timerel, timeAt, lang, csf, …).
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
-    const char* key = swRest.in.uriParamV[i].key;
+    const char* key = corRest.in.uriParamV[i].key;
 
     // Skip params that are local-only, output-format, per-CSR computed, or
     // handled above with alias-aware emission.
@@ -1140,20 +1140,20 @@ static const char* buildQueryString(SwldContext* csrCtx)
 
     if (pos > 0) qs[pos++] = '&';
     int kLen = strlen(key);
-    int vLen = strlen(swRest.in.uriParamV[i].value);
+    int vLen = strlen(corRest.in.uriParamV[i].value);
     strcpy(qs + pos, key); pos += kLen;
     qs[pos++] = '=';
-    strcpy(qs + pos, swRest.in.uriParamV[i].value); pos += vLen;
+    strcpy(qs + pos, corRest.in.uriParamV[i].value); pos += vLen;
   }
 
   // geometryProperty — alias-bearing but stored raw (client short). Expand
   // via the request's context, then compact via the CSR's.
-  if (swNgsild.geometryProperty != NULL && swNgsild.geometryProperty[0] != 0)
+  if (corNgsild.geometryProperty != NULL && corNgsild.geometryProperty[0] != 0)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "geometryProperty="); pos += 17;
-    char* expanded = swldExpand(swNgsild.contextP, swNgsild.geometryProperty, &swRest.kalloc, NULL, NULL);
-    const char* v  = compactForUrl(csrCtx, expanded, &swRest.kalloc);
+    char* expanded = corLdExpand(corNgsild.contextP, corNgsild.geometryProperty, &corRest.kalloc, NULL, NULL);
+    const char* v  = compactForUrl(csrCtx, expanded, &corRest.kalloc);
     int vLen = strlen(v);
     strcpy(qs + pos, v); pos += vLen;
   }
@@ -1178,19 +1178,19 @@ static const char* buildQueryString(SwldContext* csrCtx)
 // type, we have to send local=true to satisfy the receiver's too-wide-
 // query check (this disables transitive fanout for that hop only).
 //
-static const char* buildSplitForwardQueryString(SwldContext* csrCtx)
+static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
 {
-  char* qs = (char*) kaAlloc(&swRest.kalloc, 4096);
+  char* qs = (char*) kaAlloc(&corRest.kalloc, 4096);
   int   pos = 0;
 
-  if (csrCtx == NULL) csrCtx = swldCoreContext();
+  if (csrCtx == NULL) csrCtx = corLdCoreContext();
 
-  // First pass: prefer broker state (swNgsild.{typeV,id,idPattern}) which
+  // First pass: prefer broker state (corNgsild.{typeV,id,idPattern}) which
   // is the parsed, JSON-LD-expanded form. compactForUrl renders each
   // value via the CSR's @context, falling back to a URL-encoded
   // expanded IRI when the CSR has no alias for the term.
   //
-  // Why not the raw `swRest.in.uriParamV[]` like buildQueryString does?
+  // Why not the raw `corRest.in.uriParamV[]` like buildQueryString does?
   // Because raw URL params are short names from the CLIENT's @context.
   // A short name has no inherent meaning — it's an alias key into a
   // context. The client's `type=Vehicle` is the short for IRI X in the
@@ -1198,37 +1198,37 @@ static const char* buildSplitForwardQueryString(SwldContext* csrCtx)
   // the *broker's job* on the forward is to emit whatever short the
   // CSR will recognise. Going via the canonical IRI (which broker state
   // already holds expanded) is the only way to produce CSR-correct
-  // shorts. POST queryBatch routes its selectors through swNgsild
+  // shorts. POST queryBatch routes its selectors through corNgsild
   // (ldQueryBodyToParams) but never into uriParamV; this path covers
   // both GET and POST uniformly.
-  if (swNgsild.typeV != NULL && swNgsild.typeV[0] != NULL)
+  if (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL)
   {
     strcpy(qs + pos, "type="); pos += 5;
-    for (int i = 0; swNgsild.typeV[i] != NULL; i++)
+    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
     {
       if (i > 0) qs[pos++] = ',';
-      const char* v = compactForUrl(csrCtx, swNgsild.typeV[i], &swRest.kalloc);
+      const char* v = compactForUrl(csrCtx, corNgsild.typeV[i], &corRest.kalloc);
       int vLen = strlen(v);
       strcpy(qs + pos, v); pos += vLen;
     }
   }
 
-  if (swNgsild.id != NULL && swNgsild.id[0] != 0)
+  if (corNgsild.id != NULL && corNgsild.id[0] != 0)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "id="); pos += 3;
     // id is a URI (not a JSON-LD alias) — compaction doesn't apply.
     // URL-encode only the chars that would break the query string.
-    const char* v = urlEncodeReserved(swNgsild.id, &swRest.kalloc);
+    const char* v = urlEncodeReserved(corNgsild.id, &corRest.kalloc);
     int vLen = strlen(v);
     strcpy(qs + pos, v); pos += vLen;
   }
 
-  if (swNgsild.idPattern != NULL && swNgsild.idPattern[0] != 0)
+  if (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "idPattern="); pos += 10;
-    const char* v = urlEncodeReserved(swNgsild.idPattern, &swRest.kalloc);
+    const char* v = urlEncodeReserved(corNgsild.idPattern, &corRest.kalloc);
     int vLen = strlen(v);
     strcpy(qs + pos, v); pos += vLen;
   }
@@ -1260,23 +1260,23 @@ static const char* buildSplitForwardQueryString(SwldContext* csrCtx)
 // with 400 BadRequestData. (Modify / introduce are spec-clear violations of
 // "shall use the same parameters"; allowing the OMIT case is the lenient
 // direction, pending spec-doubt #96.) An omitted bound filter is re-parsed
-// into swNgsild so applyResultFilters re-applies it live — an entity whose
+// into corNgsild so applyResultFilters re-applies it live — an entity whose
 // value has drifted out of the bound `q` since map creation still drops.
 //
 // Returns true and raises the 400 on a conflict; false otherwise.
 //
 static bool bindEntityMapFilters(LdEntityMap* mapP)
 {
-  KAlloc* kaP = &swRest.kalloc;
+  KAlloc* kaP = &corRest.kalloc;
 
   struct { const char* name; const char* req; const char* bound; } f[] = {
-    { "type",        swNgsild.type,        mapP->boundType        },
-    { "q",           swNgsild.q,           mapP->boundQ           },
-    { "scopeQ",      swNgsild.scopeQ,      mapP->boundScopeQ      },
-    { "georel",      swNgsild.georel,      mapP->boundGeorel      },
-    { "geometry",    swNgsild.geometry,    mapP->boundGeometry    },
-    { "coordinates", swNgsild.coordinates, mapP->boundCoordinates },
-    { "geoproperty", swNgsild.geoproperty, mapP->boundGeoproperty }
+    { "type",        corNgsild.type,        mapP->boundType        },
+    { "q",           corNgsild.q,           mapP->boundQ           },
+    { "scopeQ",      corNgsild.scopeQ,      mapP->boundScopeQ      },
+    { "georel",      corNgsild.georel,      mapP->boundGeorel      },
+    { "geometry",    corNgsild.geometry,    mapP->boundGeometry    },
+    { "coordinates", corNgsild.coordinates, mapP->boundCoordinates },
+    { "geoproperty", corNgsild.geoproperty, mapP->boundGeoproperty }
   };
 
   for (int i = 0; i < (int) (sizeof(f) / sizeof(f[0])); i++)
@@ -1287,42 +1287,42 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
               "URL parameter '%s' was not part of the query that created entity map '%s'",
-              f[i].name, swNgsild.entityMapId);
+              f[i].name, corNgsild.entityMapId);
       return true;
     }
     if (strcmp(f[i].req, f[i].bound) != 0)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
               "URL parameter '%s' differs from the query that created entity map '%s'",
-              f[i].name, swNgsild.entityMapId);
+              f[i].name, corNgsild.entityMapId);
       return true;
     }
   }
 
-  // Omitted bound filters → re-apply (parse into swNgsild for applyResultFilters).
-  if (swNgsild.type == NULL && mapP->boundType != NULL)
+  // Omitted bound filters → re-apply (parse into corNgsild for applyResultFilters).
+  if (corNgsild.type == NULL && mapP->boundType != NULL)
   {
-    swNgsild.type     = mapP->boundType;
-    swNgsild.typeExpr = ldTypeExprParse(mapP->boundType, kaP);
+    corNgsild.type     = mapP->boundType;
+    corNgsild.typeExpr = ldTypeExprParse(mapP->boundType, kaP);
   }
-  if (swNgsild.q == NULL && mapP->boundQ != NULL)
+  if (corNgsild.q == NULL && mapP->boundQ != NULL)
   {
-    swNgsild.q     = mapP->boundQ;
-    swNgsild.qExpr = ldQParse(mapP->boundQ, kaP);
+    corNgsild.q     = mapP->boundQ;
+    corNgsild.qExpr = ldQParse(mapP->boundQ, kaP);
   }
-  if (swNgsild.scopeQ == NULL && mapP->boundScopeQ != NULL)
+  if (corNgsild.scopeQ == NULL && mapP->boundScopeQ != NULL)
   {
-    swNgsild.scopeQ    = mapP->boundScopeQ;
-    swNgsild.scopeExpr = ldScopeExprParse(mapP->boundScopeQ, kaP);
+    corNgsild.scopeQ    = mapP->boundScopeQ;
+    corNgsild.scopeExpr = ldScopeExprParse(mapP->boundScopeQ, kaP);
   }
-  if (swNgsild.georel == NULL && mapP->boundGeorel != NULL)
+  if (corNgsild.georel == NULL && mapP->boundGeorel != NULL)
   {
-    swNgsild.georel      = mapP->boundGeorel;
-    swNgsild.geoRel      = ldGeoRelParse(mapP->boundGeorel, kaP);
-    swNgsild.geometry    = mapP->boundGeometry;
-    swNgsild.coordinates = mapP->boundCoordinates;
+    corNgsild.georel      = mapP->boundGeorel;
+    corNgsild.geoRel      = ldGeoRelParse(mapP->boundGeorel, kaP);
+    corNgsild.geometry    = mapP->boundGeometry;
+    corNgsild.coordinates = mapP->boundCoordinates;
     if (mapP->boundGeoproperty != NULL)
-      swNgsild.geoproperty = mapP->boundGeoproperty;
+      corNgsild.geoproperty = mapP->boundGeoproperty;
   }
 
   return false;
@@ -1340,17 +1340,17 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
 //
 static bool entityMapPaginate(void)
 {
-  Tenant* tP = (Tenant*) swNgsild.tenantP;
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
   if (tP == NULL || tP->entityMapStoreP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
     return true;
   }
 
-  LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, swNgsild.entityMapId);
+  LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId);
   if (mapP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", swNgsild.entityMapId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
     return true;
   }
 
@@ -1360,9 +1360,9 @@ static bool entityMapPaginate(void)
     return true;
 
   // Build result array from map entries at [offset..offset+limit]
-  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
-  int offset = swNgsild.offset;
-  int limit  = (swNgsild.limit > 0) ? swNgsild.limit : 20;
+  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  int offset = corNgsild.offset;
+  int limit  = (corNgsild.limit > 0) ? corNgsild.limit : 20;
   int ix     = 0;
   int added  = 0;
 
@@ -1374,7 +1374,7 @@ static bool entityMapPaginate(void)
   // whole point of the map is a stable snapshot, immune to later
   // reg changes.
   //
-  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
+  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
 
   for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
   {
@@ -1426,11 +1426,11 @@ static bool entityMapPaginate(void)
   // Filters on the assembled entities — § 5.7.2.4.
   applyResultFilters(arrayP);
 
-  if (swNgsild.count)
+  if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%d", mapP->entryCount);
-    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+    corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
   // § 5.5.9.1: emit prev/first for any non-first page; next/last when more remain.
@@ -1438,7 +1438,7 @@ static bool entityMapPaginate(void)
   bool hasPrev = (offset > 0);
   if (hasMore || hasPrev)
   {
-    char* link = (char*) kaAlloc(&swRest.kalloc, 1024);
+    char* link = (char*) kaAlloc(&corRest.kalloc, 1024);
     int   pos  = 0;
     // § 6.4.7.2: the Link "type" attribute mirrors the original request's
     // media type, not a fixed value (same rule as ldPaginationLinkHeader).
@@ -1450,8 +1450,8 @@ static bool entityMapPaginate(void)
       pos += snprintf(link + pos, 1024 - pos,
                       "</ngsi-ld/v1/entities?entityMap=%s&offset=0&limit=%d>; rel=\"first\"; type=\"%s\", "
                       "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"prev\"; type=\"%s\"",
-                      swNgsild.entityMapId, limit, mt,
-                      swNgsild.entityMapId, prevOff, limit, mt);
+                      corNgsild.entityMapId, limit, mt,
+                      corNgsild.entityMapId, prevOff, limit, mt);
     }
     if (hasMore)
     {
@@ -1460,16 +1460,16 @@ static bool entityMapPaginate(void)
       pos += snprintf(link + pos, 1024 - pos,
                       "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"%s\", "
                       "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"last\"; type=\"%s\"",
-                      swNgsild.entityMapId, offset + limit, limit, mt,
-                      swNgsild.entityMapId, lastOff, limit, mt);
+                      corNgsild.entityMapId, offset + limit, limit, mt,
+                      corNgsild.entityMapId, lastOff, limit, mt);
     }
-    swRestOutHeaderAdd("Link", link);
+    corRestOutHeaderAdd("Link", link);
   }
 
-  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
     for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
-      ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
+      ldPickOmit(ep, corNgsild.pickV, corNgsild.omitV);
 
     // Drop entities reduced to empty by pick — § 4.21 / § 5.7.2 are
     // silent on this case (spec only mandates "reduce to specified
@@ -1477,7 +1477,7 @@ static bool entityMapPaginate(void)
     // rather than return an array of `{}` placeholders that carry no
     // useful information for the client. ?count= will still include
     // the dropped ones — a count mismatch the spec is yet to address.
-    if (swNgsild.pickV != NULL)
+    if (corNgsild.pickV != NULL)
     {
       KjNode* ep = arrayP->value.firstChildP;
       KjNode* prev = NULL;
@@ -1493,7 +1493,7 @@ static bool entityMapPaginate(void)
       (void) prev;
     }
   }
-  else if (swNgsild.attrsV != NULL)
+  else if (corNgsild.attrsV != NULL)
   {
     // § 6.4.3.2 deprecated `attrs` — attribute SELECTION + projection:
     // an entity carrying NONE of the listed attributes does not match
@@ -1504,7 +1504,7 @@ static bool entityMapPaginate(void)
     while (ep != NULL)
     {
       KjNode* next = ep->next;
-      ldAttrsFilter(ep, swNgsild.attrsV);
+      ldAttrsFilter(ep, corNgsild.attrsV);
 
       bool hasAttr = false;
       for (KjNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
@@ -1522,14 +1522,14 @@ static bool entityMapPaginate(void)
 
   applyLinkedQPostFilter(arrayP);
 
-  if (swNgsild.join != NULL)
+  if (corNgsild.join != NULL)
   {
-    int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
-    if      (strcmp(swNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
-    else if (strcmp(swNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
+    int level = (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1;
+    if      (strcmp(corNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
+    else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
 
-  swRest.out.responseTree = arrayP;
+  corRest.out.responseTree = arrayP;
   return true;
 }
 
@@ -1547,37 +1547,37 @@ static bool entityMapPaginate(void)
 //
 static void geoJsonGeomProtectSetup(void)
 {
-  if (swAcceptParse(swRest.in.accept) != SwMimeGeoJson)
+  if (corAcceptParse(corRest.in.accept) != CorMimeGeoJson)
     return;
 
-  SwldContext* ctxP   = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  gmName = (swNgsild.geometryProperty != NULL) ? swNgsild.geometryProperty : "location";
-  char*        gmIri  = swldExpand(ctxP, gmName, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP   = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  gmName = (corNgsild.geometryProperty != NULL) ? corNgsild.geometryProperty : "location";
+  char*        gmIri  = corLdExpand(ctxP, gmName, &corRest.kalloc, NULL, NULL);
   if (gmIri == NULL)
     gmIri = (char*) gmName;
 
-  swNgsild.geometryPropertyExpanded = gmIri;
+  corNgsild.geometryPropertyExpanded = gmIri;
 
   bool wanted = true;
-  if (swNgsild.pickV != NULL)
+  if (corNgsild.pickV != NULL)
   {
     wanted = false;
-    for (int i = 0; swNgsild.pickV[i] != NULL; i++)
-      if (strcmp(swNgsild.pickV[i], gmIri) == 0) { wanted = true; break; }
+    for (int i = 0; corNgsild.pickV[i] != NULL; i++)
+      if (strcmp(corNgsild.pickV[i], gmIri) == 0) { wanted = true; break; }
   }
-  else if (swNgsild.omitV != NULL)
+  else if (corNgsild.omitV != NULL)
   {
-    for (int i = 0; swNgsild.omitV[i] != NULL; i++)
-      if (strcmp(swNgsild.omitV[i], gmIri) == 0) { wanted = false; break; }
+    for (int i = 0; corNgsild.omitV[i] != NULL; i++)
+      if (strcmp(corNgsild.omitV[i], gmIri) == 0) { wanted = false; break; }
   }
-  else if (swNgsild.attrsV != NULL)
+  else if (corNgsild.attrsV != NULL)
   {
     wanted = false;
-    for (int i = 0; swNgsild.attrsV[i] != NULL; i++)
-      if (strcmp(swNgsild.attrsV[i], gmIri) == 0) { wanted = true; break; }
+    for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
+      if (strcmp(corNgsild.attrsV[i], gmIri) == 0) { wanted = true; break; }
   }
 
-  swNgsild.geoJsonGeomForced = !wanted;
+  corNgsild.geoJsonGeomForced = !wanted;
 }
 
 
@@ -1618,17 +1618,17 @@ bool getEntities(void)
   // alternative to ?entityMap=<id>. Value is the EntityMap URI; extract
   // the id (last URL segment). URL param takes precedence if both present.
   //
-  if (swNgsild.entityMapId == NULL)
+  if (corNgsild.entityMapId == NULL)
   {
-    for (int i = 0; i < swRest.in.httpHeaderCount; i++)
+    for (int i = 0; i < corRest.in.httpHeaderCount; i++)
     {
-      if (strcasecmp(swRest.in.httpHeaderV[i].key, "NGSILD-EntityMap") == 0)
+      if (strcasecmp(corRest.in.httpHeaderV[i].key, "NGSILD-EntityMap") == 0)
       {
-        const char* val = swRest.in.httpHeaderV[i].value;
+        const char* val = corRest.in.httpHeaderV[i].value;
         if (val != NULL && val[0] != 0)
         {
           const char* slash = strrchr(val, '/');
-          swNgsild.entityMapId = (char*) ((slash != NULL && slash[1] != 0) ? slash + 1 : val);
+          corNgsild.entityMapId = (char*) ((slash != NULL && slash[1] != 0) ? slash + 1 : val);
         }
         break;
       }
@@ -1638,7 +1638,7 @@ bool getEntities(void)
   //
   // EntityMap-based pagination — separate flow, dedicated helper.
   //
-  if (swNgsild.entityMapId != NULL)
+  if (corNgsild.entityMapId != NULL)
     return entityMapPaginate();
 
   //
@@ -1648,14 +1648,14 @@ bool getEntities(void)
   // tightly (an explicit URI list is not a "too wide" query). ?entityMap=
   // bypasses (paginating an already-bounded map).
   //
-  if (swNgsild.entityMapId == NULL)
+  if (corNgsild.entityMapId == NULL)
   {
-    bool hasType   = (swNgsild.typeV != NULL || swNgsild.typeExpr != NULL);
-    bool hasAttrs  = (swNgsild.attrsV != NULL);
-    bool hasQ      = (swNgsild.qExpr != NULL);
-    bool hasGeo    = (swNgsild.georel != NULL);
-    bool isLocal   = swNgsild.local;
-    bool hasId     = (swNgsild.idV != NULL || swNgsild.idPattern != NULL);
+    bool hasType   = (corNgsild.typeV != NULL || corNgsild.typeExpr != NULL);
+    bool hasAttrs  = (corNgsild.attrsV != NULL);
+    bool hasQ      = (corNgsild.qExpr != NULL);
+    bool hasGeo    = (corNgsild.georel != NULL);
+    bool isLocal   = corNgsild.local;
+    bool hasId     = (corNgsild.idV != NULL || corNgsild.idPattern != NULL);
     if (!hasType && !hasAttrs && !hasQ && !hasGeo && !isLocal && !hasId)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
@@ -1672,8 +1672,8 @@ bool getEntities(void)
   // our reading — spec-doubt #104.)
   //
   {
-    int qDepth = (swNgsild.qExpr != NULL) ? swNgsild.qExpr->linkedDepth : 0;
-    int jLevel = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
+    int qDepth = (corNgsild.qExpr != NULL) ? corNgsild.qExpr->linkedDepth : 0;
+    int jLevel = (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1;
     if (qDepth > jLevel)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Query",
@@ -1693,25 +1693,25 @@ bool getEntities(void)
   //
   DbQueryFilter filter = {0};
 
-  filter.idV       = swNgsild.idV;
-  filter.idPattern = swNgsild.idPattern;
-  filter.typeV     = swNgsild.typeV;
-  filter.typeExpr  = swNgsild.typeExpr;
-  filter.scopeExpr = swNgsild.scopeExpr;
+  filter.idV       = corNgsild.idV;
+  filter.idPattern = corNgsild.idPattern;
+  filter.typeV     = corNgsild.typeV;
+  filter.typeExpr  = corNgsild.typeExpr;
+  filter.scopeExpr = corNgsild.scopeExpr;
   // The storage layer can only evaluate "layer 0" of the q — a § 4.9 linked
   // sub-query (q=rel{...}) needs the broker to follow the link (distops). Hand
   // the DB the linked-stripped tree so it returns an inclusive candidate set;
-  // applyLinkedQPostFilter then resolves the linked layers against swNgsild.qExpr.
-  filter.qExpr     = (swNgsild.qExpr != NULL && swNgsild.qExpr->linkedDepth > 0)
-                     ? ldQStripLinked(swNgsild.qExpr, &swRest.kalloc)
-                     : swNgsild.qExpr;
-  filter.geoRel      = swNgsild.geoRel;
-  filter.geometry    = swNgsild.geometry;
-  filter.coordinates = swNgsild.coordinates;
-  filter.geoproperty = swNgsild.geoproperty ? swNgsild.geoproperty : swldExpand(swNgsild.contextP, "location", &swRest.kalloc, NULL, NULL);
-  filter.limit     = (swNgsild.limit > 0) ? swNgsild.limit + 1 : 0;
-  filter.offset   = swNgsild.offset;
-  filter.count    = swNgsild.count;
+  // applyLinkedQPostFilter then resolves the linked layers against corNgsild.qExpr.
+  filter.qExpr     = (corNgsild.qExpr != NULL && corNgsild.qExpr->linkedDepth > 0)
+                     ? ldQStripLinked(corNgsild.qExpr, &corRest.kalloc)
+                     : corNgsild.qExpr;
+  filter.geoRel      = corNgsild.geoRel;
+  filter.geometry    = corNgsild.geometry;
+  filter.coordinates = corNgsild.coordinates;
+  filter.geoproperty = corNgsild.geoproperty ? corNgsild.geoproperty : corLdExpand(corNgsild.contextP, "location", &corRest.kalloc, NULL, NULL);
+  filter.limit     = (corNgsild.limit > 0) ? corNgsild.limit + 1 : 0;
+  filter.offset   = corNgsild.offset;
+  filter.count    = corNgsild.count;
 
   //
   // § 7.6.2.2 sort-by-distance: an orderBy "<geoprop>;dist-asc|dist-desc" term
@@ -1719,27 +1719,27 @@ bool getEntities(void)
   // (a reference Point) and, for now, a Point orderGeometry (default). The plugin
   // computes each entity's geoDistance and orders geo-bearing entities first.
   //
-  for (int i = 0; i < swNgsild.orderByCount; i++)
+  for (int i = 0; i < corNgsild.orderByCount; i++)
   {
-    if (!swNgsild.orderByV[i].byDistance)
+    if (!corNgsild.orderByV[i].byDistance)
       continue;
 
-    if (swNgsild.orderFrom == NULL)
+    if (corNgsild.orderFrom == NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid orderBy",
               "orderBy dist-asc/dist-desc requires the orderFrom parameter");
       return true;
     }
-    if (swNgsild.orderGeometry != NULL && strcmp(swNgsild.orderGeometry, "Point") != 0)
+    if (corNgsild.orderGeometry != NULL && strcmp(corNgsild.orderGeometry, "Point") != 0)
     {
       ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
-              "sort by distance is only supported for a Point orderGeometry (got '%s')", swNgsild.orderGeometry);
+              "sort by distance is only supported for a Point orderGeometry (got '%s')", corNgsild.orderGeometry);
       return true;
     }
 
-    filter.distGeoproperty = (swNgsild.orderByV[i].pathSegN > 0) ? swNgsild.orderByV[i].pathSegV[0] : NULL;
-    filter.distFrom        = swNgsild.orderFrom;
-    filter.distDesc        = (swNgsild.orderByV[i].dir == LdOrderDesc);
+    filter.distGeoproperty = (corNgsild.orderByV[i].pathSegN > 0) ? corNgsild.orderByV[i].pathSegV[0] : NULL;
+    filter.distFrom        = corNgsild.orderFrom;
+    filter.distDesc        = (corNgsild.orderByV[i].dir == LdOrderDesc);
     break;  // a single dist term drives the ranking
   }
 
@@ -1747,14 +1747,14 @@ bool getEntities(void)
   // Determine split-entities mode: per-request param overrides global setting.
   // Split mode only activates when registrations actually match (checked below).
   //
-  bool splitModeSetting = swNgsild.splitEntitiesSet ? swNgsild.splitEntitiesVal : ldSplitEntities;
+  bool splitModeSetting = corNgsild.splitEntitiesSet ? corNgsild.splitEntitiesVal : ldSplitEntities;
 
   //
   // Query the local database (full filters for now — re-queried without
   // filters if split mode activates below)
   //
   KjNode* arrayP = NULL;
-  int     r      = db.entityQuery((Tenant*) swNgsild.tenantP, &filter, &arrayP);
+  int     r      = db.entityQuery((Tenant*) corNgsild.tenantP, &filter, &arrayP);
 
   if (r != DB_OK)
   {
@@ -1774,7 +1774,7 @@ bool getEntities(void)
   // Entity is invisible to every one of them. The DB query deliberately does
   // not filter on expiresAt — the rows have to reach RAM to be noticed.
   //
-  dbExpiredEntityFilter((Tenant*) swNgsild.tenantP, arrayP);
+  dbExpiredEntityFilter((Tenant*) corNgsild.tenantP, arrayP);
 
   // § 6.4.7.2: whether the LOCAL query came back empty (before any
   // distributed merge / post-filter touches arrayP). An empty local page
@@ -1789,13 +1789,13 @@ bool getEntities(void)
   // this, paged follow-up via ?entityMap=<id> cannot route to the right
   // source for a given entity.
   //
-  KjNode* srcMap = swNgsild.entityMapCreate ? kjObject(swRest.kjsonP, NULL) : NULL;
+  KjNode* srcMap = corNgsild.entityMapCreate ? kjObject(corRest.kjsonP, NULL) : NULL;
   srcMapStampLocalFrom(srcMap, arrayP);
 
   // Linked-maps tracker (§ 5.14.4.4) — KjObject keyed by CSR regId, value =
   // remote EntityMap id. Populated as each per-CSR forward returns its
   // own EntityMap; flushed into mapP after the local map is created.
-  KjNode* linkedMapsTracker = swNgsild.entityMapCreate ? kjObject(swRest.kjsonP, NULL) : NULL;
+  KjNode* linkedMapsTracker = corNgsild.entityMapCreate ? kjObject(corRest.kjsonP, NULL) : NULL;
 
   //
   // Distributed query: if registrations match and ?local=true is not set,
@@ -1805,9 +1805,9 @@ bool getEntities(void)
   // Split mode:    forward without filters, merge all attrs per entity,
   //                then apply filters post-assembly
   //
-  if (swNgsild.local == false)
+  if (corNgsild.local == false)
   {
-    Tenant*           tP    = (Tenant*) swNgsild.tenantP;
+    Tenant*           tP    = (Tenant*) corNgsild.tenantP;
     LdRegCacheItem**  matchV = NULL;
     int               matchN = 0;
     bool              splitMode = false;  // only true if splitModeSetting AND regs match
@@ -1819,8 +1819,8 @@ bool getEntities(void)
     if (tP != NULL && tP->regCacheP != NULL)
     {
       LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
-      const char* ownAlias = ldCsourceAliasForTenant(tP->name, &swRest.kalloc);
-      char**      pickWanted = computeWantedAttrs(&swRest.kalloc);
+      const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
+      char**      pickWanted = computeWantedAttrs(&corRest.kalloc);
 
       //
       // Phase 1 — match all 4 modes up front. First match triggers split-mode
@@ -1855,8 +1855,8 @@ bool getEntities(void)
         // every typed query to all tenant registrations (waste + leaking the
         // query/filters to sources that don't serve the type).
         modeMatchN[m] = ldRegCacheMatchForQuery((LdRegCache*) tP->regCacheP,
-                                                swNgsild.idV, swNgsild.idPattern,
-                                                (modes[m] == LdRegModeAuxiliary) ? NULL : swNgsild.typeV,
+                                                corNgsild.idV, corNgsild.idPattern,
+                                                (modes[m] == LdRegModeAuxiliary) ? NULL : corNgsild.typeV,
                                                 modes[m], &modeMatchV[m]);
         totalMatch += modeMatchN[m];
       }
@@ -1874,22 +1874,22 @@ bool getEntities(void)
         splitFilter.idPattern = filter.idPattern;
         splitFilter.limit     = 1000000;
         arrayP = NULL;
-        db.entityQuery((Tenant*) swNgsild.tenantP, &splitFilter, &arrayP);
+        db.entityQuery((Tenant*) corNgsild.tenantP, &splitFilter, &arrayP);
         srcMapStampLocalFrom(srcMap, arrayP);
       }
 
       // baseQs is per-CSR (alias-bearing params are compacted via ldDistOpForwardContext)
       // so it gets computed inside the loop now.
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
       memset(items, 0, totalMatch * sizeof(LdDistOpBatchItem));
 
       // § 9.2 operations: a CSR may support queryEntity (GET /entities),
       // queryBatch (POST /entityOperations/query), both, or neither.
       // Prefer mirroring the incoming form; fall back to the other; skip
       // CSRs that support neither query op.
-      bool incomingBatch = (swRest.in.verb == SwVerbPost);
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
+      bool incomingBatch = (corRest.in.verb == CorVerbPost);
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
       int                  itemCount = 0;
       memset(results, 0, totalMatch * sizeof(LdDistOpBatchResult));
 
@@ -1922,18 +1922,18 @@ bool getEntities(void)
           // the registration itself (its user-Properties), never against the
           // Entities; a registration we cannot inspect cannot satisfy it.
           //
-          if (swNgsild.csfExpr != NULL)
+          if (corNgsild.csfExpr != NULL)
           {
-            if ((csr->regTree == NULL) || !ldEntityMatchQ(csr->regTree, swNgsild.csfExpr))
+            if ((csr->regTree == NULL) || !ldEntityMatchQ(csr->regTree, corNgsild.csfExpr))
             {
-              KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration does not match csf '%s'", regId, swNgsild.csf);
+              KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration does not match csf '%s'", regId, corNgsild.csf);
               continue;
             }
           }
 
-          if (swNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
+          if (corNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
           {
-            const char* prop = swNgsild.geoproperty;
+            const char* prop = corNgsild.geoproperty;
             KjNode* csrGeoP = csr->locationP;
             if (prop != NULL)
             {
@@ -1944,23 +1944,23 @@ bool getEntities(void)
                        strcmp(prop, "https://uri.etsi.org/ngsi-ld/operationSpace") == 0)
                 csrGeoP = csr->operationSpaceP;
             }
-            if (!((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc(csrGeoP, swNgsild.geoRel,
-                                                                 swNgsild.geometry, swNgsild.coordinates))
+            if (!((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc(csrGeoP, corNgsild.geoRel,
+                                                                 corNgsild.geometry, corNgsild.coordinates))
               continue;
           }
 
           const char* fullQs;
           if (splitMode)
           {
-            char** csrExports = csrUnionExports(csr, &swRest.kalloc);
+            char** csrExports = csrUnionExports(csr, &corRest.kalloc);
             bool   skip       = false;
-            const char* pickParam = intersectAndPick(csrExports, pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
+            const char* pickParam = intersectAndPick(csrExports, pickWanted, &corRest.kalloc, &skip, ldDistOpForwardContext(csr));
             if (skip) continue;
 
             const char* splitBase = buildSplitForwardQueryString(ldDistOpForwardContext(csr));
-            const char* idParam   = csrPinnedIdsParam(csr, &swRest.kalloc);
+            const char* idParam   = csrPinnedIdsParam(csr, &corRest.kalloc);
             int   bLen = strlen(splitBase), pLen = strlen(pickParam), iLen = strlen(idParam);
-            char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + iLen + 1);
+            char* combined = (char*) kaAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
             strcpy(combined, splitBase);
             if (iLen > 0) strcpy(combined + bLen, idParam);
             if (pLen > 0) strcpy(combined + bLen + iLen, pickParam);
@@ -1974,14 +1974,14 @@ bool getEntities(void)
 
             for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
             {
-              if (swNgsild.typeV != NULL)
+              if (corNgsild.typeV != NULL)
               {
                 bool typeMatch = false;
                 for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
                 {
                   if (eiP->type == NULL) { typeMatch = true; break; }
-                  for (int t = 0; swNgsild.typeV[t] != NULL; t++)
-                    if (strcmp(eiP->type, swNgsild.typeV[t]) == 0) { typeMatch = true; break; }
+                  for (int t = 0; corNgsild.typeV[t] != NULL; t++)
+                    if (strcmp(eiP->type, corNgsild.typeV[t]) == 0) { typeMatch = true; break; }
                   if (typeMatch) break;
                 }
                 if (!typeMatch) continue;
@@ -1989,12 +1989,12 @@ bool getEntities(void)
 
               bool        skip      = false;
               const char* pickParam = intersectAndPick(riP->attributeNamesV,
-                                                        pickWanted, &swRest.kalloc, &skip, ldDistOpForwardContext(csr));
+                                                        pickWanted, &corRest.kalloc, &skip, ldDistOpForwardContext(csr));
               if (skip) { csrSkipped = true; break; }
 
-              const char* idParam = csrPinnedIdsParam(csr, &swRest.kalloc);
+              const char* idParam = csrPinnedIdsParam(csr, &corRest.kalloc);
               int   bLen = strlen(baseQs), pLen = strlen(pickParam), iLen = strlen(idParam);
-              char* combined = (char*) kaAlloc(&swRest.kalloc, bLen + pLen + iLen + 1);
+              char* combined = (char*) kaAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
               strcpy(combined, baseQs);
               if (iLen > 0) strcpy(combined + bLen, idParam);
               strcpy(combined + bLen + iLen, pickParam);
@@ -2005,18 +2005,18 @@ bool getEntities(void)
             if (csrSkipped) continue;
           }
 
-          if (postForward && !swNgsild.entityMapCreate)
+          if (postForward && !corNgsild.entityMapCreate)
           {
             // queryBatch form: POST /entityOperations/query with a § 5.2.23
             // Query body carrying the same selectors + projection as the
             // GET form's query string.
             const char* path    = "/ngsi-ld/v1/entityOperations/query";
             int   baseLen = strlen(csr->endpoint);
-            char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + strlen(path) + 1);
+            char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
             strcpy(url, csr->endpoint);
             strcpy(url + baseLen, path);
 
-            const char* body = buildQueryBodyFromQs(fullQs, &swRest.kalloc);
+            const char* body = buildQueryBodyFromQs(fullQs, &corRest.kalloc);
 
             KT_T(KtDistOpRequest, "forward: POST %s body=%s", url, body);
             items[itemCount].csr     = csr;
@@ -2024,17 +2024,17 @@ bool getEntities(void)
             items[itemCount].body    = body;
             items[itemCount].bodyLen = strlen(body);
             items[itemCount].hasVerb = true;
-            items[itemCount].verb    = SwVerbPost;
+            items[itemCount].verb    = CorVerbPost;
             itemCount++;
             continue;
           }
 
-          const char* path    = swNgsild.entityMapCreate ? "/ngsi-ld/v1/entityMaps?"
+          const char* path    = corNgsild.entityMapCreate ? "/ngsi-ld/v1/entityMaps?"
                                                          : "/ngsi-ld/v1/entities?";
           int   baseLen = strlen(csr->endpoint);
           int   pathLen = strlen(path);
           int   qsLen   = strlen(fullQs);
-          char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + qsLen + 1);
+          char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, path);
           strcpy(url + baseLen + pathLen, fullQs);
@@ -2050,7 +2050,7 @@ bool getEntities(void)
 
       if (itemCount > 0)
       {
-        ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+        ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
 
         for (int i = 0; i < itemCount; i++)
         {
@@ -2064,7 +2064,7 @@ bool getEntities(void)
           if (results[i].responseTree != NULL)
           {
             int   rsz  = kjFastRenderSize(results[i].responseTree) + 1;
-            char* rbuf = (char*) kaAlloc(&swRest.kalloc, rsz);
+            char* rbuf = (char*) kaAlloc(&corRest.kalloc, rsz);
             kjFastRender(results[i].responseTree, rbuf);
             renderedBody = rbuf;
           }
@@ -2078,7 +2078,7 @@ bool getEntities(void)
 
           KjNode* remoteArray;
 
-          if (swNgsild.entityMapCreate)
+          if (corNgsild.entityMapCreate)
           {
             // § 5.14.4.4: response is a single EntityMap object. Pull out
             // remote map id + synthesise an array of { "id": <entityId> }
@@ -2088,17 +2088,17 @@ bool getEntities(void)
 
             KjNode* idP = kjLookup(mapTreeP, "id");
             if (linkedMapsTracker != NULL && idP != NULL && idP->type == KjString && csr->regId != NULL)
-              kjChildAdd(linkedMapsTracker, kjString(swRest.kjsonP, csr->regId, idP->value.s));
+              kjChildAdd(linkedMapsTracker, kjString(corRest.kjsonP, csr->regId, idP->value.s));
 
             KjNode* emObj = kjLookup(mapTreeP, "entityMap");
             if (emObj == NULL || emObj->type != KjObject) continue;
 
-            remoteArray = kjArray(swRest.kjsonP, NULL);
+            remoteArray = kjArray(corRest.kjsonP, NULL);
             for (KjNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
             {
               if (entryP->name == NULL) continue;
-              KjNode* synth = kjObject(swRest.kjsonP, NULL);
-              kjChildAdd(synth, kjString(swRest.kjsonP, "id", entryP->name));
+              KjNode* synth = kjObject(corRest.kjsonP, NULL);
+              kjChildAdd(synth, kjString(corRest.kjsonP, "id", entryP->name));
               kjChildAdd(remoteArray, synth);
             }
           }
@@ -2115,7 +2115,7 @@ bool getEntities(void)
             // typed.
             if (remoteArray != NULL && remoteArray->type == KjObject)
             {
-              KjNode* wrap = kjArray(swRest.kjsonP, NULL);
+              KjNode* wrap = kjArray(corRest.kjsonP, NULL);
               kjChildAdd(wrap, remoteArray);
               remoteArray = wrap;
             }
@@ -2125,13 +2125,13 @@ bool getEntities(void)
 
           // Expand each forwarded entity via the context that travels WITH the
           // response — the URL in its json-ld#context Link header, else core.
-          // swldExpandTree additionally applies any embedded @context (ld+json)
-          // on top. NOT swNgsild.contextP: the CP speaks its own vocabulary.
-          SwldContext* respCtxP = (results[i].responseContextUrl != NULL)
-                                    ? swldContextFromUrl(results[i].responseContextUrl, &swRest.kalloc)
+          // corLdExpandTree additionally applies any embedded @context (ld+json)
+          // on top. NOT corNgsild.contextP: the CP speaks its own vocabulary.
+          CorLdContext* respCtxP = (results[i].responseContextUrl != NULL)
+                                    ? corLdContextFromUrl(results[i].responseContextUrl, &corRest.kalloc)
                                     : NULL;
           if (respCtxP == NULL)
-            respCtxP = swldCoreContext();
+            respCtxP = corLdCoreContext();
 
           for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
           {
@@ -2156,7 +2156,7 @@ bool getEntities(void)
             }
 
             remoteEntity->next = NULL;
-            swldExpandTree(remoteEntity, respCtxP, &swRest.kalloc);
+            corLdExpandTree(remoteEntity, respCtxP, &corRest.kalloc);
             ldStripAtContext(remoteEntity);
             apiAttrToStorageWrap(remoteEntity);
 
@@ -2164,7 +2164,7 @@ bool getEntities(void)
             // each of its Attributes (shortening any attr-level value further
             // in the future) BEFORE the entity-level values are reconciled
             // across versions below. Same as the retrieve-one path.
-            ldExpiresAtPropagate(remoteEntity, swRest.kjsonP);
+            ldExpiresAtPropagate(remoteEntity, corRest.kjsonP);
 
             // Runtime exclusive-priority: an attribute exclusively claimed by another
             // registration is authoritative from that (exclusive) source alone. Discard any
@@ -2174,7 +2174,7 @@ bool getEntities(void)
             // so the exclusive copy is already in place by the time inclusive results merge.
             if (csr->mode != LdRegModeExclusive)
             {
-              LdRegCache* excRc  = (LdRegCache*) ((Tenant*) swNgsild.tenantP)->regCacheP;
+              LdRegCache* excRc  = (LdRegCache*) ((Tenant*) corNgsild.tenantP)->regCacheP;
               KjNode*     etP    = kjLookup(remoteEntity, "type");
               char*       etV[2] = { (etP != NULL && etP->type == KjString) ? etP->value.s : NULL, NULL };
               for (KjNode* aP = remoteEntity->value.firstChildP; aP != NULL; )
@@ -2182,7 +2182,7 @@ bool getEntities(void)
                 KjNode* nextAP = aP->next;
                 if (aP->name != NULL && aP->name[0] != '@' &&
                     strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
-                    ldRegCacheAttrExclusivelyClaimed(excRc, remoteIdP->value.s, etV[0] != NULL ? etV : NULL, aP->name, swRest.requestStartTime))
+                    ldRegCacheAttrExclusivelyClaimed(excRc, remoteIdP->value.s, etV[0] != NULL ? etV : NULL, aP->name, corRest.requestStartTime))
                   kjChildRemove(remoteEntity, aP);
                 aP = nextAP;
               }
@@ -2203,7 +2203,7 @@ bool getEntities(void)
               ldDistExpiresAtReconcile(existingP, remoteEntity);
 
               // § 5.2.7 — the Scopes of every version are merged
-              ldDistScopeMerge(existingP, remoteEntity, swRest.kjsonP);
+              ldDistScopeMerge(existingP, remoteEntity, corRest.kjsonP);
 
               for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
               {
@@ -2234,13 +2234,13 @@ bool getEntities(void)
 
                     if (destInstP == NULL)
                     {
-                      if (!ldDistInstanceIsExpired(srcInstP, swRest.requestStartTime))
+                      if (!ldDistInstanceIsExpired(srcInstP, corRest.requestStartTime))
                       {
                         srcInstP->next = NULL;
                         kjChildAdd(destAttrP, srcInstP);
                       }
                     }
-                    else if (ldDistInstanceShouldReplace(destInstP, srcInstP, swRest.requestStartTime))
+                    else if (ldDistInstanceShouldReplace(destInstP, srcInstP, corRest.requestStartTime))
                     {
                       srcInstP->next = NULL;
                       kjChildReplace(destAttrP, destInstP, srcInstP);
@@ -2270,7 +2270,7 @@ bool getEntities(void)
       // behaviour must be signalled with an NGSILD-Warning (299/199/111).
       char* warn = ldDistOpWarnings(items, results, itemCount);
       if (warn != NULL)
-        swRestOutHeaderAdd("NGSILD-Warning", warn);
+        corRestOutHeaderAdd("NGSILD-Warning", warn);
     }
 
     // Split mode post-assembly filters (§ 5.7.2.4).
@@ -2281,17 +2281,17 @@ bool getEntities(void)
   //
   // Sort by orderBy before pagination (§ 4.23)
   //
-  if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
-    ldOrderSort(arrayP, swNgsild.orderByV, swNgsild.orderByCount, swNgsild.collation);
+  if (corNgsild.orderByV != NULL && corNgsild.orderByCount > 0)
+    ldOrderSort(arrayP, corNgsild.orderByV, corNgsild.orderByCount, corNgsild.collation);
 
   //
   // Entity map: if entityMap=true, freeze the sorted entity IDs into a map
   // for consistent pagination. The map is stored per-tenant and its location
   // is returned via the NGSILD-EntityMap response header.
   //
-  if (swNgsild.entityMapCreate)
+  if (corNgsild.entityMapCreate)
   {
-    Tenant* tP = (Tenant*) swNgsild.tenantP;
+    Tenant* tP = (Tenant*) corNgsild.tenantP;
 
     if (tP != NULL && tP->entityMapStoreP != NULL)
     {
@@ -2305,9 +2305,9 @@ bool getEntities(void)
       // Bind the query's filter params to the map (§ 9 same-parameters): a
       // later paginated reuse may re-send these with the same value or omit
       // them, but not modify or introduce one.
-      ldEntityMapSetFilters(mapP, swNgsild.type, swNgsild.q, swNgsild.scopeQ,
-                            swNgsild.georel, swNgsild.geometry, swNgsild.coordinates,
-                            swNgsild.geoproperty);
+      ldEntityMapSetFilters(mapP, corNgsild.type, corNgsild.q, corNgsild.scopeQ,
+                            corNgsild.georel, corNgsild.geometry, corNgsild.coordinates,
+                            corNgsild.geoproperty);
 
       //
       // Walk the sorted array, add each entity ID to the map along with
@@ -2335,7 +2335,7 @@ bool getEntities(void)
         }
         else
         {
-          const char** srcV = (const char**) kaAlloc(&swRest.kalloc, n * sizeof(char*));
+          const char** srcV = (const char**) kaAlloc(&corRest.kalloc, n * sizeof(char*));
           int i = 0;
           for (KjNode* s = srcArr->value.firstChildP; s != NULL; s = s->next)
             if (s->type == KjString)
@@ -2356,21 +2356,21 @@ bool getEntities(void)
       }
 
       // Add NGSILD-EntityMap header with the map's URL
-      char* mapUrl = (char*) kaAlloc(&swRest.kalloc, 128);
+      char* mapUrl = (char*) kaAlloc(&corRest.kalloc, 128);
       snprintf(mapUrl, 128, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
 
-      swRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
+      corRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
 
       //
       // GET / POST /entityMaps (§ 6.34.3): return the EntityMap itself
       // (201 Created) instead of the matching entities array. rawResponse
       // lets ldEntityMapToTree's JSON flow unchanged through renderHook.
       //
-      if (swNgsild.entityMapOnly)
+      if (corNgsild.entityMapOnly)
       {
-        swRest.out.responseTree   = ldEntityMapToTree(mapP);
-        swRest.out.httpStatusCode = 201;
-        swNgsild.rawResponse      = true;
+        corRest.out.responseTree   = ldEntityMapToTree(mapP);
+        corRest.out.httpStatusCode = 201;
+        corNgsild.rawResponse      = true;
         return true;
       }
     }
@@ -2387,11 +2387,11 @@ bool getEntities(void)
   // Cost is paid only in this rare overshoot case: one count query (skipped if
   // ?count already computed N), then a one-element fetch at offset N-1.
   //
-  if (localQueryEmpty && !distForwarded && !swNgsild.entityMapCreate && swNgsild.offset > 0)
+  if (localQueryEmpty && !distForwarded && !corNgsild.entityMapCreate && corNgsild.offset > 0)
   {
     int64_t n;
 
-    if (swNgsild.count)
+    if (corNgsild.count)
       n = filter.totalCount;   // the query above already counted the result set
     else
     {
@@ -2399,7 +2399,7 @@ bool getEntities(void)
       countFilter.count = true;
       countFilter.limit = 0;   // count-only, no entities materialized
       KjNode* dummyP    = NULL;
-      db.entityQuery((Tenant*) swNgsild.tenantP, &countFilter, &dummyP);
+      db.entityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
       n = countFilter.totalCount;
     }
 
@@ -2410,19 +2410,19 @@ bool getEntities(void)
       lastFilter.limit  = 1;   // exactly the last element
       lastFilter.count  = false;
       arrayP = NULL;
-      db.entityQuery((Tenant*) swNgsild.tenantP, &lastFilter, &arrayP);
+      db.entityQuery((Tenant*) corNgsild.tenantP, &lastFilter, &arrayP);
     }
   }
 
   //
   // Add NGSILD-Results-Count header if count was requested
   //
-  if (swNgsild.count)
+  if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%ld", (long) filter.totalCount);
 
-    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+    corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
   //
@@ -2435,21 +2435,21 @@ bool getEntities(void)
   // still advance. Without this guard a query past the end of an empty result
   // set emitted a spurious rel="prev" to offset=0.
   //
-  bool hasMore = ldPaginationTrim(arrayP, swNgsild.limit);
+  bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
   if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
 
   //
   // Apply pick/omit attribute projection (or the legacy attrs alias)
   //
-  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
     for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
-      ldPickOmit(entityP, swNgsild.pickV, swNgsild.omitV);
+      ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
     // Drop entities reduced to empty by pick — see the earlier
     // identical block; spec is silent, ETSI plenary chose to drop.
-    if (swNgsild.pickV != NULL)
+    if (corNgsild.pickV != NULL)
     {
       KjNode* ep = arrayP->value.firstChildP;
       while (ep != NULL)
@@ -2461,7 +2461,7 @@ bool getEntities(void)
       }
     }
   }
-  else if (swNgsild.attrsV != NULL)
+  else if (corNgsild.attrsV != NULL)
   {
     // attrs = selection + projection: drop entities with none of the
     // listed attributes (see the identical block in the local path).
@@ -2469,7 +2469,7 @@ bool getEntities(void)
     while (ep != NULL)
     {
       KjNode* next = ep->next;
-      ldAttrsFilter(ep, swNgsild.attrsV);
+      ldAttrsFilter(ep, corNgsild.attrsV);
 
       bool hasAttr = false;
       for (KjNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
@@ -2486,14 +2486,14 @@ bool getEntities(void)
   applyLinkedQPostFilter(arrayP);
 
   // § 4.5.23 — linked-entity expansion of each result.
-  if (swNgsild.join != NULL)
+  if (corNgsild.join != NULL)
   {
-    int level = (swNgsild.joinLevel > 0) ? swNgsild.joinLevel : 1;
-    Tenant* tP = (Tenant*) swNgsild.tenantP;
-    if      (strcmp(swNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
-    else if (strcmp(swNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
+    int level = (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1;
+    Tenant* tP = (Tenant*) corNgsild.tenantP;
+    if      (strcmp(corNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
+    else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
 
-  swRest.out.responseTree = arrayP;
+  corRest.out.responseTree = arrayP;
   return true;
 }

@@ -16,8 +16,8 @@ Batch upsert of more than 1000 entities (no hidden 1000-entity cap)
 batch upsert entity count
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -43,7 +43,7 @@ buildPayload() {
 
 echo "01. Upsert 1101 NEW entities (value v1)"
 echo "======================================="
-out=$(swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$(buildPayload v1)")
+out=$(corCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$(buildPayload v1)")
 echo "$out" | grep "^HTTP/"
 echo
 echo
@@ -51,7 +51,7 @@ echo
 
 echo "02. Count of type T entities (expect 1101)"
 echo "=========================================="
-out=$(swCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=T&limit=1&count=true')
+out=$(corCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=T&limit=1&count=true')
 echo "$out" | grep -i "NGSILD-Results-Count"
 echo
 echo
@@ -59,7 +59,7 @@ echo
 
 echo "03. Re-upsert the SAME 1101 entities with value v2 (all updates)"
 echo "==============================================================="
-out=$(swCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$(buildPayload v2)")
+out=$(corCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$(buildPayload v2)")
 echo "$out" | grep "^HTTP/"
 echo
 echo
@@ -67,7 +67,7 @@ echo
 
 echo "04. Count of type T entities (still 1101 - no duplicates)"
 echo "========================================================="
-out=$(swCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=T&limit=1&count=true')
+out=$(corCurl --url '/ngsi-ld/v1/entities' --urlParams 'type=T&limit=1&count=true')
 echo "$out" | grep -i "NGSILD-Results-Count"
 echo
 echo
@@ -75,14 +75,14 @@ echo
 
 echo "05. Boundary entity urn:ngsi-ld:T:1101 updated to v2"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:1101
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:1101
 echo
 echo
 
 
 echo "06. First entity urn:ngsi-ld:T:0001 updated to v2"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:0001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:0001
 echo
 echo
 
@@ -147,5 +147,5 @@ Content-Length: 104
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

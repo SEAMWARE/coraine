@@ -22,9 +22,9 @@ error
 context
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
-swBrokerStart
+corDbDrop
+corDbDrop -db coraine
+coraineStart
 
 --RUN--
 
@@ -40,7 +40,7 @@ swBrokerStart
 
 echo "01. pick + omit overlap (member 'a' in both) → 400"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s1","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a","b"],"omit":["a","c"]}
@@ -51,7 +51,7 @@ echo
 
 echo "02. pick + attributes → 400"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s2","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a"],"attributes":["b"]}
@@ -62,7 +62,7 @@ echo
 
 echo "03. omit + attributes → 400"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s3","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"omit":["a"],"attributes":["b"]}
@@ -73,7 +73,7 @@ echo
 
 echo "04. pick + omit on disjoint members → 201"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s4","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a","b"],"omit":["c","d"]}
@@ -84,7 +84,7 @@ echo
 
 echo "05. pick alone → 201"
 echo "===================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s5","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"pick":["a"]}
@@ -95,7 +95,7 @@ echo
 
 echo "06. omit alone → 201"
 echo "===================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s6","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"omit":["a"]}
@@ -106,7 +106,7 @@ echo
 
 echo "07. attributes alone → 201"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s7","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"},"attributes":["a"]}
@@ -205,5 +205,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

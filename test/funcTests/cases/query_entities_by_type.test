@@ -12,8 +12,8 @@ GET /entities?type= filters by entity type
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -52,14 +52,14 @@ payload='{
     "value": 50
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. GET entities?type=Vehicle - only V1 returned"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
@@ -111,5 +111,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

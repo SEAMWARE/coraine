@@ -14,8 +14,8 @@ BUILD_COVERAGE = BUILD_COVERAGE
 COV_DIR        = coverage
 COV_REPORT     = $(COV_DIR)/index.html
 COV_ETSI_DIR   = coverage-etsi
-COV_LIBS       = swRest swNgsild swJsonld
-SWTEST         = $(HOME)/git/swLibs/bin/swTest
+COV_LIBS       = corRest corNgsild corJsonld
+CORTEST         = $(HOME)/git/corLibs/bin/corTest
 # gcovr lives in the ETSI test-suite venv (gcov-15-aware). Override if needed.
 GCOVR         ?= $(HOME)/git/ngsi-ld-test-suite/.venv/bin/gcovr
 
@@ -29,9 +29,9 @@ ETC_DIR    = /opt/seamware/etc
 # contextSourceExtras (§ 5.2.40) — default opaque JSON config rendered on
 # /info/sourceIdentity. Regenerated on every build with current version, git
 # SHA and build timestamp; override at runtime via --contextSourceExtras.
-SWBROKER_VERSION   = 0.2.0
-SWBROKER_GIT_SHA   = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-SWBROKER_BUILD_AT  = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+CORAINE_VERSION   = 0.2.0
+CORAINE_GIT_SHA   = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+CORAINE_BUILD_AT  = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 all:        release
 
@@ -40,7 +40,7 @@ all:        release
 # rebuild+install when something did. Without this, editing a lib's source
 # leaves the broker linking against a stale .a (silent — link succeeds
 # against last-installed copy).
-SIBLING_LIBS = swRest swNgsild swJsonld
+SIBLING_LIBS = corRest corNgsild corJsonld
 SIBLING_DIR  = $(HOME)/git
 
 libs:
@@ -62,14 +62,14 @@ clean:
 etc/contextSourceExtras.json: makefile
 	@mkdir -p etc
 	@printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
-	  "$(SWBROKER_VERSION)" "$(SWBROKER_GIT_SHA)" "$(SWBROKER_BUILD_AT)" > $@
+	  "$(CORAINE_VERSION)" "$(CORAINE_GIT_SHA)" "$(CORAINE_BUILD_AT)" > $@
 
 # install_from <build-dir> — copy broker + plugins + etc out of a build tree
 define install_from
 	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(ETC_DIR)
-	cp -p $(1)/src/app/swBroker/swBroker                       $(PREFIX)/bin/
+	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
-	cp -p $(1)/src/plugins/currentState/swRamDB/swRamDB.so     $(PLUGIN_DIR)/db/currentState/
+	cp -p $(1)/src/plugins/currentState/corRamDB/corRamDB.so     $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/ramdb/ramdb.so             $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
@@ -84,23 +84,23 @@ install_debug: etc/contextSourceExtras.json
 	$(call install_from,$(BUILD_DEBUG))
 
 test:
-	$(SWTEST)
+	$(CORTEST)
 
 coverage:
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 	@find $(BUILD_COVERAGE) -name '*.gcda' -delete
-	SW_BROKER=$(CURDIR)/$(BUILD_COVERAGE)/src/app/swBroker/swBroker \
-	SW_BROKER_EXTRA_PARAMS="--database $(CURDIR)/$(BUILD_COVERAGE)/src/plugins/currentState/swRamDB/swRamDB.so --pretty-print 2 --foreground" \
-	$(SWTEST) || true
+	COR_BROKER=$(CURDIR)/$(BUILD_COVERAGE)/src/app/coraine/coraine \
+	COR_BROKER_EXTRA_PARAMS="--database $(CURDIR)/$(BUILD_COVERAGE)/src/plugins/currentState/corRamDB/corRamDB.so --pretty-print 2 --foreground" \
+	$(CORTEST) || true
 	@mkdir -p $(COV_DIR)
 	$(GCOVR) --root $(CURDIR)/src --object-directory $(BUILD_COVERAGE) \
-	      --html-details $(COV_REPORT) --html-title "swBroker Coverage"
+	      --html-details $(COV_REPORT) --html-title "coraine Coverage"
 	@echo ""
 	@echo "Coverage report: file://$(CURDIR)/$(COV_REPORT)"
 
-# Full ETSI-suite coverage: instrument the broker + NGSI-LD libs (swRest
-# swNgsild swJsonld) + mongoc/timescale plugins, run the ETSI TP suite via
+# Full ETSI-suite coverage: instrument the broker + NGSI-LD libs (corRest
+# corNgsild corJsonld) + mongoc/timescale plugins, run the ETSI TP suite via
 # etsiRun, then build an HTML report. The libs are static .a whole-archived
 # into the broker, so they flush via the broker's gcov runtime (no per-.so
 # coverage link needed); the plugin .so get --coverage from the Coverage build
@@ -121,8 +121,8 @@ coverage-etsi:
 	@echo ">>> [5/6] Running the ETSI TP suite (etsiRun sw)..."
 	@etsiRun sw || true
 	@echo ">>> Stopping broker so gcov flushes .gcda (onSignal -> exit(0))..."
-	@if [ -f /tmp/etsi-swBroker.pid ]; then \
-	   P=$$(cat /tmp/etsi-swBroker.pid); \
+	@if [ -f /tmp/etsi-coraine.pid ]; then \
+	   P=$$(cat /tmp/etsi-coraine.pid); \
 	   kill "$$P" 2>/dev/null || true; \
 	   for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$$P" 2>/dev/null && sleep 1 || break; done; \
 	 fi
@@ -134,8 +134,8 @@ coverage-etsi:
 	      -f '$(CURDIR)/src/plugins/currentState/mongoc/' \
 	      -f '$(CURDIR)/src/plugins/temporal/timescale/' \
 	      -f '$(CURDIR)/src/plugins/shared/' \
-	      -f '$(HOME)/git/swRest/' -f '$(HOME)/git/swNgsild/' -f '$(HOME)/git/swJsonld/' \
-	      --html-details $(COV_ETSI_DIR)/index.html --html-title "swBroker ETSI Coverage" \
+	      -f '$(HOME)/git/corRest/' -f '$(HOME)/git/corNgsild/' -f '$(HOME)/git/corJsonld/' \
+	      --html-details $(COV_ETSI_DIR)/index.html --html-title "coraine ETSI Coverage" \
 	      $(BUILD_COVERAGE) $(addprefix $(HOME)/git/,$(COV_LIBS))
 	@echo ""
 	@echo "ETSI coverage report: file://$(CURDIR)/$(COV_ETSI_DIR)/index.html"

@@ -12,8 +12,8 @@ HEAD requests (auto-generated from GET, no body, correct Content-Length)
 head
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,7 +34,7 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -98,5 +98,5 @@ Content-Length: 172
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

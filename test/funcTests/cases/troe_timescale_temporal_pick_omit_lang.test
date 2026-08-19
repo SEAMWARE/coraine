@@ -21,9 +21,9 @@ TRoE timescale - temporal pick/omit/lang
 troe timescale postgres temporal pick
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -48,42 +48,42 @@ payload='{
     "observedAt":  "2026-04-28T09:00:00Z"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. ?pick=speed — only speed survives, instance shape preserved"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=speed'
 echo
 echo
 
 
 echo "03. ?omit=color — color dropped, others kept"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?omit=color'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?omit=color'
 echo
 echo
 
 
 echo "04. ?lang=fr — LanguageProperty 'name' reduced to Property w/ French value"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lang=fr'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lang=fr'
 echo
 echo
 
 
 echo "05. ?lang=de — no German match, falls back to @none"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lang=de'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lang=de'
 echo
 echo
 
 
 echo "06. Multi-entity GET with ?pick=speed (timerel=after, type=Vehicle)"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&pick=speed'
 echo
 echo
 
@@ -259,6 +259,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

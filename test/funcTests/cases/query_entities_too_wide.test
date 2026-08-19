@@ -15,35 +15,35 @@ Query Entities - too wide query rejected (§ 5.7.2.4)
 entity query error validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. GET /entities (no filter) - 400 too wide"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities
+corCurl --url /ngsi-ld/v1/entities
 echo
 echo
 
 
 echo "02. GET /entities?type=Vehicle - 200 OK (type counts)"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
 
 echo "03. GET /entities?id=urn:V1 - 400 (id alone is too wide per § 5.7.2.4)"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?id=urn:V1'
+corCurl --url '/ngsi-ld/v1/entities?id=urn:V1'
 echo
 echo
 
 
 echo "04. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?local=true'
+corCurl --url '/ngsi-ld/v1/entities?local=true'
 echo
 echo
 
@@ -106,5 +106,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

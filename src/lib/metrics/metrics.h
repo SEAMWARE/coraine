@@ -8,14 +8,14 @@
 //
 // Copyright 2026 Seamware
 //
-// Prometheus metrics facade for swBroker. All counters/gauges live
+// Prometheus metrics facade for coraine. All counters/gauges live
 // in a single translation unit (metrics.c). Hot-path mutators are
 // kprom atomic ops — no allocation, no locks.
 //
 // Wiring:
 //   - metricsInit()           at startup, after broker args parsed.
-//   - metricsPreService()     from swRest pre-service hook wrapper.
-//   - metricsPostResponse()   from swRest post-response hook wrapper.
+//   - metricsPreService()     from corRest pre-service hook wrapper.
+//   - metricsPostResponse()   from corRest post-response hook wrapper.
 //   - metricsNotificationSent() / ...CsrSent() from notifier code.
 //   - metricsRender()         GET /admin/metrics handler.
 //
@@ -91,7 +91,7 @@ extern void metricsDistopForward(double latencySec, bool success);
 //
 // metricsRender - Prometheus text-format output for /admin/metrics
 //
-// Service-routine style: uses swRest.out.payload etc. Sets Content-Type
+// Service-routine style: uses corRest.out.payload etc. Sets Content-Type
 // to "text/plain; version=0.0.4" per Prometheus exposition spec.
 //
 extern bool metricsRender(void);

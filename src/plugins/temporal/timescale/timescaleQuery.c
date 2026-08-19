@@ -40,10 +40,10 @@
 #include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
 
-#include "swRest/SwRestState.h"                           // swRest
-#include "swNgsild/LdAttrType.h"                          // LdAttr*
-#include "swNgsild/LdGeoRel.h"                            // LdGeoNear, LdGeoRelType
-#include "swNgsild/SwNgsild.h"                            // swNgsild
+#include "corRest/CorRestState.h"                           // corRest
+#include "corNgsild/LdAttrType.h"                          // LdAttr*
+#include "corNgsild/LdGeoRel.h"                            // LdGeoNear, LdGeoRelType
+#include "corNgsild/CorNgsild.h"                            // corNgsild
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
 
@@ -111,7 +111,7 @@ static KjNode* makeValueNode(Kjson* kjsonP, const char* vfn,
 {
   if (v_compnd != NULL && v_compnd[0] != 0)
   {
-    char*   dup    = kaStrdup(&swRest.kalloc, v_compnd);
+    char*   dup    = kaStrdup(&corRest.kalloc, v_compnd);
     KjNode* parsed = kjParse(kjsonP, dup);
     if (parsed != NULL)
     {
@@ -129,7 +129,7 @@ static KjNode* makeValueNode(Kjson* kjsonP, const char* vfn,
   if (v_bool != NULL)
     return kjBoolean(kjsonP, vfn, (v_bool[0] == 't') ? KTRUE : KFALSE);
   if (v_text != NULL)
-    return kjString(kjsonP, vfn, kaStrdup(&swRest.kalloc, v_text));
+    return kjString(kjsonP, vfn, kaStrdup(&corRest.kalloc, v_text));
   return NULL;
 }
 
@@ -266,7 +266,7 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
   // caller binds that one param here (the connection identifies the tenant).
   const char* idParam[1] = { entityId };
   int   sz  = (int) strlen(qPred) + 32;
-  char* sql = (char*) kaAlloc(&swRest.kalloc, sz);
+  char* sql = (char*) kaAlloc(&corRest.kalloc, sz);
   snprintf(sql, sz, "SELECT %s", qPred);
 
   PGresult* res = PQexecParams(timescaleConn, sql, 1, NULL, idParam, NULL, NULL, 0);
@@ -363,8 +363,8 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     opPred = " AND op = 'created'";
   else if (timeProp != NULL && strcmp(timeProp, "deletedAt") == 0)
     opPred = " AND op = 'deleted'";
-  const char* attrPred      = attrsInClause(attrV, &swRest.kalloc);
-  const char* dsPred        = datasetIdsInClause(datasetIdV, &swRest.kalloc);
+  const char* attrPred      = attrsInClause(attrV, &corRest.kalloc);
+  const char* dsPred        = datasetIdsInClause(datasetIdV, &corRest.kalloc);
 
   // q precondition.
   bool qErr = false;
@@ -391,7 +391,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       return TROE_ERR;
     }
     if (PQntuples(eRes) > 0)
-      entityType = kaStrdup(&swRest.kalloc, PQgetvalue(eRes, 0, 0));
+      entityType = kaStrdup(&corRest.kalloc, PQgetvalue(eRes, 0, 0));
     PQclear(eRes);
   }
 
@@ -411,7 +411,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     //   between — [timeAt, endTimeAt): lower inclusive, upper exclusive
     if (strcmp(timerel, "before") == 0)
     {
-      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, " AND %s < $2::timestamptz", tCol);
       timePred = buf;
       paramV[1] = timeAt;
@@ -419,7 +419,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     }
     else if (strcmp(timerel, "after") == 0)
     {
-      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, " AND %s >= $2::timestamptz", tCol);
       timePred = buf;
       paramV[1] = timeAt;
@@ -427,7 +427,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     }
     else if (strcmp(timerel, "between") == 0)
     {
-      char* buf = (char*) kaAlloc(&swRest.kalloc, 96);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, 96);
       snprintf(buf, 96, " AND %s >= $2::timestamptz AND %s < $3::timestamptz", tCol, tCol);
       timePred = buf;
       paramV[1] = timeAt;
@@ -487,7 +487,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     return TROE_NOT_FOUND;
 
   int   sqlSize = 8192;
-  char* sql     = (char*) kaAlloc(&swRest.kalloc, sqlSize);
+  char* sql     = (char*) kaAlloc(&corRest.kalloc, sqlSize);
 
   // Per-partition page clip. The window function ORDER BY follows the
   // pagination direction so rn=1 is the first instance of the page
@@ -522,12 +522,12 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     return TROE_NOT_FOUND;
   }
 
-  Kjson*  kjsonP = swRest.kjsonP;
+  Kjson*  kjsonP = corRest.kjsonP;
   KjNode* root   = kjObject(kjsonP, NULL);
 
   kjChildAdd(root, kjString(kjsonP, "id", entityId));
 
-  KjNode* typeNodeP = typeNodeFromJson(entityType, kjsonP, &swRest.kalloc);
+  KjNode* typeNodeP = typeNodeFromJson(entityType, kjsonP, &corRest.kalloc);
   if (typeNodeP != NULL)
     kjChildAdd(root, typeNodeP);
 
@@ -550,10 +550,10 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     {
       if (!PQgetisnull(tRes, 0, 0))
         kjChildAdd(root, kjString(kjsonP, "createdAt",
-                                   stripZeroMs(kaStrdup(&swRest.kalloc, PQgetvalue(tRes, 0, 0)))));
+                                   stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
       if (!PQgetisnull(tRes, 0, 1))
         kjChildAdd(root, kjString(kjsonP, "modifiedAt",
-                                   stripZeroMs(kaStrdup(&swRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+                                   stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
     }
     PQclear(tRes);
   }
@@ -592,7 +592,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     KjNode* arr = kjLookup(root, attrName);
     if (arr == NULL)
     {
-      arr = kjArray(kjsonP, kaStrdup(&swRest.kalloc, attrName));
+      arr = kjArray(kjsonP, kaStrdup(&corRest.kalloc, attrName));
       kjChildAdd(root, arr);
     }
 
@@ -634,21 +634,21 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     // a regular one (§ 4.5.4) — it travels with the deleted row regardless
     // of sysAttrs (it's not in the strip list).
     if (crAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&swRest.kalloc, crAtIso))));
+      kjChildAdd(inst, kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&corRest.kalloc, crAtIso))));
     if (modAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
+      kjChildAdd(inst, kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
     if (isDeleted && modAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&swRest.kalloc, modAtIso))));
+      kjChildAdd(inst, kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
     if (obsAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "observedAt", stripZeroMs(kaStrdup(&swRest.kalloc, obsAtIso))));
+      kjChildAdd(inst, kjString(kjsonP, "observedAt", stripZeroMs(kaStrdup(&corRest.kalloc, obsAtIso))));
     if (dsId != NULL && dsId[0] != 0)
-      kjChildAdd(inst, kjString(kjsonP, "datasetId", kaStrdup(&swRest.kalloc, dsId)));
+      kjChildAdd(inst, kjString(kjsonP, "datasetId", kaStrdup(&corRest.kalloc, dsId)));
     if (instId != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "instanceId", kaStrdup(&swRest.kalloc, instId)));
+      kjChildAdd(inst, kjString(kjsonP, "instanceId", kaStrdup(&corRest.kalloc, instId)));
 
     if (subAttrs != NULL && subAttrs[0] != 0)
     {
-      char* dup = kaStrdup(&swRest.kalloc, subAttrs);
+      char* dup = kaStrdup(&corRest.kalloc, subAttrs);
       KjNode* parsed = kjParse(kjsonP, dup);
       if (parsed != NULL && parsed->type == KjObject)
       {
@@ -673,12 +673,12 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     if (minIso != NULL)
     {
       if (rangeOut->rangeStartIso == NULL || strcmp(minIso, rangeOut->rangeStartIso) < 0)
-        rangeOut->rangeStartIso = stripZeroMs(kaStrdup(&swRest.kalloc, minIso));
+        rangeOut->rangeStartIso = stripZeroMs(kaStrdup(&corRest.kalloc, minIso));
     }
     if (maxIso != NULL)
     {
       if (rangeOut->rangeEndIso == NULL || strcmp(maxIso, rangeOut->rangeEndIso) > 0)
-        rangeOut->rangeEndIso = stripZeroMs(kaStrdup(&swRest.kalloc, maxIso));
+        rangeOut->rangeEndIso = stripZeroMs(kaStrdup(&corRest.kalloc, maxIso));
     }
 
     if (rangeOut->size == 0)
@@ -1018,7 +1018,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
 
-  Kjson*  kjsonP = swRest.kjsonP;
+  Kjson*  kjsonP = corRest.kjsonP;
   KjNode* arrP   = kjArray(kjsonP, NULL);
 
   // limitGiven distinguishes an explicit limit=0 (count-only page) from an
@@ -1028,9 +1028,9 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   int offset = (fP->offset > 0) ? fP->offset : 0;
 
   // Entity-level selectors.
-  const char* idClause      = idsInClause(fP->idV, &swRest.kalloc);
-  const char* typeClause    = typesInClause(fP->typeV, &swRest.kalloc);
-  const char* patternClause = idPatternClause(fP->idPattern, &swRest.kalloc);
+  const char* idClause      = idsInClause(fP->idV, &corRest.kalloc);
+  const char* typeClause    = typesInClause(fP->typeV, &corRest.kalloc);
+  const char* patternClause = idPatternClause(fP->idPattern, &corRest.kalloc);
 
   // Instance-match predicate (mirrors buildEntityTemporalDocLocked's attr
   // query): timerel window on the timeproperty column, attrs/datasetId
@@ -1043,8 +1043,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     opPred = " AND op = 'created'";
   else if (timeProp != NULL && strcmp(timeProp, "deletedAt") == 0)
     opPred = " AND op = 'deleted'";
-  const char* attrPred = attrsInClause(fP->attrV, &swRest.kalloc);
-  const char* dsPred   = datasetIdsInClause(fP->datasetIdV, &swRest.kalloc);
+  const char* attrPred = attrsInClause(fP->attrV, &corRest.kalloc);
+  const char* dsPred   = datasetIdsInClause(fP->datasetIdV, &corRest.kalloc);
 
   const char* timePred = "";
   int         nParams  = 0;
@@ -1053,19 +1053,19 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   {
     if (strcmp(fP->timerel, "before") == 0)
     {
-      char* b = (char*) kaAlloc(&swRest.kalloc, 64);
+      char* b = (char*) kaAlloc(&corRest.kalloc, 64);
       snprintf(b, 64, " AND %s < $1::timestamptz", tCol);
       timePred = b; paramV[0] = fP->timeAtIso; nParams = 1;
     }
     else if (strcmp(fP->timerel, "after") == 0)
     {
-      char* b = (char*) kaAlloc(&swRest.kalloc, 64);
+      char* b = (char*) kaAlloc(&corRest.kalloc, 64);
       snprintf(b, 64, " AND %s >= $1::timestamptz", tCol);
       timePred = b; paramV[0] = fP->timeAtIso; nParams = 1;
     }
     else if (strcmp(fP->timerel, "between") == 0)
     {
-      char* b = (char*) kaAlloc(&swRest.kalloc, 96);
+      char* b = (char*) kaAlloc(&corRest.kalloc, 96);
       snprintf(b, 96, " AND %s >= $1::timestamptz AND %s < $2::timestamptz", tCol, tCol);
       timePred = b; paramV[0] = fP->timeAtIso; paramV[1] = fP->endTimeAtIso; nParams = 2;
     }
@@ -1075,19 +1075,19 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   const char* qCorr = "";
   if (fP->qSqlPredicate != NULL)
   {
-    const char* c  = correlateQPred(fP->qSqlPredicate, &swRest.kalloc);
+    const char* c  = correlateQPred(fP->qSqlPredicate, &corRest.kalloc);
     int         sz = (int) strlen(c) + 8;
-    char*       b  = (char*) kaAlloc(&swRest.kalloc, sz);
+    char*       b  = (char*) kaAlloc(&corRest.kalloc, sz);
     snprintf(b, sz, " AND %s", c);
     qCorr = b;
   }
 
   // Correlated geo predicate (§ 11.3.3) — pushes ?georel near into SQL.
-  const char* geoPred = geoPredicateCorrelated(fP, tCol, timePred, opPred, &swRest.kalloc);
+  const char* geoPred = geoPredicateCorrelated(fP, tCol, timePred, opPred, &corRest.kalloc);
 
   // WHERE body shared by the page query and the count query.
   int   wSize = 16384;
-  char* where = (char*) kaAlloc(&swRest.kalloc, wSize);
+  char* where = (char*) kaAlloc(&corRest.kalloc, wSize);
   snprintf(where, wSize,
     "FROM (SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
     "FROM troe_entities ORDER BY entity_id, modified_at DESC) latest "
@@ -1097,7 +1097,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   // Page query — fetch limit+1 so we can tell whether more entities remain.
   int   pSize = wSize + 256;
-  char* pageSql = (char*) kaAlloc(&swRest.kalloc, pSize);
+  char* pageSql = (char*) kaAlloc(&corRest.kalloc, pSize);
   snprintf(pageSql, pSize,
     "SELECT entity_id, array_to_json(entity_type)::text %s ORDER BY entity_id LIMIT %d OFFSET %d",
     where, limit + 1, offset);
@@ -1119,8 +1119,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   for (int r = 0; r < pageN; r++)
   {
-    const char* entityId   = kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 0));
-    const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&swRest.kalloc, PQgetvalue(eRes, r, 1));
+    const char* entityId   = kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
+    const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));
 
     KjNode* docP = NULL;
     int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut);
@@ -1162,7 +1162,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   if (fP->count)
   {
     int   cSize = wSize + 64;
-    char* countSql = (char*) kaAlloc(&swRest.kalloc, cSize);
+    char* countSql = (char*) kaAlloc(&corRest.kalloc, cSize);
     snprintf(countSql, cSize, "SELECT COUNT(*) %s", where);
 
     PGresult* nRes = PQexecParams(timescaleConn, countSql, nParams, NULL,

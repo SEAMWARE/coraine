@@ -16,8 +16,8 @@ Query q over a Relationship — matches on the object URI
 query q relationship
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,21 +28,21 @@ payload='{
   "type": "T_Query",
   "R100": {"type": "Relationship", "object": "urn:ngsi-ld:T2:6789"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. q=R100==\"urn:ngsi-ld:T2:6789\" — matches E1 (on the object URI)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T_Query&q=R100==%22urn:ngsi-ld:T2:6789%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T_Query&q=R100==%22urn:ngsi-ld:T2:6789%22'
 echo
 echo
 
 
 echo "03. q=R100==\"urn:ngsi-ld:T2:OTHER\" — no match (different object)"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T_Query&q=R100==%22urn:ngsi-ld:T2:OTHER%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T_Query&q=R100==%22urn:ngsi-ld:T2:OTHER%22'
 echo
 echo
 
@@ -92,4 +92,4 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

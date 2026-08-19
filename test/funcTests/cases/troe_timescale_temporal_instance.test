@@ -17,15 +17,15 @@ TRoE timescale - PATCH / DELETE Attribute instance by instanceId
 troe timescale postgres temporal patch delete instance
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Create urn:V1 with three speed instances → broker mints instanceIds"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{
   "id":"urn:V1","type":"Vehicle",
   "speed":[
     {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
@@ -40,7 +40,7 @@ echo
 
 echo "02. GET — every instance carries instanceId (urn:ngsi-ld:Instance:...)"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -62,7 +62,7 @@ echo
 
 echo "03. PATCH the value=20 instance → 204"
 echo "====================================="
-INST=$(swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+INST=$(corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -72,7 +72,7 @@ d = json.loads(body)
 def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
 sk = next(k for k in d if short(k) == 'speed')
 print(next(i['instanceId'] for i in d[sk] if i.get('value') == 20))")
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{
   "speed":[{"type":"Property","value":25,"observedAt":"2026-04-28T10:00:00Z"}]
 }' | head -1
 echo
@@ -81,7 +81,7 @@ echo
 
 echo "04. GET — the value=20 instance is now 25, others untouched"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -98,7 +98,7 @@ echo
 
 echo "05. DELETE the value=25 instance → 204"
 echo "======================================"
-INST=$(swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+INST=$(corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -108,14 +108,14 @@ d = json.loads(body)
 def short(k): return re.sub(r'^https://uri\.etsi\.org/ngsi-ld/default-context/', '', k)
 sk = next(k for k in d if short(k) == 'speed')
 print(next(i['instanceId'] for i in d[sk] if i.get('value') == 25))")
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X DELETE | head -1
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X DELETE | head -1
 echo
 echo
 
 
 echo "06. GET — only 10 and 30 remain"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -131,14 +131,14 @@ echo
 
 echo "07. DELETE same instance again → 404 (already gone)"
 echo "==================================================="
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X DELETE | head -1
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X DELETE | head -1
 echo
 echo
 
 
 echo "08. PATCH a non-existent instance → 404"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/urn:ngsi-ld:Instance:00000000-0000-0000-0000-000000000000' -X PATCH --payload '{
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/urn:ngsi-ld:Instance:00000000-0000-0000-0000-000000000000' -X PATCH --payload '{
   "speed":[{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}]
 }' | head -1
 echo
@@ -189,6 +189,6 @@ HTTP/1.1 404 Not Found
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

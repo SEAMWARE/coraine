@@ -12,10 +12,10 @@ Subscription q-filter with different @contexts for create and GET
 context q subscription
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 #
 # Context A: maps short names 'a' and 'b' to IRIs with problematic characters
@@ -59,7 +59,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -67,7 +67,7 @@ echo
 
 echo "02. GET subscription with context A — q should show a>5;b<10;c"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -75,7 +75,7 @@ echo
 
 echo "03. GET subscription with context B — B has no alias for cargo.volume: a2>5;b2<10;<encoded IRI>"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -83,7 +83,7 @@ echo
 
 echo "04. GET subscription without user context — q should show URL-encoded IRIs"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Qctx
 echo
 echo
 
@@ -193,5 +193,5 @@ Content-Length: 439
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

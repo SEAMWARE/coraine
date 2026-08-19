@@ -9,14 +9,14 @@
 // Copyright 2026 Seamware
 //
 // Shared GEOS-based geo matching for entity queries and subscription notifications.
-// Compiled into both swRamDB and mongoc plugins.
+// Compiled into both corRamDB and mongoc plugins.
 //
 #include <stdbool.h>
 
 #include "kjson/KjNode.h"
 #include "db/DbQueryFilter.h"
 
-#include "swNgsild/LdGeoRel.h"                            // LdGeoRel
+#include "corNgsild/LdGeoRel.h"                            // LdGeoRel
 
 extern void geoMatchInit(void);
 extern void geoMatchClose(void);

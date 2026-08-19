@@ -1,5 +1,5 @@
-#ifndef SWBROKER_DBEXPIREDENTITIES_H_
-#define SWBROKER_DBEXPIREDENTITIES_H_
+#ifndef CORAINE_DBEXPIREDENTITIES_H_
+#define CORAINE_DBEXPIREDENTITIES_H_
 
 //
 // FILE            dbExpiredEntities.h
@@ -67,4 +67,4 @@ extern bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP);
 //
 extern void dbExpiredEntityFilter(Tenant* tenantP, KjNode* arrayP);
 
-#endif  // SWBROKER_DBEXPIREDENTITIES_H_
+#endif  // CORAINE_DBEXPIREDENTITIES_H_

@@ -12,8 +12,8 @@ DistOps - createEntity misc cases: ?local, dead endpoint, 2 exclusives, mixed ex
 create distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 201
 ftClientStart --port 7712 --status 201
 
@@ -29,7 +29,7 @@ ftClientStart --port 7712 --status 201
 echo "01. Register exclusive CSR for urn:V1"
 echo "====================================="
 payload='{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"exclusive","operations":["createEntity","retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -37,14 +37,14 @@ echo
 echo "02. POST urn:V1 ?local=true → 409 (exclusive claim — § 9.3.3 guard, no local bypass)"
 echo "===================================================================="
 payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
-swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload "$payload"
 echo
 echo
 
 
 echo "03. GET urn:V1 ?local=true → 404 (nothing was stored)"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
 echo
 
@@ -53,7 +53,7 @@ echo
 echo "04. Register redirect CSR to nothing (port 6666) + another live"
 echo "==============================================================="
 payload='{"id":"urn:CSR:Dead","type":"ContextSourceRegistration","endpoint":"http://localhost:6666","mode":"redirect","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -61,7 +61,7 @@ echo
 echo "05. Register live redirect CSR for urn:V2 / color"
 echo "================================================="
 payload='{"id":"urn:CSR:LiveRedir","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"redirect","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["color"]}]}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -69,7 +69,7 @@ echo
 echo "06. POST urn:V2 {speed, color} → dead CSR fails, live succeeds → 207"
 echo "===================================================================="
 payload='{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":42},"color":{"type":"Property","value":"red"}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -78,10 +78,10 @@ echo
 echo "07. Register exclusive (claims speed) + inclusive (claims color) for urn:V3"
 echo "==========================================================================="
 payload='{"id":"urn:CSR:MixExcl","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","mode":"exclusive","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["speed"]}]}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{"id":"urn:CSR:MixIncl","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","mode":"inclusive","operations":["createEntity"],"information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["color"]}]}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -89,14 +89,14 @@ echo
 echo "08. POST urn:V3 {speed, color, owner} → speed chopped → forward, color both, owner local"
 echo "========================================================================================="
 payload='{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":42},"color":{"type":"Property","value":"red"},"owner":{"type":"Property","value":"alice"}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "09. GET urn:V3 ?local=true → color + owner (speed was chopped away)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
 echo
 echo
 
@@ -244,5 +244,5 @@ Content-Length: 166
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -25,12 +25,12 @@ Distributed read — CP answers in its own @context, broker re-expands correctly
 context distops csr-reg forwarding
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 contextServerPush /jsonldContexts/ctxClient '{
   "@context": {
@@ -67,7 +67,7 @@ payload='{
   "type": "T",
   "velocity": {"type": "Property", "value": 42}
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxCP>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -91,14 +91,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
 echo
 echo
 
 
 echo "03. Query CB via ctxClient — attribute re-expanded to spd=42"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T' \
+corCurl --url '/ngsi-ld/v1/entities?type=T' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -106,7 +106,7 @@ echo
 
 echo "04. Retrieve urn:E1 on CB via ctxClient — spd=42 (retrieve path)"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -114,7 +114,7 @@ echo
 
 echo "05. Retrieve urn:E1 on CB via core context — full IRI veh/speed"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
@@ -189,6 +189,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1
 contextServerStop

@@ -28,9 +28,9 @@
 #include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
 
-#include "swRest/SwRestState.h"                           // swRest
-#include "swNgsild/LdAttrType.h"                          // LdAttr*
-#include "swNgsild/ldAttrTypeDetect.h"                    // ldAttrTypeDetect
+#include "corRest/CorRestState.h"                           // corRest
+#include "corNgsild/LdAttrType.h"                          // LdAttr*
+#include "corNgsild/ldAttrTypeDetect.h"                    // ldAttrTypeDetect
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TroeOp*
 
@@ -81,7 +81,7 @@ void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
 // AttrCols - column values extracted from one attribute snapshot.
 //
 // All `const char*` pointers — NULL means "DON'T BIND" (column stays
-// NULL in SQL via DEFAULT). Strings live in swRest.kalloc, no free.
+// NULL in SQL via DEFAULT). Strings live in corRest.kalloc, no free.
 //
 typedef struct
 {
@@ -166,14 +166,14 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
   //   Property / GeoProperty / VocabProperty / JsonProperty / ListProperty → "value"
   //   Relationship / ListRelationship                                       → "object"
   //   LanguageProperty                                                      → "languageMap"
-  // (Note: after JSON-LD expansion via swldExpandTree these stay as short
+  // (Note: after JSON-LD expansion via corLdExpandTree these stay as short
   //  names — they're core-context terms with the keep-short shortcut.)
   // ldApiEntityToDbModel normalises all of them to "value" before regular
   // POST /entities; the temporal POST path may feed us API-format directly,
   // so accept either form here.
   KjNode* valueP   = NULL;
   KjNode* observP  = NULL;
-  KjNode* subAttrs = kjObject(swRest.kjsonP, NULL);
+  KjNode* subAttrs = kjObject(corRest.kjsonP, NULL);
 
   // IMPORTANT: kjChildAdd re-points the added node's ->next, which would
   // break this for-loop's iteration if the loop variable is the same node.
@@ -217,7 +217,7 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
     }
     else if (observP->type == KjInt)
     {
-      char* buf = (char*) kaAlloc(&swRest.kalloc, 64);
+      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
       double secs = (double) observP->value.i / 1e9;
       // ::timestamptz accepts "epoch" floats via to_timestamp(); for direct
       // cast we want an ISO string. Build it.
@@ -240,10 +240,10 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
     {
       case KjString:  cP->v_text     = valueP->value.s; break;
       case KjInt:
-      case KjFloat:   cP->v_number   = numberToText(valueP, &swRest.kalloc); break;
+      case KjFloat:   cP->v_number   = numberToText(valueP, &corRest.kalloc); break;
       case KjBoolean: cP->v_bool     = valueP->value.b ? "t" : "f"; break;
       case KjObject:
-      case KjArray:   cP->v_compound = renderJsonb(valueP, &swRest.kalloc); break;
+      case KjArray:   cP->v_compound = renderJsonb(valueP, &corRest.kalloc); break;
       case KjNull:    /* leave all NULL */ break;
       default: break;
     }
@@ -251,7 +251,7 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
 
   // sub_attrs only emitted if non-empty.
   if (subAttrs->value.firstChildP != NULL)
-    cP->sub_attrs = renderJsonb(subAttrs, &swRest.kalloc);
+    cP->sub_attrs = renderJsonb(subAttrs, &corRest.kalloc);
 }
 
 

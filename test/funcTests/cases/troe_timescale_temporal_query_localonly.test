@@ -18,17 +18,17 @@ TRoE timescale - temporal multi-entity query (broker without -dist)
 troe timescale postgres temporal query
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed: V1 (Vehicle), V2 (Vehicle), P1 (Person)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"alice","observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"alice","observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
 echo done
 echo
 echo
@@ -36,7 +36,7 @@ echo
 
 echo "02. type=Vehicle returns V1 + V2 (distops off, no ?local needed)     "
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -52,7 +52,7 @@ echo
 
 echo "03. q=speed>50 → only V2"
 echo "========================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E50' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E50' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -68,7 +68,7 @@ echo
 
 echo "04. ?local=true is also accepted (redundant with distops off, harmless)  "
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -105,6 +105,6 @@ done
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

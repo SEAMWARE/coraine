@@ -21,10 +21,10 @@
 context entity url-param
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxVocab '{
   "@context": {
@@ -69,7 +69,7 @@ payload='{
   "spd": {"type": "Property", "value": 120},
   "mileage": {"type": "Property", "value": 50000}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -77,14 +77,14 @@ echo
 
 echo "02. GET via core context — spd full IRI, mileage/Car default-context short"
 echo "============================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "03. GET via ctxVocab — everything short"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -92,7 +92,7 @@ echo
 
 echo "04. q=mileage>100 via ctxVocab — default-context both sides: match"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Car&q=mileage>100' \
+corCurl --url '/ngsi-ld/v1/entities?type=Car&q=mileage>100' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
 echo
 echo
@@ -100,7 +100,7 @@ echo
 
 echo "05. q=mileage>100 via ctxExplicit — vocab/mileage: NO match"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Car&q=mileage>100' \
+corCurl --url '/ngsi-ld/v1/entities?type=Car&q=mileage>100' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxExplicit>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
 echo
 echo
@@ -108,7 +108,7 @@ echo
 
 echo "06. pick=mileage via ctxVocab — mileage survives the pick"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Car&pick=mileage' \
+corCurl --url '/ngsi-ld/v1/entities?type=Car&pick=mileage' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -121,8 +121,8 @@ payload='{
   "type": "Car",
   "https://example.org/vocab/odometer": {"type": "Property", "value": 7}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E2 \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E2 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxVocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -229,5 +229,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

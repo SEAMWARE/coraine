@@ -15,8 +15,8 @@ Entity type given as an already-expanded IRI round-trips
 entity create types
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -27,7 +27,7 @@ swBrokerStart
 
 echo "01. Create entity with an already-expanded type IRI"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
   "id": "urn:ngsi-ld:entities:E1",
   "type": "https://uri.fiware.org/ns/data-models#AirQualityObserved",
   "name": { "type": "Property", "value": "John 2" }
@@ -38,7 +38,7 @@ echo
 
 echo "02. GET the entity — type is the same IRI"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entities:E1
 echo
 echo
 
@@ -74,5 +74,5 @@ Content-Length: 171
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

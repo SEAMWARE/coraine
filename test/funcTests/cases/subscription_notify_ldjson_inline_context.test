@@ -23,10 +23,10 @@ Subscription notification — ld+json carries @context inline in body, no Link (
 context subscription notification ldjson
 
 --INIT--
-swDbDrop
+corDbDrop
 contextServerStart
 ftClientStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -55,7 +55,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -63,7 +63,7 @@ echo
 
 echo "01b. GET the subscription — receiverInfo comes back AS CREATED (no synthesized accept)"
 echo "====================================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1
 echo
 echo
 
@@ -75,7 +75,7 @@ payload='{
   "type": "T",
   "vel": {"type": "Property", "value": 5}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -170,6 +170,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
 contextServerStop

@@ -29,10 +29,10 @@
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp, memset, strlen, strcpy
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
-#include "swNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
-#include "swNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
+#include "corNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
+#include "corNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -40,22 +40,22 @@
 #include "kjson/kjClone.h"                           // kjClone
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swJsonld/swldExpandTree.h"                 // swldExpandTree
+#include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 
-#include "swNgsild/LdQ.h"                            // LdQNode
-#include "swNgsild/LdProj.h"                          // LdProjItem
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/LdGeoRel.h"                        // LdGeoNear
-#include "swNgsild/ldParams.h"                        // LD_PARAM_LIMIT
-#include "swNgsild/ldParamsValidate.h"               // ldParamsValidate
-#include "swNgsild/ldPickOmit.h"                     // ldPickOmit
-#include "swNgsild/ldOrderSort.h"                    // ldOrderSort
-#include "swNgsild/ldToTemporalValues.h"             // ldToTemporalValues
-#include "swNgsild/ldEntityMatch.h"                  // ldEntityMatchScope
-#include "swNgsild/ldStripAtContext.h"               // ldStripAtContext
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery, ldRegOpSupported
-#include "swNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/LdQ.h"                            // LdQNode
+#include "corNgsild/LdProj.h"                          // LdProjItem
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/LdGeoRel.h"                        // LdGeoNear
+#include "corNgsild/ldParams.h"                        // LD_PARAM_LIMIT
+#include "corNgsild/ldParamsValidate.h"               // ldParamsValidate
+#include "corNgsild/ldPickOmit.h"                     // ldPickOmit
+#include "corNgsild/ldOrderSort.h"                    // ldOrderSort
+#include "corNgsild/ldToTemporalValues.h"             // ldToTemporalValues
+#include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchScope
+#include "corNgsild/ldStripAtContext.h"               // ldStripAtContext
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery, ldRegOpSupported
+#include "corNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
@@ -77,10 +77,10 @@
 //
 static bool csfCsrMatch(LdRegCacheItem* csr)
 {
-  if (swNgsild.csfExpr == NULL)
+  if (corNgsild.csfExpr == NULL)
     return true;
 
-  return (csr->regTree != NULL) && ldEntityMatchQ(csr->regTree, swNgsild.csfExpr);
+  return (csr->regTree != NULL) && ldEntityMatchQ(csr->regTree, corNgsild.csfExpr);
 }
 
 
@@ -190,9 +190,9 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
 {
   // Worst-case length: each (key=value&) plus NUL.
   int len = 1;
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
-    const char* k = swRest.in.uriParamV[i].key;
+    const char* k = corRest.in.uriParamV[i].key;
     if (strcmp(k, "options")   == 0) continue;
     if (strcmp(k, "format")    == 0) continue;
     if (strcmp(k, "local")     == 0) continue;
@@ -204,16 +204,16 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
 
-    const char* v = swRest.in.uriParamV[i].value;
+    const char* v = corRest.in.uriParamV[i].value;
     len += strlen(k) + 1 + (v ? strlen(v) : 0) + 1;
   }
 
   char* buf = (char*) kaAlloc(kaP, len);
   int pos = 0;
 
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
-    const char* k = swRest.in.uriParamV[i].key;
+    const char* k = corRest.in.uriParamV[i].key;
     if (strcmp(k, "options")   == 0) continue;
     if (strcmp(k, "format")    == 0) continue;
     if (strcmp(k, "local")     == 0) continue;
@@ -225,7 +225,7 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
 
-    const char* v = swRest.in.uriParamV[i].value;
+    const char* v = corRest.in.uriParamV[i].value;
     if (pos > 0) buf[pos++] = '&';
     int kl = strlen(k);
     memcpy(buf + pos, k, kl);
@@ -267,7 +267,7 @@ static KjNode* forwardTemporalQueryToCSR(LdRegCacheItem* csr,
   int qsLen   = (queryString != NULL && queryString[0] != 0) ? (int) strlen(queryString) : 0;
 
   // base + path + (?qs) + NUL
-  char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
+  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
   strcpy(url, base);
   strcpy(url + baseLen, path);
   if (qsLen > 0)
@@ -282,16 +282,16 @@ static KjNode* forwardTemporalQueryToCSR(LdRegCacheItem* csr,
   int         respBodyLen = 0;
   const char* errDetail   = NULL;
 
-  int status = ldDistOpSendReceive(csr, SwVerbGet, url, NULL, 0, ownAlias,
+  int status = ldDistOpSendReceive(csr, CorVerbGet, url, NULL, 0, ownAlias,
                                    &errDetail, &respBody, &respBodyLen);
   if (status < 200 || status >= 300 || respBody == NULL || respBodyLen == 0)
     return NULL;
 
-  KjNode* treeP = kjParse(swRest.kjsonP, respBody);
+  KjNode* treeP = kjParse(corRest.kjsonP, respBody);
   if (treeP == NULL || treeP->type != KjArray)
     return NULL;
 
-  swldExpandTree(treeP, swNgsild.contextP, &swRest.kalloc);
+  corLdExpandTree(treeP, corNgsild.contextP, &corRest.kalloc);
   ldStripAtContext(treeP);
   return treeP;
 }
@@ -389,24 +389,24 @@ bool getEntitiesTemporal(void)
   // raised." Same reason as the single-entity temporal retrieval: a `{...}`
   // sub-projection used to be accepted and then quietly dropped.
   //
-  for (LdProjItem* pP = swNgsild.pickTree; pP != NULL; pP = pP->next)
+  for (LdProjItem* pP = corNgsild.pickTree; pP != NULL; pP = pP->next)
   {
     if (pP->child != NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Projection",
               "'pick' uses a linked-entity projection ('%s'), which a temporal query does not support",
-              (swNgsild.pick != NULL) ? swNgsild.pick : "");
+              (corNgsild.pick != NULL) ? corNgsild.pick : "");
       return true;
     }
   }
 
-  for (LdProjItem* pP = swNgsild.omitTree; pP != NULL; pP = pP->next)
+  for (LdProjItem* pP = corNgsild.omitTree; pP != NULL; pP = pP->next)
   {
     if (pP->child != NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Projection",
               "'omit' uses a linked-entity projection ('%s'), which a temporal query does not support",
-              (swNgsild.omit != NULL) ? swNgsild.omit : "");
+              (corNgsild.omit != NULL) ? corNgsild.omit : "");
       return true;
     }
   }
@@ -422,11 +422,11 @@ bool getEntitiesTemporal(void)
   // 35-year-old owner still returned the vehicle. An ignored filter yields wrong
   // ENTITIES, not merely extra fields, so this is refused rather than tolerated.
   //
-  if ((swNgsild.qExpr != NULL) && (swNgsild.qExpr->linkedDepth > 0))
+  if ((corNgsild.qExpr != NULL) && (corNgsild.qExpr->linkedDepth > 0))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Query",
             "'q' uses a linked-entity relation ('%s'), which a temporal query does not support",
-            (swNgsild.q != NULL) ? swNgsild.q : "");
+            (corNgsild.q != NULL) ? corNgsild.q : "");
     return true;
   }
 
@@ -442,19 +442,19 @@ bool getEntitiesTemporal(void)
   // § 6.18.3.2: timerel is mandatory on the multi-entity GET (unlike the
   // single-entity retrieve, where it's optional). When present, timeAt
   // is mandatory; for timerel=between, endTimeAt is too.
-  if (swNgsild.timerel == NULL)
+  if (corNgsild.timerel == NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "missing required URL parameter 'timerel'");
     return true;
   }
-  if (swNgsild.timeAt == NULL)
+  if (corNgsild.timeAt == NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
-            "missing required URL parameter 'timeAt' (timerel='%s')", swNgsild.timerel);
+            "missing required URL parameter 'timeAt' (timerel='%s')", corNgsild.timerel);
     return true;
   }
-  if (strcmp(swNgsild.timerel, "between") == 0 && swNgsild.endTimeAt == NULL)
+  if (strcmp(corNgsild.timerel, "between") == 0 && corNgsild.endTimeAt == NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "missing required URL parameter 'endTimeAt' for timerel='between'");
@@ -464,7 +464,7 @@ bool getEntitiesTemporal(void)
   // § 5.2.6.7.4: aggrMethods cardinality is 1 when aggregatedValues is the
   // requested representation — i.e. it is mandatory. Without it there is
   // nothing to aggregate, so the request is malformed.
-  if (swNgsild.format == LdFormatAggregatedValues && swNgsild.aggrMethodsV == NULL)
+  if (corNgsild.format == LdFormatAggregatedValues && corNgsild.aggrMethodsV == NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Parameter",
             "'aggrMethods' is required when the requested format is 'aggregatedValues'");
@@ -473,14 +473,14 @@ bool getEntitiesTemporal(void)
 
   // § 3.2.7: aggrMethods is a closed enum. An unrecognised method would be
   // silently dropped (empty aggregation), so reject it with 400 BadRequestData.
-  if (swNgsild.format == LdFormatAggregatedValues)
+  if (corNgsild.format == LdFormatAggregatedValues)
   {
-    for (int i = 0; swNgsild.aggrMethodsV[i] != NULL; i++)
+    for (int i = 0; corNgsild.aggrMethodsV[i] != NULL; i++)
     {
-      if (!ldAggrMethodValid(swNgsild.aggrMethodsV[i]))
+      if (!ldAggrMethodValid(corNgsild.aggrMethodsV[i]))
       {
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URL Parameter",
-                "'%s' is not a valid aggregation method (§ 3.2.7)", swNgsild.aggrMethodsV[i]);
+                "'%s' is not a valid aggregation method (§ 3.2.7)", corNgsild.aggrMethodsV[i]);
         return true;
       }
     }
@@ -490,9 +490,9 @@ bool getEntitiesTemporal(void)
   // must be present. Aligned with /entities (§ 5.7.2.4): local=true is
   // also accepted as a sufficient selector — it scopes the query to the
   // broker's local set, which is itself a hard bound.
-  if (swNgsild.idV == NULL && swNgsild.idPattern == NULL && swNgsild.typeV == NULL
-      && swNgsild.attrsV == NULL && swNgsild.qExpr == NULL && swNgsild.georel == NULL
-      && swNgsild.local == false)
+  if (corNgsild.idV == NULL && corNgsild.idPattern == NULL && corNgsild.typeV == NULL
+      && corNgsild.attrsV == NULL && corNgsild.qExpr == NULL && corNgsild.georel == NULL
+      && corNgsild.local == false)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
             "at least one of 'id', 'idPattern', 'type', 'attrs', 'q', 'georel', or 'local' must be supplied");
@@ -502,8 +502,8 @@ bool getEntitiesTemporal(void)
   // § 6.4.6: an explicit limit=0 is permitted ONLY together with ?count (a
   // count-only request). The present-params bitmask distinguishes an explicit
   // 0 from an absent limit (absent → broker default page size).
-  bool limitGiven = (swRest.in.uriParamMask & LD_PARAM_LIMIT) != 0;
-  if (limitGiven && swNgsild.limit == 0 && swNgsild.count == false)
+  bool limitGiven = (corRest.in.uriParamMask & LD_PARAM_LIMIT) != 0;
+  if (limitGiven && corNgsild.limit == 0 && corNgsild.count == false)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URL Parameter",
             "'limit' of 0 is only allowed together with 'count'");
@@ -524,11 +524,11 @@ bool getEntitiesTemporal(void)
 
   TroeQueryFilter filter;
   memset(&filter, 0, sizeof(filter));
-  filter.timerel      = swNgsild.timerel;
-  filter.timeAtIso    = swNgsild.timeAt;
-  filter.endTimeAtIso = swNgsild.endTimeAt;
-  filter.timeproperty = swNgsild.timeproperty;
-  filter.attrV        = swNgsild.attrsV;
+  filter.timerel      = corNgsild.timerel;
+  filter.timeAtIso    = corNgsild.timeAt;
+  filter.endTimeAtIso = corNgsild.endTimeAt;
+  filter.timeproperty = corNgsild.timeproperty;
+  filter.attrV        = corNgsild.attrsV;
 
   // § 11.3.3 geoquery pushdown: every georel is resolved in SQL by the
   // timescale plugin (PostGIS) — checked against the GeoProperty instances
@@ -536,33 +536,33 @@ bool getEntitiesTemporal(void)
   // restricts the result to matching entities, so the broker neither injects
   // the geoproperty into ?attrs= nor re-filters afterwards. (Distributed
   // sources apply the forwarded georel themselves.)
-  const char* geoprop = (swNgsild.geoproperty != NULL) ? swNgsild.geoproperty : "location";
+  const char* geoprop = (corNgsild.geoproperty != NULL) ? corNgsild.geoproperty : "location";
 
-  if (swNgsild.geoRel != NULL)
+  if (corNgsild.geoRel != NULL)
   {
-    filter.geoRelType     = swNgsild.geoRel->rel;
-    filter.geoMaxDistance = swNgsild.geoRel->maxDistance;
-    filter.geoMinDistance = swNgsild.geoRel->minDistance;
-    filter.geoGeometry    = swNgsild.geometry;
-    filter.geoCoordinates = swNgsild.coordinates;
+    filter.geoRelType     = corNgsild.geoRel->rel;
+    filter.geoMaxDistance = corNgsild.geoRel->maxDistance;
+    filter.geoMinDistance = corNgsild.geoRel->minDistance;
+    filter.geoGeometry    = corNgsild.geometry;
+    filter.geoCoordinates = corNgsild.coordinates;
     filter.geoProperty    = geoprop;
   }
 
-  filter.lastN        = swNgsild.lastN;
-  filter.firstN       = swNgsild.firstN;
-  filter.offsetN      = swNgsild.offsetN;
-  filter.datasetIdV   = swNgsild.datasetIdV;
-  filter.idV          = swNgsild.idV;
-  filter.idPattern    = swNgsild.idPattern;
-  filter.typeV        = swNgsild.typeV;
-  filter.limit        = swNgsild.limit;
-  filter.offset       = swNgsild.offset;
-  filter.count        = swNgsild.count;
+  filter.lastN        = corNgsild.lastN;
+  filter.firstN       = corNgsild.firstN;
+  filter.offsetN      = corNgsild.offsetN;
+  filter.datasetIdV   = corNgsild.datasetIdV;
+  filter.idV          = corNgsild.idV;
+  filter.idPattern    = corNgsild.idPattern;
+  filter.typeV        = corNgsild.typeV;
+  filter.limit        = corNgsild.limit;
+  filter.offset       = corNgsild.offset;
+  filter.count        = corNgsild.count;
   filter.limitGiven   = limitGiven;
 
-  if (swNgsild.qExpr != NULL)
+  if (corNgsild.qExpr != NULL)
   {
-    filter.qSqlPredicate = troeQTreeToSql(swNgsild.qExpr, &swRest.kalloc);
+    filter.qSqlPredicate = troeQTreeToSql(corNgsild.qExpr, &corRest.kalloc);
 
     //
     // A q that cannot be turned into SQL must not simply be left out: the
@@ -579,7 +579,7 @@ bool getEntitiesTemporal(void)
 
   Tenant* tenantP = (snapItem != NULL)
                       ? (Tenant*) snapItem->snapTenantP
-                      : (Tenant*) swNgsild.tenantP;
+                      : (Tenant*) corNgsild.tenantP;
 
   TroeRangeInfo rangeInfo;
   memset(&rangeInfo, 0, sizeof(rangeInfo));
@@ -596,21 +596,21 @@ bool getEntitiesTemporal(void)
 
   // No matches yet → start with empty array; distops may still contribute.
   if (result == NULL)
-    result = kjArray(swRest.kjsonP, NULL);
+    result = kjArray(corRest.kjsonP, NULL);
 
   // Distop dispatch (§ 4.3.6 / § 5.7.5). queryTemporal is NOT in the
   // default operations group per § 4.20 Table 4.20-2 — CSRs must opt in
   // explicitly. First slice: no-split federation only (no entityMap, no
   // multi-source pagination). All filters are forwarded; broker applies
   // pick/omit/orderBy/scopeQ/geoQ on the merged result.
-  if (snapItem == NULL && !swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (snapItem == NULL && !corNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
     if (!ldDistOpLoopDetected(ownAlias))
     {
       LdRegMode   modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
-      const char* fwdQs   = buildTemporalQueryQs(&swRest.kalloc);
+      const char* fwdQs   = buildTemporalQueryQs(&corRest.kalloc);
 
       LdRegCacheItem** matchV[4] = { NULL, NULL, NULL, NULL };
       int              matchN[4] = { 0, 0, 0, 0 };
@@ -618,9 +618,9 @@ bool getEntitiesTemporal(void)
       for (int m = 0; m < 4; m++)
       {
         LdRegMode    mode        = modes[m];
-        const char** typeFilterV = (mode == LdRegModeAuxiliary) ? NULL : (const char**) swNgsild.typeV;
+        const char** typeFilterV = (mode == LdRegModeAuxiliary) ? NULL : (const char**) corNgsild.typeV;
         matchN[m] = ldRegCacheMatchForQuery((LdRegCache*) tenantP->regCacheP,
-                                            swNgsild.idV, swNgsild.idPattern,
+                                            corNgsild.idV, corNgsild.idPattern,
                                             (char**) typeFilterV, mode, &matchV[m]);
         total += matchN[m];
       }
@@ -641,10 +641,10 @@ bool getEntitiesTemporal(void)
         }
       }
 
-      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
       memset(items, 0, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&swRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      int*                 itemMode  = (int*)                 kaAlloc(&swRest.kalloc, total * sizeof(int));
+      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      int*                 itemMode  = (int*)                 kaAlloc(&corRest.kalloc, total * sizeof(int));
       int                  itemCount = 0;
       memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -663,7 +663,7 @@ bool getEntitiesTemporal(void)
           if (!csfCsrMatch(csr)) continue;
 
           int baseLen = strlen(csr->endpoint);
-          char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
+          char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, tpath);
           if (qsLen > 0)
@@ -685,7 +685,7 @@ bool getEntitiesTemporal(void)
 
       if (itemCount > 0)
       {
-        ldDistOpSendMulti(items, itemCount, SwVerbGet, ownAlias, results);
+        ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
 
         for (int i = 0; i < itemCount; i++)
         {
@@ -696,7 +696,7 @@ bool getEntitiesTemporal(void)
           KjNode* remoteArray = results[i].responseTree;
           if (remoteArray == NULL || remoteArray->type != KjArray) continue;
 
-          swldExpandTree(remoteArray, swNgsild.contextP, &swRest.kalloc);
+          corLdExpandTree(remoteArray, corNgsild.contextP, &corRest.kalloc);
           ldStripAtContext(remoteArray);
 
           bool keepOnlyMissing = (modes[itemMode[i]] == LdRegModeAuxiliary);
@@ -717,7 +717,7 @@ bool getEntitiesTemporal(void)
   // state (looked up from the current-state DB). Temporal entities that no
   // longer exist in current state can't satisfy a current-state filter and
   // are dropped.
-  if (swNgsild.scopeExpr != NULL && db.entityRetrieve != NULL)
+  if (corNgsild.scopeExpr != NULL && db.entityRetrieve != NULL)
   {
     KjNode* ep = result->value.firstChildP;
     while (ep != NULL)
@@ -733,7 +733,7 @@ bool getEntitiesTemporal(void)
       if (curEntity != NULL)
       {
         KjNode* scopeP = kjLookup(curEntity, "scope");
-        keep = ldEntityMatchScope(scopeP, swNgsild.scopeExpr);
+        keep = ldEntityMatchScope(scopeP, corNgsild.scopeExpr);
       }
 
       if (!keep)
@@ -745,27 +745,27 @@ bool getEntitiesTemporal(void)
 
   // § 4.23: orderBy. For temporal output the sorter picks the most-recent
   // instance value per entity (see ldOrderSort.c::temporalLatestValue).
-  if (swNgsild.orderByV != NULL && swNgsild.orderByCount > 0)
-    ldOrderSort(result, swNgsild.orderByV, swNgsild.orderByCount, swNgsild.collation);
+  if (corNgsild.orderByV != NULL && corNgsild.orderByCount > 0)
+    ldOrderSort(result, corNgsild.orderByV, corNgsild.orderByCount, corNgsild.collation);
 
   // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction
   // and ?format=temporalValues run in renderHook, see ldHooks.c).
-  if (swNgsild.pickV != NULL || swNgsild.omitV != NULL)
+  if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
     for (KjNode* ep = result->value.firstChildP; ep != NULL; ep = ep->next)
-      ldPickOmit(ep, swNgsild.pickV, swNgsild.omitV);
+      ldPickOmit(ep, corNgsild.pickV, corNgsild.omitV);
   }
 
-  swRest.out.responseTree = result;
+  corRest.out.responseTree = result;
 
   // § 6.4.6 / § 6.4.7.2 general pagination — total matching ENTITIES
   // (NGSILD-Results-Count) and Link rel="next"/"prev". These coexist with
   // the temporal-interval links below (distinguished by rel, RFC 8288).
-  if (swNgsild.count)
+  if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%ld", (rangeInfo.entityCount >= 0) ? rangeInfo.entityCount : 0L);
-    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+    corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending. When more entities remain (moreEntities) the next pointer is
@@ -777,7 +777,7 @@ bool getEntitiesTemporal(void)
   // § 6.4.7.3: when any entity's instances remain beyond the returned
   // page, emit Link rel="intervalafter"/"intervalbefore" page pointers.
   ldTemporalPaginationLinkHeader(rangeInfo.hasMore, rangeInfo.size);
-  swRest.out.httpStatusCode = 200;
+  corRest.out.httpStatusCode = 200;
 
   return true;
 }

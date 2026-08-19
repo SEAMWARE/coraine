@@ -18,8 +18,8 @@ CSourceRegistration PATCH - merged-result re-validation of cross-member invarian
 registration validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 echo "01. Seed an auxiliary registration (retrieve-only) -> 201"
@@ -32,14 +32,14 @@ payload='{
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
   "operations": ["retrieveEntity"]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "02. PATCH a write operation onto the auxiliary reg -> 400 (auxiliary is retrieve-only)"
 echo "====================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:AUX1 --payload '{"operations":["createEntity"]}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:AUX1 --payload '{"operations":["createEntity"]}'
 echo
 echo
 
@@ -53,14 +53,14 @@ payload='{
   "mode": "inclusive",
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "04. PATCH mode->exclusive onto the loose reg -> 400 (exclusive needs id + attributeNames, § 9.3.3)"
 echo "================================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:INC1 --payload '{"mode":"exclusive"}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:INC1 --payload '{"mode":"exclusive"}'
 echo
 echo
 
@@ -74,42 +74,42 @@ payload='{
   "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
   "observationInterval": { "startAt": "2030-01-01T00:00:00Z", "endAt": "2030-06-01T00:00:00Z" }
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "06. PATCH startAt past the stored endAt (deep-merge) -> 400 (startAt must be < endAt)"
 echo "===================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"startAt":"2030-12-01T00:00:00Z"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"startAt":"2030-12-01T00:00:00Z"}}'
 echo
 echo
 
 
 echo "07. A valid PATCH on the same reg (description) still succeeds -> 204"
 echo "===================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"description":"updated"}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"description":"updated"}' | grep HTTP
 echo
 echo
 
 
 echo "08. PATCH only endAt (valid against the stored startAt) -> 204 (partial TimeInterval fragment)"
 echo "============================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2030-03-01T00:00:00Z"}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2030-03-01T00:00:00Z"}}' | grep HTTP
 echo
 echo
 
 
 echo "09. GET the reg -> the stored startAt survives the partial merge, endAt updated"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1
 echo
 echo
 
 
 echo "10. PATCH only endAt before the stored startAt -> 400 (merged ordering still enforced)"
 echo "====================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2029-01-01T00:00:00Z"}}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2029-01-01T00:00:00Z"}}'
 echo
 echo
 
@@ -235,4 +235,4 @@ Content-Length: 206
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

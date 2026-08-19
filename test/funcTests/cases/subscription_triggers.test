@@ -12,9 +12,9 @@ Subscription notificationTrigger — all trigger types
 subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -62,7 +62,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -85,7 +85,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -108,7 +108,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -131,7 +131,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -146,7 +146,7 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -179,7 +179,7 @@ payload='{
     "value": 200
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
@@ -211,7 +211,7 @@ payload='{
     "value": "red"
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
@@ -241,7 +241,7 @@ echo "====================================================="
 payload='{
   "color": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload "$payload"
 echo
 echo
 
@@ -267,7 +267,7 @@ echo
 
 echo "17. DELETE entity"
 echo "==================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -421,6 +421,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

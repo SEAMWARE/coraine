@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>swBroker — Feature Overview (April 20, 2026)</title>
+<title>coraine — Feature Overview (April 20, 2026)</title>
 <style>
   :root {
     --bg: #0f172a;
@@ -235,10 +235,10 @@
 </script>
 <div class="container">
 
-<h1 id="top">swBroker <span style="font-weight:400; font-size:0.6em; color:var(--muted);">as of April 20, 2026</span></h1>
+<h1 id="top">coraine <span style="font-weight:400; font-size:0.6em; color:var(--muted);">as of April 20, 2026</span></h1>
 <p class="subtitle">
   Lightweight NGSI-LD Context Broker in C. Plugin architecture for DB
-  (swRamDB in-memory, mongoc/MongoDB) and API extensions.<br>
+  (corRamDB in-memory, mongoc/MongoDB) and API extensions.<br>
   Spec target: <strong>ETSI GS CIM 009 v1.9.1</strong>
 </p>
 
@@ -331,7 +331,7 @@ mongoc persistence, concurrent-download dedup.</p>
 <hr>
 
 <!-- ─── Performance ─── -->
-<h2 id="perf">Performance &mdash; swBroker vs Orion-LD</h2>
+<h2 id="perf">Performance &mdash; coraine vs Orion-LD</h2>
 <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">
   Measured 2026-04-15 &middot; 20-core laptop &middot;
   <code>wrk -t4 -c50 -d5s</code> &middot; median of 3 runs &middot;
@@ -387,7 +387,7 @@ mongoc persistence, concurrent-download dedup.</p>
 <div class="card" style="margin-top:1.5rem;">
   <h3>Projected: binary forwarding protocol for distributed ops</h3>
   <p>The forwarding plugin architecture is designed for a future binary
-  transport (<code>swBin://</code>) between trusted broker instances.
+  transport (<code>corBin://</code>) between trusted broker instances.
   HTTP forwarding pays per hop: JSON render + HTTP framing + JSON parse +
   @context expand/compact &mdash; twice (request + response). A binary
   protocol eliminates all four layers and transmits the in-memory entity

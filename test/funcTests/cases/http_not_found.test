@@ -12,7 +12,7 @@ GET /nonexistent - 404 Not Found
 error http
 
 --INIT--
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -22,7 +22,7 @@ swBrokerStart
 
 echo "01. GET /nonexistent - 404 Not Found"
 echo "===================================="
-swCurl --url /nonexistent
+corCurl --url /nonexistent
 echo
 echo
 
@@ -45,4 +45,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

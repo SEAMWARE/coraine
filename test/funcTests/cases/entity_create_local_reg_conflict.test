@@ -24,56 +24,56 @@ Entity Create — ?local=true still 409s against exclusive/redirect claims
 entity create distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. Register exclusive CSR for V1/speed"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V1","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V1","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "02. Create V1 with speed, ?local=true → 409 (exclusive claims speed)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "03. Create V1 with color only, ?local=true → 201 (unregistered attr is fine locally)"
 echo "====================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "04. Register redirect CSR for the whole of V2"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V2","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V2","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"redirect","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "05. Create V2, ?local=true → 409 (redirect claims the whole entity)"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
 
 echo "06. Register exclusive CSR for V3/speed, scoped to /madrid"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V3","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"scope":"/madrid","information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:V3","type":"ContextSourceRegistration","endpoint":"http://localhost:9999","mode":"exclusive","operations":["updateAttrs"],"scope":"/madrid","information":[{"entities":[{"id":"urn:V3","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "07. Create scope-less V3 with speed, ?local=true → 201 (scoped reg does not apply)"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
 echo
 echo
 
@@ -162,4 +162,4 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

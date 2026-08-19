@@ -17,8 +17,8 @@ GeoProperty coordinates render rounded to 9 decimals
 entity geoQ
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,14 +35,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET E1 - coordinates rounded to 9 decimals"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
@@ -84,4 +84,4 @@ Content-Length: 200
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

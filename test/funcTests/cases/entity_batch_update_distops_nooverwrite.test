@@ -22,10 +22,10 @@ Batch Entity Update — ?options=noOverwrite propagates on the CSR forward
 batch entity update distops
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -34,28 +34,28 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1 locally on CB — color=red"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "02. Seed V1 on CP1 — speed=10"
 echo "============================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "03. Register CB→CP1 exclusive, claims only 'speed' (updateBatch op)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["updateBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["updateBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "04. Batch Update V1 with ?options=noOverwrite — speed + color both pre-exist, nothing changes"
 echo "============================================================================================="
-swCurl --url '/ngsi-ld/v1/entityOperations/update?options=noOverwrite' --payload '[
+corCurl --url '/ngsi-ld/v1/entityOperations/update?options=noOverwrite' --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -64,21 +64,21 @@ echo
 
 echo "05. GET CB V1 — color still red (local noOverwrite)"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
 echo
 echo
 
 
 echo "06. GET CP1 V1 — speed still 10 (noOverwrite propagated on the forward)"
 echo "======================================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
 echo
 echo
 
 
 echo "07. Control: Batch Update V1 without noOverwrite — both sides overwrite → 204"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -87,14 +87,14 @@ echo
 
 echo "08. GET CB V1 — color=blue now"
 echo "=============================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?format=simplified&local=true'
 echo
 echo
 
 
 echo "09. GET CP1 V1 — speed=99 now"
 echo "============================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
 echo
 echo
 
@@ -237,5 +237,5 @@ Content-Length: 57
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1

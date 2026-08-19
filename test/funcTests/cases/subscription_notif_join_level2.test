@@ -18,24 +18,24 @@ Subscription notification — notification.join flat with joinLevel=2 (§ 5.2.14
 subscription notification join
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Seed the chain: House H1, Person P1 -home-> H1, Vehicle V1 -parking-> P1"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:H1","type":"House","rooms":{"type":"Property","value":5}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","home":{"type":"Relationship","object":"urn:H1"}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:P1"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:H1","type":"House","rooms":{"type":"Property","value":5}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","home":{"type":"Relationship","object":"urn:H1"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:P1"}}' | head -1
 echo
 echo
 
 
 echo "02. Sub on Vehicle with notification.join=flat, joinLevel=2"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:j2",
   "type":"Subscription",
   "entities":[{"type":"Vehicle"}],
@@ -51,7 +51,7 @@ echo
 
 echo "03. Trigger — update V1 → notification flat data[] carries V1 + P1 + H1"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs' -X PATCH --payload '{"speed":{"type":"Property","value":60}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs' -X PATCH --payload '{"speed":{"type":"Property","value":60}}'
 echo
 sleep 0.4
 ftClientDump
@@ -136,5 +136,5 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

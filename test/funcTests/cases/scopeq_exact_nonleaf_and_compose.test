@@ -25,15 +25,15 @@ scopeQ exact non-leaf is not a prefix match; scopeQ composes with q + geo
 entity query scope q geoquery
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create G  scope=/Madrid/Gardens (exact non-leaf), name=HQ, loc [0,0]"
 echo "======================================================================="
 payload='{ "id": "urn:ngsi-ld:Z:G", "type": "Zone", "scope": "/Madrid/Gardens", "name": { "type": "Property", "value": "HQ" }, "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 0] } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -41,7 +41,7 @@ echo
 echo "02. Create N  scope=/Madrid/Gardens/ParqueNorte, name=Norte, loc [10,10]"
 echo "======================================================================="
 payload='{ "id": "urn:ngsi-ld:Z:N", "type": "Zone", "scope": "/Madrid/Gardens/ParqueNorte", "name": { "type": "Property", "value": "Norte" }, "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [10, 10] } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -49,35 +49,35 @@ echo
 echo "03. Create S  scope=/Madrid/Gardens/ParqueSur, name=Sur, loc [0,0] (near G)"
 echo "=========================================================================="
 payload='{ "id": "urn:ngsi-ld:Z:S", "type": "Zone", "scope": "/Madrid/Gardens/ParqueSur", "name": { "type": "Property", "value": "Sur" }, "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [0, 0] } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. scopeQ=/Madrid/Gardens (EXACT) → only G, NOT the ParqueNorte/Sur descendants"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens' | grep '"id"'
 echo
 echo
 
 
 echo "05. scopeQ=/Madrid/Gardens/# (hierarchy) → G, N, S"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23' | grep '"id"'
 echo
 echo
 
 
 echo "06. scopeQ=/Madrid/Gardens/# AND q=name==\"Norte\" → only N"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23&q=name==%22Norte%22' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23&q=name==%22Norte%22' | grep '"id"'
 echo
 echo
 
 
 echo "07. scopeQ=/Madrid/Gardens/# AND near [0,0] within 1km → G + S (not N at [10,10])"
 echo "================================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23&georel=near%3BmaxDistance%3D%3D1000&geometry=Point&coordinates=%5B0%2C0%5D' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=Zone&scopeQ=/Madrid/Gardens/%23&georel=near%3BmaxDistance%3D%3D1000&geometry=Point&coordinates=%5B0%2C0%5D' | grep '"id"'
 
 --EXPECT--
 01. Create G  scope=/Madrid/Gardens (exact non-leaf), name=HQ, loc [0,0]
@@ -132,4 +132,4 @@ Content-Length: 0
     "id": "urn:ngsi-ld:Z:G",
     "id": "urn:ngsi-ld:Z:S",
 --TEARDOWN--
-swBrokerStop
+coraineStop

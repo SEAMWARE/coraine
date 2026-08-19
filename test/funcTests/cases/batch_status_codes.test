@@ -12,8 +12,8 @@ Batch ops collapse uniform errors to a plain status; 204 when no errors
 batch error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -24,7 +24,7 @@ swBrokerStart
 echo "01. Create entity"
 echo "================="
 payload='{"id":"urn:E1","type":"T","a":{"type":"Property","value":1}}'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -36,7 +36,7 @@ echo
 echo "02. Batch merge with empty fragment -> 204 (was 409)"
 echo "===================================================="
 payload='[{"id":"urn:E1","type":"T"}]'
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$payload"
 echo
 echo
 
@@ -48,7 +48,7 @@ echo
 echo "03. Batch merge into non-existent entity -> 404 (was 409)"
 echo "========================================================="
 payload='[{"id":"urn:E2","type":"T","a":{"type":"Property","value":2}}]'
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$payload"
 echo
 echo
 
@@ -60,7 +60,7 @@ echo
 echo "04. Batch update into non-existent entity -> 404 (was 409)"
 echo "=========================================================="
 payload='[{"id":"urn:E3","type":"T","a":{"type":"Property","value":3}}]'
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
 echo
 echo
 
@@ -72,7 +72,7 @@ echo
 echo "05. Batch delete of non-existent entity -> 404 (was 409)"
 echo "========================================================"
 payload='["urn:E4"]'
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload "$payload"
 echo
 echo
 
@@ -142,4 +142,4 @@ Content-Length: 117
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

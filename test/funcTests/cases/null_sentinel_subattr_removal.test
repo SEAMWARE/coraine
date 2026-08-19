@@ -20,61 +20,61 @@ NGSI-LD Null removes an optional sub-attribute on merge/partial-update (§ 5.4.1
 entity merge partial-update validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed AQ:1 — airQualityLevel with observedAt, unitCode and a sub-Relationship"
 echo "================================================================================"
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:AQ:1","type":"AQ","airQualityLevel":{"type":"Property","value":3,"observedAt":"2020-01-01T00:00:00Z","unitCode":"C62","hasWeatherObserved":{"type":"Relationship","object":"urn:ngsi-ld:W:1"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:AQ:1","type":"AQ","airQualityLevel":{"type":"Property","value":3,"observedAt":"2020-01-01T00:00:00Z","unitCode":"C62","hasWeatherObserved":{"type":"Relationship","object":"urn:ngsi-ld:W:1"}}}' | head -1
 echo
 echo
 
 
 echo "02. Partial update: observedAt = null -> 204, observedAt removed (NOT epoch 0)"
 echo "=============================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1/attrs/airQualityLevel' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":4,"observedAt":"urn:ngsi-ld:null"}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1/attrs/airQualityLevel' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":4,"observedAt":"urn:ngsi-ld:null"}'
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
 echo
 echo
 
 
 echo "03. Partial update: verbose sub-Relationship object = null -> 204, sub-attr removed"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1/attrs/airQualityLevel' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":5,"hasWeatherObserved":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1/attrs/airQualityLevel' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":5,"hasWeatherObserved":{"type":"Relationship","object":"urn:ngsi-ld:null"}}'
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
 echo
 echo
 
 
 echo "04. Merge Entity: unitCode = null (bare marker) -> 204, unitCode removed"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1' -X PATCH --header 'Content-Type: application/json' --payload '{"airQualityLevel":{"type":"Property","value":6,"unitCode":"urn:ngsi-ld:null"}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1' -X PATCH --header 'Content-Type: application/json' --payload '{"airQualityLevel":{"type":"Property","value":6,"unitCode":"urn:ngsi-ld:null"}}'
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
 echo
 echo
 
 
 echo "05. A real observedAt still round-trips as a DateTime (no regression)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1/attrs/airQualityLevel' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":7,"observedAt":"2021-06-15T10:00:00Z"}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1/attrs/airQualityLevel' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"Property","value":7,"observedAt":"2021-06-15T10:00:00Z"}'
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:AQ:1'
 echo
 echo
 
 
 echo "06. Nulling a KEY inside a JsonProperty object removes the key, NOT the attribute"
 echo "================================================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:J:1","type":"T","jp":{"type":"JsonProperty","json":{"type":"some-type","other":"y"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:J:1","type":"T","jp":{"type":"JsonProperty","json":{"type":"some-type","other":"y"}}}' | head -1
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:J:1' -X PATCH --header 'Content-Type: application/json' --payload '{"jp":{"type":"JsonProperty","json":{"other":"urn:ngsi-ld:null"}}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:J:1' -X PATCH --header 'Content-Type: application/json' --payload '{"jp":{"type":"JsonProperty","json":{"other":"urn:ngsi-ld:null"}}}'
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:J:1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:J:1'
 echo
 echo
 
@@ -217,5 +217,5 @@ Content-Length: 134
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

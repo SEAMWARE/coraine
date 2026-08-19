@@ -18,8 +18,8 @@ LanguageProperty through PATCH entity / PATCH attr / POST attrs / PUT entity
 langProp attr entity-patch entity-append
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,7 +30,7 @@ payload='{
   "type": "T",
   "L1": { "languageMap": { "en": "English", "es": "Spanish", "sv": "Swedish" } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -38,7 +38,7 @@ echo
 echo "02. PATCH /attrs/L1 — change es to Castellano"
 echo "============================================="
 payload='{ "languageMap": { "en": "English", "es": "Castellano", "sv": "Swedish" } }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L1 --payload "$payload"
 echo
 echo
 
@@ -46,7 +46,7 @@ echo
 echo "03. POST /attrs — append LanguageProperty L2"
 echo "============================================"
 payload='{ "L2": { "languageMap": { "en": "Two", "es": "Dos" } } }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs --payload "$payload"
 echo
 echo
 
@@ -54,14 +54,14 @@ echo
 echo "04. PATCH /entities/{id} — merge, change L1 es to Espanol"
 echo "========================================================="
 payload='{ "L1": { "languageMap": { "en": "English", "es": "Espanol", "sv": "Swedish" } } }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
 echo
 echo
 
 
 echo "05. GET — L1 es=Espanol, L2 present"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
 echo
 echo
 
@@ -73,14 +73,14 @@ payload='{
   "type": "T",
   "L3": { "languageMap": { "en": "Three", "fr": "Trois" } }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
 echo
 echo
 
 
 echo "07. GET — only L3 remains"
 echo "========================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
 echo
 echo
 
@@ -88,7 +88,7 @@ echo
 echo "08. PATCH /attrs/L3 with languageMap = 13 (not an object) — 400"
 echo "=============================================================="
 payload='{ "languageMap": 13 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L3 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L3 --payload "$payload"
 echo
 echo
 
@@ -96,7 +96,7 @@ echo
 echo "09. PATCH /attrs/L3 with languageMap.en = 14 (not a string) — 400"
 echo "================================================================"
 payload='{ "languageMap": { "en": 14 } }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L3 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/L3 --payload "$payload"
 echo
 echo
 
@@ -229,4 +229,4 @@ Content-Length: 205
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -35,35 +35,35 @@ GET /attributes/{attr} unions attributeTypes + typeNames across entities
 attributes types discovery introspection
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed: owner as Property (Building) and Relationship (Room); plot as GeoProperty (Plot)"
 echo "=========================================================================================="
 payload='{ "id": "urn:ngsi-ld:B1", "type": "Building", "owner": { "type": "Property", "value": "ACME" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{ "id": "urn:ngsi-ld:R1", "type": "Room", "owner": { "type": "Relationship", "object": "urn:ngsi-ld:ACME" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 payload='{ "id": "urn:ngsi-ld:P1", "type": "Plot", "plot": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET /attributes/owner → attributeTypes=[Property,Relationship], typeNames=2, count=2"
 echo "========================================================================================"
-swCurl --url /ngsi-ld/v1/attributes/owner
+corCurl --url /ngsi-ld/v1/attributes/owner
 echo
 echo
 
 
 echo "02b. GET /attributes/plot → the GeoProperty is aggregated under its own name"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/attributes/plot
+corCurl --url /ngsi-ld/v1/attributes/plot
 echo
 echo
 
@@ -71,39 +71,39 @@ echo
 echo "03. Seed a multi-type entity (type=[Building,Landmark]) with attr height"
 echo "======================================================================="
 payload='{ "id": "urn:ngsi-ld:B2", "type": ["Building", "Landmark"], "height": { "type": "Property", "value": 30 } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET /types?details=true → height appears under BOTH Building and Landmark"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
+corCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
 echo
 echo
 
 
 echo "05. GET /attributes/height → typeNames=[Building,Landmark]"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/attributes/height
+corCurl --url /ngsi-ld/v1/attributes/height
 echo
 echo
 
 
 echo "06. mongoc cannot hold a GeoProperty and another type under one name - 409, both ways round"
 echo "==========================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X1", "type": "Plot", "plot": { "type": "Property", "value": "not a geometry" } }'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X1", "type": "Plot", "plot": { "type": "Property", "value": "not a geometry" } }'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X2", "type": "Building", "owner": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X2", "type": "Building", "owner": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }'
 echo
 echo
 
 
 echo "07. ... and neither refusal left anything behind"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/attributes/plot
+corCurl --url /ngsi-ld/v1/attributes/plot
 echo
-swCurl --url /ngsi-ld/v1/attributes/owner
+corCurl --url /ngsi-ld/v1/attributes/owner
 
 --EXPECT--
 01. Seed: owner as Property (Building) and Relationship (Room); plot as GeoProperty (Plot)
@@ -333,4 +333,4 @@ Content-Length: 250
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

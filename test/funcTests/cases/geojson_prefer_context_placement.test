@@ -19,36 +19,36 @@ GeoJSON @context placement steered by the Prefer header (body=json vs body=ld+js
 entity query geojson prefer context
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create City:1 with location + name"
 echo "======================================"
 payload='{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } }, "name": { "type": "Property", "value": "Berlin" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. geo+json, no Prefer → @context in body (default = body=ld+json)"
 echo "=================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1'
 echo
 echo
 
 
 echo "03. geo+json, Prefer: body=ld+json → @context in body"
 echo "====================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' -H 'Prefer: body=ld+json'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' -H 'Prefer: body=ld+json'
 echo
 echo
 
 
 echo "04. geo+json, Prefer: body=json → @context omitted from body, Link header instead"
 echo "================================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' -H 'Prefer: body=json'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:ngsi-ld:City:1' -H 'Prefer: body=json'
 
 --EXPECT--
 01. Create City:1 with location + name
@@ -177,4 +177,4 @@ Content-Length: 429
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

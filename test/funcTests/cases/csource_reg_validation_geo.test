@@ -16,14 +16,14 @@ CSourceRegistration validation — location / observationSpace / operationSpace 
 registration error validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. location: not an object → 400"
 echo "================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-not-obj",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -36,7 +36,7 @@ echo
 
 echo "02. location: missing type → 400"
 echo "================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-no-type",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -49,7 +49,7 @@ echo
 
 echo "03. location: unknown geometry type → 400"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-bad-type",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -62,7 +62,7 @@ echo
 
 echo "04. location: Point with wrong coords shape → 400"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-bad-pt-coords",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -75,7 +75,7 @@ echo
 
 echo "05. location: Point with out-of-range latitude → 400"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-bad-lat",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -88,7 +88,7 @@ echo
 
 echo "06. location: Polygon with unclosed ring → 400"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-unclosed",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -104,7 +104,7 @@ echo
 
 echo "07. location: valid Point → 201"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-pt",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -117,7 +117,7 @@ echo
 
 echo "08. location: valid Polygon (closed ring) → 201"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:loc-poly",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -133,7 +133,7 @@ echo
 
 echo "09. observationSpace + operationSpace: both valid LineStrings → 201"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:obs-op-space",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -147,7 +147,7 @@ echo
 
 echo "10. operationSpace: invalid (Polygon coords are not nested arrays) → 400"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:opspace-bad",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -302,5 +302,5 @@ Content-Length: 167
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

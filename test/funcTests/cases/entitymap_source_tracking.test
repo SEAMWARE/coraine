@@ -18,12 +18,12 @@ EntityMap source tracking — per-entity regIds (§ 5.2.39)
 entity entitymap query
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
-swBrokerStart -role CP2 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
+coraineStart -role CP2 --noSplitEntities -dist
 
 --RUN--
 
@@ -50,27 +50,27 @@ CP2="http://localhost:${CP2_PORT}"
 
 echo "01. Seed V1 on CB, V2 on CP1, V3 on CP2"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
 echo
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
 echo
 echo
 
 
 echo "02. Register CB→CP1 (R1) and CB→CP2 (R2), both inclusive"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "03. GET /entities?entityMap=true → capture map ID"
 echo "================================================="
-MAP_ID=$(swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues&orderBy=id" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues&orderBy=id" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 echo "Map ID captured: ${MAP_ID:0:10}... (truncated for stability)"
 echo
 echo
@@ -78,7 +78,7 @@ echo
 
 echo "04. GET /entityMaps/{id} → verify per-entity source lists"
 echo "========================================================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -A 20 '"entityMap"'
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -A 20 '"entityMap"'
 echo
 echo
 
@@ -155,9 +155,9 @@ Map ID captured: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

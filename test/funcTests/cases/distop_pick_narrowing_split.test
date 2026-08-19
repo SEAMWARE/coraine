@@ -26,15 +26,15 @@ DistOp pick narrowing — split-entities mode
 distops query pick ftclient
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 
 --RUN--
 
 echo "01. Register CSR pointing ftClient — exports ONLY speed + color"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:Vehicles",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:7711",
@@ -55,7 +55,7 @@ echo "02. Query split + no user.pick — forwarded pick = reg.exports"
 echo "============================================================="
 echo "    (split mode forwards type/id/idPattern only — never q/geoQ/scopeQ;"
 echo "    pick narrows to reg.exports so only the registered slice is returned)"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true' >/dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true' >/dev/null
 ftClientDump --port 7711 | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -76,7 +76,7 @@ echo
 echo "03. Query split + user.pick=speed,engine — forwarded pick = {speed} only"
 echo "========================================================================"
 echo "    (intersect({speed,engine}, reg.exports={speed,color}) = {speed})"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=speed,engine' >/dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=speed,engine' >/dev/null
 ftClientDump --port 7711 | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -93,7 +93,7 @@ echo
 echo "04. Query split + user.pick=engine,temp — CSR skipped (intersect empty)"
 echo "======================================================================="
 echo "    Nothing the user wants is exported by the CSR → no forward."
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=engine,temp' >/dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=engine,temp' >/dev/null
 ftClientDump --port 7711 | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -108,7 +108,7 @@ echo "05. Query split + user.pick=speed&q=color>%22a%22 — forwarded pick = {sp
 echo "==================================================================================="
 echo "    q-attrs unioned into wanted; intersect with reg.exports keeps both."
 echo "    q itself is NOT forwarded (split-mode strips filters)."
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=speed&q=color%3E%22a%22' >/dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&splitEntities=true&pick=speed&q=color%3E%22a%22' >/dev/null
 ftClientDump --port 7711 | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -160,5 +160,5 @@ Content-Length: 0
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

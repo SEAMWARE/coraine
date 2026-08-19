@@ -16,8 +16,8 @@ Update attribute on a non-existent entity returns 404 (no crash)
 entity attr error tenant
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,7 +28,7 @@ swBrokerStart
 
 echo "01. Create entity Building:farm001 (tenant openiot)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'NGSILD-Tenant: openiot' --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'NGSILD-Tenant: openiot' --payload '{
   "id": "urn:ngsi-ld:Building:farm001",
   "type": "Building",
   "name": { "type": "Property", "value": "Farm 001" }
@@ -39,7 +39,7 @@ echo
 
 echo "02. PATCH attr on non-existent entity Filling:001 -> 404"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Filling:001/attrs/remove' -X PATCH --header 'NGSILD-Tenant: openiot' --payload '{ "type": "Property", "value": " " }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Filling:001/attrs/remove' -X PATCH --header 'NGSILD-Tenant: openiot' --payload '{ "type": "Property", "value": " " }'
 echo
 echo
 
@@ -74,6 +74,6 @@ Content-Length: 168
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swDbDrop -tenant openiot
+coraineStop
+corDbDrop
+corDbDrop -tenant openiot

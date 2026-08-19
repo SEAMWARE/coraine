@@ -25,34 +25,34 @@ Snapshot distributed capture, no-split (§ 5.16, Phase #141)
 snapshot distops
 
 --INIT--
-swDbDrop
-swSnapDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -noSplitEntities -dist
-swBrokerStart -role CP1 -noSplitEntities -dist
-swBrokerStart -role CP2 -noSplitEntities -dist
+corDbDrop
+corSnapDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -noSplitEntities -dist
+coraineStart -role CP1 -noSplitEntities -dist
+coraineStart -role CP2 -noSplitEntities -dist
 
 --RUN--
 
 echo "01. Seed Vehicles on CP1 (V1, V2) and CP2 (V3, V4); one Vehicle on CB (VLocal)"
 echo "============================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
 echo
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
 echo
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V4","type":"Vehicle","speed":{"type":"Property","value":63}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V4","type":"Vehicle","speed":{"type":"Property","value":63}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:VLocal","type":"Vehicle","speed":{"type":"Property","value":25}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:VLocal","type":"Vehicle","speed":{"type":"Property","value":25}}'
 echo
 echo
 
 
 echo "02. Register CSR on CB → CP1 (inclusive, all Vehicles)"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP1_PORT'",
@@ -66,7 +66,7 @@ echo
 
 echo "03. Register CSR on CB → CP2 (inclusive, all Vehicles)"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP2",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP2_PORT'",
@@ -80,7 +80,7 @@ echo
 
 echo "04. Create snapshot on CB capturing Vehicles from local + both CPs"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:All",
   "type": "Snapshot",
   "snapshotQueries": [{"type":"Query","entities":[{"type":"Vehicle"}]}]
@@ -91,30 +91,30 @@ echo
 
 echo "05. Snapshot read — all 5 Vehicles from 3 sources, sorted by speed"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
 echo
 echo
 
 
 echo "06. Mutate live V1 on CP1 (speed → 999); delete V3 on CP2"
 echo "========================================================="
-swCurl --port $CP1_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
+corCurl --port $CP1_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
 echo
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V3
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V3
 echo
 echo
 
 
 echo "07. Snapshot still shows the frozen pre-mutation values"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
 echo
 echo
 
 
 echo "08. Snapshot read with q=speed>50 — V2 and V4 (frozen)"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E50' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E50' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:All'
 echo
 echo
 
@@ -340,10 +340,10 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop -role CP2
-swBrokerStop -role CP1
-swBrokerStop
-swSnapDrop
-swDbDrop -role CP2
-swDbDrop -role CP1
-swDbDrop
+coraineStop -role CP2
+coraineStop -role CP1
+coraineStop
+corSnapDrop
+corDbDrop -role CP2
+corDbDrop -role CP1
+corDbDrop

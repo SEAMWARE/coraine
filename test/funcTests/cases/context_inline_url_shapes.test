@@ -22,10 +22,10 @@ Inline @context URL-reference shapes (array-of-1, array-of-2, string->array, str
 context entity jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxKv '{
   "@context": {
@@ -57,14 +57,14 @@ payload='{
   "spd": {"type": "Property", "value": 1},
   "@context": [ "http://localhost:7080/jsonldContexts/ctxKv" ]
 }'
-swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
 echo
 echo
 
 
 echo "02. GET E1 via ctxKv -> spd round-trips"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 -H 'Link: <http://localhost:7080/jsonldContexts/ctxKv>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H 'Link: <http://localhost:7080/jsonldContexts/ctxKv>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
@@ -81,7 +81,7 @@ payload='{
     "http://localhost:7080/jsonldContexts/ctxOther"
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
 echo
 echo
 
@@ -94,7 +94,7 @@ payload='{
   "spd": {"type": "Property", "value": 3},
   "@context": "http://localhost:7080/jsonldContexts/ctxArr"
 }'
-swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
 echo
 echo
 
@@ -107,14 +107,14 @@ payload='{
   "spd": {"type": "Property", "value": 4},
   "@context": "http://localhost:7080/jsonldContexts/ctxKv"
 }'
-swCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --in jsonld --payload "$payload"
 echo
 echo
 
 
 echo "06. GET all via core context — short names are EXPANDED IRIs, proving each context worked"
 echo "=========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=https://example.org/types/T&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=https://example.org/types/T&options=keyValues'
 echo
 echo
 
@@ -214,7 +214,7 @@ Content-Length: 491
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine

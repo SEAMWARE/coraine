@@ -23,8 +23,8 @@ DistOps - self-forward short-circuit: in-process create + retrieve (Inc5b)
 distops self-forward retrieve tenant registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1" | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1" | head -1
 echo
 echo
 
@@ -58,21 +58,21 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 50 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t1" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t1" | head -1
 echo
 echo
 
 
 echo "03. GET urn:V1 on t1 (no ?local) → self-forward retrieve → returns t2's entity"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "04. GET urn:V1 on t1 with ?local=true → 404 (the source holds it, not t1)"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' -H "NGSILD-Tenant: t1" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true' -H "NGSILD-Tenant: t1" | head -1
 echo
 echo
 
@@ -113,4 +113,4 @@ HTTP/1.1 404 Not Found
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

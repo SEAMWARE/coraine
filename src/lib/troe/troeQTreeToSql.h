@@ -31,7 +31,7 @@
 // Compose for AND/OR via "( ... AND ... )" / "( ... OR ... )".
 //
 
-#include "swNgsild/LdQ.h"                                 // LdQNode
+#include "corNgsild/LdQ.h"                                 // LdQNode
 #include "kalloc/KAlloc.h"                                // KAlloc
 
 

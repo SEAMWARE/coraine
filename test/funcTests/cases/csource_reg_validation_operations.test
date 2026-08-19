@@ -17,14 +17,14 @@ CSourceRegistration validation — operations (§ 5.2.9 / § 4.20)
 registration error validation
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. operations: not an array → 400"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-not-array",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -37,7 +37,7 @@ echo
 
 echo "02. operations: empty array → 400"
 echo "================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-empty",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -50,7 +50,7 @@ echo
 
 echo "03. operations: unknown name → 400"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-bad",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -63,7 +63,7 @@ echo
 
 echo "04. operations: known individual ops (inclusive mode) → 201"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-individual",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -76,7 +76,7 @@ echo
 
 echo "05. operations: known group name (federationOps) → 201"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-group",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -89,7 +89,7 @@ echo
 
 echo "06. operations: temporal op (known but not yet implemented) → 201"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-temporal",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -102,7 +102,7 @@ echo
 
 echo "07. auxiliary mode + non-retrieve op → 400"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-aux-bad",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -116,7 +116,7 @@ echo
 
 echo "08. auxiliary mode + retrieveOps group → 201"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:R:ops-aux-good",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:9999",
@@ -234,5 +234,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

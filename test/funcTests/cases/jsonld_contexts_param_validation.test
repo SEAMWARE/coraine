@@ -18,9 +18,9 @@ validation
 error
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
-swBrokerStart
+corDbDrop
+corDbDrop -db coraine
+coraineStart
 
 --RUN--
 
@@ -33,28 +33,28 @@ swBrokerStart
 
 echo "01. GET /jsonldContexts?details=foo (invalid -> 400)"
 echo "===================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=foo"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=foo"
 echo
 echo
 
 
 echo "02. GET /jsonldContexts?kind=foo (invalid -> 400)"
 echo "================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=foo"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=foo"
 echo
 echo
 
 
 echo "03. GET /jsonldContexts?details=true (valid -> 200)"
 echo "==================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true"
 echo
 echo
 
 
 echo "04. GET /jsonldContexts?kind=Hosted (valid -> 200, empty list)"
 echo "=============================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
 echo
 echo
 
@@ -125,5 +125,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

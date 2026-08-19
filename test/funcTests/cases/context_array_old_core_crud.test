@@ -20,10 +20,10 @@
 context entity jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -58,7 +58,7 @@ payload='{
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities \
+corCurl --url /ngsi-ld/v1/entities \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 echo
@@ -67,14 +67,14 @@ echo
 
 echo "02. GET via core context — full IRIs: ctxA did the expanding"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "03. GET via ctxA — short"
 echo "========================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -89,7 +89,7 @@ payload='{
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/spd -X PATCH \
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/spd -X PATCH \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 echo
@@ -98,7 +98,7 @@ echo
 
 echo "05. GET via ctxA — updated value, still short"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -106,7 +106,7 @@ echo
 
 echo "06. GET as ld+json via ctxA — @context echoed in the body"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Accept: application/ld+json' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
@@ -115,8 +115,8 @@ echo
 
 echo "07. DELETE, then GET → 404"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 -X DELETE | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | head -1
 echo
 echo
 
@@ -214,5 +214,5 @@ HTTP/1.1 404 Not Found
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

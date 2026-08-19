@@ -15,12 +15,12 @@ Distributed queryEntities (comprehensive, no-split mode)
 entity query
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
-swBrokerStart -role CP2 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
+coraineStart -role CP2 --noSplitEntities -dist
 
 --RUN--
 
@@ -54,76 +54,76 @@ CP2="http://localhost:${CP2_PORT}"
 
 echo "01. Seed entities"
 echo "================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80},"color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":80},"color":{"type":"Property","value":"red"}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}'
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":120}}'
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":200},"color":{"type":"Property","value":"blue"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":200},"color":{"type":"Property","value":"blue"}}'
 echo
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}'
 echo
 echo
 
 
 echo "02. Register CB→CP1 and CB→CP2 (inclusive)"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "03. Basic merge: all 5 vehicles ordered by speed"
 echo "================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed"
 echo
 echo
 
 
 echo "04. local=true → only CB entities"
 echo "=================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&local=true&options=keyValues&orderBy=speed"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&local=true&options=keyValues&orderBy=speed"
 echo
 echo
 
 
 echo "05. q filter forwarded: speed>100"
 echo "=================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E100&options=keyValues&orderBy=speed"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E100&options=keyValues&orderBy=speed"
 echo
 echo
 
 
 echo "06. orderBy=speed;desc on merged"
 echo "================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed;desc"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed;desc"
 echo
 echo
 
 
 echo "07. Pagination: limit=2 with orderBy"
 echo "====================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed&limit=2"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed&limit=2"
 echo
 echo
 
 
 echo "08. pick=speed on merged"
 echo "========================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&pick=speed&orderBy=speed"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&pick=speed&orderBy=speed"
 echo
 echo
 
 
 echo "09. Dedup: create V1 on CP1 too → still only 5 entities"
 echo "========================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":999}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":999}}'
 echo
 echo "Entity count:"
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues" | grep -c '"id"'
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues" | grep -c '"id"'
 echo
 echo
 
@@ -133,51 +133,51 @@ echo
 # source with an NGSILD-Warning 199.
 echo "10. CP2 down → graceful fallback (CB+CP1 only)"
 echo "================================================"
-swBrokerStop -role CP2
+coraineStop -role CP2
 sleep 1
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed"
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed"
 echo
 echo
 
 
 echo "11. Exclusive reg: CB→CP1 for Sensor → query Sensor returns CP1's data"
 echo "======================================================================="
-swBrokerStart -role CP2 -dist
+coraineStart -role CP2 -dist
 sleep 1
 # Re-seed CP2's V5 — ramdb wipes on restart, mongoc keeps it.
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}' > /dev/null 2>&1
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":25}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}' > /dev/null 2>&1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":25}}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","information":[{"entities":[{"id":"urn:S1","type":"Sensor"}],"propertyNames":["temp"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Excl","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","information":[{"entities":[{"id":"urn:S1","type":"Sensor"}],"propertyNames":["temp"]}]}'
 echo
-swCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
 echo
 echo
 
 
 echo "12. Redirect reg: CB→CP2 for Camera → query returns CP2's data"
 echo "==============================================================="
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:C1","type":"Camera","res":{"type":"Property","value":"4K"}}'
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:C1","type":"Camera","res":{"type":"Property","value":"4K"}}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Redir","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"redirect","information":[{"entities":[{"type":"Camera"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Redir","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"redirect","information":[{"entities":[{"type":"Camera"}]}]}'
 echo
-swCurl --url "/ngsi-ld/v1/entities?type=Camera&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Camera&options=keyValues"
 echo
 echo
 
 
 echo "13. Auxiliary reg: CB→CP2 for Vehicle → V5 supplemented (already in result from inclusive)"
 echo "=========================================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Aux","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"auxiliary","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Aux","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"auxiliary","operations":["queryEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed" | grep -c '"id"'
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=speed" | grep -c '"id"'
 echo
 echo
 
 
 echo "14. entityMap=true → response includes NGSILD-EntityMap header"
 echo "=============================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues" | grep -c 'NGSILD-EntityMap'
+corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&options=keyValues" | grep -c 'NGSILD-EntityMap'
 echo
 echo
 
@@ -549,9 +549,9 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2 2>/dev/null
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2 2>/dev/null
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

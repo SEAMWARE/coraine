@@ -12,8 +12,8 @@ Relationship with an array-valued object (String[]) is accepted and round-trips 
 attr create relationship
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,14 +33,14 @@ payload='{
     "object": [ "urn:ngsi-ld:Entity:E1", "urn:ngsi-ld:Entity:E2" ]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
 
 echo "02. GET E1 — R1.object is the array"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Entity:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Entity:E1
 echo
 echo
 
@@ -55,7 +55,7 @@ payload='{
     "object": [ "urn:ok", "not a uri" ]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
@@ -110,4 +110,4 @@ Content-Length: 154
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

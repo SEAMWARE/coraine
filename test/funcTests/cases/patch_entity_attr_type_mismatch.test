@@ -15,8 +15,8 @@ PATCH /entities/{id}/attrs/{attr} - type mismatch (§ 5.6.4.4)
 entity patch attr error validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,7 +30,7 @@ payload='{
     "value": 80
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -41,7 +41,7 @@ payload='{
   "type": "Property",
   "value": 90
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
 echo
 echo
 
@@ -52,7 +52,7 @@ payload='{
   "type": "Relationship",
   "object": "urn:other"
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
 echo
 echo
 
@@ -62,7 +62,7 @@ echo "================================================================"
 payload='{
   "value": 100
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload "$payload"
 echo
 echo
 
@@ -111,5 +111,5 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

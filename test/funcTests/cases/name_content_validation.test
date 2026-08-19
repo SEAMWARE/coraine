@@ -19,8 +19,8 @@ Name regex (§ 4.6.2) + content sanitizer (§ 4.6.4) on entity payloads
 entity validation create
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -41,91 +41,91 @@ swBrokerStart
 
 echo "01. Valid name + clean value"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "02. Type starts with digit"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e2","type":"3Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e2","type":"3Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "03. Attribute name contains '!'"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e3","type":"V","spe!ed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e3","type":"V","spe!ed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "04. Attribute name has consecutive colons (URI-style, tolerated)"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e4","type":"V","a::b":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e4","type":"V","a::b":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "04b. Multi-colon URN-style attribute name (valid)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e4b","type":"V","urn:attributes:speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e4b","type":"V","urn:attributes:speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "05. Sub-attribute name with space"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e5","type":"V","speed":{"type":"Property","value":42,"bad name":{"type":"Property","value":1}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e5","type":"V","speed":{"type":"Property","value":42,"bad name":{"type":"Property","value":1}}}'
 echo
 echo
 
 
 echo "06. prefix:name form (valid)"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e6","type":"V","ngsi:speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e6","type":"V","ngsi:speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "07. Property value contains '<'"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e7","type":"V","label":{"type":"Property","value":"hello <script>"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e7","type":"V","label":{"type":"Property","value":"hello <script>"}}'
 echo
 echo
 
 
 echo "08. Property value contains a double-quote"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e8","type":"V","label":{"type":"Property","value":"sa\"id"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e8","type":"V","label":{"type":"Property","value":"sa\"id"}}'
 echo
 echo
 
 
 echo "09. Property value contains ';'"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e9","type":"V","label":{"type":"Property","value":"DROP TABLE; --"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e9","type":"V","label":{"type":"Property","value":"DROP TABLE; --"}}'
 echo
 echo
 
 
 echo "10. Numeric value (sanitizer only checks strings)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e10","type":"V","speed":{"type":"Property","value":99}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e10","type":"V","speed":{"type":"Property","value":99}}'
 echo
 echo
 
 
 echo "11. Forbidden char inside an array value"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e11","type":"V","tags":{"type":"Property","value":["ok","bad=value"]}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e11","type":"V","tags":{"type":"Property","value":["ok","bad=value"]}}'
 echo
 echo
 
 
 echo "12. Forbidden char inside a sub-attribute value"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e12","type":"V","speed":{"type":"Property","value":42,"unitCode":{"type":"Property","value":"m/s"},"note":{"type":"Property","value":"a=b"}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e12","type":"V","speed":{"type":"Property","value":42,"unitCode":{"type":"Property","value":"m/s"},"note":{"type":"Property","value":"a=b"}}}'
 echo
 echo
 
@@ -310,5 +310,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

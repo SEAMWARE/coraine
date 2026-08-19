@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - Error handling
 entity error query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -41,49 +41,49 @@ swBrokerStart
 
 echo "01. GET entities?limit=0 (without count) - 400 error"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=0&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=0&type=T'
 echo
 echo
 
 
 echo "02. GET entities?limit=-1 - document current behavior"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=-1&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=-1&type=T'
 echo
 echo
 
 
 echo "03. GET entities?limit=abc - document current behavior"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities?limit=abc&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=abc&type=T'
 echo
 echo
 
 
 echo "04. GET entities?type= (empty) - document current behavior"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type='
+corCurl --url '/ngsi-ld/v1/entities?type='
 echo
 echo
 
 
 echo "05. GET entities?type=(A;) - 400 empty type name"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=(A;)'
+corCurl --url '/ngsi-ld/v1/entities?type=(A;)'
 echo
 echo
 
 
 echo "06. GET entities?type=(;B) - 400 empty type name"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=(;B)'
+corCurl --url '/ngsi-ld/v1/entities?type=(;B)'
 echo
 echo
 
 
 echo "07. GET entities?foo=bar - 400 unknown param"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?foo=bar&type=T'
+corCurl --url '/ngsi-ld/v1/entities?foo=bar&type=T'
 echo
 echo
 
@@ -102,35 +102,35 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "09. GET entities?pick=speed&omit=color - document behavior (pick takes precedence)"
 echo "=================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?pick=speed&omit=color&type=T'
+corCurl --url '/ngsi-ld/v1/entities?pick=speed&omit=color&type=T'
 echo
 echo
 
 
 echo "10. GET entities?offset=-1 - 400 negative offset"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/entities?offset=-1&type=T'
+corCurl --url '/ngsi-ld/v1/entities?offset=-1&type=T'
 echo
 echo
 
 
 echo "11. GET entities?offset=abc - 400 non-numeric offset (not silently 0)"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/entities?offset=abc&type=T'
+corCurl --url '/ngsi-ld/v1/entities?offset=abc&type=T'
 echo
 echo
 
 
 echo "12. GET entities?page=2 - 400 'page' is not a supported NGSI-LD param"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?page=2&type=T'
+corCurl --url '/ngsi-ld/v1/entities?page=2&type=T'
 echo
 echo
 
@@ -326,5 +326,5 @@ Content-Length: 169
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

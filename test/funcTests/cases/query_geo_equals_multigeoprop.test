@@ -20,8 +20,8 @@ POST query — georel=equals (Point/Polygon) and an entity with multiple GeoProp
 geo query georel batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
     "value": {"type": "Polygon", "coordinates": [[ [0,0], [4,0], [4,4], [0,4], [0,0] ]]}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -47,7 +47,7 @@ echo
 echo "02. equals on 'location' Point at 13.5,52.5 — exact match, see E1"
 echo "================================================================"
 payload='{"type":"Query","entities":[{"type":"Geo"}],"geoQ":{"georel":"equals","geometry":"Point","coordinates":[13.5,52.5],"geoproperty":"location"}}'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
 echo
 echo
 
@@ -55,7 +55,7 @@ echo
 echo "03. equals on 'location' Point at 0,0 — no match, empty"
 echo "======================================================="
 payload='{"type":"Query","entities":[{"type":"Geo"}],"geoQ":{"georel":"equals","geometry":"Point","coordinates":[0,0],"geoproperty":"location"}}'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
 echo
 echo
 
@@ -63,7 +63,7 @@ echo
 echo "04. equals on the SECOND geoproperty 'observationSpace' with the exact Polygon — see E1"
 echo "======================================================================================="
 payload='{"type":"Query","entities":[{"type":"Geo"}],"geoQ":{"georel":"equals","geometry":"Polygon","coordinates":[[ [0,0],[4,0],[4,4],[0,4],[0,0] ]],"geoproperty":"observationSpace"}}'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
 echo
 echo
 
@@ -71,7 +71,7 @@ echo
 echo "05. within selecting 'observationSpace' (Polygon contains a small box) — see E1"
 echo "==============================================================================="
 payload='{"type":"Query","entities":[{"type":"Geo"}],"geoQ":{"georel":"within","geometry":"Polygon","coordinates":[[ [-1,-1],[5,-1],[5,5],[-1,5],[-1,-1] ]],"geoproperty":"observationSpace"}}'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
 echo
 echo
 
@@ -79,7 +79,7 @@ echo
 echo "06. equals on 'location' but selecting 'observationSpace' geometry — no match (wrong geoproperty)"
 echo "================================================================================================="
 payload='{"type":"Query","entities":[{"type":"Geo"}],"geoQ":{"georel":"equals","geometry":"Point","coordinates":[13.5,52.5],"geoproperty":"observationSpace"}}'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload" | grep -E "HTTP|\"id\"|^\[|^\]"
 echo
 
 
@@ -130,4 +130,4 @@ HTTP/1.1 200 OK
 []
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

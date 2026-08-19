@@ -21,12 +21,12 @@
 #include "kjson/KjNode.h"                               // KjNode
 #include "kjson/kjBuilder.h"                            // kjArray, kjObject, kjString, kjInteger, kjChildAdd
 #include "kjson/kjLookup.h"                             // kjLookup
-#include "swRest/SwRestState.h"                         // swRest
+#include "corRest/CorRestState.h"                         // corRest
 
-#include "swNgsild/ldIsEntityKeyword.h"                 // ldIsEntityKeyword
-#include "swNgsild/LdAttrType.h"                        // LdAttrType
-#include "swNgsild/ldAttrTypeDetect.h"                  // ldAttrTypeDetect
-#include "swNgsild/ldTypes.h"                           // ldAttrTypeToString
+#include "corNgsild/ldIsEntityKeyword.h"                 // ldIsEntityKeyword
+#include "corNgsild/LdAttrType.h"                        // LdAttrType
+#include "corNgsild/ldAttrTypeDetect.h"                  // ldAttrTypeDetect
+#include "corNgsild/ldTypes.h"                           // ldAttrTypeToString
 
 #include "db/DbDriver.h"                                // DB_OK, DB_ERR
 #include "db/Tenant.h"                                  // Tenant
@@ -52,13 +52,13 @@ static KjNode* typeEntryLookup(KjNode* result, const char* typeIri, bool details
       return entry;
   }
 
-  KjNode* entry = kjObject(swRest.kjsonP, NULL);
-  kjChildAdd(entry, kjString(swRest.kjsonP, "typeIri", typeIri));
-  kjChildAdd(entry, kjArray(swRest.kjsonP, "attrs"));
+  KjNode* entry = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(entry, kjString(corRest.kjsonP, "typeIri", typeIri));
+  kjChildAdd(entry, kjArray(corRest.kjsonP, "attrs"));
   if (details)
   {
-    kjChildAdd(entry, kjObject(swRest.kjsonP,  "attrTypes"));
-    kjChildAdd(entry, kjInteger(swRest.kjsonP, "entityCount", 0));
+    kjChildAdd(entry, kjObject(corRest.kjsonP,  "attrTypes"));
+    kjChildAdd(entry, kjInteger(corRest.kjsonP, "entityCount", 0));
   }
 
   kjChildAdd(result, entry);
@@ -72,7 +72,7 @@ static void stringArrayAddUnique(KjNode* arr, const char* s)
   for (KjNode* p = arr->value.firstChildP; p != NULL; p = p->next)
     if (p->type == KjString && strcmp(p->value.s, s) == 0)
       return;
-  kjChildAdd(arr, kjString(swRest.kjsonP, NULL, s));
+  kjChildAdd(arr, kjString(corRest.kjsonP, NULL, s));
 }
 
 
@@ -111,7 +111,7 @@ static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrap
   KjNode* attrTypeArr = kjLookup(attrTypesObj, attrName);
   if (attrTypeArr == NULL)
   {
-    attrTypeArr = kjArray(swRest.kjsonP, attrName);
+    attrTypeArr = kjArray(corRest.kjsonP, attrName);
     kjChildAdd(attrTypesObj, attrTypeArr);
   }
   stringArrayAddUnique(attrTypeArr, atStr);
@@ -132,13 +132,13 @@ int mongocTypeList(Tenant* tenantP, bool details, KjNode** arrayPP)
   bson_init(&filter);
   mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, NULL, NULL);
 
-  KjNode* result = kjArray(swRest.kjsonP, NULL);
+  KjNode* result = kjArray(corRest.kjsonP, NULL);
   *arrayPP = result;
 
   const bson_t* doc;
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    KjNode* eP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    KjNode* eP = mongocBsonToKjTree(&corRest.kalloc, doc);
     if (eP == NULL) continue;
 
     KjNode* typeP = kjLookup(eP, "type");

@@ -21,9 +21,9 @@ TRoE timescale - POST /temporal/entities, all attr kinds round-trip
 troe timescale postgres temporal create
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -36,14 +36,14 @@ payload='{
   "owner":  {"type":"Relationship","object":"urn:Bob","observedAt":"2026-04-28T09:00:00Z"},
   "name":   {"type":"LanguageProperty","languageMap":{"en":"Hello","fr":"Bonjour"},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET /temporal/entities/urn:V1 — all three attrs round-trip with observedAt"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
@@ -59,14 +59,14 @@ payload='{
     {"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET /temporal/entities/urn:V2 — three speed instances"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V2
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V2
 echo
 echo
 
@@ -170,6 +170,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

@@ -17,24 +17,24 @@ GET /temporal/entities/{id} with no timerel — returns all instances
 troe temporal timescale
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Create E1 (n=1), then PATCH to n=2 and n=3"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:1","type":"T","n":{"type":"Property","value":1}}' | grep HTTP
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E:1/attrs --payload '{"n":{"type":"Property","value":2}}' | grep HTTP
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E:1/attrs --payload '{"n":{"type":"Property","value":3}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E:1","type":"T","n":{"type":"Property","value":1}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E:1/attrs --payload '{"n":{"type":"Property","value":2}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:E:1/attrs --payload '{"n":{"type":"Property","value":3}}' | grep HTTP
 echo
 echo
 
 
 echo "02. GET /temporal/entities/E1 with NO timerel — 200 + all three instances (1,2,3)"
 echo "================================================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E:1 | grep -E 'HTTP|"value"'
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E:1 | grep -E 'HTTP|"value"'
 echo
 echo
 
@@ -56,4 +56,4 @@ HTTP/1.1 200 OK
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

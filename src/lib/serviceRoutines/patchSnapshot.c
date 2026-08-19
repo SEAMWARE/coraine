@@ -22,7 +22,7 @@
 #include <string.h>                                      // strrchr, strcmp
 #include <time.h>                                        // gmtime_r
 
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kjson/KjNode.h"                                // KjNode
@@ -32,11 +32,11 @@
 #include "kjson/kjClone.h"                               // kjClone
 #include "kjson/kjFree.h"                                // kjFree
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemLookup
-#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
-#include "swNgsild/ldIso8601Duration.h"                  // ldIso8601DurationParseNs
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemLookup
+#include "corNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "corNgsild/ldIso8601Duration.h"                  // ldIso8601DurationParseNs
 
 #include "db/DbDriver.h"                                 // db
 #include "db/Tenant.h"                                   // Tenant
@@ -46,7 +46,7 @@
 
 //
 // nsToIso - format a ns-epoch timestamp as ISO 8601 UTC (long-lived
-// allocation in swRest.kalloc, since we hand it to the cache tree).
+// allocation in corRest.kalloc, since we hand it to the cache tree).
 //
 static char* nsToIso(uint64_t ns)
 {
@@ -55,7 +55,7 @@ static char* nsToIso(uint64_t ns)
   struct tm tm;
   gmtime_r(&s, &tm);
 
-  char* buf = (char*) kaAlloc(&swRest.kalloc, 80);
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 80);
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
@@ -80,11 +80,11 @@ static const char* IMMUTABLE_FIELDS[] = {
 
 bool patchSnapshot(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
-  KjNode* fragP   = swRest.in.requestTree;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+  KjNode* fragP   = corRest.in.requestTree;
 
-  const char* slash = strrchr(swRest.in.urlPath, '/');
-  const char* id    = (slash != NULL) ? slash + 1 : swRest.in.urlPath;
+  const char* slash = strrchr(corRest.in.urlPath, '/');
+  const char* id    = (slash != NULL) ? slash + 1 : corRest.in.urlPath;
 
   if (id == NULL || id[0] == 0)
   {
@@ -176,7 +176,7 @@ bool patchSnapshot(void)
   }
 
   // Refresh modifiedAt on the cached tree (live tree mutation only).
-  itemP->modifiedAt = swRest.requestStartTime;
+  itemP->modifiedAt = corRest.requestStartTime;
   if (prioP != NULL)
   {
     long pn = (prioP->type == KjInt) ? (long) prioP->value.i : (long) prioP->value.f;
@@ -188,7 +188,7 @@ bool patchSnapshot(void)
   // deadline even though clients can't set expiresAt directly).
   // The cache tree must hold long-lived strings (kjString with NULL
   // allocator → malloc-backed copy); the per-request fragment can use
-  // swRest.kjsonP since the DB plugin renders & sends before request end.
+  // corRest.kjsonP since the DB plugin renders & sends before request end.
   if (lifeNs > 0)
   {
     itemP->expiresAt = itemP->createdAt + (uint64_t) lifeNs;
@@ -201,7 +201,7 @@ bool patchSnapshot(void)
       kjFree(dest);
     }
     kjChildAdd(itemP->tree, kjString(NULL, "expiresAt", expIso));
-    kjChildAdd(fragP, kjString(swRest.kjsonP, "expiresAt", expIso));
+    kjChildAdd(fragP, kjString(corRest.kjsonP, "expiresAt", expIso));
   }
 
   // Persist the patch so it survives a restart. The DB plugin applies
@@ -221,12 +221,12 @@ bool patchSnapshot(void)
   // Rendered exactly as Retrieve Snapshot Status renders it: a clone into the
   // per-request kalloc, with the hidden "_snapSeq" boot-reload field stripped.
   //
-  KjNode* clone = kjClone(swRest.kjsonP, itemP->tree);
+  KjNode* clone = kjClone(corRest.kjsonP, itemP->tree);
   KjNode* seqP  = (clone != NULL) ? kjLookup(clone, "_snapSeq") : NULL;
   if (seqP != NULL)
     kjChildRemove(clone, seqP);
 
-  swRest.out.responseTree   = clone;
-  swRest.out.httpStatusCode = 200;
+  corRest.out.responseTree   = clone;
+  corRest.out.httpStatusCode = 200;
   return true;
 }

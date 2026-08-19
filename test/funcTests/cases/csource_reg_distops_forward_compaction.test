@@ -22,10 +22,10 @@ DistOps write forwards — body compacted via the request @context, Link follows
 csource registration distops context forward
 
 --INIT--
-swDbDrop
+corDbDrop
 contextServerStart
 ftClientStart --port 7711 --status 204
-swBrokerStart -dist
+coraineStart -dist
 
 contextServerPush /jsonldContexts/veh '{
   "@context": {
@@ -73,7 +73,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations \
+corCurl --url /ngsi-ld/v1/csourceRegistrations \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
   --payload "$payload"
 echo
@@ -90,7 +90,7 @@ payload='{
   },
   "@context": ["http://localhost:7080/jsonldContexts/veh"]
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload"
 echo
@@ -111,7 +111,7 @@ payload='{
   "value": 77,
   "source": {"type": "Property", "value": "Radar"}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT \
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PUT \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
   --payload "$payload"
 echo
@@ -134,7 +134,7 @@ echo
 
 echo "06. Replace the CSR with one declaring csi.jsonldContext"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:FwdCtx -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:FwdCtx -X DELETE | head -1
 payload='{
   "id": "urn:CSR:Csi",
   "type": "ContextSourceRegistration",
@@ -149,7 +149,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations \
+corCurl --url /ngsi-ld/v1/csourceRegistrations \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
   --payload "$payload" | head -1
 echo
@@ -166,7 +166,7 @@ payload='{
   },
   "@context": ["http://localhost:7080/jsonldContexts/veh"]
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload"
 echo
@@ -182,7 +182,7 @@ echo
 
 echo "09. GET urn:V1 (veh ctx) — retrieve forward carries pick=type,velocidad"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1 \
+corCurl --url /ngsi-ld/v1/entities/urn:V1 \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 ftClientDump --port 7711 | grep -E '"url"|"pick"' | tail -2
 echo
@@ -202,7 +202,7 @@ payload='[
     }
   }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/upsert \
+corCurl --url /ngsi-ld/v1/entityOperations/upsert \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
   --payload "$payload" | head -1
 ftClientDump --port 7711
@@ -212,7 +212,7 @@ echo
 
 echo "11. Query ?attrs=speed&q=speed>5 (veh ctx) — attrs never forwarded: q=(velocidad>5);(velocidad)"
 echo "================================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed&q=speed%3E5&splitEntities=false' \
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed&q=speed%3E5&splitEntities=false' \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 ftClientDump --port 7711 | grep -E '"q"|"attrs"|"pick"|"url"' | tail -4
 echo
@@ -221,7 +221,7 @@ echo
 
 echo "12. Back to a csi-less CSR — @context [veh, OLD core], the real-world array shape"
 echo "===================================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Csi -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:Csi -X DELETE | head -1
 payload='{
   "id": "urn:CSR:Plain",
   "type": "ContextSourceRegistration",
@@ -235,7 +235,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations \
+corCurl --url /ngsi-ld/v1/csourceRegistrations \
   --header 'Link: <http://localhost:7080/jsonldContexts/veh>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
   --payload "$payload" | head -1
 payload='{
@@ -249,7 +249,7 @@ payload='{
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld"
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 ftClientDump --port 7711 | grep -E '"speed"|"source"|"Link"' | tail -3
@@ -592,6 +592,6 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop --port 7711
 contextServerStop

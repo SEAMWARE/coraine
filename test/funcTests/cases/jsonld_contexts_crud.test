@@ -12,10 +12,10 @@ POST / DELETE /jsonldContexts (§ 5.13.2, 5.13.3)
 context
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxT '{
   "@context": {
@@ -52,14 +52,14 @@ contextServerPush /jsonldContexts/ctxT '{
 echo "01. POST Hosted (@context body)"
 echo "==============================="
 payload='{"@context":{"speed":"https://example.org/speed"}}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload"
 echo
 echo
 
 
 echo "02. LIST Hosted"
 echo "==============="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
 echo
 echo
 
@@ -67,45 +67,45 @@ echo
 echo "04. POST Cached ({\"url\":...})"
 echo "=============================="
 payload='{"url":"http://localhost:7080/jsonldContexts/ctxT"}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
 echo
 echo
 
 
 echo "05. LIST Cached"
 echo "==============="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
 echo
 echo
 
 
 echo "06. DELETE Cached"
 echo "================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxT"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxT"
 echo
 echo
 
 
 echo "07. LIST Cached (empty)"
 echo "======================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
 echo
 echo
 
 
 payload='{"url":"http://localhost:7080/jsonldContexts/ctxT"}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload" > /dev/null
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload" > /dev/null
 
 echo "08. DELETE with reload=true"
 echo "==========================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxT?reload=true"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxT?reload=true"
 echo
 echo
 
 
 echo "09. LIST Cached (still there after reload)"
 echo "=========================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
 echo
 echo
 
@@ -113,19 +113,19 @@ echo
 echo "10. DELETE ?reload=true on Hosted — 400"
 echo "========================================"
 # Re-POST a hosted, capture its id from Location, then try reload on it.
-# We use a deterministic second ?kind=Hosted list to grab whatever id swBroker
+# We use a deterministic second ?kind=Hosted list to grab whatever id coraine
 # assigned — simplest: post a fresh one and look at Location via verbose headers.
 payload='{"@context":{"speed2":"https://example.org/speed2"}}'
-postOut=$(swCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload")
+postOut=$(corCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload")
 hostedId=$(echo "$postOut" | awk -F '/jsonldContexts/' '/^Location:/ {print $2}' | tr -d '\r')
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/${hostedId}?reload=true"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/${hostedId}?reload=true"
 echo
 echo
 
 
 echo "11. DELETE unknown id — 404"
 echo "==========================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:does-not-exist"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:does-not-exist"
 echo
 echo
 
@@ -133,7 +133,7 @@ echo
 echo "12. POST with no @context and no url — 400"
 echo "=========================================="
 payload='{}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
 echo
 echo
 
@@ -141,7 +141,7 @@ echo
 echo "13. POST with @context not an object — 400"
 echo "==========================================="
 payload='{"@context":"not-an-object"}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --in jsonld --payload "$payload"
 echo
 echo
 
@@ -149,7 +149,7 @@ echo
 echo "14. POST with url not a string — 400"
 echo "===================================="
 payload='{"url":42}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
 echo
 echo
 
@@ -157,35 +157,35 @@ echo
 echo "15. POST Cached unreachable URL — 504"
 echo "====================================="
 payload='{"url":"http://127.0.0.1:1/nope.jsonld"}'
-swCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload "$payload"
 echo
 echo
 
 
 echo "16. DELETE unknown NON-URI id — 404 (id is a local identifier, § 13.5.3)"
 echo "=========================================================================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/not_even_a_uri"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/not_even_a_uri"
 echo
 echo
 
 
 echo "17. DELETE the Core @context — 400 (the core is permanent)"
 echo "============================================================"
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.9.jsonld"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.9.jsonld"
 echo
 echo
 
 
 echo "18. DELETE an older-version core URL, reload=false — 400 (same core)"
 echo "======================================================================"
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.6.jsonld?reload=false"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.6.jsonld?reload=false"
 echo
 echo
 
 
 echo "19. GET core metadata via an older-version URL — 200 (resolves to THE core)"
 echo "=============================================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.6.jsonld?details=true"
+corCurl --url "/ngsi-ld/v1/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.6.jsonld?details=true"
 echo
 echo
 
@@ -444,7 +444,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop -db swBroker
-swDbDrop
+corDbDrop -db coraine
+corDbDrop

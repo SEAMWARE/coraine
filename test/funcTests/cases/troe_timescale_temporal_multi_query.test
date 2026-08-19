@@ -17,18 +17,18 @@ TRoE timescale - multi-entity temporal query: lastN/temporalValues/omit/idPatter
 troe timescale postgres temporal query
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed V1 (speed 10,20,30 @10/11/12:00) and V2 (speed 99 @11:00)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T11:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T11:00:00Z"}}' >/dev/null
 echo done
 echo
 echo
@@ -36,35 +36,35 @@ echo
 
 echo "02. lastN=2 → V1 keeps its 2 most recent (30,20); V2 keeps its 1 (99)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=2'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=2'
 echo
 echo
 
 
 echo "03. format=temporalValues → simplified [value,timestamp] tuples per entity"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=1&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&lastN=1&format=temporalValues'
 echo
 echo
 
 
 echo "04. idPattern=urn:V1.* + type → only V1 (idPattern needs a selector, § 5.7.2.4)"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&idPattern=urn:V1&lastN=1'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&idPattern=urn:V1&lastN=1'
 echo
 echo
 
 
 echo "05. future-only window → empty result []"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2099-01-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2099-01-01T00:00:00Z'
 echo
 echo
 
 
 echo "06. format=aggregatedValues WITHOUT aggrMethods → 400 (§ 5.2.6.7.4)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&format=aggregatedValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&format=aggregatedValues'
 echo
 echo
 
@@ -214,4 +214,4 @@ Content-Length: 209
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

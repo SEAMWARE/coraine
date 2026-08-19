@@ -24,10 +24,10 @@ Relative reference in an @context array resolves against the URL it appears in
 context entity
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/relSub '{
   "@context": {
@@ -80,7 +80,7 @@ payload='{
   "type": "T",
   "R1": {"type": "Property", "value": 1}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/relCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -88,14 +88,14 @@ echo
 
 echo "02. GET urn:E1 with the core context only"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "03. GET urn:E1 via relCompound"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/relCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -108,7 +108,7 @@ payload='{
   "type": "T",
   "R2": {"type": "Property", "value": 2}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/relDotCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -116,7 +116,7 @@ echo
 
 echo "05. GET urn:E2 with the core context only"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E2
+corCurl --url /ngsi-ld/v1/entities/urn:E2
 echo
 echo
 
@@ -128,7 +128,7 @@ payload='{
   "type": "T",
   "R1": {"type": "Property", "value": 3}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/relSub>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -136,7 +136,7 @@ echo
 
 echo "07. GET urn:E3 with the core context only"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E3
+corCurl --url /ngsi-ld/v1/entities/urn:E3
 echo
 echo
 
@@ -148,7 +148,7 @@ payload='{
   "type": "T",
   "R1": {"type": "Property", "value": 4}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/relBroken>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' 
 echo
 echo
@@ -156,7 +156,7 @@ echo
 
 echo "09. GET urn:E4 - never created, the write was refused"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:E4
+corCurl --url /ngsi-ld/v1/entities/urn:E4
 echo
 echo
 
@@ -286,5 +286,5 @@ Content-Length: 151
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

@@ -20,18 +20,18 @@ TRoE timescale - temporal multi-entity query (local-only via ?local=true)
 troe timescale postgres temporal query q lastN pagination
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed: V1 (Vehicle, speed 10→30), V2 (Vehicle, speed 99), P1 (Person)"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"alice","observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"alice","observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
 echo done
 echo
 echo
@@ -39,21 +39,21 @@ echo
 
 echo "02. timerel mandatory → 400 when missing"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&local=true' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&local=true' | head -1
 echo
 echo
 
 
 echo "03. Entity selector mandatory → 400 when only timerel given"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?timerel=after&timeAt=2026-01-01T00:00:00Z' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities?timerel=after&timeAt=2026-01-01T00:00:00Z' | head -1
 echo
 echo
 
 
 echo "04. type=Vehicle → V1 + V2 (P1 excluded)"
 echo "========================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -69,7 +69,7 @@ echo
 
 echo "05. id=urn:V1,urn:P1 → V1 + P1 (V2 excluded)"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?id=urn:V1,urn:P1&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?id=urn:V1,urn:P1&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -85,7 +85,7 @@ echo
 
 echo "06. type=Vehicle + q=speed>20 → V1 (speed reached 30) + V2 (99)"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E20&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E20&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -101,7 +101,7 @@ echo
 
 echo "07. type=Vehicle + q=speed>500 → empty (no match)"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E500&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E500&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -115,7 +115,7 @@ echo
 
 echo "08. limit=1 (pagination) → first vehicle alphabetically"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=1&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=1&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -131,7 +131,7 @@ echo
 
 echo "09. limit=1 + offset=1 → second vehicle"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=1&offset=1&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=1&offset=1&local=true' | python3 -c "
 import sys, json
 hdr=''; body=''
 for line in sys.stdin:
@@ -147,7 +147,7 @@ echo
 
 echo "10. attrs=speed → only the speed attribute appears in the docs"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&attrs=speed&local=true' | python3 -c "
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&attrs=speed&local=true' | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -225,6 +225,6 @@ HTTP/1.1 400 Bad Request
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

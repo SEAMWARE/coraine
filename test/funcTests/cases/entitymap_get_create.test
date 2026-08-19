@@ -15,8 +15,8 @@ GET /entityMaps — Create EntityMap for Query (§ 5.14.4)
 create entity entitymap query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,32 +30,32 @@ swBrokerStart
 
 echo "01. Seed V1 + V2 (Vehicle), S1 (Sensor)"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}'
 echo
 echo
 
 
 echo "02. GET /entityMaps?type=Vehicle → 201 + map body (V1+V2)"
 echo "========================================================="
-swCurl --url "/ngsi-ld/v1/entityMaps?type=Vehicle"
+corCurl --url "/ngsi-ld/v1/entityMaps?type=Vehicle"
 echo
 echo
 
 
 echo "03. GET /entityMaps?local=true → all 3 entities"
 echo "================================================"
-swCurl --url "/ngsi-ld/v1/entityMaps?local=true"
+corCurl --url "/ngsi-ld/v1/entityMaps?local=true"
 echo
 echo
 
 
 echo "04. GET /entityMaps?type=NonExistent → 201 + empty map"
 echo "======================================================"
-swCurl --url "/ngsi-ld/v1/entityMaps?type=NonExistent"
+corCurl --url "/ngsi-ld/v1/entityMaps?type=NonExistent"
 echo
 echo
 
@@ -157,5 +157,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

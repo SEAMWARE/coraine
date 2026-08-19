@@ -17,60 +17,60 @@ Query q numeric literals — integer/decimal coercion, decimals, negatives
 query q
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create P1 n=5, P2 n=10.0, P3 n=9.99, P4 n=-5.5, P5 n=-2"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:1","type":"Num","n":{"type":"Property","value":5}}'    | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:2","type":"Num","n":{"type":"Property","value":10.0}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:3","type":"Num","n":{"type":"Property","value":9.99}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:4","type":"Num","n":{"type":"Property","value":-5.5}}' | grep HTTP
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:5","type":"Num","n":{"type":"Property","value":-2}}'   | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:1","type":"Num","n":{"type":"Property","value":5}}'    | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:2","type":"Num","n":{"type":"Property","value":10.0}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:3","type":"Num","n":{"type":"Property","value":9.99}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:4","type":"Num","n":{"type":"Property","value":-5.5}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P:5","type":"Num","n":{"type":"Property","value":-2}}'   | grep HTTP
 echo
 echo
 
 
 echo "02. q=n==5 (integer) — P1"
 echo "========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==5' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==5' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
 echo
 echo
 
 
 echo "03. q=n==10 (integer RHS vs stored 10.0) — P2 (coercion)"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==10' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==10' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
 echo
 echo
 
 
 echo "04. q=n==9.99 (decimal) — P3"
 echo "============================"
-swCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==9.99' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==9.99' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
 echo
 echo
 
 
 echo "05. q=n==-5.5 (negative float) — P4"
 echo "==================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==-5.5' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Num&q=n==-5.5' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
 echo
 echo
 
 
 echo "06. q=n<-1 (negative threshold) — P4,P5"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Num&q=n%3C-1' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Num&q=n%3C-1' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
 echo
 echo
 
 
 echo "07. q=n>=-2 — P1,P2,P3,P5 (all but P4=-5.5)"
 echo "==========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Num&q=n%3E%3D-2' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
+corCurl --url '/ngsi-ld/v1/entities?type=Num&q=n%3E%3D-2' | grep -oE 'urn:ngsi-ld:P:[0-9]' | sort
 echo
 echo
 
@@ -120,4 +120,4 @@ urn:ngsi-ld:P:5
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

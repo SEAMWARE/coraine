@@ -34,10 +34,10 @@ EntityMap NGSILD-EntityMap header — request side + linkedMaps fed to CP (§ 5.
 entitymap distops query
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -46,16 +46,16 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed: V1 on CB, V2 on CP1; CSR CB→CP1 (Vehicle)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "02. Build distributed map on CB → captures local + remote (linkedMaps populated)"
 echo "================================================================================"
-MAP_ID=$(swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id' 2>/dev/null | grep -i '^NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]+)|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle&orderBy=id' 2>/dev/null | grep -i '^NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]+)|\1|' | tr -d '\r')
 echo "captured map id: ${MAP_ID:0:24}... (truncated)"
 echo
 echo
@@ -63,14 +63,14 @@ echo
 
 echo "03. Page via ?entityMap=<local-id> — both V1 (local) and V2 (CP1 via linkedMap)"
 echo "==============================================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&options=keyValues&limit=10"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&options=keyValues&limit=10"
 echo
 echo
 
 
 echo "04. Same page via NGSILD-EntityMap request header (alt to ?entityMap=)"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&limit=10' \
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&limit=10' \
        -H "NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/$MAP_ID"
 echo
 echo
@@ -151,7 +151,7 @@ Content-Length: 139
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

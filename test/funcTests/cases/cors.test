@@ -12,7 +12,7 @@ CORS headers (--corsOrigin __ALL)
 cors http
 
 --INIT--
-swBrokerStart --corsOrigin __ALL
+coraineStart --corsOrigin __ALL
 
 --RUN--
 
@@ -24,35 +24,35 @@ swBrokerStart --corsOrigin __ALL
 
 echo "01. GET request - CORS headers present"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
 
 echo "02. OPTIONS preflight - full CORS response"
 echo "==========================================="
-swCurl -X OPTIONS --url /ngsi-ld/v1/entities
+corCurl -X OPTIONS --url /ngsi-ld/v1/entities
 echo
 echo
 
 
 echo "03. OPTIONS on wildcard URL - CORS + Allow"
 echo "==========================================="
-swCurl -X OPTIONS --url /ngsi-ld/v1/entities/urn:any
+corCurl -X OPTIONS --url /ngsi-ld/v1/entities/urn:any
 echo
 echo
 
 
 echo "04. OPTIONS /jsonldContexts - GET + POST"
 echo "========================================"
-swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts
+corCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts
 echo
 echo
 
 
 echo "05. OPTIONS /jsonldContexts/{id} - GET + DELETE"
 echo "==============================================="
-swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
+corCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
 echo
 echo
 
@@ -129,4 +129,4 @@ Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tena
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

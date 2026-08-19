@@ -29,22 +29,22 @@ TRoE timescale - Modify Attribute instance rejects a fragment for another attrib
 troe timescale postgres temporal patch instance validation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:V1 — speed=10, color=red"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"color":[{"type":"Property","value":"red","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"color":[{"type":"Property","value":"red","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
 echo
 echo
 
 
 echo "02. Learn the speed instanceId (broker-generated, so kept out of the expect)"
 echo "==========================================================================="
-INST=$(swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -o 'urn:ngsi-ld:Instance:[a-zA-Z0-9-]*' | head -1)
+INST=$(corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -o 'urn:ngsi-ld:Instance:[a-zA-Z0-9-]*' | head -1)
 echo "instanceId captured: $([ -n "$INST" ] && echo yes || echo no)"
 echo
 echo
@@ -52,42 +52,42 @@ echo
 
 echo "03. Fragment names a DIFFERENT attribute (color) than the URL (speed) → 400"
 echo "==========================================================================="
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"color":[{"type":"Property","value":"blue","observedAt":"2026-04-28T12:00:00Z"}]}'
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"color":[{"type":"Property","value":"blue","observedAt":"2026-04-28T12:00:00Z"}]}'
 echo
 echo
 
 
 echo "04. Nothing was written — speed still 10, color still red"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | grep -E '"value"|"observedAt"'
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | grep -E '"value"|"observedAt"'
 echo
 echo
 
 
 echo "05. Fragment carries TWO instances → 400"
 echo "========================================"
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"speed":[{"type":"Property","value":25,"observedAt":"2026-04-28T10:00:00Z"},{"type":"Property","value":26,"observedAt":"2026-04-28T11:00:00Z"}]}'
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"speed":[{"type":"Property","value":25,"observedAt":"2026-04-28T10:00:00Z"},{"type":"Property","value":26,"observedAt":"2026-04-28T11:00:00Z"}]}'
 echo
 echo
 
 
 echo "06. Still untouched — the second instance was not silently dropped"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -E '"value"|"observedAt"'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -E '"value"|"observedAt"'
 echo
 echo
 
 
 echo "07. A correct one-instance fragment → 204"
 echo "========================================="
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"speed":[{"type":"Property","value":25,"observedAt":"2026-04-28T10:00:00Z"}]}'
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"speed":[{"type":"Property","value":25,"observedAt":"2026-04-28T10:00:00Z"}]}'
 echo
 echo
 
 
 echo "08. speed is now 25"
 echo "==================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -E '"value"|"observedAt"'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -E '"value"|"observedAt"'
 echo
 echo
 
@@ -96,22 +96,22 @@ echo "09. The same target named by its expanded IRI → 204"
 echo "==================================================="
 # Term expansion is observed (§ 8.2.4), so the fully qualified name matches
 # the short name in the URL.
-swCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"https://uri.etsi.org/ngsi-ld/default-context/speed":[{"type":"Property","value":30,"observedAt":"2026-04-28T13:00:00Z"}]}'
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INST" -X PATCH --payload '{"https://uri.etsi.org/ngsi-ld/default-context/speed":[{"type":"Property","value":30,"observedAt":"2026-04-28T13:00:00Z"}]}'
 echo
 echo
 
 
 echo "10. speed is now 30"
 echo "==================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -E '"value"|"observedAt"'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -E '"value"|"observedAt"'
 echo
 echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop
 
 --EXPECT--
 01. Seed urn:V1 — speed=10, color=red

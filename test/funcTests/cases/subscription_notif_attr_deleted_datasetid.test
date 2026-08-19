@@ -27,9 +27,9 @@ attributeDeleted notification reports each removed dataset instance
 datasetid delete subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -44,21 +44,21 @@ payload='{
     {"type": "Property", "value": 30, "datasetId": "urn:ds:2"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Subscription on attributeDeleted"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
 
 echo "03. Delete ONE instance: speed?datasetId=urn:ds:1"
 echo "================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ds:1'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ds:1'
 echo
 echo
 
@@ -79,7 +79,7 @@ echo
 
 echo "06. Delete ALL remaining instances: speed?deleteAll=true"
 echo "========================================================"
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?deleteAll=true'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?deleteAll=true'
 echo
 echo
 
@@ -103,14 +103,14 @@ echo
 
 echo "09. Seed V2: color with a SINGLE dataset instance urn:ds:9"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":[{"type":"Property","value":"red","datasetId":"urn:ds:9"}]}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":[{"type":"Property","value":"red","datasetId":"urn:ds:9"}]}'
 echo
 echo
 
 
 echo "10. Delete it: color?datasetId=urn:ds:9 — the attribute is now gone"
 echo "==================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V2/attrs/color?datasetId=urn:ds:9'
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V2/attrs/color?datasetId=urn:ds:9'
 echo
 echo
 
@@ -308,4 +308,4 @@ Date: REGEX(.*)
 
 --TEARDOWN--
 ftClientStop
-swBrokerStop
+coraineStop

@@ -18,35 +18,35 @@ GET /types and /attributes on an empty broker → 200 with empty lists
 types attributes discovery introspection
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. GET /types on empty broker → EntityTypeList, typeList:[]"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/types
+corCurl --url /ngsi-ld/v1/types
 echo
 echo
 
 
 echo "02. GET /types?details=true on empty broker → []"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
+corCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
 echo
 echo
 
 
 echo "03. GET /attributes on empty broker → AttributeList, attributeList:[]"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/attributes
+corCurl --url /ngsi-ld/v1/attributes
 echo
 echo
 
 
 echo "04. GET /attributes?details=true on empty broker → []"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/attributes' --urlParams 'details=true'
+corCurl --url '/ngsi-ld/v1/attributes' --urlParams 'details=true'
 
 --EXPECT--
 01. GET /types on empty broker → EntityTypeList, typeList:[]
@@ -104,4 +104,4 @@ Content-Length: 3
 []
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

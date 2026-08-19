@@ -12,8 +12,8 @@ GET /entities?omit= excludes specified attributes
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,14 +36,14 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entities?omit=speed - speed omitted, color returned"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&omit=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&omit=speed'
 echo
 echo
 
@@ -81,5 +81,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

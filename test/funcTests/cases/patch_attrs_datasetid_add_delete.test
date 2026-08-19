@@ -20,8 +20,8 @@ Partial update datasetId: non-matching adds instance; null+datasetId deletes one
 patch attr datasetid update delete
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -36,7 +36,7 @@ payload='{
     { "type": "Property", "value": 2, "datasetId": "urn:ds:2" }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -44,14 +44,14 @@ echo
 echo "02. PATCH /attrs with datasetId urn:ds:3 (no match) -> ADDS a 3rd instance"
 echo "========================================================================="
 payload='{ "speed": { "type": "Property", "value": 33, "datasetId": "urn:ds:3" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "03. GET E1 - default(0), D1(1), D2(2) intact + new D3(33)"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -59,14 +59,14 @@ echo
 echo "04. PATCH /attrs with urn:ngsi-ld:null + datasetId urn:ds:1 -> deletes only D1"
 echo "============================================================================="
 payload='{ "speed": { "type": "Property", "value": "urn:ngsi-ld:null", "datasetId": "urn:ds:1" } }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "05. GET E1 - D1 gone; default(0), D2(2), D3(33) remain"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -165,4 +165,4 @@ Content-Length: 292
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

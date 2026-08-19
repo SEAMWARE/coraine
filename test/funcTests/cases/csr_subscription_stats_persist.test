@@ -26,15 +26,15 @@ CSR-subscription stats persist across broker restart (mongoc)
 subscription csr-sub stats persist mongoc
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart --apiPlugins admin -dist
+coraineStart --apiPlugins admin -dist
 
 --RUN--
 
 echo "01. Create CSR-sub C1 matching Vehicle-type regs → ftClient"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
   "id": "urn:C1",
   "type": "Subscription",
   "entities": [{"type":"Vehicle"}],
@@ -46,8 +46,8 @@ echo
 
 echo "02. Create 2 matching CSRs → 2 notifs to C1"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["color"]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["color"]}]}' | head -1
 echo
 echo
 
@@ -55,23 +55,23 @@ echo
 echo "03. GET CSR-sub → timesSent=2"
 echo "============================="
 sleep 0.2           # let the async notification+stats update land (parallel-load flake)
-swValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
+corValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
 
 echo "04. POST /admin/subStats/flush"
 echo "=============================="
-swCurl --url /admin/subStats/flush -X POST | head -1
+corCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "05. Restart broker (cache reload from mongo)"
 echo "============================================"
-swBrokerStop
-swBrokerStart --apiPlugins admin -dist
+coraineStop
+coraineStart --apiPlugins admin -dist
 echo "restarted"
 echo
 echo
@@ -79,14 +79,14 @@ echo
 
 echo "06. GET CSR-sub after restart → timesSent=2 (persisted)"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
 
 echo "07. Create 1 more matching CSR → timesSent=3 (accumulated)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
@@ -94,8 +94,8 @@ echo
 echo "08. GET CSR-sub → timesSent=3"
 echo "============================="
 sleep 0.2           # let the async notification+stats update land (parallel-load flake)
-swValgrindSleep 3   # under --vt the notification+stats update lags; let it settle
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
+corValgrindSleep 3   # under --vt the notification+stats update lags; let it settle
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:C1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
@@ -143,6 +143,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

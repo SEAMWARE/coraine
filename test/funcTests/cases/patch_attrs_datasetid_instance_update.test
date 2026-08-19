@@ -18,8 +18,8 @@ PATCH /attrs with a body datasetId updates that instance only, no corruption
 patch attr attrs datasetid multi-attr
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -31,7 +31,7 @@ swBrokerStart
 
 echo "01. POST E1 (A: default + D1 + D2)"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
   "id": "urn:ngsi-ld:E1",
   "type": "T",
   "A": [
@@ -46,7 +46,7 @@ echo
 
 echo "02. PATCH A's D1 instance via /attrs to value 11"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs -X PATCH --payload '{
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs -X PATCH --payload '{
   "A": { "type": "Property", "value": 11, "datasetId": "urn:ngsi-ld:dataset:D1" }
 }'
 echo
@@ -55,7 +55,7 @@ echo
 
 echo "03. GET E1 — D1 updated to 11, default(0) and D2(2) intact"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -111,5 +111,5 @@ Content-Length: 316
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

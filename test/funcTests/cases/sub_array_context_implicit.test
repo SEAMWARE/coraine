@@ -18,11 +18,11 @@ Array-@context subscription — ImplicitlyCreated jsonldContext, hosted and used
 context subscription notification jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
 ftClientStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -57,7 +57,7 @@ payload='{
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
   ]
 }'
-swCurl --url /ngsi-ld/v1/subscriptions \
+corCurl --url /ngsi-ld/v1/subscriptions \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 echo
@@ -66,16 +66,16 @@ echo
 
 echo "02. GET the sub — jsonldContext auto-populated"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext
 echo
 echo
 
 
 echo "03. GET the served URL — the original array"
 echo "============================================"
-ctxUrl=$(swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext | sed 's/.*": "//;s/".*//')
+ctxUrl=$(corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext | sed 's/.*": "//;s/".*//')
 path=$(echo "$ctxUrl" | sed 's|http://[^/]*||')
-swCurl --url "$path"
+corCurl --url "$path"
 echo
 echo
 
@@ -87,7 +87,7 @@ payload='{
   "type": "T",
   "https://example.org/veh/speed": {"type": "Property", "value": 5}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
@@ -138,6 +138,6 @@ REGEX(      "Link": "<http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-l
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
 contextServerStop

@@ -24,56 +24,56 @@ CSR Discovery (§ 5.10.2) — type / id / idPattern / attrs / pick
 discovery query registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. No filter -> 400"
 echo "===================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations
+corCurl --url /ngsi-ld/v1/csourceRegistrations
 echo
 echo
 
 
 echo "02. Register CSR-A (Vehicle, propertyNames=[speed])"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "03. Register CSR-B (Temperature, propertyNames=[temperature])"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
 echo
 echo
 
 
 echo "04. Register CSR-C (Vehicle id=urn:V1, propertyNames=[color])"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}],"propertyNames":["color"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}],"propertyNames":["color"]}]}'
 echo
 echo
 
 
 echo "05. ?type=Vehicle -> CSR-A + CSR-C"
 echo "=================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle'
 echo
 echo
 
 
 echo "06. ?type=Vehicle&id=urn:V1 -> CSR-A (no id constraint) + CSR-C (id match)"
 echo "=========================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&id=urn:V1'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&id=urn:V1'
 echo
 echo
 
 
 echo "07. ?type=Vehicle&idPattern=^urn:V1$ -> CSR-A (no id constraint) + CSR-C (V1 match)"
 echo "===================================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&idPattern=^urn:V1$'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&idPattern=^urn:V1$'
 echo
 echo
 
@@ -82,63 +82,63 @@ echo "08. ?type=Vehicle&idPattern=urn:X.* -> only CSR-A (no id constraint)"
 echo "===================================================================="
 # idPattern runs against EntityInfo.id, which only CSR-C has (and V1
 # doesn't match urn:X). CSR-A has no id constraint -> treated as match.
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&idPattern=urn:X.*'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&idPattern=urn:X.*'
 echo
 echo
 
 
 echo "09. ?attrs=speed -> CSR-A only (propertyName match)"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed'
 echo
 echo
 
 
 echo "10. ?pick=color -> CSR-C only"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?pick=color'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?pick=color'
 echo
 echo
 
 
 echo "11. ?attrs=speed,color -> CSR-A + CSR-C"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed,color'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed,color'
 echo
 echo
 
 
 echo "12. ?type=Vehicle&attrs=color -> only CSR-C (both filters AND)"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&attrs=color'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle&attrs=color'
 echo
 echo
 
 
 echo "13. ?attrs=X&pick=Y -> 400 (mutually exclusive)"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=X&pick=Y'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=X&pick=Y'
 echo
 echo
 
 
 echo "14. ?q=speed%3E10 -> 200 (q filters CSR user-Properties; no match here)"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?q=speed%3E10'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?q=speed%3E10'
 echo
 echo
 
 
 echo "15. ?attrs=speed&q=foo==1 -> 200 (q filters CSR user-props; no CSR has foo)"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed&q=foo==1'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?attrs=speed&q=foo==1'
 echo
 echo
 
 
 echo "16. ?geoproperty=location alone -> 400 Invalid geo-query"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?geoproperty=location'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?geoproperty=location'
 echo
 echo
 
@@ -573,5 +573,5 @@ Content-Length: 185
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

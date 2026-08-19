@@ -9,7 +9,7 @@
 #include <stdio.h>                                    // snprintf
 #include <string.h>                                   // memset, strcmp, strncpy, strchr, strtok_r
 
-#include "swPlugin/swPlugin.h"                        // swPluginOpen, swPluginCloseAll, swPluginResolve, swPluginBaseDir, swPluginArgUpdate
+#include "corPlugin/corPlugin.h"                        // corPluginOpen, corPluginCloseAll, corPluginResolve, corPluginBaseDir, corPluginArgUpdate
 #include "ktrace/kTrace.h"                            // KT_I
 
 #include "db/DbDriver.h"                              // DbDriver, DbRegisterFunc, db
@@ -38,10 +38,10 @@ int pluginLoadDb(const char* shortName, char* errorBuf, int errorBufSize)
 
   memset(&db, 0, sizeof(DbDriver));
 
-  swPluginResolve(swPluginBaseDir(), "db", "currentState", shortName, path, sizeof(path));
+  corPluginResolve(corPluginBaseDir(), "db", "currentState", shortName, path, sizeof(path));
 
   char openErr[512];
-  DbRegisterFunc registerFunc = (DbRegisterFunc) swPluginOpen(path, "dbRegister", openErr, sizeof(openErr));
+  DbRegisterFunc registerFunc = (DbRegisterFunc) corPluginOpen(path, "dbRegister", openErr, sizeof(openErr));
   if (registerFunc == NULL)
   {
     if (errorBuf != NULL)
@@ -99,10 +99,10 @@ int pluginLoadApi(const char* commaList, char* errorBuf, int errorBufSize)
     }
 
     char path[512];
-    swPluginResolve(swPluginBaseDir(), "api", NULL, token, path, sizeof(path));
+    corPluginResolve(corPluginBaseDir(), "api", NULL, token, path, sizeof(path));
 
     char openErr[512];
-    ApiRegisterFunc registerFunc = (ApiRegisterFunc) swPluginOpen(path, "apiRegister", openErr, sizeof(openErr));
+    ApiRegisterFunc registerFunc = (ApiRegisterFunc) corPluginOpen(path, "apiRegister", openErr, sizeof(openErr));
     if (registerFunc == NULL)
     {
       if (errorBuf != NULL)
@@ -141,10 +141,10 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
   memset(&troe, 0, sizeof(TroeDriver));
 
-  swPluginResolve(swPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
+  corPluginResolve(corPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
 
   char openErr[512];
-  TroeRegisterFunc registerFunc = (TroeRegisterFunc) swPluginOpen(path, "troeRegister", openErr, sizeof(openErr));
+  TroeRegisterFunc registerFunc = (TroeRegisterFunc) corPluginOpen(path, "troeRegister", openErr, sizeof(openErr));
   if (registerFunc == NULL)
   {
     if (errorBuf != NULL)

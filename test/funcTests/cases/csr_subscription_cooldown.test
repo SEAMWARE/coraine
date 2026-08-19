@@ -18,8 +18,8 @@ CSR subscription endpoint.cooldown — failed endpoint skipped until cooldown el
 csource subscription notification cooldown
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -44,7 +44,7 @@ payload='{
     "endpoint": { "uri": "http://localhost:9788/notify", "cooldown": 2000 }
   }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
@@ -52,17 +52,17 @@ echo
 sleep 0.3
 echo "02. GET the sub → timesSent=1, timesFailed=1, status failed"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
 echo
 echo
 
 
 echo "03. Matching CSR while in cooldown → notification SKIPPED"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C1","type":"ContextSourceRegistration","endpoint":"http://cs1.example","information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C1","type":"ContextSourceRegistration","endpoint":"http://cs1.example","information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 sleep 0.3
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
 echo
 echo
 
@@ -70,10 +70,10 @@ echo
 sleep 2.2
 echo "04. Matching CSR after the cooldown → attempted again, timesSent=2"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C2","type":"ContextSourceRegistration","endpoint":"http://cs2.example","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C2","type":"ContextSourceRegistration","endpoint":"http://cs2.example","information":[{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 sleep 0.3
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
 echo
 echo
 
@@ -199,4 +199,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

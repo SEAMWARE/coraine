@@ -24,8 +24,8 @@ lang query param with options=keyValues / concise and single-attribute GET
 lang languageMap keyValues concise get-attribute
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -40,35 +40,35 @@ payload='{
   },
   "speed": { "type": "Property", "value": 80 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET ?lang=fr&options=keyValues → name is the plain string 'Voiture Bleue', speed=80"
 echo "======================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1?lang=fr&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1?lang=fr&options=keyValues'
 echo
 echo
 
 
 echo "03. GET ?lang=en&options=concise → name reduced to Property (lang+value), speed concise"
 echo "======================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1?lang=en&options=concise'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1?lang=en&options=concise'
 echo
 echo
 
 
 echo "04. GET /attrs/name?lang=fr → single LanguageProperty attr reduced to Property"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1/attrs/name?lang=fr'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1/attrs/name?lang=fr'
 echo
 echo
 
 
 echo "05. GET /attrs/name?lang=de → no 'de'; falls back to @none (Default Car)"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1/attrs/name?lang=de'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:lang:KV1/attrs/name?lang=de'
 
 --EXPECT--
 01. Create entity with LanguageProperty name + Property speed
@@ -149,4 +149,4 @@ Content-Length: 70
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

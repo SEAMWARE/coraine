@@ -20,8 +20,8 @@ Subscription throttling - coalesce-to-latest, no tail-loss (§ 5.2.x)
 subscription notification throttling
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -37,7 +37,7 @@ payload='{
     "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"}
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -49,7 +49,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type":"Property","value":1}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 sleep 2
 echo
@@ -58,9 +58,9 @@ echo
 echo "03. Two rapid updates within the window: speed=2 then speed=3"
 echo "============================================================"
 payload='{"speed":{"type":"Property","value":2}}'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
 payload='{"speed":{"type":"Property","value":3}}'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
 echo
 sleep 3
 echo
@@ -167,5 +167,5 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

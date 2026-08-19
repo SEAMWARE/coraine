@@ -18,7 +18,7 @@
 //     The expired rows have to reach RAM for the broker to notice them at all;
 //     filtering them away in SQL/mongo would hide exactly what we came for.
 //
-// The queue lives in the per-connection swNgsild state, NOT in a thread-local:
+// The queue lives in the per-connection corNgsild state, NOT in a thread-local:
 // the post-response hook does not necessarily run on the thread that served the
 // request, so a __thread queue is simply empty by the time it drains. Same
 // placement as the notification and CSR-probe queues next to it.
@@ -33,9 +33,9 @@
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjBuilder.h"                          // kjChildRemove
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swNgsild/swNgsild.h"                       // swNgsild
-#include "swNgsild/ldDistMerge.h"                    // ldDistInstanceIsExpired
+#include "corRest/CorRestState.h"                      // corRest
+#include "corNgsild/corNgsild.h"                       // corNgsild
+#include "corNgsild/ldDistMerge.h"                    // ldDistInstanceIsExpired
 
 #include "db/DbDriver.h"                             // db
 #include "db/Tenant.h"                               // Tenant
@@ -54,20 +54,20 @@ void dbExpiredEntityDefer(Tenant* tenantP, const char* entityId)
 
   // A query can walk over the same Entity twice (split sources, pagination
   // re-reads). Deleting once is enough and the second DELETE would only log.
-  for (int i = 0; i < swNgsild.expiredN; i++)
+  for (int i = 0; i < corNgsild.expiredN; i++)
   {
-    if ((swNgsild.expiredV[i].tenantP == tenantP) && (strcmp(swNgsild.expiredV[i].entityId, entityId) == 0))
+    if ((corNgsild.expiredV[i].tenantP == tenantP) && (strcmp(corNgsild.expiredV[i].entityId, entityId) == 0))
       return;
   }
 
   // Beyond the cap the Entity simply stays until some later read finds it —
   // the whole mechanism is opportunistic, so dropping a few is harmless.
-  if (swNgsild.expiredN >= LD_EXPIRED_PENDING_MAX)
+  if (corNgsild.expiredN >= LD_EXPIRED_PENDING_MAX)
     return;
 
-  swNgsild.expiredV[swNgsild.expiredN].tenantP  = tenantP;
-  swNgsild.expiredV[swNgsild.expiredN].entityId = kaStrdup(&swRest.kalloc, entityId);
-  swNgsild.expiredN++;
+  corNgsild.expiredV[corNgsild.expiredN].tenantP  = tenantP;
+  corNgsild.expiredV[corNgsild.expiredN].entityId = kaStrdup(&corRest.kalloc, entityId);
+  corNgsild.expiredN++;
 }
 
 
@@ -78,25 +78,25 @@ void dbExpiredEntityDefer(Tenant* tenantP, const char* entityId)
 //
 void dbExpiredEntityDispatchPending(void)
 {
-  if (swNgsild.expiredN == 0)
+  if (corNgsild.expiredN == 0)
     return;
 
-  for (int i = 0; i < swNgsild.expiredN; i++)
+  for (int i = 0; i < corNgsild.expiredN; i++)
   {
     if (db.entityDelete == NULL)
       break;
 
-    int r = db.entityDelete((Tenant*) swNgsild.expiredV[i].tenantP, swNgsild.expiredV[i].entityId);
+    int r = db.entityDelete((Tenant*) corNgsild.expiredV[i].tenantP, corNgsild.expiredV[i].entityId);
 
     // Not an error worth escalating: the response is already sent, and a
     // concurrent DELETE beating us here is a perfectly ordinary race.
     if (r != DB_OK)
-      KT_T(LdTExpiry, "expired entity '%s' not removed (%d)", swNgsild.expiredV[i].entityId, r);
+      KT_T(LdTExpiry, "expired entity '%s' not removed (%d)", corNgsild.expiredV[i].entityId, r);
     else
-      KT_T(LdTExpiry, "expired entity '%s' removed", swNgsild.expiredV[i].entityId);
+      KT_T(LdTExpiry, "expired entity '%s' removed", corNgsild.expiredV[i].entityId);
   }
 
-  swNgsild.expiredN = 0;
+  corNgsild.expiredN = 0;
 }
 
 
@@ -113,7 +113,7 @@ bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP)
   // ldDistInstanceIsExpired reads expiresAt off a node in either form
   // (nanosecond integer or ISO string) — an Entity's top-level expiresAt is
   // the same lookup as an Attribute instance's.
-  if (!ldDistInstanceIsExpired(entityP, (int64_t) swRest.requestStartTime))
+  if (!ldDistInstanceIsExpired(entityP, (int64_t) corRest.requestStartTime))
     return false;
 
   KjNode* idP = kjLookup(entityP, "id");

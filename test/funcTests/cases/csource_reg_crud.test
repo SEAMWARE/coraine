@@ -12,8 +12,8 @@ Context Source Registration CRUD - create, retrieve, query, update, delete
 create delete registration retrieve update
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -44,14 +44,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve registration by id"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
 echo
 echo
 
@@ -70,7 +70,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -79,7 +79,7 @@ echo "04. Query all registrations - two"
 echo "================================="
 # § 5.10.2 requires at least a type filter — use the union of both
 # registered types.
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
 echo
 echo
 
@@ -89,35 +89,35 @@ echo "==============================="
 payload='{
   "description": "Updated R1 description"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1 --payload "$payload"
 echo
 echo
 
 
 echo "06. Retrieve updated R1"
 echo "======================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
 echo
 echo
 
 
 echo "07. Delete R1 - 204"
 echo "==================="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
 echo
 echo
 
 
 echo "08. Delete non-existing - 404"
 echo "============================="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:doesnt:exist
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:doesnt:exist
 echo
 echo
 
 
 echo "09. Retrieve deleted R1 - 404"
 echo "============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
 echo
 echo
 
@@ -134,14 +134,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "11. Attempt duplicate R1 - 409"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -341,5 +341,5 @@ Content-Length: 176
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

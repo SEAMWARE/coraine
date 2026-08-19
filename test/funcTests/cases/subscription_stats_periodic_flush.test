@@ -19,22 +19,22 @@ Subscription stats periodic-flush timer survives broker restart (mongoc)
 subscription stats persist mongoc periodic
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart --subStatsFlushInterval 1
+coraineStart --subStatsFlushInterval 1
 
 --RUN--
 
 echo "01. Create sub + 2 matching entities (→ 2 notifs)"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type":"Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
 echo
 echo
 
@@ -49,8 +49,8 @@ echo
 
 echo "03. Restart broker (NO admin flush called — timer must have written)"
 echo "===================================================================="
-swBrokerStop
-swBrokerStart --subStatsFlushInterval 1
+coraineStop
+coraineStart --subStatsFlushInterval 1
 echo "restarted"
 echo
 echo
@@ -58,7 +58,7 @@ echo
 
 echo "04. GET sub → timesSent=2 (survived via periodic flush)"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
@@ -87,6 +87,6 @@ restarted
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

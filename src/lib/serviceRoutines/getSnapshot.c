@@ -10,14 +10,14 @@
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strrchr
 
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 #include "kjson/kjLookup.h"                              // kjLookup
 #include "kjson/kjBuilder.h"                             // kjChildRemove
 #include "kjson/kjClone.h"                               // kjClone
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemLookup
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemLookup
 
 #include "db/Tenant.h"                                   // Tenant
 
@@ -26,11 +26,11 @@
 
 bool getSnapshot(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   // /ngsi-ld/v1/snapshots/<id>  → take the last path segment.
-  const char* slash = strrchr(swRest.in.urlPath, '/');
-  const char* id    = (slash != NULL) ? slash + 1 : swRest.in.urlPath;
+  const char* slash = strrchr(corRest.in.urlPath, '/');
+  const char* id    = (slash != NULL) ? slash + 1 : corRest.in.urlPath;
 
   if (id == NULL || id[0] == 0)
   {
@@ -55,17 +55,17 @@ bool getSnapshot(void)
     return true;
   }
 
-  itemP->lastUsedAt = swRest.requestStartTime;
+  itemP->lastUsedAt = corRest.requestStartTime;
 
-  // Clone into the per-request kalloc so swRest can render it. Strip
+  // Clone into the per-request kalloc so corRest can render it. Strip
   // the hidden "_snapSeq" field used for boot reload — it's an
   // implementation detail not part of the public Snapshot data type.
-  KjNode* clone = kjClone(swRest.kjsonP, itemP->tree);
+  KjNode* clone = kjClone(corRest.kjsonP, itemP->tree);
   KjNode* seqP  = (clone != NULL) ? kjLookup(clone, "_snapSeq") : NULL;
   if (seqP != NULL)
     kjChildRemove(clone, seqP);
 
-  swRest.out.responseTree   = clone;
-  swRest.out.httpStatusCode = 200;
+  corRest.out.responseTree   = clone;
+  corRest.out.httpStatusCode = 200;
   return true;
 }

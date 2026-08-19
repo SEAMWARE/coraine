@@ -21,7 +21,7 @@
 
 #include <stdbool.h>                                 // bool
 
-#include "swNgsild/swNgsild.h"                       // swNgsild
+#include "corNgsild/corNgsild.h"                       // corNgsild
 
 #include "serviceRoutines/getEntities.h"             // getEntities
 #include "serviceRoutines/createEntityMap.h"         // Own interface
@@ -34,7 +34,7 @@
 //
 bool createEntityMap(void)
 {
-  swNgsild.entityMapCreate = true;
-  swNgsild.entityMapOnly   = true;
+  corNgsild.entityMapCreate = true;
+  corNgsild.entityMapOnly   = true;
   return getEntities();
 }

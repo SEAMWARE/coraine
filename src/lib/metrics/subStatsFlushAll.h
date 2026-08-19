@@ -1,5 +1,5 @@
-#ifndef SW_BROKER_SUB_STATS_FLUSH_ALL_H
-#define SW_BROKER_SUB_STATS_FLUSH_ALL_H
+#ifndef COR_BROKER_SUB_STATS_FLUSH_ALL_H
+#define COR_BROKER_SUB_STATS_FLUSH_ALL_H
 
 //
 // FILE            subStatsFlushAll.h
@@ -27,4 +27,4 @@
 //
 extern void subStatsFlushAll(void);
 
-#endif  // SW_BROKER_SUB_STATS_FLUSH_ALL_H
+#endif  // COR_BROKER_SUB_STATS_FLUSH_ALL_H

@@ -20,8 +20,8 @@ Subscription notification over MQTTS (MQTT-over-TLS, self-signed endpoint) (§ 7
 subscription notification mqtt
 
 --INIT--
-swDbDrop
-swHttpsCertGen /tmp/mqtts-test.key /tmp/mqtts-test.crt
+corDbDrop
+corHttpsCertGen /tmp/mqtts-test.key /tmp/mqtts-test.crt
 echo "listener 11887
 allow_anonymous true
 certfile /tmp/mqtts-test.crt
@@ -30,7 +30,7 @@ require_certificate false" > /tmp/mqtts-test.conf
 mosquitto -d -c /tmp/mqtts-test.conf
 sleep 0.4
 ftClientStart --mqttPort 11887 --mqttTopic ngsild/notif --mqttTls
-swBrokerStart --insecureNotif
+coraineStart --insecureNotif
 
 --RUN--
 
@@ -42,14 +42,14 @@ payload='{
   "entities": [{"type": "Vehicle"}],
   "notification": {"endpoint": {"uri": "mqtts://localhost:11887/ngsild/notif"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep HTTP
 echo
 echo
 
 
 echo "02. POST a Vehicle — broker publishes over TLS"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}' | grep HTTP
 echo
 echo
 
@@ -83,7 +83,7 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
 pkill -f "mosquitto -d -c /tmp/mqtts-test.conf" 2>/dev/null
 \rm -f /tmp/mqtts-test.conf /tmp/mqtts-test.key /tmp/mqtts-test.crt

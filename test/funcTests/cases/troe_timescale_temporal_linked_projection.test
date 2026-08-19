@@ -31,65 +31,65 @@ TRoE timescale - linked-entity projection is refused on temporal retrieval and q
 troe timescale postgres temporal projection validation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:V1 — speed Property + owner Relationship"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"owner":[{"type":"Relationship","object":"urn:P1","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}],"owner":[{"type":"Relationship","object":"urn:P1","observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
 echo
 echo
 
 
 echo "02. Temporal retrieve with pick=owner{object} → 400"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=owner%7Bobject%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=owner%7Bobject%7D'
 echo
 echo
 
 
 echo "03. Temporal retrieve with omit=owner{object} → 400"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?omit=owner%7Bobject%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?omit=owner%7Bobject%7D'
 echo
 echo
 
 
 echo "04. Temporal QUERY with pick=owner{object} → 400"
 echo "================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&pick=owner%7Bobject%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&pick=owner%7Bobject%7D'
 echo
 echo
 
 
 echo "05. attrs=owner{object} → 400 on the attribute-name path (§ 4.6.2)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=owner%7Bobject%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=owner%7Bobject%7D'
 echo
 echo
 
 
 echo "06. Control — a plain projection is untouched"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=speed' | grep -E '"value"|"speed"'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=speed' | grep -E '"value"|"speed"'
 echo
 echo
 
 
 echo "07. Control — nested braces are caught too"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=owner%7Bobject%7Bx%7D%7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?pick=owner%7Bobject%7Bx%7D%7D'
 echo
 echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop
 
 --EXPECT--
 01. Seed urn:V1 — speed Property + owner Relationship

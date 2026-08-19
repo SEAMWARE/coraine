@@ -19,10 +19,10 @@ GET /types + /attributes — names compact via the request context
 context entity types
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -50,7 +50,7 @@ payload='{
   "type": "Car",
   "spd": {"type": "Property", "value": 1}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -58,7 +58,7 @@ echo
 
 echo "02. GET /types via ctxA — Car"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/types \
+corCurl --url /ngsi-ld/v1/types \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -66,14 +66,14 @@ echo
 
 echo "03. GET /types via core — full IRI"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/types
+corCurl --url /ngsi-ld/v1/types
 echo
 echo
 
 
 echo "04. GET /types?details=true via ctxA"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/types?details=true' \
+corCurl --url '/ngsi-ld/v1/types?details=true' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -81,7 +81,7 @@ echo
 
 echo "05. GET /attributes via ctxA — spd"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/attributes \
+corCurl --url /ngsi-ld/v1/attributes \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -89,14 +89,14 @@ echo
 
 echo "06. GET /attributes via core — full IRI"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/attributes
+corCurl --url /ngsi-ld/v1/attributes
 echo
 echo
 
 
 echo "07. GET /attributes?details=true via ctxA"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/attributes?details=true' \
+corCurl --url '/ngsi-ld/v1/attributes?details=true' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -222,5 +222,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

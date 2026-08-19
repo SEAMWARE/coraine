@@ -17,8 +17,8 @@ Attribute value — single-element array reduced to the element, multi-element k
 entity attr create format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,14 +37,14 @@ payload='{
   "A3": {"type": "Property", "value": ["x"]},
   "A4": {"type": "Property", "value": [1, 2]}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET E1 normalized — A1/A2/A3 reduced, A4 kept as array"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -95,4 +95,4 @@ Content-Length: 285
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

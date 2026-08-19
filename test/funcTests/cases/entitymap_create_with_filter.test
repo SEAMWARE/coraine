@@ -20,35 +20,35 @@ EntityMap creation — filter params shape the map at create time
 entitymap query pagination distops
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed urn:V1 (color=red)"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "02. Seed urn:V2 (color=blue)"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
 
 echo "03. Seed urn:V3 (color=green)"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
 echo
 echo
 
 
 echo "04. Seed urn:V4 (color=blue) — second blue, expect both in filtered map"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V4","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
@@ -57,14 +57,14 @@ echo "05a. Create EntityMap with q=color==\"blue\" — page 1 = V2 + V4 only"
 echo "==================================================================="
 echo "     Response is page 1 of the filtered set; the map being created"
 echo "     is the filtered set, NOT the universe of Vehicles."
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&q=color%3D%3D%22blue%22'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&q=color%3D%3D%22blue%22'
 echo
 echo
 
 
 echo "05b. Capture the EntityMap id from the same request (separate call)"
 echo "==================================================================="
-MAP_ID=$(swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&q=color%3D%3D%22blue%22' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&q=color%3D%3D%22blue%22' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 if [ -n "$MAP_ID" ]; then echo "Map captured (id present): yes"; else echo "Map captured (id present): no"; fi
 echo
 echo
@@ -72,7 +72,7 @@ echo
 
 echo "06. GET /entityMaps/<id> — map's entryList holds V2 + V4 only"
 echo "============================================================="
-swCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID"
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID"
 echo
 echo
 
@@ -81,7 +81,7 @@ echo "07. Paginate same map OMITTING the filters — bound type+q re-applied, V2
 echo "============================================================================="
 echo "    The map binds type=Vehicle & q=color==blue; omitting them re-applies the"
 echo "    bound values, and the entry set is already only V2 + V4 anyway."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&orderBy=id"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&orderBy=id"
 echo
 echo
 
@@ -89,7 +89,7 @@ echo
 echo "08. Paginate same map MODIFYING q (color==\"red\") — 400 (bound q may not change)"
 echo "================================================================================"
 echo "    The bound q is color==blue; sending a different q is rejected, not narrowed."
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22red%22"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&q=color%3D%3D%22red%22"
 echo
 echo
 
@@ -246,5 +246,5 @@ Content-Length: 227
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

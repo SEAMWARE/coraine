@@ -10,14 +10,14 @@
 //
 // HTTP / HTTPS forwarding plugin — registers itself for the "http" and
 // "https" URL schemes against the LdForwarding registry. Built into
-// swBroker (HTTP is the always-available default transport).
+// coraine (HTTP is the always-available default transport).
 //
 
 // -----------------------------------------------------------------------------
 //
 // forwardingHttpRegister - register the HTTP plugin at startup
 //
-// Called once from swBroker.c during init, before any service routine
+// Called once from coraine.c during init, before any service routine
 // runs. Idempotent (re-registration of an already-claimed scheme is a
 // no-op).
 //

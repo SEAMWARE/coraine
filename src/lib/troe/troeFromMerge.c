@@ -13,7 +13,7 @@
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
 
-#include "swRest/SwRestState.h"                       // swRest
+#include "corRest/CorRestState.h"                       // corRest
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferAttrEvent
@@ -71,7 +71,7 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
     if (attrSnapshot == NULL)
       attrSnapshot = kjLookup(changeP, "preValue");
 
-    TroeEvent* tevP = (TroeEvent*) kaAlloc(&swRest.kalloc, sizeof(TroeEvent));
+    TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
     memset(tevP, 0, sizeof(*tevP));
     tevP->op             = reasonToOp(reason);
     tevP->tenantP        = tenantP;

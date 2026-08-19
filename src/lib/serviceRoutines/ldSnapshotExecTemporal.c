@@ -10,7 +10,7 @@
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strcmp, memset, strlen
 
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kjson/KjNode.h"                                // KjNode
@@ -18,11 +18,11 @@
 #include "kjson/kjBuilder.h"                             // kjArray, kjObject, kjString, kjChildAdd, kjChildRemove
 #include "kjson/kjFree.h"                                // kjFree
 
-#include "swJsonld/swldExpand.h"                         // swldExpand, swldAlreadyExpanded
+#include "corJsonld/corLdExpand.h"                         // corLdExpand, corLdAlreadyExpanded
 
-#include "swNgsild/swNgsild.h"                           // swNgsild
-#include "swNgsild/ldQParse.h"                           // ldQParse, LdQNode
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
+#include "corNgsild/corNgsild.h"                           // corNgsild
+#include "corNgsild/ldQParse.h"                           // ldQParse, LdQNode
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
 #include "troe/TroeDriver.h"                             // troe, TroeQueryFilter, TroeRangeInfo, TROE_OK
 #include "troe/troeQTreeToSql.h"                         // troeQTreeToSql
@@ -39,15 +39,15 @@
 static const char* expandedTypeOrSelf(const char* shortName)
 {
   if (shortName == NULL) return NULL;
-  if (swldAlreadyExpanded(shortName)) return shortName;
-  return swldExpand(swNgsild.contextP, shortName, &swRest.kalloc, NULL, NULL);
+  if (corLdAlreadyExpanded(shortName)) return shortName;
+  return corLdExpand(corNgsild.contextP, shortName, &corRest.kalloc, NULL, NULL);
 }
 
 
 
 //
 // queryToTroeFilter - render a single Query (§ 5.2.23 with temporalQ) into
-// a TroeQueryFilter. Allocations are in swRest.kalloc — request-scoped
+// a TroeQueryFilter. Allocations are in corRest.kalloc — request-scoped
 // (or worker-scoped in async mode); fields are valid for the lifetime of
 // the capture call.
 //
@@ -96,8 +96,8 @@ static bool queryToTroeFilter(KjNode* queryP, TroeQueryFilter* fP)
       if (kjLookup(selP, "type") != NULL) typeCap++;
     }
 
-    char** idV   = (idCap   > 0) ? (char**) kaAlloc(&swRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
-    char** typeV = (typeCap > 0) ? (char**) kaAlloc(&swRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
+    char** idV   = (idCap   > 0) ? (char**) kaAlloc(&corRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
+    char** typeV = (typeCap > 0) ? (char**) kaAlloc(&corRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
     int    nId = 0, nType = 0;
     const char* idPattern = NULL;
 
@@ -137,9 +137,9 @@ static bool queryToTroeFilter(KjNode* queryP, TroeQueryFilter* fP)
   KjNode* qP = kjLookup(queryP, "q");
   if (qP != NULL && qP->type == KjString)
   {
-    LdQNode* qExpr = ldQParse(qP->value.s, &swRest.kalloc);
+    LdQNode* qExpr = ldQParse(qP->value.s, &corRest.kalloc);
     if (qExpr != NULL)
-      fP->qSqlPredicate = troeQTreeToSql(qExpr, &swRest.kalloc);
+      fP->qSqlPredicate = troeQTreeToSql(qExpr, &corRest.kalloc);
   }
 
   return true;

@@ -18,9 +18,9 @@ TRoE timescale - temporal entity count + next/prev pagination
 troe timescale postgres temporal pagination count
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -50,7 +50,7 @@ print(f'  count={count} entities={n} rels={rels}')
 echo "01. Seed 5 Vehicles (V1..V5), each with speed @ 2026-04-28T10:00:00Z"
 echo "===================================================================="
 for n in 1 2 3 4 5; do
-  swCurl --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:V$n\",\"type\":\"Vehicle\",\"speed\":{\"type\":\"Property\",\"value\":$n,\"observedAt\":\"2026-04-28T10:00:00Z\"}}" >/dev/null
+  corCurl --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:V$n\",\"type\":\"Vehicle\",\"speed\":{\"type\":\"Property\",\"value\":$n,\"observedAt\":\"2026-04-28T10:00:00Z\"}}" >/dev/null
 done
 echo done
 echo
@@ -59,42 +59,42 @@ echo
 
 echo "02. page 1 — ?count=true&limit=2&offset=0 → count=5, 2 entities, rel next"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=0' | extract
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=0' | extract
 echo
 echo
 
 
 echo "03. page 2 — ?count=true&limit=2&offset=2 → count=5, 2 entities, rel next+prev"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=2' | extract
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=2' | extract
 echo
 echo
 
 
 echo "04. page 3 — ?count=true&limit=2&offset=4 → count=5, 1 entity, rel prev"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=4' | extract
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=2&offset=4' | extract
 echo
 echo
 
 
 echo "05. count honours q — ?q=speed>3&count=true → count=2 (V4,V5)"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E3&count=true&limit=10' | extract
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&q=speed%3E3&count=true&limit=10' | extract
 echo
 echo
 
 
 echo "06. count-only — ?count=true&limit=0 → count=5, 0 entities (§ 6.4.6)"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=0' | extract
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&count=true&limit=0' | extract
 echo
 echo
 
 
 echo "07. limit=0 without count → 400 (§ 6.4.6)"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=0' | extract
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&limit=0' | extract
 echo
 echo
 
@@ -142,4 +142,4 @@ done
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

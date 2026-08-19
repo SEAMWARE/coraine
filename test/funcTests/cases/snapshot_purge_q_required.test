@@ -23,31 +23,31 @@ Purge Snapshots requires a q — an unqualified DELETE must not wipe the tenant
 snapshot delete validation
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create S1 (priority 3) + S2 (priority 8)"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S1","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
-swCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S2","type":"Snapshot","snapshotPriority":8,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S1","type":"Snapshot","snapshotPriority":3,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S2","type":"Snapshot","snapshotPriority":8,"snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
 
 echo "02. DELETE /snapshots with no q → 400"
 echo "====================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots'
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots'
 echo
 echo
 
 
 echo "03. Both snapshots survived the refused purge"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
 echo
 echo
 
@@ -55,44 +55,44 @@ echo
 echo "04. DELETE /snapshots?q= (empty q) → 400"
 echo "========================================"
 # An empty q is not a valid NGSI-LD Query, so it is refused for the same reason.
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q='
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q='
 echo
 echo
 
 
 echo "05. Both snapshots still there"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
 echo
 echo
 
 
 echo "06. DELETE /snapshots?q=snapshotPriority>5 → 204, only S2 matches"
 echo "================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
 echo
 echo
 
 
 echo "07. S1 (priority 3) kept, S2 (priority 8) purged"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S2 | head -1
 echo
 echo
 
 
 echo "08. Purging everything is still possible — with an explicit match-all q"
 echo "======================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
 echo
 echo
 
 
 echo "09. S1 is gone too"
 echo "=================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 | head -1
 echo
 echo
 
@@ -176,4 +176,4 @@ HTTP/1.1 404 Not Found
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

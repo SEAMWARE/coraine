@@ -20,8 +20,8 @@ URL param ?containedBy= seeds the visited-set on linked-entity retrieval (§ 5.7
 retrieve linked-entities url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,56 +30,56 @@ swBrokerStart
 
 echo "01. Seed P2 (leaf)"
 echo "=================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}' | head -1
 echo
 echo
 
 
 echo "02. Seed P1 → P2"
 echo "================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","manager":{"type":"Relationship","object":"urn:P2"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","manager":{"type":"Relationship","object":"urn:P2"}}' | head -1
 echo
 echo
 
 
 echo "03. Seed V1 → P1"
 echo "================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","owner":{"type":"Relationship","object":"urn:P1"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","owner":{"type":"Relationship","object":"urn:P1"}}' | head -1
 echo
 echo
 
 
 echo "04. Baseline: GET V1?join=flat&joinLevel=10 — full chain V1 + P1 + P2"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10'
 echo
 echo
 
 
 echo "05. GET V1 with containedBy=urn:P2 — P2 is suppressed (visited preseeded)"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P2'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P2'
 echo
 echo
 
 
 echo "06. GET V1 with containedBy=urn:P1,urn:P2 — both targets suppressed, only V1 left"
 echo "================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P1,urn:P2'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy=urn:P1,urn:P2'
 echo
 echo
 
 
 echo "07. GET V1 with empty containedBy= — 400 BadRequestData (spec § 5.7.1.4)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy='
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?join=flat&joinLevel=10&containedBy='
 echo
 echo
 
 
 echo "08. GET /entities?type=Vehicle with containedBy=urn:P1 — only V1 (P1 skipped → P2 not reached)"
 echo "=============================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=10&containedBy=urn:P1'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=10&containedBy=urn:P1'
 echo
 echo
 
@@ -223,5 +223,5 @@ Content-Length: 131
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

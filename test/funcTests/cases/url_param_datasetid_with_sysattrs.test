@@ -12,8 +12,8 @@ GET with sysAttrs=true and datasetId filter skips timestamps during filtering
 datasetid sysattrs url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -40,21 +40,21 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity with sysAttrs=true and datasetId=@none - timestamps preserved, filter works"
 echo "=========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?sysAttrs=true&datasetId=@none'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?sysAttrs=true&datasetId=@none'
 echo
 echo
 
 
 echo "03. GET entities with sysAttrs=true and datasetId=urn:sensor:radar - array path"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&sysAttrs=true&datasetId=urn:sensor:radar'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&sysAttrs=true&datasetId=urn:sensor:radar'
 echo
 echo
 
@@ -120,5 +120,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

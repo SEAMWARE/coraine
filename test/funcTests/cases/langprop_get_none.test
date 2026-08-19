@@ -26,9 +26,9 @@ LanguageProperty - @none fallback on GET (single/list) and in notification
 langprop entity subscription notification
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -57,35 +57,35 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET E1 lang=en - English"
 echo "============================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=en'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=en'
 echo
 echo
 
 
 echo "03. GET E1 lang=gr - absent -> @none (Default)"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=gr'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=gr'
 echo
 echo
 
 
 echo "04. GET all lang=en - English"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/entities?lang=en&local=true'
+corCurl --url '/ngsi-ld/v1/entities?lang=en&local=true'
 echo
 echo
 
 
 echo "05. GET all lang=gr - @none (Default)"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?lang=gr&local=true'
+corCurl --url '/ngsi-ld/v1/entities?lang=gr&local=true'
 echo
 echo
 
@@ -107,7 +107,7 @@ payload='{
   },
   "lang": "gr"
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -117,7 +117,7 @@ echo "======================================"
 payload='{
   "trigger": true
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --payload "$payload"
 echo
 echo
 
@@ -282,6 +282,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

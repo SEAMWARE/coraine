@@ -6,8 +6,8 @@
 // Copyright 2026 Seamware
 //
 // HTTP / HTTPS forwarding plugin. Translates an LdForwardRequest into
-// a swRest SwRestClientRequest, sends it synchronously, and copies the
-// SwRestClientResponse fields back into the LdForwardResponse the
+// a corRest CorRestClientRequest, sends it synchronously, and copies the
+// CorRestClientResponse fields back into the LdForwardResponse the
 // caller-supplied arena.
 //
 #include <stddef.h>                                    // NULL
@@ -18,9 +18,9 @@
 #include "kalloc/KAlloc.h"                             // KAlloc
 #include "kalloc/kaAlloc.h"                            // kaAlloc
 
-#include "swRest/swRestClient.h"                       // SwRestClientRequest, swRestClientSend, ...
-#include "swNgsild/LdForwarding.h"                     // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
-#include "swNgsild/ldForwarding.h"                     // ldForwardingRegister
+#include "corRest/corRestClient.h"                       // CorRestClientRequest, corRestClientSend, ...
+#include "corNgsild/LdForwarding.h"                     // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
+#include "corNgsild/ldForwarding.h"                     // ldForwardingRegister
 
 #include "metrics/metrics.h"                           // metricsDistopForward
 
@@ -79,27 +79,27 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
   if (req == NULL || resp == NULL || resp->allocP == NULL)
     return -1;
 
-  SwRestClientRequest  cReq;
-  SwRestClientResponse cResp;
+  CorRestClientRequest  cReq;
+  CorRestClientResponse cResp;
 
-  swRestClientRequestInit(&cReq, req->verb, req->endpoint, resp->allocP);
+  corRestClientRequestInit(&cReq, req->verb, req->endpoint, resp->allocP);
 
   for (int i = 0; i < req->headerCount; i++)
   {
     if (req->headerV[i].key != NULL && req->headerV[i].value != NULL)
-      swRestClientRequestHeader(&cReq, req->headerV[i].key, req->headerV[i].value);
+      corRestClientRequestHeader(&cReq, req->headerV[i].key, req->headerV[i].value);
   }
 
   if (req->body != NULL && req->bodyLen > 0)
-    swRestClientRequestBody(&cReq, req->body, req->bodyLen);
+    corRestClientRequestBody(&cReq, req->body, req->bodyLen);
 
   if (req->connectTimeoutMs > 0 || req->requestTimeoutMs > 0)
-    swRestClientRequestTimeout(&cReq, req->connectTimeoutMs, req->requestTimeoutMs);
+    corRestClientRequestTimeout(&cReq, req->connectTimeoutMs, req->requestTimeoutMs);
 
   struct timespec t0;
   clock_gettime(CLOCK_MONOTONIC, &t0);
 
-  int rc = swRestClientSend(&cReq, &cResp);
+  int rc = corRestClientSend(&cReq, &cResp);
 
   struct timespec t1;
   clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -113,7 +113,7 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
     strncpy(resp->errorDetail, cResp.errorDetail[0] != 0 ? cResp.errorDetail : "http forwarding failed",
             sizeof(resp->errorDetail) - 1);
     resp->errorDetail[sizeof(resp->errorDetail) - 1] = 0;
-    swRestClientResponseCleanup(&cResp);
+    corRestClientResponseCleanup(&cResp);
     return resp->error;
   }
 
@@ -128,7 +128,7 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
   resp->headerCount = cResp.headerCount;
   if (cResp.headerCount > 0)
   {
-    resp->headerV = (SwRestKeyValue*) kaAlloc(resp->allocP, cResp.headerCount * sizeof(SwRestKeyValue));
+    resp->headerV = (CorRestKeyValue*) kaAlloc(resp->allocP, cResp.headerCount * sizeof(CorRestKeyValue));
     for (int i = 0; i < cResp.headerCount; i++)
     {
       resp->headerV[i].key   = strdupInto(resp->allocP, cResp.headerV[i].key);
@@ -140,7 +140,7 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
     resp->headerV = NULL;
   }
 
-  swRestClientResponseCleanup(&cResp);   // upstream headers copied above; free the client response's vector
+  corRestClientResponseCleanup(&cResp);   // upstream headers copied above; free the client response's vector
   return 0;
 }
 

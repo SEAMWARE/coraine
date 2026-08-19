@@ -37,150 +37,150 @@ Simplified input: untyped GeoProperty, scalars resolved against the target type,
 entity simplified geoproperty merge attrs
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create with an untyped GeoProperty - value shape alone identifies it"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "loc": { "type": "Point", "coordinates": [3, 4] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 5 '"loc"'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "loc": { "type": "Point", "coordinates": [3, 4] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 5 '"loc"'
 echo
 echo
 
 
 echo "02. Merge an untyped GeoProperty onto it"
 echo "========================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:G --payload '{ "loc": { "type": "Polygon", "coordinates": [[[0,0],[0,1],[1,1],[0,0]]] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 3 '"value"' | head -4
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:G --payload '{ "loc": { "type": "Polygon", "coordinates": [[[0,0],[0,1],[1,1],[0,0]]] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 3 '"value"' | head -4
 echo
 echo
 
 
 echo "03. Update Attributes with an untyped GeoProperty"
 echo "================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:G/attrs --payload '{ "loc": { "type": "LineString", "coordinates": [[0,0],[1,1]] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:G | grep '"type"' | head -3
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:G/attrs --payload '{ "loc": { "type": "LineString", "coordinates": [[0,0],[1,1]] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:G | grep '"type"' | head -3
 echo
 echo
 
 
 echo "04. Append a NEW untyped GeoProperty - no stored type to lean on"
 echo "==============================================================="
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:G/attrs --payload '{ "spot": { "type": "Point", "coordinates": [9, 9] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 5 '"spot"'
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:G/attrs --payload '{ "spot": { "type": "Point", "coordinates": [9, 9] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:G | grep -A 5 '"spot"'
 echo
 echo
 
 
 echo "05. Replace the whole Entity with an untyped GeoProperty"
 echo "======================================================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:G --payload '{ "id": "urn:G", "type": "T", "loc": { "type": "Point", "coordinates": [7, 8] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:G
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:G --payload '{ "id": "urn:G", "type": "T", "loc": { "type": "Point", "coordinates": [7, 8] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:G
 echo
 echo
 
 
 echo "06. A simplified scalar keeps the target Attribute's type - Property"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P", "type": "T", "a": { "type": "Property", "value": 1 } }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P --payload '{ "a": 7 }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:P | grep -A 3 '"a"'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P", "type": "T", "a": { "type": "Property", "value": 1 } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P --payload '{ "a": 7 }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:P | grep -A 3 '"a"'
 echo
 echo
 
 
 echo "07. ... Relationship - the scalar is the object, the type is untouched"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:R", "type": "T", "a": { "type": "Relationship", "object": "urn:R:1" } }' | head -1
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:R?format=simplified' --payload '{ "a": "urn:R:9" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:R | grep -A 3 '"a"'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:R", "type": "T", "a": { "type": "Relationship", "object": "urn:R:1" } }' | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:R?format=simplified' --payload '{ "a": "urn:R:9" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:R | grep -A 3 '"a"'
 echo
 echo
 
 
 echo "08. Every remaining type preserves its own too - each in its own simplified shape"
 echo "================================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:L",  "type": "T", "a": { "type": "LanguageProperty", "languageMap": { "en": "hi" } } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V",  "type": "T", "a": { "type": "VocabProperty", "vocab": "stop" } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:LP", "type": "T", "a": { "type": "ListProperty", "valueList": [1, 2] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:LR", "type": "T", "a": { "type": "ListRelationship", "objectList": ["urn:x:1"] } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:JP", "type": "T", "a": { "type": "JsonProperty", "json": { "k": 1 } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:L",  "type": "T", "a": { "type": "LanguageProperty", "languageMap": { "en": "hi" } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V",  "type": "T", "a": { "type": "VocabProperty", "vocab": "stop" } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:LP", "type": "T", "a": { "type": "ListProperty", "valueList": [1, 2] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:LR", "type": "T", "a": { "type": "ListRelationship", "objectList": ["urn:x:1"] } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:JP", "type": "T", "a": { "type": "JsonProperty", "json": { "k": 1 } } }' | head -1
 echo
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:L?format=simplified&lang=es' --payload '{ "a": "hola" }'   | head -1
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:V?format=simplified'         --payload '{ "a": "go" }'     | head -1
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:LP?format=simplified'        --payload '{ "a": [9, 8] }'   | head -1
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:LR?format=simplified'        --payload '{ "a": ["urn:x:9"] }' | head -1
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:JP?format=simplified'        --payload '{ "a": "plain" }'  | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:L?format=simplified&lang=es' --payload '{ "a": "hola" }'   | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:V?format=simplified'         --payload '{ "a": "go" }'     | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:LP?format=simplified'        --payload '{ "a": [9, 8] }'   | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:LR?format=simplified'        --payload '{ "a": ["urn:x:9"] }' | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:JP?format=simplified'        --payload '{ "a": "plain" }'  | head -1
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:L  | grep -A 4 '"a"'
-swCurl --url /ngsi-ld/v1/entities/urn:V  | grep -A 3 '"a"'
-swCurl --url /ngsi-ld/v1/entities/urn:LP | grep -A 5 '"a"'
-swCurl --url /ngsi-ld/v1/entities/urn:LR | grep -A 4 '"a"'
-swCurl --url /ngsi-ld/v1/entities/urn:JP | grep -A 3 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:L  | grep -A 4 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:V  | grep -A 3 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:LP | grep -A 5 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:LR | grep -A 4 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:JP | grep -A 3 '"a"'
 echo
 echo
 
 
 echo "09. A LanguageProperty still needs 'lang' to know which key to write"
 echo "===================================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:L?format=simplified' --payload '{ "a": "nolang" }'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:L?format=simplified' --payload '{ "a": "nolang" }'
 echo
 echo
 
 
 echo "10. A value that cannot be the stored type is a Property, hence a type change"
 echo "============================================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:LP?format=simplified' --payload '{ "a": 5 }'
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:G?format=simplified' --payload '{ "loc": "not-a-geometry" }' | head -1
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:LP?format=simplified' --payload '{ "a": 5 }'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:G?format=simplified' --payload '{ "loc": "not-a-geometry" }' | head -1
 echo
 echo
 
 
 echo "11. Without the flag the body is concise, where a scalar is always a Property"
 echo "============================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V  --payload '{ "a": "go" }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:R  --payload '{ "a": "urn:R:7" }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:LP --payload '{ "a": [1, 2] }'    | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V  --payload '{ "a": "go" }'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:R  --payload '{ "a": "urn:R:7" }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:LP --payload '{ "a": [1, 2] }'    | head -1
 echo
 echo
 
 
 echo "12. The stored Attributes are untouched by every refusal"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V  | grep -A 3 '"a"'
-swCurl --url /ngsi-ld/v1/entities/urn:R  | grep -A 3 '"a"'
-swCurl --url /ngsi-ld/v1/entities/urn:LP | grep -A 5 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:V  | grep -A 3 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:R  | grep -A 3 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:LP | grep -A 5 '"a"'
 echo
 echo
 
 
 echo "13. A simplified SUB-attribute is a Property - on Merge Entity"
 echo "=============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P --payload '{ "a": { "b": 2 } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:P | grep -A 7 '"a"'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P --payload '{ "a": { "b": 2 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:P | grep -A 7 '"a"'
 echo
 echo
 
 
 echo "14. ... on Update Attributes, on Append, and on Create - the same shape"
 echo "======================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P/attrs --payload '{ "a": { "type": "Property", "value": 5, "c": 3 } }' | head -1
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:P/attrs --payload '{ "d": { "type": "Property", "value": 5, "e": 4 } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:C", "type": "T", "a": { "type": "Property", "value": 1, "f": 6 } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:P
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:P/attrs --payload '{ "a": { "type": "Property", "value": 5, "c": 3 } }' | head -1
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:P/attrs --payload '{ "d": { "type": "Property", "value": 5, "e": 4 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:C", "type": "T", "a": { "type": "Property", "value": 1, "f": 6 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:P
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:C | grep -A 7 '"a"'
+corCurl --url /ngsi-ld/v1/entities/urn:C | grep -A 7 '"a"'
 echo
 echo
 
 
 echo "15. Inside a JsonProperty's json value nothing is a sub-attribute"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:J", "type": "T", "a": { "type": "JsonProperty", "json": { "x": 1, "nested": { "deep": 3 } } } }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:J --payload '{ "a": { "json": { "nested": { "deep": 9 }, "y": 2 } } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:J
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:J", "type": "T", "a": { "type": "JsonProperty", "json": { "x": 1, "nested": { "deep": 3 } } } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:J --payload '{ "a": { "json": { "nested": { "deep": 9 }, "y": 2 } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:J
 echo
 echo
 
@@ -464,4 +464,4 @@ Content-Length: 169
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

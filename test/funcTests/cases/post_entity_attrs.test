@@ -12,8 +12,8 @@ POST /entities/{id}/attrs - Append Attributes (§ 5.6.3)
 entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
   },
   "color": {"type": "Property", "value": "red"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -50,14 +50,14 @@ payload='{
   "speed": {"type": "Property", "value": 99},
   "brand": {"type": "Property", "value": "Acme"}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload "$payload"
 echo
 echo
 
 
 echo "03. GET V1 — speed=99, color=red, brand=Acme"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -68,21 +68,21 @@ payload='{
   "brand":  {"type": "Property", "value": "Zephyr"},
   "weight": {"type": "Property", "value": 1500}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --urlParams 'options=noOverwrite' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --urlParams 'options=noOverwrite' --payload "$payload"
 echo
 echo
 
 
 echo "05. GET V1 — weight=1500, brand still Acme (noOverwrite kept original)"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "06. POST attrs to non-existent entity → 404"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:DoesNotExist/attrs --payload '{"speed":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities/urn:DoesNotExist/attrs --payload '{"speed":{"type":"Property","value":1}}'
 echo
 echo
 
@@ -93,7 +93,7 @@ payload='{
   "speed": {"type":"Property","value":9999},
   "color": {"type":"Property","value":"blue"}
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --urlParams 'options=noOverwrite' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --urlParams 'options=noOverwrite' --payload "$payload"
 echo
 echo
 
@@ -236,5 +236,5 @@ Content-Length: 308
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

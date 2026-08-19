@@ -19,63 +19,63 @@ Empty object / array rejected anywhere in incoming write body (json exempt)
 validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Whole body is {} — 400"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{}'
+corCurl --url /ngsi-ld/v1/entities --payload '{}'
 echo
 echo
 
 
 echo "02. Whole body is [] — 400"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '[]'
+corCurl --url /ngsi-ld/v1/entities --payload '[]'
 echo
 echo
 
 
 echo "03. Batch create with [] — 400"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[]'
 echo
 echo
 
 
 echo "04. Nested empty Property value {} — 400"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":{}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","P":{"type":"Property","value":{}}}'
 echo
 echo
 
 
 echo "05. Nested empty Property value [] — 400"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","P":{"type":"Property","value":[]}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","P":{"type":"Property","value":[]}}'
 echo
 echo
 
 
 echo "06. JsonProperty json:{} — accepted (opaque, exempt)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J1","type":"T","J":{"type":"JsonProperty","json":{}}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J1","type":"T","J":{"type":"JsonProperty","json":{}}}'
 echo
 echo
 
 
 echo "07. JsonProperty json:[] — accepted (opaque, exempt)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J2","type":"T","J":{"type":"JsonProperty","json":[]}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:J2","type":"T","J":{"type":"JsonProperty","json":[]}}'
 echo
 echo
 
 
 echo "08. GET J1 — empty json object round-trips"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:J1
 echo
 echo
 
@@ -201,4 +201,4 @@ Content-Length: 101
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

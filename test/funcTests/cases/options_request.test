@@ -12,7 +12,7 @@ OPTIONS requests - Allow header lists registered verbs
 http options
 
 --INIT--
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -24,35 +24,35 @@ swBrokerStart
 
 echo "01. OPTIONS /entities - GET + POST + HEAD + OPTIONS"
 echo "==================================================="
-swCurl -X OPTIONS --url /ngsi-ld/v1/entities
+corCurl -X OPTIONS --url /ngsi-ld/v1/entities
 echo
 echo
 
 
 echo "02. OPTIONS /entities/{id} - GET + HEAD + OPTIONS"
 echo "=================================================="
-swCurl -X OPTIONS --url /ngsi-ld/v1/entities/urn:any
+corCurl -X OPTIONS --url /ngsi-ld/v1/entities/urn:any
 echo
 echo
 
 
 echo "03. OPTIONS /jsonldContexts - GET + POST"
 echo "========================================"
-swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts
+corCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts
 echo
 echo
 
 
 echo "04. OPTIONS /jsonldContexts/{id} - GET + DELETE"
 echo "==============================================="
-swCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
+corCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
 echo
 echo
 
 
 echo "05. OPTIONS /nonexistent - 404"
 echo "=============================="
-swCurl -X OPTIONS --url /nonexistent
+corCurl -X OPTIONS --url /nonexistent
 echo
 echo
 
@@ -111,4 +111,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

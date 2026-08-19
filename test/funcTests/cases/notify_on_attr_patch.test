@@ -12,9 +12,9 @@ PATCH of an attribute notifies on every update (cumulative ftClient dump)
 notification subscription patch attr
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ payload='{
     "value": 1
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -61,7 +61,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -71,7 +71,7 @@ echo "=========================="
 payload='{
   "value": 3
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1/attrs/P1 --payload "$payload" -X PATCH
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1/attrs/P1 --payload "$payload" -X PATCH
 echo
 echo
 
@@ -88,7 +88,7 @@ echo "==============================="
 payload='{
   "value": 3
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1/attrs/P1 --payload "$payload" -X PATCH
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:entity:E1/attrs/P1 --payload "$payload" -X PATCH
 echo
 echo
 
@@ -231,5 +231,5 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

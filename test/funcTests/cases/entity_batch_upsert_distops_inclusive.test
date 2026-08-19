@@ -20,10 +20,10 @@ Batch Entity Upsert — inclusive CSR, local + forwarded
 batch entity
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -32,14 +32,14 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Register CB→CP1 inclusive (Vehicle, upsertBatch)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["upsertBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["upsertBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "02. Upsert new V1+V2 on CB → 201 (local + forwarded to CP1)"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
 ]'
@@ -49,21 +49,21 @@ echo
 
 echo "03. GET CB V1 local-only — created locally"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "04. GET CP1 V1 — created remote (forwarded)"
 echo "==========================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
 echo
 echo
 
 
 echo "05. Upsert existing V1 — default REPLACE mode → 204 (local + forward)"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}}
 ]'
 echo
@@ -72,14 +72,14 @@ echo
 
 echo "06. GET CB V1 — color gone (replaced by first fragment)"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "07. GET CP1 V1 — color gone too (remote also did a replace)"
 echo "==========================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
 echo
 echo
 
@@ -88,7 +88,7 @@ echo "08. Upsert existing V2 ?options=update → 204 (local MERGE + forward upda
 echo "==========================================================================="
 # Update mode on CB: V2.color=cyan merges with existing. The forward
 # relays ?options=update so CP1 also merges rather than replacing.
-swCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
   {"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"cyan"}}
 ]'
 echo
@@ -97,21 +97,21 @@ echo
 
 echo "09. GET CB V2 — speed=20 (kept) AND color=cyan"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues&local=true'
 echo
 echo
 
 
 echo "10. GET CP1 V2 — speed=20 AND color=cyan (remote merged, too)"
 echo "============================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues'
 echo
 echo
 
 
 echo "11. Multi-instance same id V3 (new) — first creates, rest fully REPLACE (§ 5.5.11.2)"
 echo "======================================================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":100}},
   {"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"pink"}},
   {"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":300}}
@@ -122,14 +122,14 @@ echo
 
 echo "12. GET CB V3 local-only — only speed=300 (last instance fully replaced)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V3?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V3?options=keyValues&local=true'
 echo
 echo
 
 
 echo "13. GET CP1 V3 — only speed=300 (CP1 also did 3 replaces in order)"
 echo "==================================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V3?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V3?options=keyValues'
 echo
 echo
 
@@ -321,7 +321,7 @@ Content-Length: 58
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

@@ -15,13 +15,13 @@ HA - a second instance learns what the first one wrote (--ha mongo)
 ha mongoc subscription registration context tenant
 
 --INIT--
-swDbDrop
-swDbDrop -role CB2
-swDbDrop -db swBroker
-swDbDrop -tenant t1
+corDbDrop
+corDbDrop -role CB2
+corDbDrop -db coraine
+corDbDrop -tenant t1
 ftClientStart
-swBrokerStart --ha mongo -dist
-swBrokerStart -role CB2 --dbName swTest --ha mongo -dist
+coraineStart --ha mongo -dist
+coraineStart -role CB2 --dbName corTest --ha mongo -dist
 
 --RUN--
 
@@ -54,7 +54,7 @@ swBrokerStart -role CB2 --dbName swTest --ha mongo -dist
 #
 
 #
-# haAwait <port> <url> <needle> <present|absent> [extra swCurl args...]
+# haAwait <port> <url> <needle> <present|absent> [extra corCurl args...]
 #
 # The sync is fast (tens of milliseconds) but it is not synchronous, so the
 # reading broker is POLLED to a deadline rather than slept at: a fixed sleep is
@@ -100,7 +100,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -108,14 +108,14 @@ echo
 echo "02. CB2 has it too"
 echo "=================="
 haAwait $CB2_PORT /ngsi-ld/v1/subscriptions "urn:ngsi-ld:subscription:S1" present
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
 echo
 echo
 
 
 echo "03. PATCH the subscription on CB"
 echo "================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 -X PATCH --payload '{"watchedAttributes": ["a", "b"]}'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 -X PATCH --payload '{"watchedAttributes": ["a", "b"]}'
 echo
 echo
 
@@ -123,14 +123,14 @@ echo
 echo "04. CB2 has the patched version"
 echo "==============================="
 haAwait $CB2_PORT /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 '"b"' present
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1
 echo
 echo
 
 
 echo "05. Delete the subscription on CB"
 echo "================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 -X DELETE
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:subscription:S1 -X DELETE
 echo
 echo
 
@@ -138,7 +138,7 @@ echo
 echo "06. CB2 no longer has it"
 echo "========================"
 haAwait $CB2_PORT /ngsi-ld/v1/subscriptions "urn:ngsi-ld:subscription:S1" absent
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
@@ -151,7 +151,7 @@ payload='{
   "information": [ { "entities": [ { "type": "T" } ] } ],
   "endpoint": "http://localhost:'$CP1_PORT'"
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -159,14 +159,14 @@ echo
 echo "08. CB2 has it too"
 echo "=================="
 haAwait $CB2_PORT /ngsi-ld/v1/csourceRegistrations?type=T "urn:ngsi-ld:registration:R1" present
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=T'
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=T'
 echo
 echo
 
 
 echo "09. Delete the registration on CB"
 echo "================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:registration:R1 -X DELETE
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:registration:R1 -X DELETE
 echo
 echo
 
@@ -174,14 +174,14 @@ echo
 echo "10. CB2 no longer has it"
 echo "========================"
 haAwait $CB2_PORT /ngsi-ld/v1/csourceRegistrations?type=T "urn:ngsi-ld:registration:R1" absent
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=T'
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceRegistrations --urlParams 'type=T'
 echo
 echo
 
 
 echo "11. Host an @context on CB"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/jsonldContexts --payload '{"@context":{"haTerm":"https://example.org/ha/term"}}'
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload '{"@context":{"haTerm":"https://example.org/ha/term"}}'
 echo
 echo
 
@@ -189,7 +189,7 @@ echo
 echo "12. CB2 serves it too"
 echo "====================="
 haAwait $CB2_PORT /ngsi-ld/v1/jsonldContexts "urn:ngsi-ld:Context:" present
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/jsonldContexts
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/jsonldContexts
 echo
 echo
 
@@ -206,7 +206,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -214,16 +214,16 @@ echo
 echo "14. CB2 has the tenant, and the subscription in it"
 echo "=================================================="
 haAwait $CB2_PORT /ngsi-ld/v1/subscriptions "urn:ngsi-ld:subscription:T1S" present -H"NGSILD-Tenant: t1"
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions -H "NGSILD-Tenant: t1"
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/subscriptions -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "15. A registration + a CSR-subscription on CB - ONE initial notification"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:registration:R2","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"inclusive","information":[{"entities":[{"type":"Truck"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:registration:R2","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"inclusive","information":[{"entities":[{"type":"Truck"}]}]}'
 echo
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:ngsi-ld:subscription:CS1","type":"Subscription","entities":[{"type":"Truck"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:ngsi-ld:subscription:CS1","type":"Subscription","entities":[{"type":"Truck"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
@@ -231,7 +231,7 @@ echo
 echo "16. CB2 has the CSR-subscription too"
 echo "===================================="
 haAwait $CB2_PORT /ngsi-ld/v1/csourceSubscriptions "urn:ngsi-ld:subscription:CS1" present
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
 echo
 #
 # ⭐ ONE notification, from CB - the broker the request landed on. CB2 learned the
@@ -251,7 +251,7 @@ echo
 
 echo "17. PATCH the CSR-subscription on CB - ONE more initial notification"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1 -X PATCH --payload '{"entities":[{"type":"Truck"},{"type":"Trailer"}]}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1 -X PATCH --payload '{"entities":[{"type":"Truck"},{"type":"Trailer"}]}'
 echo
 echo
 
@@ -259,7 +259,7 @@ echo
 echo "18. CB2 has the patched CSR-subscription, and STILL only two notifications"
 echo "=========================================================================="
 haAwait $CB2_PORT /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1 "Trailer" present
-swCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
+corCurl --port $CB2_PORT --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:subscription:CS1
 echo
 echo "notifications so far:"
 ftClientCount
@@ -269,10 +269,10 @@ echo
 
 --TEARDOWN--
 ftClientStop
-swBrokerStop -all
-swDbDrop
-swDbDrop -db swBroker
-swDbDrop -tenant t1
+coraineStop -all
+corDbDrop
+corDbDrop -db coraine
+corDbDrop -tenant t1
 
 --EXPECT--
 01. Create a subscription on CB

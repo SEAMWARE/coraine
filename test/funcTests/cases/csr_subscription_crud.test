@@ -17,8 +17,8 @@ CSR Subscription CRUD - create, retrieve, query, update, delete
 csr-sub subscription
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -45,14 +45,14 @@ payload='{
   "entities": [ { "type": "Vehicle" } ],
   "notification": { "endpoint": { "uri": "http://localhost:1234/csrNotify" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve CSR-sub S1"
 echo "======================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 echo
 echo
 
@@ -66,14 +66,14 @@ payload='{
   "watchedAttributes": [ "temperature" ],
   "notification": { "endpoint": { "uri": "http://localhost:1234/csrNotify2" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "04. List all CSR-subs - two"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions
+corCurl --url /ngsi-ld/v1/csourceSubscriptions
 echo
 echo
 
@@ -86,21 +86,21 @@ payload='{
   "entities": [ { "type": "Vehicle" } ],
   "notification": { "endpoint": { "uri": "http://localhost:1234/x" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "06. PATCH - change description"
 echo "==============================="
-swCurl -X PATCH --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1 --payload '{"description": "watches all Vehicle CSRs"}'
+corCurl -X PATCH --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1 --payload '{"description": "watches all Vehicle CSRs"}'
 echo
 echo
 
 
 echo "07. Retrieve after patch"
 echo "========================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 echo
 echo
 
@@ -114,35 +114,35 @@ payload='{
   "entities": [ { "type": "X" } ],
   "notification": { "endpoint": { "uri": "http://localhost:1234/pernot" } }
 }'
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
 echo
 echo
 
 
 echo "09. DELETE CSR-sub CSR1 - 204"
 echo "============================="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+corCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 echo
 echo
 
 
 echo "10. List after delete - one"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions
+corCurl --url /ngsi-ld/v1/csourceSubscriptions
 echo
 echo
 
 
 echo "11. DELETE non-existing - 404"
 echo "============================="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:no:such
+corCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:no:such
 echo
 echo
 
 
 echo "12. Retrieve deleted - 404"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 echo
 echo
 
@@ -419,4 +419,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

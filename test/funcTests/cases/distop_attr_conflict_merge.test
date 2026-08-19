@@ -23,14 +23,14 @@ DistOp multi-source attribute conflict resolution (§ 4.5.5.3)
 entity query distops merge
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swDbDrop -role CP3
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
-swBrokerStart -role CP3 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+corDbDrop -role CP3
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
+coraineStart -role CP3 -dist
 
 --RUN--
 
@@ -66,7 +66,7 @@ CP3="http://localhost:${CP3_PORT}"
 
 echo "01. Seed CP1 (created first → oldest modifiedAt for attr3)"
 echo "==========================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E1",
   "type": "Sensor",
   "attr1": {"type":"Property","value":"A1-CP1","observedAt":"2026-01-01T00:00:00Z"},
@@ -80,7 +80,7 @@ echo
 
 echo "02. Seed CP2 (created after CP1 → newer modifiedAt)"
 echo "==================================================="
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E1",
   "type": "Sensor",
   "attr1": {"type":"Property","value":"A1-CP2","observedAt":"2026-01-02T00:00:00Z"},
@@ -94,7 +94,7 @@ echo
 
 echo "03. Seed CP3 (created last → newest modifiedAt)"
 echo "==============================================="
-swCurl --port $CP3_PORT --url /ngsi-ld/v1/entities --payload '{
+corCurl --port $CP3_PORT --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:E1",
   "type": "Sensor",
   "attr1": {"type":"Property","value":"A1-CP3","observedAt":"2026-01-03T00:00:00Z"},
@@ -107,11 +107,11 @@ echo
 
 echo "04. Register CB→CP1 / CP2 / CP3 (inclusive, type=Sensor)"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP3","type":"ContextSourceRegistration","endpoint":"'"$CP3"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP3","type":"ContextSourceRegistration","endpoint":"'"$CP3"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}'
 echo
 echo
 
@@ -122,7 +122,7 @@ echo "    attr1 = A1-CP3 (Case A: newest observedAt)"
 echo "    attr2 = A2-CP1 (Case B: only observedAt-having beats no-observedAt)"
 echo "    attr3 = A3-CP3 (Case C: no observedAt anywhere, newest modifiedAt wins)"
 echo "    attr4 = A4-CP2 (Case D: CP1 expired, dropped)"
-swCurl --url '/ngsi-ld/v1/entities/urn:E1?options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=keyValues'
 echo
 echo
 
@@ -206,11 +206,11 @@ Content-Length: 125
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swBrokerStop -role CP3
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swDbDrop -role CP3
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+coraineStop -role CP3
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+corDbDrop -role CP3

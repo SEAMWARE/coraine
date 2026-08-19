@@ -7,7 +7,7 @@
 //
 #include <string.h>                                  // strcmp
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_OP_NOT_SUPPORTED
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_OP_NOT_SUPPORTED
 
 #include "troe/TroeDriver.h"                         // troe
 #include "troe/troeNotAvailable.h"                   // Own interface

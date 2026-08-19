@@ -17,15 +17,15 @@ Notification request — Host header carries the (non-default) port + receiverIn
 subscription notification
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
 
 echo "01. Subscribe — endpoint on non-default port 7701, receiverInfo fiware-service"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:ngsi-ld:S1",
   "type": "Subscription",
   "entities": [{"type": "FillingLevelSensor"}],
@@ -43,7 +43,7 @@ echo
 
 echo "02. Trigger a notification"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Device:f1","type":"FillingLevelSensor","filling":{"type":"Property","value":0.96}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Device:f1","type":"FillingLevelSensor","filling":{"type":"Property","value":0.96}}' | grep HTTP
 echo
 echo
 
@@ -75,5 +75,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

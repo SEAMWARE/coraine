@@ -19,8 +19,8 @@ Subscription geoQ validation — geometry/coordinates mismatch rejected (create 
 geo subscription validation error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
   },
   "notification": {"endpoint": {"uri": "http://localhost:9999/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -65,7 +65,7 @@ payload='{
   },
   "notification": {"endpoint": {"uri": "http://localhost:9999/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -84,7 +84,7 @@ payload='{
   },
   "notification": {"endpoint": {"uri": "http://localhost:9999/notify"}}
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -99,7 +99,7 @@ payload='{
     "geoproperty": "location"
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3 -X PATCH --payload "$payload"
 echo
 echo
 
@@ -114,7 +114,7 @@ payload='{
     "geoproperty": "location"
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:V3 -X PATCH --payload "$payload"
 echo
 echo
 
@@ -187,4 +187,4 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

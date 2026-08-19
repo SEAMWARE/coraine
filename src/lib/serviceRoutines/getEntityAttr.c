@@ -18,20 +18,20 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
 
-#include "swJsonld/swldExpand.h"                     // swldExpand
-#include "swJsonld/swldInit.h"                       // swldCoreContext
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/ldEntityToApi.h"                  // ldEntityToApi
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldLangReduce.h"                   // ldLangReduce
-#include "swNgsild/ldRender.h"                       // ldToConcise, ldToSimplified
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/ldEntityToApi.h"                  // ldEntityToApi
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldLangReduce.h"                   // ldLangReduce
+#include "corNgsild/ldRender.h"                       // ldToConcise, ldToSimplified
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -46,17 +46,17 @@
 //
 bool getEntityAttr(void)
 {
-  const char* entityId = swRest.in.wildcard[0];
-  const char* attrWild = swRest.in.wildcard[1];
+  const char* entityId = corRest.in.wildcard[0];
+  const char* attrWild = corRest.in.wildcard[1];
 
   ldContextResolve();
 
-  SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL)
     attrIri = attrWild;
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   KjNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
@@ -86,16 +86,16 @@ bool getEntityAttr(void)
   // datasetId filter — storage format keys each instance by dsKey (or
   // "@none" for the default). Remove instances not matching.
   //
-  if (swNgsild.datasetIdV != NULL)
+  if (corNgsild.datasetIdV != NULL)
   {
     KjNode* instP = attrWrapperP->value.firstChildP;
     while (instP != NULL)
     {
       KjNode* nextP = instP->next;
       bool    keep  = false;
-      for (int i = 0; swNgsild.datasetIdV[i] != NULL; i++)
+      for (int i = 0; corNgsild.datasetIdV[i] != NULL; i++)
       {
-        if (instP->name != NULL && strcmp(instP->name, swNgsild.datasetIdV[i]) == 0)
+        if (instP->name != NULL && strcmp(instP->name, corNgsild.datasetIdV[i]) == 0)
         {
           keep = true;
           break;
@@ -119,10 +119,10 @@ bool getEntityAttr(void)
   // single-instance/array distinction and the timestamp-to-ISO conversion.
   //
   kjChildRemove(entityP, attrWrapperP);
-  KjNode* wrap = kjObject(swRest.kjsonP, NULL);
+  KjNode* wrap = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(wrap, attrWrapperP);
 
-  ldEntityToApi(wrap, &swRest.kalloc);
+  ldEntityToApi(wrap, &corRest.kalloc);
 
   //
   // Representation format. This route sets rawResponse (below) to skip the
@@ -134,19 +134,19 @@ bool getEntityAttr(void)
   // other type keeps its value-key. (sysAttrs + simplified is not a spec
   // error — in simplified the sysAttrs simply have nowhere to appear.)
   //
-  if (swNgsild.sysAttrs == false)
+  if (corNgsild.sysAttrs == false)
     ldStripSysAttrs(wrap);
 
   // lang reduction must run BEFORE format simplification (§ 4.5.5): the
   // simplification strips the LanguageProperty wrapper, leaving the bare
   // languageMap with nothing left to reduce. Same order as the renderHook.
-  if (swNgsild.lang != NULL)
-    ldLangReduce(wrap, swNgsild.lang, &swRest.kalloc);
+  if (corNgsild.lang != NULL)
+    ldLangReduce(wrap, corNgsild.lang, &corRest.kalloc);
 
-  if (swNgsild.format == LdFormatConcise)
-    ldToConcise(wrap, &swRest.kalloc);
-  else if (swNgsild.format == LdFormatSimplified)
-    ldToSimplified(wrap, &swRest.kalloc);
+  if (corNgsild.format == LdFormatConcise)
+    ldToConcise(wrap, &corRest.kalloc);
+  else if (corNgsild.format == LdFormatSimplified)
+    ldToSimplified(wrap, &corRest.kalloc);
 
   KjNode* unwrapped = wrap->value.firstChildP;
   if (unwrapped == NULL)
@@ -161,8 +161,8 @@ bool getEntityAttr(void)
   // (would misinterpret sub-attribute objects as entity-level wrappers).
   // Compaction and @context injection still run.
   //
-  swRest.out.responseTree   = unwrapped;
-  swRest.out.httpStatusCode = 200;
-  swNgsild.rawResponse      = true;
+  corRest.out.responseTree   = unwrapped;
+  corRest.out.httpStatusCode = 200;
+  corNgsild.rawResponse      = true;
   return true;
 }

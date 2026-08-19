@@ -41,12 +41,12 @@ DistOps query — multi-type entity split across differing-typed sources returns
 distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
@@ -57,16 +57,16 @@ CP2="http://localhost:${CP2_PORT}"
 
 echo "01. Seed E1 split across CP1 (Building part: floors) and CP2 (Sensor part: temperature)"
 echo "======================================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":["Building","Sensor"],"floors":{"type":"Property","value":5}}' | grep HTTP
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":["Building","Sensor"],"temperature":{"type":"Property","value":22}}' | grep HTTP
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":["Building","Sensor"],"floors":{"type":"Property","value":5}}' | grep HTTP
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":["Building","Sensor"],"temperature":{"type":"Property","value":22}}' | grep HTTP
 echo
 echo
 
 
 echo "02. Register CB -> CP1 (type=Building) and CB -> CP2 (type=Sensor)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:Building","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Building"}]}]}' | grep HTTP
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:Sensor","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:Building","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Building"}]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:Sensor","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","information":[{"entities":[{"type":"Sensor"}]}]}' | grep HTTP
 echo
 echo
 
@@ -74,21 +74,21 @@ echo
 echo "03. GET ?type=Building -> floors only (temperature from the Sensor source is LOST)"
 echo "=================================================================================="
 echo "    (ACCEPTED LIMITATION pending ETSI §5.7.2.4 — this result may change in the future)"
-swCurl --url "/ngsi-ld/v1/entities?type=Building&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Building&options=keyValues"
 echo
 echo
 
 
 echo "04. GET ?type=Sensor -> temperature only (floors from the Building source is LOST)"
 echo "==================================================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Sensor&options=keyValues"
 echo
 echo
 
 
 echo "05. GET ?type=Building,Sensor -> both sources reached, full entity assembled"
 echo "============================================================================="
-swCurl --url "/ngsi-ld/v1/entities?type=Building,Sensor&options=keyValues"
+corCurl --url "/ngsi-ld/v1/entities?type=Building,Sensor&options=keyValues"
 echo
 echo
 
@@ -172,6 +172,6 @@ Content-Length: 133
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2

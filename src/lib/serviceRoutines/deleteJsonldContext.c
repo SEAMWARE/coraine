@@ -19,13 +19,13 @@
 #include <stddef.h>                                    // NULL
 #include <string.h>                                    // strcmp
 
-#include "swRest/SwRestState.h"                        // swRest
-#include "swJsonld/SwldContext.h"                      // SwldContext, SwldContextKind
-#include "swJsonld/SwldContextCache.h"                 // SwldContextCache
-#include "swJsonld/swldCache.h"                        // swldCacheLookup, swldCacheRemove, swldCacheInsert
-#include "swJsonld/swldDownload.h"                     // swldContextFromUrl, swldIsCoreContextUrl
-#include "swJsonld/swldInit.h"                         // swldCoreContext, swldDownloadGet, SWLD_CORE_CONTEXT_URL
-#include "swNgsild/swNgsild.h"                         // ldError, LD_ERROR_*, swNgsild
+#include "corRest/CorRestState.h"                        // corRest
+#include "corJsonld/CorLdContext.h"                      // CorLdContext, CorLdContextKind
+#include "corJsonld/CorLdContextCache.h"                 // CorLdContextCache
+#include "corJsonld/corLdCache.h"                        // corLdCacheLookup, corLdCacheRemove, corLdCacheInsert
+#include "corJsonld/corLdDownload.h"                     // corLdContextFromUrl, corLdIsCoreContextUrl
+#include "corJsonld/corLdInit.h"                         // corLdCoreContext, corLdDownloadGet, CORLD_CORE_CONTEXT_URL
+#include "corNgsild/corNgsild.h"                         // ldError, LD_ERROR_*, corNgsild
 
 #include "db/DbDriver.h"                               // db, DB_CONTEXT_KIND_*
 
@@ -35,10 +35,10 @@
 
 // -----------------------------------------------------------------------------
 //
-// swldCacheGet / swldDownloadGet - internal accessors in swJsonld/swldInit.c
+// corLdCacheGet / corLdDownloadGet - internal accessors in corJsonld/corLdInit.c
 //
-extern SwldContextCache*    swldCacheGet(void);
-extern SwldDownloadFunction swldDownloadGet(void);
+extern CorLdContextCache*    corLdCacheGet(void);
+extern CorLdDownloadFunction corLdDownloadGet(void);
 
 
 
@@ -48,7 +48,7 @@ extern SwldDownloadFunction swldDownloadGet(void);
 //
 bool deleteJsonldContext(void)
 {
-  const char* contextId = swRest.in.wildcard[0];
+  const char* contextId = corRest.in.wildcard[0];
 
   if (contextId == NULL || contextId[0] == '\0')
   {
@@ -67,18 +67,18 @@ bool deleteJsonldContext(void)
   //
   // reload is parsed via ldParamHook as a boolean (LD_PARAM_RELOAD).
   // We read it via the URL param registry directly to avoid adding yet
-  // another SwNgsild state field when this is the only consumer.
+  // another CorNgsild state field when this is the only consumer.
   // Strict boolean: only "true"/"false" (case-insensitive); anything else
   // is a malformed URL-param value → 400 (ETSI 051_04_04).
   //
   bool reload = false;
-  for (int i = 0; i < swRest.in.uriParamCount; i++)
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
-    if (swRest.in.uriParamV[i].key == NULL ||
-        strcmp(swRest.in.uriParamV[i].key, "reload") != 0)
+    if (corRest.in.uriParamV[i].key == NULL ||
+        strcmp(corRest.in.uriParamV[i].key, "reload") != 0)
       continue;
 
-    const char* v = swRest.in.uriParamV[i].value;
+    const char* v = corRest.in.uriParamV[i].value;
     if      (v != NULL && strcasecmp(v, "true")  == 0) reload = true;
     else if (v != NULL && strcasecmp(v, "false") == 0) reload = false;
     else
@@ -98,7 +98,7 @@ bool deleteJsonldContext(void)
   // configured core to verify availability (the embedded core term tables
   // are canonical and survive either way). ETSI 051_08 / 051_09.
   //
-  if (swldIsCoreContextUrl(contextId))
+  if (corLdIsCoreContextUrl(contextId))
   {
     if (!reload)
     {
@@ -107,11 +107,11 @@ bool deleteJsonldContext(void)
       return true;
     }
 
-    SwldContext* coreP   = swldCoreContext();
-    const char*  coreUrl = (coreP != NULL && coreP->url != NULL) ? coreP->url : SWLD_CORE_CONTEXT_URL;
+    CorLdContext* coreP   = corLdCoreContext();
+    const char*  coreUrl = (coreP != NULL && coreP->url != NULL) ? coreP->url : CORLD_CORE_CONTEXT_URL;
 
     int   downloadStatus = 0;
-    char* body           = swldDownloadGet()(coreUrl, &downloadStatus);
+    char* body           = corLdDownloadGet()(coreUrl, &downloadStatus);
 
     if (body == NULL)
     {
@@ -120,12 +120,12 @@ bool deleteJsonldContext(void)
       return true;
     }
 
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
-  SwldContext* existingP = swldCacheLookup(contextId);
-  SwldContext  synth;     // used iff cache miss + DB hit; stack-local lives
+  CorLdContext* existingP = corLdCacheLookup(contextId);
+  CorLdContext  synth;     // used iff cache miss + DB hit; stack-local lives
                           // until function return, which is past all uses.
 
   if (existingP == NULL)
@@ -133,11 +133,11 @@ bool deleteJsonldContext(void)
     //
     // Cache miss. The entry may still be persisted (LRU-evicted Hosted /
     // Cached). Probe the DB — a plain delete on an evicted row is just a
-    // DB delete; for reload we need a SwldContext-shaped handle so the
+    // DB delete; for reload we need a CorLdContext-shaped handle so the
     // reload branch below can read url+kind off it.
     //
     DbContextRow row = { NULL, NULL, 0, NULL };
-    if (db.contextGet == NULL || db.contextGet(contextId, &swRest.kalloc, &row) != DB_OK)
+    if (db.contextGet == NULL || db.contextGet(contextId, &corRest.kalloc, &row) != DB_OK)
     {
       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
               "JSON-LD context '%s' not found", contextId);
@@ -149,7 +149,7 @@ bool deleteJsonldContext(void)
       if (db.contextDelete != NULL)
         db.contextDelete(contextId);
 
-      swRest.out.httpStatusCode = 204;
+      corRest.out.httpStatusCode = 204;
       return true;
     }
 
@@ -163,14 +163,14 @@ bool deleteJsonldContext(void)
 
     synth.url  = row.url;
     synth.id   = row.id;
-    synth.kind = SwldKindCached;
+    synth.kind = CorLdKindCached;
     synth.body = row.body;
     existingP  = &synth;
   }
 
   if (reload)
   {
-    if (existingP->kind != SwldKindCached)
+    if (existingP->kind != CorLdKindCached)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "reload is only valid for Cached contexts");
@@ -182,23 +182,23 @@ bool deleteJsonldContext(void)
     // install itself; if download fails, reinstate the old entry.
     //
     const char* url      = existingP->url;
-    KAlloc*     storeP   = swldCacheGet()->kaP;
-    SwldContext* removed = swldCacheRemove(contextId);
+    KAlloc*     storeP   = corLdCacheGet()->kaP;
+    CorLdContext* removed = corLdCacheRemove(contextId);
 
-    SwldContext* fresh = swldContextFromUrl(url, storeP);
+    CorLdContext* fresh = corLdContextFromUrl(url, storeP);
 
     if (fresh == NULL)
     {
       // Put the old one back so the client isn't left with nothing.
       if (removed != NULL)
-        swldCacheInsert(removed);
+        corLdCacheInsert(removed);
 
       ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
               "unable to retrieve @context from '%s'", url);
       return true;
     }
 
-    fresh->kind = SwldKindCached;
+    fresh->kind = CorLdKindCached;
 
     //
     // Refresh the persisted body — reload changes the document.
@@ -206,26 +206,26 @@ bool deleteJsonldContext(void)
     if (db.contextSave != NULL && fresh->body != NULL && fresh->url != NULL)
       db.contextSave(fresh->url, fresh->url, DB_CONTEXT_KIND_CACHED, fresh->body);
 
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
   //
   // Plain delete.
   //
-  SwldContextKind removedKind = existingP->kind;
-  swldCacheRemove(contextId);
+  CorLdContextKind removedKind = existingP->kind;
+  corLdCacheRemove(contextId);
 
   //
   // Persisted contexts (Hosted, Cached) need to be removed from the DB too.
   // Implicit contexts were never persisted — skip the call.
   //
   if (db.contextDelete != NULL &&
-      (removedKind == SwldKindHosted || removedKind == SwldKindCached))
+      (removedKind == CorLdKindHosted || removedKind == CorLdKindCached))
   {
     db.contextDelete(contextId);
   }
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

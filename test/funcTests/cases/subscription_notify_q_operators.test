@@ -24,8 +24,8 @@ Subscription q gates notifications — relational / range / comma-list / observe
 subscription notification q
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -33,25 +33,25 @@ ftClientStart
 EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
 
 mksub() {  # $1=type  $2=q
-  swCurl --url /ngsi-ld/v1/subscriptions \
+  corCurl --url /ngsi-ld/v1/subscriptions \
     --payload '{"id":"urn:ngsi-ld:Sub:'$1'","type":"Subscription","entities":[{"type":"'$1'"}],"q":"'"$2"'","notification":{"endpoint":'"$EP"'}}' | grep HTTP
 }
 
 # $1=type  $2=match-id-suffix  $3=P value (number)
 mkP() {
-  swCurl --url /ngsi-ld/v1/entities \
+  corCurl --url /ngsi-ld/v1/entities \
     --payload '{"id":"urn:ngsi-ld:'$2':'$1'","type":"'$1'","P":{"type":"Property","value":'$3'}}' | grep HTTP
 }
 
 # $1=type  $2=id-prefix  $3=observedAt
 mkObs() {
-  swCurl --url /ngsi-ld/v1/entities \
+  corCurl --url /ngsi-ld/v1/entities \
     --payload '{"id":"urn:ngsi-ld:'$2':'$1'","type":"'$1'","temperature":{"type":"Property","value":1,"observedAt":"'$3'"}}' | grep HTTP
 }
 
 # $1=type  $2=id-prefix  $3=accuracy sub-attr value
 mkSub() {
-  swCurl --url /ngsi-ld/v1/entities \
+  corCurl --url /ngsi-ld/v1/entities \
     --payload '{"id":"urn:ngsi-ld:'$2':'$1'","type":"'$1'","temperature":{"type":"Property","value":1,"accuracy":{"type":"Property","value":'$3'}}}' | grep HTTP
 }
 
@@ -171,5 +171,5 @@ HTTP/1.1 201 Created
       "subscriptionId": "urn:ngsi-ld:Sub:SA",
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

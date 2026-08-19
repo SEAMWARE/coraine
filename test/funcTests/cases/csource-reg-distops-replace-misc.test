@@ -12,10 +12,10 @@ DistOps - replaceEntity (PUT): redirect, inclusive, ?local bypass, loop skip (re
 distops registration replace
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -31,7 +31,7 @@ swBrokerStart -role CP1 -dist
 # --- 01-04: redirect ---
 echo "01. Seed CP1 with V1 (speed=50, color=blue)"
 echo "==========================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"blue"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
@@ -46,21 +46,21 @@ payload='{
   "operations": ["replaceEntity", "retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. PUT urn:V1 on CB: full new body → forwarded to CP1 → 204"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":77},"brand":{"type":"Property","value":"Zed"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":77},"brand":{"type":"Property","value":"Zed"}}'
 echo
 echo
 
 
 echo "04. GET urn:V1 on CP1 → speed=77, brand=Zed, color gone"
 echo "======================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -68,9 +68,9 @@ echo
 # --- 05-09: inclusive (local + forward) ---
 echo "05. Seed CP1 with urn:V2, AND local CB with urn:V2"
 echo "=================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
@@ -85,28 +85,28 @@ payload='{
   "operations": ["replaceEntity", "retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "07. PUT urn:V2: new body → local AND forward → 204"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -X PUT --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":111},"color":{"type":"Property","value":"white"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X PUT --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":111},"color":{"type":"Property","value":"white"}}'
 echo
 echo
 
 
 echo "08. GET urn:V2 on CB ?local=true → speed=111, color=white (local replaced)"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
 echo
 echo
 
 
 echo "09. GET urn:V2 on CP1 directly → speed=111, color=white (remote replaced)"
 echo "========================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -114,7 +114,7 @@ echo
 # --- 10-13: ?local=true bypass ---
 echo "10. Seed CP1 with urn:V3, register exclusive CSR on CB claiming speed"
 echo "====================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1}}'
 echo
 payload='{
   "id": "urn:CSR:ReplBypass",
@@ -129,28 +129,28 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "11. Seed CB's local urn:V3 with color"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
 echo
 echo
 
 
 echo "12. PUT urn:V3 ?local=true → CSR skipped, local-only replace (204)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PUT --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"gold"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PUT --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"gold"}}'
 echo
 echo
 
 
 echo "13. GET urn:V3 on CP1 → still speed=1 (bypass did not forward)"
 echo "=============================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
 echo
 echo
 
@@ -158,14 +158,14 @@ echo
 # --- 14-15: loop skip ---
 echo "14. PUT with own Via alias → forward skipped, local replace still runs"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PUT -H "Via: 1.1 localhost:$CB_PORT" --payload '{"id":"urn:V3","type":"Vehicle","brand":{"type":"Property","value":"Ghost"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 -X PUT -H "Via: 1.1 localhost:$CB_PORT" --payload '{"id":"urn:V3","type":"Vehicle","brand":{"type":"Property","value":"Ghost"}}'
 echo
 echo
 
 
 echo "15. GET urn:V3 on CB ?local=true → brand=Ghost (color wiped by Replace)"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
 echo
 echo
 
@@ -385,7 +385,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

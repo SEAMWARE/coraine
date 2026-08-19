@@ -12,12 +12,12 @@ DistOps - redirect and auxiliary mode forwarding for retrieveEntity
 distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -51,7 +51,7 @@ payload='{
     "value": 42
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -71,7 +71,7 @@ payload='{
     "value": "yes"
   }
 }'
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -90,10 +90,10 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
 echo
 echo
 
@@ -112,10 +112,10 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
 echo
 echo
 
@@ -135,10 +135,10 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
 echo
 echo
 
@@ -158,10 +158,10 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1' --urlParams 'options=keyValues'
 echo
 echo
 
@@ -298,9 +298,9 @@ Content-Length: 107
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

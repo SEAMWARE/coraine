@@ -20,9 +20,9 @@ TRoE timescale - temporal Attribute resource method set (DELETE only, GET is 405
 troe timescale postgres temporal attr methods
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -34,7 +34,7 @@ payload='{
   "speed": { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" },
   "color": { "type": "Property", "value": "red", "observedAt": "2026-04-28T09:00:00Z" }
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
@@ -42,21 +42,21 @@ echo
 echo "02. GET /temporal/entities/urn:V1/attrs/speed → 405 (no GET on § 8.5 resource)"
 echo "============================================================================="
 echo "    detail names the FULL resource (/attrs/speed not truncated)"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed'
 echo
 echo
 
 
 echo "03. DELETE /temporal/entities/urn:V1/attrs/color → 204 (the § 8.5.3.1 method)"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/color' -X DELETE
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1/attrs/color' -X DELETE
 echo
 echo
 
 
 echo "04. GET /temporal/entities/urn:V1 → color gone, speed remains"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
 
 --EXPECT--
 01. Seed urn:V1 with speed + color
@@ -117,4 +117,4 @@ Content-Length: REGEX(\d+)
 }
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

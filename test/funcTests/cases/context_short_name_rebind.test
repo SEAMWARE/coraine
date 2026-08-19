@@ -20,10 +20,10 @@ Same short name, different IRIs — no silent rebind across contexts
 context entity
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -55,7 +55,7 @@ payload='{
   "type": "T",
   "x": {"type": "Property", "value": 1}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
@@ -63,7 +63,7 @@ echo
 
 echo "02. GET via ctxB — full IRI key A/x, no silent rebind"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -71,7 +71,7 @@ echo
 
 echo "03. GET via ctxA — short x"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
@@ -79,7 +79,7 @@ echo
 
 echo "04. ?attrs=x via ctxB — expands to B/x: no match"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&attrs=x' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&attrs=x' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
 echo
 echo
@@ -87,7 +87,7 @@ echo
 
 echo "05. ?attrs=x via ctxA — expands to A/x: match"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&attrs=x' \
+corCurl --url '/ngsi-ld/v1/entities?type=T&attrs=x' \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -c urn:E1
 echo
 echo
@@ -147,5 +147,5 @@ Content-Length: 89
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

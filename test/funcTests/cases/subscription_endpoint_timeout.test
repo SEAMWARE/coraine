@@ -15,8 +15,8 @@ Subscription notification - endpoint.timeout round-trip (§ 5.2.15)
 subscription notification timeout
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,14 +33,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. GET sub → timeout=12345 round-trips"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Tmo | grep -E '"(uri|timeout)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Tmo | grep -E '"(uri|timeout)"'
 echo
 echo
 
@@ -58,5 +58,5 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

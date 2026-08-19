@@ -8,10 +8,10 @@
 --NAME--
 Discovery mode 3 — forward /types + /attributes to CSRs (§ 5.7.11 + ?hops)
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --TAGS--
 query
@@ -30,7 +30,7 @@ query
 
 echo "01. Seed CP1: Sensor with temp + humidity"
 echo "=========================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22},"humidity":{"type":"Property","value":60}}'
 echo
 echo
@@ -38,7 +38,7 @@ echo
 
 echo "02. Seed CB: Vehicle with speed"
 echo "================================"
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50}}'
 echo
 echo
@@ -53,49 +53,49 @@ payload='{
   "mode": "inclusive",
   "information": [{"entities": [{"type": "Sensor"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. GET /types (mode 3, default) → Vehicle + Sensor (forwarded)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/types
+corCurl --url /ngsi-ld/v1/types
 echo
 echo
 
 
 echo "05. GET /types?local=true → only Vehicle"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/types --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/types --urlParams 'local=true'
 echo
 echo
 
 
 echo "06. GET /types?hops=0 → no forwarding (only CSR metadata, so Sensor only if declared)"
 echo "====================================================================================="
-swCurl --url /ngsi-ld/v1/types --urlParams 'hops=0'
+corCurl --url /ngsi-ld/v1/types --urlParams 'hops=0'
 echo
 echo
 
 
 echo "07. GET /types/Sensor (mode 3) → from CP1, entityCount=1, attrs=[temp,humidity]"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/types/Sensor
+corCurl --url /ngsi-ld/v1/types/Sensor
 echo
 echo
 
 
 echo "08. GET /attributes (mode 3) → speed (local) + temp+humidity (CP1)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/attributes
+corCurl --url /ngsi-ld/v1/attributes
 echo
 echo
 
 
 echo "09. GET /attributes/humidity (mode 3) → count=1, on Sensor"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/attributes/humidity
+corCurl --url /ngsi-ld/v1/attributes/humidity
 echo
 echo
 
@@ -266,7 +266,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

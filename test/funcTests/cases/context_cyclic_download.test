@@ -31,10 +31,10 @@ Cyclic @context - 400 Cyclic @context, at once and not after the download deadli
 context jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/cycleA '{
   "@context": [ "http://localhost:7080/jsonldContexts/cycleB" ]
@@ -60,7 +60,7 @@ contextServerPush /jsonldContexts/plain '{
 echo "01. POST an entity with the cyclic @context - 400 Cyclic @context, at once"
 echo "==========================================================================="
 #
-# Raw curl, and not swCurl, for the one thing swCurl cannot express: a bound on
+# Raw curl, and not corCurl, for the one thing corCurl cannot express: a bound on
 # how long this may take. Detecting the cycle takes microseconds; NOT detecting
 # it takes the full three-second wait, and the two are otherwise indistinguishable
 # in the output - the request fails either way. '-m 2' turns that timing
@@ -79,7 +79,7 @@ echo
 
 echo "02. POST an entity with an ordinary @context - still works"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities \
+corCurl --url /ngsi-ld/v1/entities \
        -H 'Link: <http://localhost:7080/jsonldContexts/plain>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
        --payload '{"id":"urn:E2","type":"Building"}'
 echo
@@ -110,7 +110,7 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine

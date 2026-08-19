@@ -18,22 +18,22 @@ attributeDeleted trigger — notification fires when explicitly subscribed
 delete subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Seed V1 {speed=10, color=red}"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "02. Sub with notificationTrigger=[attributeDeleted]"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeDeleted"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
@@ -42,7 +42,7 @@ echo "03. PATCH V1 attrs with color=null (attrDeleted)"
 echo "================================================"
 # Using the single-entity Merge endpoint to delete V1.color via
 # urn:ngsi-ld:null; subscription should fire.
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload '{"type":"Vehicle","color":"urn:ngsi-ld:null"}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload '{"type":"Vehicle","color":"urn:ngsi-ld:null"}'
 echo
 echo
 
@@ -64,14 +64,14 @@ echo
 
 echo "06. Sub S2 with notificationTrigger=[attributeUpdated] only"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeUpdated"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["attributeUpdated"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
 
 echo "07. PATCH V1 delete speed via urn:ngsi-ld:null"
 echo "=============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload '{"type":"Vehicle","speed":"urn:ngsi-ld:null"}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1 --payload '{"type":"Vehicle","speed":"urn:ngsi-ld:null"}'
 echo
 echo
 
@@ -206,6 +206,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

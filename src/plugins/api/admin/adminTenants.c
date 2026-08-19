@@ -8,7 +8,7 @@
 #include <stddef.h>                               // NULL
 
 #include "kjson/kjBuilder.h"                      // kjArray, kjString, kjChildAdd
-#include "swRest/SwRestState.h"                   // swRest
+#include "corRest/CorRestState.h"                   // corRest
 
 #include "db/Tenant.h"                            // Tenant, tenantList
 
@@ -25,12 +25,12 @@
 //
 bool adminGetTenants(void)
 {
-  Kjson*  kjsonP = swRest.kjsonP;
+  Kjson*  kjsonP = corRest.kjsonP;
   KjNode* root   = kjArray(kjsonP, NULL);
 
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
     kjChildAdd(root, kjString(kjsonP, NULL, tP->name));
 
-  swRest.out.responseTree = root;
+  corRest.out.responseTree = root;
   return true;
 }

@@ -7,22 +7,22 @@ PUT /attrs/{attr} with datasetId replaces that instance
 --TAGS--
 datasetid
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 echo "01. Create temp (value 1, datasetId urn:ds:A)"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:DS:1","type":"T","temp":{"type":"Property","value":1,"datasetId":"urn:ds:A"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:DS:1","type":"T","temp":{"type":"Property","value":1,"datasetId":"urn:ds:A"}}' | grep HTTP
 echo
 echo
 echo "02. PUT temp (value 99, datasetId urn:ds:A)"
 echo "==========================================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:DS:1/attrs/temp --payload '{"type":"Property","value":99,"datasetId":"urn:ds:A"}' | grep HTTP
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:DS:1/attrs/temp --payload '{"type":"Property","value":99,"datasetId":"urn:ds:A"}' | grep HTTP
 echo
 echo
 echo "03. GET — that instance now reads 99"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:DS:1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:DS:1
 echo
 echo
 --EXPECT--
@@ -57,4 +57,4 @@ Content-Length: 132
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

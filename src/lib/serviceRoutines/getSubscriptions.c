@@ -8,21 +8,21 @@
 #include <stddef.h>                                  // NULL
 #include <stdio.h>                                   // snprintf
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjLookup.h"                          // kjLookup
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild, ldContextResolve
-#include "swNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
-#include "swNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "swNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
-#include "swNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
-#include "swNgsild/ldPagination.h"                   // ldPaginationLinkHeader
-#include "swNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
+#include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
+#include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
+#include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
+#include "corNgsild/ldPagination.h"                   // ldPaginationLinkHeader
+#include "corNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -40,9 +40,9 @@ static void subPostProcess(KjNode* subP)
 {
   if (kjLookup(subP, "notificationTrigger") == NULL)
   {
-    KjNode* trigArr = kjArray(swRest.kjsonP, "notificationTrigger");
-    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeCreated"));
-    kjChildAdd(trigArr, kjString(swRest.kjsonP, NULL, "attributeUpdated"));
+    KjNode* trigArr = kjArray(corRest.kjsonP, "notificationTrigger");
+    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeCreated"));
+    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeUpdated"));
     kjChildAdd(subP, trigArr);
   }
 
@@ -52,10 +52,10 @@ static void subPostProcess(KjNode* subP)
 
   // § 6.4.5 — createdAt/modifiedAt (stored as nanosecond integers) are rendered
   // as ISO 8601 only when the client asks for system attributes; stripped otherwise.
-  if (swNgsild.sysAttrs == false)
+  if (corNgsild.sysAttrs == false)
     ldStripSysAttrs(subP);
   else
-    ldSysTimestampsToIso(subP, &swRest.kalloc);
+    ldSysTimestampsToIso(subP, &corRest.kalloc);
 }
 
 
@@ -72,18 +72,18 @@ bool getSubscriptions(void)
 {
   ldContextResolve();
 
-  Tenant*        tenantP   = (Tenant*) swNgsild.tenantP;
+  Tenant*        tenantP   = (Tenant*) corNgsild.tenantP;
   LdSubCache*    scP       = (LdSubCache*)    tenantP->subCacheP   ;
   LdPernotCache* pcP       = (LdPernotCache*) tenantP->pernotCacheP;
 
-  KjNode* arrayP = kjArray(swRest.kjsonP, NULL);
+  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
 
-  int skip  = (swNgsild.offset > 0) ? swNgsild.offset : 0;
-  // swNgsild.limit defaults to 20 (ldHooks); 0 only when the client explicitly
+  int skip  = (corNgsild.offset > 0) ? corNgsild.offset : 0;
+  // corNgsild.limit defaults to 20 (ldHooks); 0 only when the client explicitly
   // asked for limit=0 — valid only together with count=true (ldParamsValidate),
   // meaning "just the count, no items". Mapping it to unbounded returned the
   // whole set, so keep it as-is: limit=0 → an empty page.
-  int limit = swNgsild.limit;
+  int limit = corNgsild.limit;
   int seen  = 0;
   int taken = 0;
 
@@ -106,8 +106,8 @@ bool getSubscriptions(void)
       if (it->subTree == NULL) continue;
       if (seen++ < skip)       continue;
 
-      KjNode* subP = kjClone(swRest.kjsonP, it->subTree);
-      ldSubscriptionCompactQ(subP, it->qExpr, swNgsild.contextP, &swRest.kalloc);
+      KjNode* subP = kjClone(corRest.kjsonP, it->subTree);
+      ldSubscriptionCompactQ(subP, it->qExpr, corNgsild.contextP, &corRest.kalloc);
       ldSubscriptionCountersInject(subP, it);
       subPostProcess(subP);
       kjChildAdd(arrayP, subP);
@@ -122,8 +122,8 @@ bool getSubscriptions(void)
       if (it->subTree == NULL) continue;
       if (seen++ < skip)       continue;
 
-      KjNode* subP = kjClone(swRest.kjsonP, it->subTree);
-      ldSubscriptionCompactQ(subP, it->qExpr, swNgsild.contextP, &swRest.kalloc);
+      KjNode* subP = kjClone(corRest.kjsonP, it->subTree);
+      ldSubscriptionCompactQ(subP, it->qExpr, corNgsild.contextP, &corRest.kalloc);
       ldPernotCountersInject(subP, it);
       subPostProcess(subP);
       kjChildAdd(arrayP, subP);
@@ -139,14 +139,14 @@ bool getSubscriptions(void)
     ldPaginationLinkHeader(hasMore);
 
   // § 7.5 / § 6.4.6 (TS 104-176): relay the total element count when requested.
-  if (swNgsild.count)
+  if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&swRest.kalloc, 32);
+    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%d", total);
-    swRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+    corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
-  swNgsild.rawResponse    = true;
-  swRest.out.responseTree = arrayP;
+  corNgsild.rawResponse    = true;
+  corRest.out.responseTree = arrayP;
   return true;
 }

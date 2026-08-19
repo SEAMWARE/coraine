@@ -23,8 +23,8 @@ Merge-PATCH attribute deletion via the urn:ngsi-ld:null sentinel (all forms)
 entity patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,7 +38,7 @@ payload='{
   "P2": { "type": "Property", "value": 2 },
   "LP": { "type": "LanguageProperty", "languageMap": { "en": "English", "es": "Spanish" } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -49,14 +49,14 @@ payload='{
   "P1": "urn:ngsi-ld:null",
   "R1": { "type": "Relationship", "object": "urn:ngsi-ld:null" }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET — P1 and R1 gone; P2 and LP remain"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
 echo
 echo
 
@@ -64,7 +64,7 @@ echo
 echo "04. Merge-PATCH: delete P2 via normalized Property value sentinel"
 echo "================================================================="
 payload='{ "P2": { "type": "Property", "value": "urn:ngsi-ld:null" } }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
 echo
 echo
 
@@ -72,14 +72,14 @@ echo
 echo "05. Merge-PATCH: delete LP via normalized LanguageProperty languageMap @none sentinel"
 echo "====================================================================================="
 payload='{ "LP": { "type": "LanguageProperty", "languageMap": { "@none": "urn:ngsi-ld:null" } } }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "06. GET — only id/type remain"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
 echo
 echo
 
@@ -87,7 +87,7 @@ echo
 echo "07. Merge-PATCH: sentinel for a NON-existing attribute — no-op, 204 (RFC 7386)"
 echo "=============================================================================="
 payload='{ "Pxxx": "urn:ngsi-ld:null" }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
 echo
 echo
 
@@ -95,7 +95,7 @@ echo
 echo "08. Merge-PATCH: raw JSON null RHS is rejected (sentinel is the delete mechanism, not JSON null)"
 echo "==============================================================================================="
 payload='{ "P9": null }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
 echo
 echo
 
@@ -201,4 +201,4 @@ Content-Length: 240
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

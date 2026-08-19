@@ -19,18 +19,18 @@ Snapshot temporal lifecycle — clone + delete (§ 5.16.2 / § 5.16.5 / Phase #1
 snapshot troe timescale postgres
 
 --INIT--
-swDbDrop
-swSnapDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corSnapDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed Vehicle V1 + 2 patches (3 temporal instances)"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
 echo "  done"
 echo
 echo
@@ -38,7 +38,7 @@ echo
 
 echo "02. Create snapshot Src capturing temporal history"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Src",
   "type": "Snapshot",
   "snapshotTemporalQueries":[{
@@ -54,10 +54,10 @@ echo
 
 echo "03. Row count per scope after capture"
 echo "====================================="
-# Live rows are in $SW_TROE_DB; each snapshot owns its own "${SW_TROE_DB}_snap_<seq>" database.
+# Live rows are in $COR_TROE_DB; each snapshot owns its own "${COR_TROE_DB}_snap_<seq>" database.
 sleep 0.2
-echo "$(psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
-snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
+echo "$(psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
+snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
 echo "$(psql -h localhost -p 5432 -U postgres -d "$snapDb" -tAc "SELECT count(*) FROM troe_attrs")|snap"
 echo
 echo
@@ -65,7 +65,7 @@ echo
 
 echo "04. POST /snapshots/Src/clone — clone Src to Dst"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Src/clone --payload '{"id":"urn:ngsi-ld:Snapshot:Dst","type":"Snapshot"}'
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Src/clone --payload '{"id":"urn:ngsi-ld:Snapshot:Dst","type":"Snapshot"}'
 echo
 echo
 
@@ -75,21 +75,21 @@ echo "========================================================"
 # Each snap-tenant owns its own database, so count the snap databases.
 sleep 0.2
 psql -h localhost -p 5432 -U postgres -tAc \
-  "SELECT count(*) FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%'"
+  "SELECT count(*) FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%'"
 echo
 echo
 
 
 echo "06. Read temporal via NGSILD-Snapshot: Dst — sees the cloned 3 instances"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Dst'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Dst'
 echo
 echo
 
 
 echo "07. DELETE Src — its temporal rows must be removed"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Src -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Src -X DELETE | head -1
 echo
 echo
 
@@ -99,14 +99,14 @@ echo "====================================================================="
 # Deleting a snapshot drops its whole TRoE database (DROP DATABASE).
 sleep 0.2
 psql -h localhost -p 5432 -U postgres -tAc \
-  "SELECT count(*) FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%'"
+  "SELECT count(*) FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%'"
 echo
 echo
 
 
 echo "09. DELETE Dst — both snap-tenants gone"
 echo "======================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Dst -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Dst -X DELETE | head -1
 echo
 echo
 
@@ -116,7 +116,7 @@ echo "==============================================="
 # Both snapshots deleted → both snap databases dropped.
 sleep 0.2
 psql -h localhost -p 5432 -U postgres -tAc \
-  "SELECT count(*) FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%'"
+  "SELECT count(*) FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%'"
 echo
 echo
 
@@ -210,7 +210,7 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
-swTroeDrop
+coraineStop
+corSnapDrop
+corDbDrop
+corTroeDrop

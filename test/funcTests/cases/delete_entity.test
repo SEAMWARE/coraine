@@ -12,8 +12,8 @@ DELETE /entities/{id} - delete entity, 404 on non-existing, 404 after delete
 delete entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,49 +37,49 @@ payload='{
     "value": 42
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 200 OK"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "03. DELETE entity urn:ngsi-ld:Vehicle:V1 - 204 No Content"
 echo "========================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "04. Retrieve entity urn:ngsi-ld:Vehicle:V1 - 404 Not Found (gone)"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "05. DELETE entity urn:ngsi-ld:Vehicle:V1 again - 404 Not Found"
 echo "=============================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "06. DELETE non-existing entity urn:doesnt:exist - 404 Not Found"
 echo "==============================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:doesnt:exist
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:doesnt:exist
 echo
 echo
 
 
 echo "07. Query all entities - empty array"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
@@ -183,5 +183,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -19,10 +19,10 @@ Batch Entity Merge — inclusive CSR, local + forwarded
 batch entity merge
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -31,24 +31,24 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1 on CB {speed:10, size:large} and on CP1 {speed:10, size:large}"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"size":{"type":"Property","value":"large"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"size":{"type":"Property","value":"large"}}'
 echo
 echo
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"size":{"type":"Property","value":"large"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"size":{"type":"Property","value":"large"}}'
 echo
 echo
 
 
 echo "02. Register CB→CP1 inclusive (Vehicle, mergeBatch)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["mergeBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["mergeBatch"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
 echo
 echo
 
 
 echo "03. Batch Merge V1.color=blue → 204 (surgical, mirrored to CP1)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -57,21 +57,21 @@ echo
 
 echo "04. GET CB V1 local-only — speed=10, size=large, color=blue"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "05. GET CP1 V1 — speed=10, size=large, color=blue (merged too)"
 echo "==============================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
 echo
 echo
 
 
 echo "06. Batch Merge delete V1.size with urn:ngsi-ld:null → 204"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","size":"urn:ngsi-ld:null"}
 ]'
 echo
@@ -80,14 +80,14 @@ echo
 
 echo "07. GET CB V1 — speed=10, color=blue (size gone locally)"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "08. GET CP1 V1 — speed=10, color=blue (size gone on remote too)"
 echo "==============================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
 echo
 echo
 
@@ -208,7 +208,7 @@ Content-Length: 76
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

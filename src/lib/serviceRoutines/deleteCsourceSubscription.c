@@ -9,11 +9,11 @@
 //
 #include <stddef.h>                                  // NULL
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
-#include "swNgsild/swNgsild.h"                       // ldError, swNgsild
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemLookup
+#include "corNgsild/corNgsild.h"                       // ldError, corNgsild
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemLookup
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -24,9 +24,9 @@
 
 bool deleteCsourceSubscription(void)
 {
-  const char* subId = swRest.in.wildcard[0];
+  const char* subId = corRest.in.wildcard[0];
 
-  Tenant*     tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
   // No reg fanout here — the existence-check Lookup + Remove are a single
@@ -46,6 +46,6 @@ bool deleteCsourceSubscription(void)
   if (db.subscriptionDelete != NULL)
     db.subscriptionDelete(tenantP, subId);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

@@ -25,15 +25,15 @@ Subscription notification — geo+json scope/expiresAt vs sysAttrs under propert
 subscription notification geojson scope
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Subscription on Vehicle, geo+json, NO sysAttrs"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:plain",
   "type":"Subscription",
   "entities":[{"type":"Vehicle"}],
@@ -50,7 +50,7 @@ echo
 
 echo "02. Create a Vehicle (scope + expiresAt) → notif has scope/expiresAt, NO createdAt/modifiedAt"
 echo "============================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:V1",
   "type":"Vehicle",
   "scope":"/Madrid/Gardens",
@@ -73,7 +73,7 @@ echo
 
 echo "04. Subscription on Car, geo+json, sysAttrs = true"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:sys",
   "type":"Subscription",
   "entities":[{"type":"Car"}],
@@ -91,7 +91,7 @@ echo
 
 echo "05. Create a Car (scope + expiresAt) → notif ALSO has entity+per-attr createdAt/modifiedAt"
 echo "==========================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:C1",
   "type":"Car",
   "scope":"/Madrid/Gardens",
@@ -275,5 +275,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

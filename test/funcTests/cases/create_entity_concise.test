@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/entities - concise input format
 create entity format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,14 +46,14 @@ payload='{
     "object": "urn:target:1"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity E1 - verify type fields are added"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:conc:E1
+corCurl --url /ngsi-ld/v1/entities/urn:conc:E1
 echo
 echo
 
@@ -70,14 +70,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET entity E2 - verify GeoProperty type is inferred"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:conc:E2
+corCurl --url /ngsi-ld/v1/entities/urn:conc:E2
 echo
 echo
 
@@ -95,14 +95,14 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. GET entity E3 - verify GeoProperty"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities/urn:conc:E3
+corCurl --url /ngsi-ld/v1/entities/urn:conc:E3
 echo
 echo
 
@@ -213,5 +213,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -19,16 +19,16 @@ DistOp § 4.5.5.2 — expiresAt entity → attr propagation
 distops expiresAt retrieve
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
 echo "01. Seed urn:V1 on CP1 with entity-level expiresAt 2099 + one attr w/ 2150"
 echo "==========================================================================="
-swCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
+corCurl --port "$CP1_PORT" --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "expiresAt": "2099-01-01T00:00:00Z",
@@ -58,7 +58,7 @@ echo
 
 echo "02. Register CSR on CB pointing to CP1 for Vehicle"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP1_PORT'",
@@ -79,7 +79,7 @@ echo "  prehistoric: attr expiresAt 1968 (pre-1970, earlier) → kept as 1968-01
 echo "               (signed int64 ns: 1968 < 2099; an unsigned compare would"
 echo "                mis-rank 1968 as huge and wrongly shorten it to 2099)"
 echo
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=sysAttrs'
 echo
 echo
 
@@ -149,7 +149,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

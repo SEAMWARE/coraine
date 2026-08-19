@@ -24,9 +24,9 @@ TRoE timescale - temporal pagination Link page pointers (§ 6.4.7.3)
 troe timescale postgres temporal partial-content pagination
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale --troeInstanceCap 5
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeInstanceCap 5
 
 --RUN--
 
@@ -50,14 +50,14 @@ swBrokerStart --troe timescale --troeInstanceCap 5
 
 echo "01. Seed urn:V1 with 8 speed instances at observedAt 09:00..16:00"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":50,"observedAt":"2026-04-28T13:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":70,"observedAt":"2026-04-28T15:00:00Z"}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80,"observedAt":"2026-04-28T16:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":50,"observedAt":"2026-04-28T13:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":70,"observedAt":"2026-04-28T15:00:00Z"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80,"observedAt":"2026-04-28T16:00:00Z"}' >/dev/null
 echo done
 echo
 echo
@@ -65,56 +65,56 @@ echo
 
 echo "02. Single-entity GET (no params) → 200, first 5 ascending, intervalafter offsetN=5"
 echo "===================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1'
 echo
 echo
 
 
 echo "03. Single-entity GET (lastN=3) → 200, last 3 descending, intervalbefore offsetN=3"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3'
 echo
 echo
 
 
 echo "04. GET lastN=3&offsetN=3 → 13:00..11:00 descending, both pointers"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3&offsetN=3'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=3&offsetN=3'
 echo
 echo
 
 
 echo "05. GET firstN=2&offsetN=2 → 11:00+12:00 ascending, both pointers"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&offsetN=2'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&offsetN=2'
 echo
 echo
 
 
 echo "06. Multi-entity GET (no firstN/lastN) → 200, capped at 5, intervalafter"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
 echo
 echo
 
 
 echo "07. firstN=0 → 400"
 echo "=================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=0'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=0'
 echo
 echo
 
 
 echo "08. offsetN=-1 → 400"
 echo "===================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?offsetN=-1'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?offsetN=-1'
 echo
 echo
 
 
 echo "09. firstN=2&lastN=3 → 400 (contradictory directions)"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&lastN=3'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?firstN=2&lastN=3'
 echo
 echo
 
@@ -374,6 +374,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

@@ -16,10 +16,10 @@
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "ktrace/kTrace.h"                            // KT_*
 
-#include "swJsonld/SwldContext.h"                     // SwldContext
-#include "swJsonld/SwldContextCache.h"                // SwldContextCache
-#include "swJsonld/swldCache.h"                       // swldCacheInsert, swldCacheRemove
-#include "swJsonld/swldContextParse.h"                // swldContextFromObject
+#include "corJsonld/CorLdContext.h"                     // CorLdContext
+#include "corJsonld/CorLdContextCache.h"                // CorLdContextCache
+#include "corJsonld/corLdCache.h"                       // corLdCacheInsert, corLdCacheRemove
+#include "corJsonld/corLdContextParse.h"                // corLdContextFromObject
 
 #include "db/DbDriver.h"                              // db, DbContextRow
 #include "db/contextCache.h"                          // Own interface
@@ -28,9 +28,9 @@
 
 // -----------------------------------------------------------------------------
 //
-// swldCacheGet - internal accessor in swJsonld/swldInit.c (cache allocator)
+// corLdCacheGet - internal accessor in corJsonld/corLdInit.c (cache allocator)
 //
-extern SwldContextCache* swldCacheGet(void);
+extern CorLdContextCache* corLdCacheGet(void);
 
 
 
@@ -46,7 +46,7 @@ static bool contextRowToCache(DbContextRow* rowP)
   if ((rowP->id == NULL) || (rowP->body == NULL))
     return false;
 
-  KAlloc* storeP = swldCacheGet()->kaP;
+  KAlloc* storeP = corLdCacheGet()->kaP;
 
   //
   // Parse the body (a stand-alone JSON-LD context document) into a tree and pull
@@ -66,16 +66,16 @@ static bool contextRowToCache(DbContextRow* rowP)
   if ((atContextP == NULL) || (atContextP->type != KjObject))
     return false;
 
-  SwldContext* contextP = swldContextFromObject(atContextP, storeP, rowP->url);
+  CorLdContext* contextP = corLdContextFromObject(atContextP, storeP, rowP->url);
 
   if (contextP == NULL)
     return false;
 
   contextP->id   = kaStrdup(storeP, rowP->id);
   contextP->body = kaStrdup(storeP, rowP->body);
-  contextP->kind = (rowP->kind == DB_CONTEXT_KIND_HOSTED)? SwldKindHosted : SwldKindCached;
+  contextP->kind = (rowP->kind == DB_CONTEXT_KIND_HOSTED)? CorLdKindHosted : CorLdKindCached;
 
-  swldCacheInsert(contextP);
+  corLdCacheInsert(contextP);
 
   return true;
 }
@@ -94,7 +94,7 @@ void contextCacheReload(void)
   DbContextRow* rows  = NULL;
   int           count = 0;
 
-  if (db.contextList(swldCacheGet()->kaP, &rows, &count) != DB_OK)
+  if (db.contextList(corLdCacheGet()->kaP, &rows, &count) != DB_OK)
     return;
 
   for (int ix = 0; ix < count; ix++)
@@ -113,7 +113,7 @@ bool contextCacheItemRefresh(const char* id)
     return false;
 
   DbContextRow row = { NULL, NULL, 0, NULL };
-  int          r   = db.contextGet(id, swldCacheGet()->kaP, &row);
+  int          r   = db.contextGet(id, corLdCacheGet()->kaP, &row);
 
   if (r == DB_NOT_FOUND)
   {
@@ -129,7 +129,7 @@ bool contextCacheItemRefresh(const char* id)
   // both copies in it, and which one a lookup finds is then a matter of list
   // order.
   //
-  swldCacheRemove(id);
+  corLdCacheRemove(id);
 
   return contextRowToCache(&row);
 }
@@ -142,5 +142,5 @@ bool contextCacheItemRefresh(const char* id)
 //
 bool contextCacheItemDrop(const char* id)
 {
-  return (swldCacheRemove(id) != NULL);
+  return (corLdCacheRemove(id) != NULL);
 }

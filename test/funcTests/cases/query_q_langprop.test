@@ -18,45 +18,45 @@ q over a LanguageProperty (L[lang]==value), string and array values, with ?lang
 langProp q query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed string-valued (E1,E2) and array-valued (A1,A2) LanguageProperties"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":"one","es":"uno"}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":"two","es":"dos"}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A1","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":["one"],"es":["uno","ein"]}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A2","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":["two"],"es":["dos","deux"]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":"one","es":"uno"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E2","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":"two","es":"dos"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A1","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":["one"],"es":["uno","ein"]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A2","type":"T","L":{"type":"LanguageProperty","languageMap":{"en":["two"],"es":["dos","deux"]}}}' | head -1
 echo
 echo
 
 
 echo "02. q=L[es]==uno — string E1 + array A1 (es array contains uno)"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22uno%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22uno%22'
 echo
 echo
 
 
 echo "03. q=L[es]==dos — string E2 + array A2"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22'
 echo
 echo
 
 
 echo "04. q=L[es]==nope — no match"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22nope%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22nope%22'
 echo
 echo
 
 
 echo "05. q=L[es]==dos with lang=en — match E2/A2, rendered in English"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22&lang=en'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22&lang=en'
 echo
 echo
 
@@ -190,4 +190,4 @@ Content-Length: 279
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

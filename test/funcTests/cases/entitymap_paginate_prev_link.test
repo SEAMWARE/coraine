@@ -16,8 +16,8 @@ EntityMap pagination - rel=first/prev/next/last (§ 5.5.9.1)
 entity entitymap pagination
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -25,7 +25,7 @@ echo "01. Seed 5 entities"
 echo "==================="
 for i in 1 2 3 4 5; do
   payload="{\"id\":\"urn:V$i\",\"type\":\"Vehicle\",\"speed\":{\"type\":\"Property\",\"value\":$((i*10))}}"
-  swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+  corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 done
 echo done
 echo
@@ -34,7 +34,7 @@ echo
 
 echo "02. Create entityMap covering all 5 entities"
 echo "============================================"
-MAPID=$(swCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle' 2>&1 | python3 -c "
+MAPID=$(corCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle' 2>&1 | python3 -c "
 import sys, json, re
 hdr=''; body=''
 for line in sys.stdin:
@@ -49,7 +49,7 @@ echo
 
 echo "03. Page 2 (offset=2, limit=2 → expect first/prev/next/last)"
 echo "============================================================="
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=2&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=2&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
 import sys, re
 for line in sys.stdin:
   m = re.findall(r'rel=\"([^\"]+)\"', line)
@@ -62,7 +62,7 @@ echo
 
 echo "04. Page 3 / last (offset=4, limit=2 → expect first + prev)"
 echo "============================================================"
-swCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=4&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAPID&offset=4&limit=2" 2>&1 | grep -i "^link:" | python3 -c "
 import sys, re
 for line in sys.stdin:
   m = re.findall(r'rel=\"([^\"]+)\"', line)
@@ -95,5 +95,5 @@ done
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

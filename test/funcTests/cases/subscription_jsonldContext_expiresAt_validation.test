@@ -23,9 +23,9 @@ context
 expiration
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
-swBrokerStart
+corDbDrop
+corDbDrop -db coraine
+coraineStart
 
 --RUN--
 
@@ -42,7 +42,7 @@ swBrokerStart
 
 echo "01. jsonldContext='unknownContext' → 400"
 echo "========================================"
-swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s1","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
@@ -55,7 +55,7 @@ echo
 
 echo "02. jsonldContext='urn:foo:ctx' (URN, not downloadable) → 400"
 echo "============================================================="
-swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s2","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
@@ -68,7 +68,7 @@ echo
 
 echo "03. jsonldContext='https://example.org/ctx.jsonld' → 504"
 echo "========================================================"
-swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s3","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
@@ -81,7 +81,7 @@ echo
 
 echo "04. CSR sub jsonldContext='unknownContext' → 400"
 echo "================================================"
-swCurl --in jsonld --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/csourceSubscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s4","type":"Subscription",
   "entities":[{"type":"Building"}],
   "notification":{"endpoint":{"uri":"http://localhost:1111/n"}},
@@ -94,7 +94,7 @@ echo
 
 echo "05. expiresAt in past at create → 400"
 echo "====================================="
-swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s5","type":"Subscription",
   "expiresAt":"2018-08-01T22:07:00Z",
   "entities":[{"type":"Building"}],
@@ -107,7 +107,7 @@ echo
 
 echo "06. CSR sub expiresAt in past → 400"
 echo "==================================="
-swCurl --in jsonld --url /ngsi-ld/v1/csourceSubscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/csourceSubscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s6","type":"Subscription",
   "expiresAt":"2018-08-01T22:07:00Z",
   "entities":[{"type":"Building"}],
@@ -120,7 +120,7 @@ echo
 
 echo "07. expiresAt in future → 201"
 echo "============================="
-swCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --in jsonld --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:s7","type":"Subscription",
   "expiresAt":"2099-08-01T22:07:00Z",
   "entities":[{"type":"Building"}],
@@ -133,7 +133,7 @@ echo
 
 echo "08. PATCH s7 expiresAt to past — also rejected → 400"
 echo "===================================================="
-swCurl --in jsonld -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s7 --payload '{
+corCurl --in jsonld -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s7 --payload '{
   "expiresAt":"2018-08-01T22:07:00Z",
   "@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]
 }'
@@ -265,5 +265,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -36,104 +36,104 @@ A GeoProperty and another Attribute type cannot share one Attribute name (mongoc
 entity geoproperty conflict validation attrs
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed 'a' as a GeoProperty"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
 echo
 echo
 
 
 echo "02. Every write path then refuses 'a' as a Property - 409, naming the Attribute"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P1", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P1", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }'
 echo
 echo
 
 
 echo "03. ... and the same on create, batch-create, batch-upsert, append, merge, update-attrs, replace"
 echo "==============================================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{ "id": "urn:P2", "type": "OTHER", "a": { "type": "Property", "value": "x" } }]' | head -1
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{ "id": "urn:P3", "type": "OTHER", "a": { "type": "Property", "value": "x" } }]' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:H", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
-swCurl -X POST  --url /ngsi-ld/v1/entities/urn:H/attrs --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:H       --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:H/attrs --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
-swCurl -X PUT   --url /ngsi-ld/v1/entities/urn:H       --payload '{ "id": "urn:H", "type": "T", "a": { "type": "Property", "value": "x" } }' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{ "id": "urn:P2", "type": "OTHER", "a": { "type": "Property", "value": "x" } }]' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{ "id": "urn:P3", "type": "OTHER", "a": { "type": "Property", "value": "x" } }]' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:H", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
+corCurl -X POST  --url /ngsi-ld/v1/entities/urn:H/attrs --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:H       --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:H/attrs --payload '{ "a": { "type": "Property", "value": "x" } }' | head -1
+corCurl -X PUT   --url /ngsi-ld/v1/entities/urn:H       --payload '{ "id": "urn:H", "type": "T", "a": { "type": "Property", "value": "x" } }' | head -1
 echo
 echo
 
 
 echo "04. Nothing was stored by any of them"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities/urn:H
+corCurl --url /ngsi-ld/v1/entities/urn:H
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:P1 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:P1 | head -1
 echo
 echo
 
 
 echo "05. The other order - 'b' as a Property first, then as a GeoProperty (tenant t2)"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B0", "type": "T", "b": { "type": "Property", "value": "indoors" } }' | head -1
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B1", "type": "T", "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B0", "type": "T", "b": { "type": "Property", "value": "indoors" } }' | head -1
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B1", "type": "T", "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
 echo
 echo
 
 
 echo "06. ... on the other write paths too, and the Property survives untouched"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B2", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
-swCurl -X POST  --url /ngsi-ld/v1/entities/urn:B2/attrs -H 'NGSILD-Tenant: t2' --payload '{ "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:B2       -H 'NGSILD-Tenant: t2' --payload '{ "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:B0 -H 'NGSILD-Tenant: t2'
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t2' --payload '{ "id": "urn:B2", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
+corCurl -X POST  --url /ngsi-ld/v1/entities/urn:B2/attrs -H 'NGSILD-Tenant: t2' --payload '{ "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:B2       -H 'NGSILD-Tenant: t2' --payload '{ "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:B0 -H 'NGSILD-Tenant: t2'
 echo
 echo
 
 
 echo "07. The conflict stops at the tenant - 'a' is free again in tenant t3"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t3' --payload '{ "id": "urn:T3", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:T3 -H 'NGSILD-Tenant: t3'
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t3' --payload '{ "id": "urn:T3", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:T3 -H 'NGSILD-Tenant: t3'
 echo
 echo
 
 
 echo "08. A GeoProperty on a name nobody else uses still indexes, and georel=near still works"
 echo "======================================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:N1", "type": "W", "spot": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=W&georel=near%3BmaxDistance==100000&geometry=Point&coordinates=%5B1%2C2%5D&geoproperty=spot'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:N1", "type": "W", "spot": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=W&georel=near%3BmaxDistance==100000&geometry=Point&coordinates=%5B1%2C2%5D&geoproperty=spot'
 echo
 echo
 
 
 echo "09. A geometry S2 refuses is still a 400 about the geometry, not a 409 about the name"
 echo "===================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:BadP", "type": "W", "spot": { "type": "GeoProperty", "value": { "type": "Polygon", "coordinates": [[[0,0],[2,2],[2,0],[0,2],[0,0]]] } } }'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:BadP", "type": "W", "spot": { "type": "GeoProperty", "value": { "type": "Polygon", "coordinates": [[[0,0],[2,2],[2,0],[0,2],[0,0]]] } } }'
 echo
 echo
 
 
 echo "10. Batch upsert of an EXISTING Entity takes the update branch - also 409, not 500"
 echo "================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:U", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:U", "type": "T", "z": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]'
 echo
 echo
 
 
 echo "11. Batch update and batch merge reach it the same way, and a clean sibling still goes in"
 echo "========================================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]' | head -1
-swCurl --url /ngsi-ld/v1/entityOperations/merge  --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]' | head -1
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{ "id": "urn:S1", "type": "T", "z": { "type": "Property", "value": 2 } }, { "id": "urn:S2", "type": "T", "a": { "type": "Property", "value": "x" } }]'
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/merge  --payload '[{ "id": "urn:U", "type": "T", "a": { "type": "Property", "value": "x" } }]' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{ "id": "urn:S1", "type": "T", "z": { "type": "Property", "value": 2 } }, { "id": "urn:S2", "type": "T", "a": { "type": "Property", "value": "x" } }]'
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:S1 | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:S2 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:S1 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:S2 | head -1
 
 
 --EXPECT--
@@ -345,4 +345,4 @@ Content-Length: 426
 HTTP/1.1 200 OK
 HTTP/1.1 404 Not Found
 --TEARDOWN--
-swBrokerStop
+coraineStop

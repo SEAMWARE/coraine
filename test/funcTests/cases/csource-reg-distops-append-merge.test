@@ -12,8 +12,8 @@ DistOps - appendAttrs merges each CSR's UpdateResult (207 fold-in, statusCode + 
 distops error append registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7721
 ftClientStart --port 7722
 
@@ -43,7 +43,7 @@ payload='{
   "operations": ["appendAttrs"],
   "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:CSR:Color",
@@ -53,7 +53,7 @@ payload='{
   "operations": ["appendAttrs"],
   "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -69,34 +69,34 @@ payload='{
     "notUpdated": [ { "attributeName": "speed", "reason": "read-only at source", "registrationId": "urn:CSR:DeepSub", "statusCode": 409 } ]
   }
 }'
-swCurl --port 7721 --url /mock/reply --payload "$payload"
+corCurl --port 7721 --url /mock/reply --payload "$payload"
 echo
 echo
 
 
 echo "03. POST urn:V1/attrs {speed,color} -> 207; speed's 207 merged (keeps urn:CSR:DeepSub), color updated"
 echo "===================================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":9},"color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":9},"color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "04. Reprogram CSR:Speed -> 503; append -> 207, notUpdated.speed has statusCode 503 + urn:CSR:Speed"
 echo "=================================================================================================="
-swCurl --port 7721 -X DELETE --url /mock/reply
-swCurl --port 7721 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":503}'
+corCurl --port 7721 -X DELETE --url /mock/reply
+corCurl --port 7721 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":503}'
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":7},"color":{"type":"Property","value":"blue"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":7},"color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
 
 echo "05. Reprogram CSR:Speed -> 200 with a malformed body; append -> 207, notUpdated.speed statusCode 502"
 echo "==================================================================================================="
-swCurl --port 7721 -X DELETE --url /mock/reply
-swCurl --port 7721 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":200,"raw":"this is not json {"}'
+corCurl --port 7721 -X DELETE --url /mock/reply
+corCurl --port 7721 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":200,"raw":"this is not json {"}'
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":5},"color":{"type":"Property","value":"green"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":5},"color":{"type":"Property","value":"green"}}'
 echo
 echo
 
@@ -220,5 +220,5 @@ Content-Length: 334
 --TEARDOWN--
 ftClientStop --port 7721
 ftClientStop --port 7722
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

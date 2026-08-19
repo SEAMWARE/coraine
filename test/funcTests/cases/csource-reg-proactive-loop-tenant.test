@@ -12,8 +12,8 @@ DistOps - the proactive self-loop skip is tenant-scoped (§ 5.7.5)
 distops registration tenant metrics
 
 --INIT--
-swDbDrop
-swBrokerStart --csourceAlias cb-alias --apiPlugins admin -dist
+corDbDrop
+coraineStart --csourceAlias cb-alias --apiPlugins admin -dist
 
 --RUN--
 
@@ -50,28 +50,28 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "02. Baseline retrieve counter"
 echo "============================="
-swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"
+corCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"
 echo
 echo
 
 
 echo "03. GET urn:V1 on t1 -> the CSR is skipped -> 404"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "04. Counter moved by ONE - no forward back to ourselves"
 echo "======================================================="
-swCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"
+corCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"
 echo
 echo
 
@@ -83,7 +83,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 42 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t2"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "NGSILD-Tenant: t2"
 echo
 echo
 
@@ -99,14 +99,14 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}],"propertyNames":["speed"]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "07. GET urn:V2 on t1 -> same broker, other tenant, NOT a loop -> forwarded, 200"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -193,4 +193,4 @@ Content-Length: 100
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -12,8 +12,8 @@ expandValues and jsonKeys URL parameters
 url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -35,35 +35,35 @@ payload='{
     "vocab": "Building"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entities q=category==Building WITHOUT expandValues - no match"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22Building%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22Building%22'
 echo
 echo
 
 
 echo "03. GET entities q=category==Building WITH expandValues=category - should match"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22Building%22&expandValues=category'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22Building%22&expandValues=category'
 echo
 echo
 
 
 echo "04. GET entities with jsonKeys=category - parameter accepted"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&jsonKeys=category'
+corCurl --url '/ngsi-ld/v1/entities?type=T&jsonKeys=category'
 echo
 echo
 
 
 echo "05. GET entities with expandValues=nonexistent - no effect, normal query"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&expandValues=nonexistent'
+corCurl --url '/ngsi-ld/v1/entities?type=T&expandValues=nonexistent'
 echo
 echo
 
@@ -155,5 +155,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

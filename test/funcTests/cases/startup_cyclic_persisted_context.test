@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 # Ported from orion-ld ngsild_issue_1899_cyclic_context_startup. The persisted
-# context cache (DB "swBroker", collection "contexts") is seeded with two array
+# context cache (DB "coraine", collection "contexts") is seeded with two array
 # @contexts that reference each other (cycle: A -> [B], B -> [A]); the broker must
 # still start (no hang re-resolving the cycle). sw is immune by design:
 # contextCacheReload only rehydrates OBJECT @contexts and skips array @contexts,
@@ -19,12 +19,12 @@ Broker startup does not hang on a cyclic array @context in the persisted cache
 context jsonldcontext
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 
-# Seed the persisted context cache (swBroker.contexts) with the A<->B cycle.
+# Seed the persisted context cache (coraine.contexts) with the A<->B cycle.
 # kind 1 = DB_CONTEXT_KIND_CACHED; body is the raw stand-alone @context document.
-mongosh --port $SW_MONGO_PORT --quiet swBroker <<'MONGOEOF'
+mongosh --port $COR_MONGO_PORT --quiet coraine <<'MONGOEOF'
 db.contexts.insertMany([
   { _id: "http://localhost:7080/jsonldContexts/cycleA",
     url: "http://localhost:7080/jsonldContexts/cycleA", kind: 1,
@@ -35,19 +35,19 @@ db.contexts.insertMany([
 ])
 MONGOEOF
 
-# If startup hung on the cyclic cache, swBrokerStart would time out and the test
+# If startup hung on the cyclic cache, coraineStart would time out and the test
 # would fail here.
-swBrokerStart
+coraineStart
 
 --RUN--
 
 #
-# Reaching the RUN section already proves the broker came up (swBrokerStart blocks
+# Reaching the RUN section already proves the broker came up (coraineStart blocks
 # until the port answers). This GET confirms it actually serves requests.
 #
 echo "01. Broker is up and serving after loading the cyclic persisted contexts"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=Nothing&limit=1'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Nothing&limit=1'
 echo
 echo
 
@@ -66,6 +66,6 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop -db swBroker
-swDbDrop
+coraineStop
+corDbDrop -db coraine
+corDbDrop

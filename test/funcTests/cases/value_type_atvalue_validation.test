@@ -18,15 +18,15 @@ JSON-LD typed value (@type/@value) — validation matrix
 validation datetime format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. @type not a string — error"
 echo "=============================="
 payload='{ "id": "urn:ngsi-ld:E01", "type": "T", "P1": { "type": "Property", "value": { "@type": 1, "@value": "2018-12-04T12:00:00" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -34,7 +34,7 @@ echo
 echo "02. Two @type members — error"
 echo "============================="
 payload='{ "id": "urn:ngsi-ld:E02", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@type": "DateTime", "@value": "2018-12-04T12:00:00" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -42,7 +42,7 @@ echo
 echo "03. Two @value members — error"
 echo "=============================="
 payload='{ "id": "urn:ngsi-ld:E03", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00", "@value": "2018-12-04T12:00:00" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -50,7 +50,7 @@ echo
 echo "04. Extra non-@ member — error"
 echo "=============================="
 payload='{ "id": "urn:ngsi-ld:E04", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "a": 19, "@value": "2018-12-04T12:00:00" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -58,7 +58,7 @@ echo
 echo "05. Extra @X member — error"
 echo "==========================="
 payload='{ "id": "urn:ngsi-ld:E05", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@X": 22, "@value": "2018-12-04T12:00:00" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -66,7 +66,7 @@ echo
 echo "06. Missing @value — error"
 echo "=========================="
 payload='{ "id": "urn:ngsi-ld:E06", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -74,7 +74,7 @@ echo
 echo "07. DateTime @type with non-string @value — error"
 echo "================================================="
 payload='{ "id": "urn:ngsi-ld:E07", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": 12 } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ echo
 echo "08. DateTime @type with non-ISO8601 @value — error"
 echo "=================================================="
 payload='{ "id": "urn:ngsi-ld:E08", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "not-a-date" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -90,7 +90,7 @@ echo
 echo "09. DateTime @type with correct ISO8601 @value — created"
 echo "========================================================"
 payload='{ "id": "urn:ngsi-ld:E09", "type": "T", "P1": { "type": "Property", "value": { "@type": "DateTime", "@value": "2018-12-04T12:00:00" } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -98,21 +98,21 @@ echo
 echo "10. Plain compound value without @value/@type — created"
 echo "======================================================="
 payload='{ "id": "urn:ngsi-ld:E10", "type": "T", "P1": { "type": "Property", "value": { "a": 1, "b": 2 } } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "11. GET E09"
 echo "==========="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E09
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E09
 echo
 echo
 
 
 echo "12. GET E10"
 echo "==========="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E10
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E10
 echo
 echo
 
@@ -311,4 +311,4 @@ Content-Length: 132
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

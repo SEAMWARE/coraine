@@ -8,27 +8,27 @@ Attribute named 'location' — GeoProperty only, selectable via attrs=
 --TAGS--
 query
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 echo "01. 'location' as a non-GeoProperty Property → 400"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L:0","type":"T","location":{"type":"Property","value":"deskA"}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L:0","type":"T","location":{"type":"Property","value":"deskA"}}' | grep HTTP
 echo
 echo
 echo "02. Create with location (GeoProperty) + other"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L:1","type":"T","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}},"other":{"type":"Property","value":9}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L:1","type":"T","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}},"other":{"type":"Property","value":9}}' | grep HTTP
 echo
 echo
 echo "03. GET ?attrs=location → only location"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:L:1?attrs=location' | grep -oE '"location"|"other"'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:L:1?attrs=location' | grep -oE '"location"|"other"'
 echo
 echo
 echo "04. GET ?attrs=other → only other"
 echo "================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:L:1?attrs=other' | grep -oE '"location"|"other"'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:L:1?attrs=other' | grep -oE '"location"|"other"'
 echo
 echo
 --EXPECT--
@@ -53,4 +53,4 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

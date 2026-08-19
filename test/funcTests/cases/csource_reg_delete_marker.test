@@ -12,8 +12,8 @@ Update Registration - urn:ngsi-ld:null delete-marker (TS 104-175 clause-8 / § 5
 registration update delete
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -42,14 +42,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve - expiresAt + description present"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
 echo
 echo
 
@@ -59,14 +59,14 @@ echo "=========================================="
 payload='{
   "expiresAt": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
 echo
 echo
 
 
 echo "04. Retrieve - expiresAt gone, description kept"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1
 echo
 echo
 
@@ -76,7 +76,7 @@ echo "==========================================="
 payload='{
   "description": null
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
 echo
 echo
 
@@ -86,7 +86,7 @@ echo "==================================================="
 payload='{
   "endpoint": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
 echo
 echo
 
@@ -96,7 +96,7 @@ echo "====================================================="
 payload='{
   "information": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:DM1 --payload "$payload"
 echo
 echo
 
@@ -114,7 +114,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -256,4 +256,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

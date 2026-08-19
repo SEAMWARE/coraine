@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities/{id} - pick and omit params
 entity retrieve
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -43,35 +43,35 @@ payload='{
     "value": 25
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity with pick=speed - only speed returned"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=speed'
+corCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=speed'
 echo
 echo
 
 
 echo "03. GET entity with omit=speed - color + temperature returned"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?omit=speed'
+corCurl --url '/ngsi-ld/v1/entities/urn:po:E1?omit=speed'
 echo
 echo
 
 
 echo "04. GET entity with pick=speed,color and omit=speed - only color returned"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=speed,color&omit=speed'
+corCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=speed,color&omit=speed'
 echo
 echo
 
 
 echo "05. GET entity with pick=nonexistent - no user attrs returned"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=nonexistent'
+corCurl --url '/ngsi-ld/v1/entities/urn:po:E1?pick=nonexistent'
 echo
 echo
 
@@ -160,5 +160,5 @@ Content-Length: 186
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -17,15 +17,15 @@ TRoE timescale - temporal GET rejects ?q= (§ 6.19.3.1)
 troe timescale postgres temporal q url-param
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed urn:V1"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' >/dev/null
 echo done
 echo
 echo
@@ -33,7 +33,7 @@ echo
 
 echo "02. q=speed>5 → 400 (q not allowed on single-entity temporal retrieve)"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed>5' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?q=speed>5' | head -1
 echo
 echo
 
@@ -50,6 +50,6 @@ HTTP/1.1 400 Bad Request
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

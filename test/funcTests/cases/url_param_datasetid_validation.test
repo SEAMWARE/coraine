@@ -10,31 +10,31 @@ datasetId URL param must be a URI — non-URI rejected (400) on query and retrie
 --TAGS--
 entity query datasetid error
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 
 echo "01. Query, datasetId=14 (not a URI) -> 400"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&datasetId=14'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&datasetId=14'
 echo
 echo
 
 echo "02. Query, datasetId=urn:a,14 (list, one not a URI) -> 400"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&datasetId=urn:a,14'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&datasetId=urn:a,14'
 echo
 echo
 
 echo "03. Retrieve by id, datasetId=14 -> 400 (validated before lookup)"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:E1' --urlParams 'datasetId=14'
+corCurl --url '/ngsi-ld/v1/entities/urn:E1' --urlParams 'datasetId=14'
 echo
 echo
 
 echo "04. Query, valid URI datasetId -> 200 (no match)"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&datasetId=urn:ngsi-ld:ds:1'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&datasetId=urn:ngsi-ld:ds:1'
 echo
 echo
 
@@ -100,5 +100,5 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

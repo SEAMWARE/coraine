@@ -12,8 +12,8 @@ PATCH /attrs with a Relationship missing 'object' errors cleanly
 error attr patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ payload='{
     "object": "http://a.b.c/hola"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
@@ -46,14 +46,14 @@ payload='{
     "value": "http://a.b.c/errIsGoodSometimes"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs -X PATCH --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001/attrs -X PATCH --payload "$payload"
 echo
 echo
 
 
 echo "03. GET the entity — broker alive, R1 unchanged"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:001
 echo
 echo
 
@@ -105,4 +105,4 @@ Content-Length: 124
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

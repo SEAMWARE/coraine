@@ -12,8 +12,8 @@ GET entity with multi-attribute returns array with datasetId
 entity multi-attr retrieve
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,14 +39,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity E1 - both instances returned"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
@@ -89,5 +89,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -7,7 +7,7 @@
 #
 # REQUIRE_DB: mongoc
 #
-# Lazy-reload from the persisted "swBroker" DB on cache miss.
+# Lazy-reload from the persisted "coraine" DB on cache miss.
 #
 # Inserting a row directly into mongo bypasses the broker entirely. A
 # subsequent GET /jsonldContexts/{id} must hit the cache, miss, fall
@@ -22,9 +22,9 @@ GET / DELETE /jsonldContexts after LRU eviction (lazy reload)
 context
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
-swBrokerStart
+corDbDrop
+corDbDrop -db coraine
+coraineStart
 
 # Insert two Hosted contexts directly — broker is unaware of them until
 # a request triggers a cache miss + DB fallback. Use a heredoc'd JS file
@@ -35,8 +35,8 @@ db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-1", kind: 2,
 db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-2", kind: 2,
                        body: '{"@context":{"world":"https://example.org/world"}}'});
 JSEOF
-mongosh --port $SW_MONGO_PORT --quiet swBroker /tmp/lazyReloadInsert.js
-mongosh --port $SW_MONGO_PORT --quiet --eval 'print("inserted: " + db.contexts.countDocuments())' swBroker
+mongosh --port $COR_MONGO_PORT --quiet coraine /tmp/lazyReloadInsert.js
+mongosh --port $COR_MONGO_PORT --quiet --eval 'print("inserted: " + db.contexts.countDocuments())' coraine
 
 --RUN--
 
@@ -49,28 +49,28 @@ mongosh --port $SW_MONGO_PORT --quiet --eval 'print("inserted: " + db.contexts.c
 
 echo "01. GET never-cached id — lazy reload"
 echo "====================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:lazy-1"
+corCurl --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:lazy-1"
 echo
 echo
 
 
 echo "02. List Hosted — lazy-1 is now warmed"
 echo "======================================"
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
 echo
 echo
 
 
 echo "03. DELETE never-cached id (cold cache)"
 echo "======================================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:lazy-2"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:lazy-2"
 echo
 echo
 
 
 echo "04. List Hosted — only lazy-1 remains"
 echo "====================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
+corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Hosted"
 echo
 echo
 
@@ -128,6 +128,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop -db swBroker
-swDbDrop
+coraineStop
+corDbDrop -db coraine
+corDbDrop

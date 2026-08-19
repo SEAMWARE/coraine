@@ -28,39 +28,39 @@ A GeoProperty may share an Attribute name with another type on ramdb (§ 5.2.6.6
 entity geoproperty conflict validation attrs
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. 'a' as a GeoProperty, then 'a' as a Property on another Entity - both stored"
 echo "================================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:P
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P", "type": "OTHER", "a": { "type": "Property", "value": "indoors" } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:P
 echo
 echo
 
 
 echo "02. ... and the other order too"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P2", "type": "OTHER", "b": { "type": "Property", "value": "indoors" } }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G2", "type": "T", "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:G2
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:P2", "type": "OTHER", "b": { "type": "Property", "value": "indoors" } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G2", "type": "T", "b": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:G2
 echo
 echo
 
 
 echo "03. GET /attributes/a reports the union, which is what § 5.2.6.6 is for"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/attributes/a
+corCurl --url /ngsi-ld/v1/attributes/a
 echo
 echo
 
 
 echo "04. ... and georel=near still finds the geometry, ignoring the non-geo namesake"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&georel=near%3BmaxDistance==100000&geometry=Point&coordinates=%5B1%2C2%5D&geoproperty=a'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&georel=near%3BmaxDistance==100000&geometry=Point&coordinates=%5B1%2C2%5D&geoproperty=a'
 
 
 --EXPECT--
@@ -164,4 +164,4 @@ Content-Length: 226
 ]
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

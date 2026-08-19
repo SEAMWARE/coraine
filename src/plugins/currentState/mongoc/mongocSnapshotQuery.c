@@ -13,7 +13,7 @@
 #include "ktrace/kTrace.h"                           // KT_E
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
@@ -34,12 +34,12 @@ int mongocSnapshotQuery(Tenant* tenantP, KjNode** arrayPP)
 
   mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, NULL, NULL);
 
-  KjNode* resultArray = kjArray(swRest.kjsonP, NULL);
+  KjNode* resultArray = kjArray(corRest.kjsonP, NULL);
 
   const bson_t* doc;
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    KjNode* snapP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    KjNode* snapP = mongocBsonToKjTree(&corRest.kalloc, doc);
     if (snapP != NULL)
     {
       mongocInjectTypeAfterId(snapP, "Snapshot");

@@ -13,10 +13,10 @@ Per-tenant geo-query persistence across broker restart
 geo tenant
 
 --INIT--
-swDbDrop
-swDbDrop -tenant t1
-swDbDrop -tenant t2
-swBrokerStart
+corDbDrop
+corDbDrop -tenant t1
+corDbDrop -tenant t2
+coraineStart
 
 --RUN--
 
@@ -41,7 +41,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t1'
 echo
 echo
 
@@ -59,29 +59,29 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H 'NGSILD-Tenant: t2'
 echo
 echo
 
 
 echo "03. Restart broker"
 echo "=================="
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo
 echo
 
 
 echo "04. GET near Madrid on t1 - should still get E1 (index re-created)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[-3.703,40.417\]' -H 'NGSILD-Tenant: t1'
 echo
 echo
 
 
 echo "05. GET near Paris on t2 - should still get E2 (index re-created)"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
+corCurl --url '/ngsi-ld/v1/entities?type=City&georel=near%3BmaxDistance%3D%3D50000&geometry=Point&coordinates=\[2.349,48.864\]' -H 'NGSILD-Tenant: t2'
 echo
 echo
 
@@ -172,7 +172,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swDbDrop -tenant t1
-swDbDrop -tenant t2
+coraineStop
+corDbDrop
+corDbDrop -tenant t1
+corDbDrop -tenant t2

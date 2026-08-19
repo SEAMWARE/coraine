@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 //
 // JSON-LD context persistence (NGSI-LD § 5.13). Backed by a fixed
-// "swBroker" database (collection "contexts"), independent of any tenant.
+// "coraine" database (collection "contexts"), independent of any tenant.
 //
 
 #include "kalloc/KAlloc.h"                            // KAlloc

@@ -20,8 +20,8 @@
 context
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -41,21 +41,21 @@ payload='{
   "reading": {"type": "Property", "value": 42},
   "ex:speed": {"type": "Property", "value": 99}
 }'
-swCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload "$payload"
 echo
 echo
 
 
 echo "02. GET with NO @context — type and both attrs render as the expanded IRIs"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:S:1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:S:1
 echo
 echo
 
 
 echo "03. Query by the EXPANDED type IRI (no @context) — finds S:1"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=https%3A%2F%2Fexample.org%2Fns%23Sensor' | grep -oE '"id": "urn:ngsi-ld:S:1"'
+corCurl --url '/ngsi-ld/v1/entities?type=https%3A%2F%2Fexample.org%2Fns%23Sensor' | grep -oE '"id": "urn:ngsi-ld:S:1"'
 echo
 echo
 
@@ -100,4 +100,4 @@ Content-Length: 237
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

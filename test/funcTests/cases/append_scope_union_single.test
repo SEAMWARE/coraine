@@ -18,49 +18,49 @@ Scope union collapsing to a single value renders as a String (§ 5.2.5)
 scope append noOverwrite
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create entity with a single string scope '/x'"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:S1","type":"T","scope":"/x","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:S1","type":"T","scope":"/x","a":{"type":"Property","value":1}}' | head -1
 echo
 echo
 
 
 echo "02. Append (noOverwrite) with scope '/x' — union collapses to one value"
 echo "======================================================================="
-swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S1/attrs?options=noOverwrite' --payload '{"scope":"/x","b":{"type":"Property","value":2}}' | head -1
+corCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S1/attrs?options=noOverwrite' --payload '{"scope":"/x","b":{"type":"Property","value":2}}' | head -1
 echo
 echo
 
 
 echo "03. GET urn:ngsi-ld:S1 — scope is a bare String '/x'"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S1' --urlParams 'options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S1' --urlParams 'options=keyValues'
 echo
 echo
 
 
 echo "04. Create entity with scope '/x' for the two-scope control"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:S2","type":"T","scope":"/x","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:S2","type":"T","scope":"/x","a":{"type":"Property","value":1}}' | head -1
 echo
 echo
 
 
 echo "05. Append (noOverwrite) with scope '/y' — union keeps two values"
 echo "================================================================="
-swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S2/attrs?options=noOverwrite' --payload '{"scope":"/y","b":{"type":"Property","value":2}}' | head -1
+corCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S2/attrs?options=noOverwrite' --payload '{"scope":"/y","b":{"type":"Property","value":2}}' | head -1
 echo
 echo
 
 
 echo "06. GET urn:ngsi-ld:S2 — scope is an Array ['/x','/y']"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S2' --urlParams 'options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:S2' --urlParams 'options=keyValues'
 echo
 echo
 
@@ -126,5 +126,5 @@ Content-Length: 101
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

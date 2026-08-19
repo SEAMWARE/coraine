@@ -26,23 +26,23 @@ Snapshot read — orderBy / q / pick / pagination (§ 5.16, Phase #139)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed five Vehicles with varying speeds"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle","speed":{"type":"Property","value":15}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V4","type":"Vehicle","speed":{"type":"Property","value":63}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V4","type":"Vehicle","speed":{"type":"Property","value":63}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V5","type":"Vehicle","speed":{"type":"Property","value":25}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V5","type":"Vehicle","speed":{"type":"Property","value":25}}'
 echo
 echo
 
@@ -50,49 +50,49 @@ echo
 echo "02. Create snapshot capturing all Vehicles"
 echo "=========================================="
 payload='{"id":"urn:ngsi-ld:Snapshot:Frozen","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "03. Mutate live V1 (speed → 999) — must not affect snapshot reads"
 echo "================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
 echo
 echo
 
 
 echo "04. Snapshot read, orderBy=speed (ascending)"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "05. Snapshot read, orderBy=speed;desc (descending)"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed%3Bdesc' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed%3Bdesc' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "06. Snapshot read, q=speed>50"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E50' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E50' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "07. Snapshot read, pick=speed (no id/type filter projection)"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
 
 echo "08. Snapshot read, paginated: limit=2 offset=1, sorted by speed"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=1' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=2&offset=1' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 echo
 echo
 
@@ -368,6 +368,6 @@ Content-Length: 269
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

@@ -30,9 +30,9 @@ TRoE timescale - aggrPeriodDuration forms (PnW, invalid, zero)
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -47,61 +47,61 @@ payload='{
     {"type":"Property","value":30,"observedAt":"2026-04-15T00:00:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 echo "01. CONTROL P7D - expect three weekly buckets (10, 20, 30)"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P7D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P7D'
 echo
 echo
 
 echo "02. P1W - spec-legal alternative form, must equal P7D"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1W'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1W'
 echo
 echo
 
 echo "03. P1M over 3 weeks - ONE bucket: next month boundary is past endTimeAt"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P1M'
 echo
 echo
 
 echo "04. INVALID duration 'banana' - should not be silently accepted"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=banana'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=banana'
 echo
 echo
 
 echo "05. INVALID duration '1D' - no P designator"
 echo "==========================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=1D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=1D'
 echo
 echo
 
 echo "06. CONTROL PT0S - whole window, one bucket avg 20"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT0S'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=PT0S'
 echo
 echo
 
 echo "07. P0D - zero duration, other spelling: whole window"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0D'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0D'
 echo
 echo
 
 echo "08. P0M - zero MONTHS is still a zero duration: whole window, not 400"
 echo "====================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0M'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0M'
 echo
 echo
 
 echo "09. P0Y - same for zero YEARS"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0Y'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-01T00:00:00Z&endTimeAt=2026-04-22T00:00:00Z&format=aggregatedValues&aggrMethods=avg&aggrPeriodDuration=P0Y'
 echo
 echo
 
@@ -344,4 +344,4 @@ Content-Length: 194
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

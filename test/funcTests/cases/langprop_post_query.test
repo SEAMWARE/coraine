@@ -17,8 +17,8 @@ POST query returns LanguageProperty; body lang filter reduces + falls back
 langProp query batch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -29,7 +29,7 @@ payload='{
   "type": "T",
   "L": { "type":"LanguageProperty", "languageMap": { "en":"English", "es":"Spanish" } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
@@ -37,7 +37,7 @@ echo
 echo "02. POST query (normalized) — full languageMap"
 echo "=============================================="
 payload='{ "type": "Query", "entities": [{"type":"T"}] }'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
 echo
 echo
 
@@ -45,7 +45,7 @@ echo
 echo "03. POST query with body lang=es — reduced to the es value"
 echo "=========================================================="
 payload='{ "type": "Query", "entities": [{"type":"T"}], "lang": "es" }'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
 echo
 echo
 
@@ -53,7 +53,7 @@ echo
 echo "04. POST query with body lang=ex (absent) — falls back to en"
 echo "============================================================"
 payload='{ "type": "Query", "entities": [{"type":"T"}], "lang": "ex" }'
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
 echo
 echo
 
@@ -133,4 +133,4 @@ Content-Length: 147
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -12,8 +12,8 @@ DistOps - single-entity write status per § 6.3.5 (504/502/409 single source, 20
 distops error registration patch delete
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7716 --status 200 --delay 2000
 ftClientStart --port 7717 --status 500
 ftClientStart --port 7718 --status 204
@@ -48,21 +48,21 @@ payload='{
   "operations": ["mergeEntity", "deleteEntity"],
   "information": [ { "entities": [ { "id": "urn:W1", "type": "T" } ], "propertyNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. PATCH urn:W1 -> single source times out -> 504 Gateway Timeout"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:W1 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+corCurl --url /ngsi-ld/v1/entities/urn:W1 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
 echo
 echo
 
 
 echo "03. DELETE urn:W1 -> single source times out -> 504 Gateway Timeout"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:W1 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:W1 -X DELETE
 echo
 echo
 
@@ -77,14 +77,14 @@ payload='{
   "operations": ["mergeEntity"],
   "information": [ { "entities": [ { "id": "urn:W2", "type": "T" } ], "propertyNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "05. PATCH urn:W2 -> single source fails (500) -> 502 Bad Gateway"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:W2 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+corCurl --url /ngsi-ld/v1/entities/urn:W2 -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
 echo
 echo
 
@@ -100,14 +100,14 @@ payload='{
   "operations": ["replaceAttr"],
   "information": [ { "entities": [ { "id": "urn:W3", "type": "T" } ], "propertyNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "07. PUT urn:W3/attrs/speed -> single source conn refused -> 502 Bad Gateway"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:W3/attrs/speed -X PUT --payload '{"type":"Property","value":9}'
+corCurl --url /ngsi-ld/v1/entities/urn:W3/attrs/speed -X PUT --payload '{"type":"Property","value":9}'
 echo
 echo
 
@@ -122,14 +122,14 @@ payload='{
   "operations": ["retrieveEntity"],
   "information": [ { "entities": [ { "id": "urn:NU", "type": "T" } ], "propertyNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "09. PATCH urn:NU -> single source refuses the op -> 409 Conflict"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:NU -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+corCurl --url /ngsi-ld/v1/entities/urn:NU -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
 echo
 echo
 
@@ -145,7 +145,7 @@ payload='{
   "operations": ["mergeEntity", "deleteEntity"],
   "information": [ { "entities": [ { "id": "urn:X", "type": "T" } ], "propertyNames": ["p"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:CSR:X2",
@@ -156,21 +156,21 @@ payload='{
   "operations": ["mergeEntity", "deleteEntity"],
   "information": [ { "entities": [ { "id": "urn:X", "type": "T" } ], "propertyNames": ["q"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "11. PATCH urn:X p+q -> distributed over two sources, all fail -> 207"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:X -X PATCH --payload '{"p":{"type":"Property","value":1},"q":{"type":"Property","value":2}}'
+corCurl --url /ngsi-ld/v1/entities/urn:X -X PATCH --payload '{"p":{"type":"Property","value":1},"q":{"type":"Property","value":2}}'
 echo
 echo
 
 
 echo "12. DELETE urn:X -> distributed over two sources, all fail -> 207"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:X -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:X -X DELETE
 echo
 echo
 
@@ -185,14 +185,14 @@ payload='{
   "operations": ["mergeEntity"],
   "information": [ { "entities": [ { "id": "urn:LV", "type": "T" } ], "propertyNames": ["speed"] } ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "14. PATCH urn:LV -> single source succeeds -> 204 No Content"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:LV -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
+corCurl --url /ngsi-ld/v1/entities/urn:LV -X PATCH --payload '{"speed":{"type":"Property","value":9}}'
 echo
 echo
 
@@ -472,5 +472,5 @@ Date: REGEX(.*)
 ftClientStop --port 7716
 ftClientStop --port 7717
 ftClientStop --port 7718
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

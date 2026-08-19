@@ -12,8 +12,8 @@ Create entity and retrieve it
 create entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,21 +39,21 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve the entity by ID"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:A001
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:A001
 echo
 echo
 
 
 echo "03. Query all entities of type Vehicle"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
@@ -64,14 +64,14 @@ payload='{
   "id": "urn:ngsi-ld:Vehicle:A001",
   "type": "Vehicle"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "05. Retrieve non-existing entity - 404 Not Found"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:doesnt:exist
+corCurl --url /ngsi-ld/v1/entities/urn:doesnt:exist
 echo
 echo
 
@@ -168,5 +168,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

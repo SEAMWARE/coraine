@@ -18,8 +18,8 @@ Notification renders sub-attributes (every type) + array value / array object
 subscription notification sub-attributes
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 ftClientStart
 
 --RUN--
@@ -32,7 +32,7 @@ payload='{
   "entities": [{"type":"T"}],
   "notification": { "format":"normalized", "endpoint": {"uri":"http://localhost:7701/notify","accept":"application/json"} }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
 echo
 echo
 
@@ -58,7 +58,7 @@ payload='{
     "rp_string": { "type":"Property", "value": "RP" }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
@@ -154,6 +154,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop
 ftClientStop

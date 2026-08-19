@@ -8,7 +8,7 @@
 
 #include <string.h>                                    // memset
 
-#include "swNgsild/LdSubCache.h"                       // LdSubCacheItem
+#include "corNgsild/LdSubCache.h"                       // LdSubCacheItem
 #include "db/DbDriver.h"                               // DbDriver
 #include "db/DbQueryFilter.h"                          // DbQueryFilter
 #include "shared/geoMatch.h"                           // geoMatch, geoMatchInit

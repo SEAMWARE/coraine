@@ -12,8 +12,8 @@ PATCH /entities/{id} - Merge Entity (§ 5.6.17)
 entity patch
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     "value": "blue"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -63,14 +63,14 @@ payload='{
   },
   "color": "urn:ngsi-ld:null"
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
 
 echo "03. GET merged entity"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -86,28 +86,28 @@ payload='{
     }
   }
 }'
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
 
 echo "05. GET with union type and nested sub-attribute"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
 
 echo "06. PATCH non-existent entity - 404"
 echo "==================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:DOES_NOT_EXIST --payload '{"speed":{"type":"Property","value":1}}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:DOES_NOT_EXIST --payload '{"speed":{"type":"Property","value":1}}'
 echo
 echo
 
 
 echo "07. PATCH without payload - 400"
 echo "==============================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -218,5 +218,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

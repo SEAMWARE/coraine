@@ -31,13 +31,13 @@
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
 
-#include "swNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_CREATED_AT
-#include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
+#include "corNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_CREATED_AT
+#include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"      // mongocEscapeDotsInKey
-#include "swNgsild/SwNgsild.h"                          // swNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityMerge.h"    // Own interface
 
@@ -211,7 +211,7 @@ int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
     if (geoClashP != NULL)
     {
       KT_E("mongoc: entityChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
-      swNgsild.geoConflictAttr = geoClashP;
+      corNgsild.geoConflictAttr = geoClashP;
       result = DB_GEO_TYPE_CONFLICT;
     }
     else if (!mongoc_collection_update_one(collP, &filter, &update, NULL, NULL, &err))
@@ -226,7 +226,7 @@ int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
         if (mixedP != NULL)
         {
           KT_E("mongoc: entityChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
-          swNgsild.geoConflictAttr = mixedP;
+          corNgsild.geoConflictAttr = mixedP;
           result = DB_GEO_TYPE_CONFLICT;
         }
         else

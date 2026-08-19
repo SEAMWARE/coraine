@@ -27,44 +27,44 @@ TRoE timescale - an Entity may carry several types
 troe timescale postgres temporal type validation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Temporal create with an array type → 201"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:A1","type":["Vehicle","Car"],"speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:A1","type":["Vehicle","Car"],"speed":[{"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
 echo
 echo
 
 
 echo "02. Both types are stored, in the order given"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A4 '"type": \['
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A4 '"type": \['
 echo
 echo
 
 
 echo "03. Append attributes carrying a NEW type → § 11.2.3.4 adds it"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1/attrs' --payload '{"type":"Truck","color":[{"type":"Property","value":"red","observedAt":"2026-02-01T00:00:00Z"}]}'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1/attrs' --payload '{"type":"Truck","color":[{"type":"Property","value":"red","observedAt":"2026-02-01T00:00:00Z"}]}'
 echo
 echo
 
 
 echo "04. The type list grew to Vehicle, Car, Truck"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A5 '"type": \['
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A5 '"type": \['
 echo
 echo
 
 
 echo "05. Appending an EXISTING type is a no-op — no duplicate"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1/attrs' --payload '{"type":"Vehicle","weight":[{"type":"Property","value":5,"observedAt":"2026-03-01T00:00:00Z"}]}' | head -1
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A5 '"type": \['
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1/attrs' --payload '{"type":"Vehicle","weight":[{"type":"Property","value":5,"observedAt":"2026-03-01T00:00:00Z"}]}' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:A1' | grep -A5 '"type": \['
 echo
 echo
 
@@ -73,45 +73,45 @@ echo "06. A multi-type Entity created via the Core API keeps its types in TRoE"
 echo "========================================================================"
 # This used to come back as "type": "" — the service routine only reads a
 # string type, so the array left the TRoE event with no type at all.
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:M1","type":["Building","House"],"height":{"type":"Property","value":3}}' | head -1
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:M1' | grep -A4 '"type": \['
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:M1","type":["Building","House"],"height":{"type":"Property","value":3}}' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:M1' | grep -A4 '"type": \['
 echo
 echo
 
 
 echo "07. The type filter matches on a NON-first type"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Truck&timerel=after&timeAt=2020-01-01T00:00:00Z' | grep -E '"id"'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Truck&timerel=after&timeAt=2020-01-01T00:00:00Z' | grep -E '"id"'
 echo
 echo
 
 
 echo "08. A single type still renders as a plain string"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:S1","type":"Vehicle","speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1' | grep -E '^  "type"'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:S1","type":"Vehicle","speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1' | grep -E '^  "type"'
 echo
 echo
 
 
 echo "09. An empty type array is still a missing type → 400"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:E1","type":[],"speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:E1","type":[],"speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}'
 echo
 echo
 
 
 echo "10. A non-string entry in the type array → 400"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:E2","type":["Vehicle",42],"speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:E2","type":["Vehicle",42],"speed":[{"type":"Property","value":1,"observedAt":"2026-01-01T00:00:00Z"}]}'
 echo
 echo
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop
 
 --EXPECT--
 01. Temporal create with an array type → 201

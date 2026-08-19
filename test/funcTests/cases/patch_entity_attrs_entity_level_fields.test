@@ -8,8 +8,8 @@
 --NAME--
 PATCH /entities/{id}/attrs - id/type/scope/timestamps in body (§ 5.6.2.4, § 5.2.2)
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --TAGS--
 entity patch
@@ -28,7 +28,7 @@ entity patch
 
 echo "01. Create V1 with type=Vehicle, scope=/s1, speed=50"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V1","type":"Vehicle","scope":"/s1","speed":{"type":"Property","value":50}}'
 echo
 echo
@@ -36,7 +36,7 @@ echo
 
 echo "02. Create V2 with type=Drone, speed=10 (NO scope — to test ignore-if-missing)"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V2","type":"Drone","speed":{"type":"Property","value":10}}'
 echo
 echo
@@ -44,7 +44,7 @@ echo
 
 echo "03. PATCH /attrs on V1 with id in body → 400 BadRequestData"
 echo "==========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"id":"urn:V1","foo":{"type":"Property","value":1}}'
 echo
 echo
@@ -52,7 +52,7 @@ echo
 
 echo "04. PATCH /attrs on V1 adding new type=Car → unioned"
 echo "===================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"type":"Car","foo":{"type":"Property","value":1}}'
 echo
 echo
@@ -60,7 +60,7 @@ echo
 
 echo "05. PATCH /attrs on V1 with scope=/s2 (target has scope → replace)"
 echo "=================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"scope":"/s2","bar":{"type":"Property","value":2}}'
 echo
 echo
@@ -68,7 +68,7 @@ echo
 
 echo "06. PATCH /attrs on V2 with scope=/x (target has no scope → ignore)"
 echo "==================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V2/attrs \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V2/attrs \
   --payload '{"scope":"/x","alt":{"type":"Property","value":200}}'
 echo
 echo
@@ -76,7 +76,7 @@ echo
 
 echo "07. PATCH /attrs on V1 with createdAt/modifiedAt → ignored (204)"
 echo "================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs \
   --payload '{"createdAt":"2000-01-01T00:00:00Z","modifiedAt":"2000-01-01T00:00:00Z","baz":{"type":"Property","value":3}}'
 echo
 echo
@@ -84,14 +84,14 @@ echo
 
 echo "08. GET V1 — type=[Vehicle,Car], scope=/s2, foo/bar/baz present"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "09. GET V2 — no scope (fragment's scope was ignored), alt=200"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2
+corCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -229,5 +229,5 @@ Content-Length: 155
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

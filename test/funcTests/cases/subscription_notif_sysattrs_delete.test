@@ -16,29 +16,29 @@ notification.sysAttrs on delete — createdAt/modifiedAt/deletedAt
 delete subscription sysattrs
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Seed V1"
 echo "==========="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "02. Sub S1 entityDeleted + sysAttrs=true"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["entityDeleted"],"notification":{"sysAttrs":true,"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notificationTrigger":["entityDeleted"],"notification":{"sysAttrs":true,"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
 echo
 echo
 
 
 echo "03. DELETE V1"
 echo "============="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -112,6 +112,6 @@ Date: REGEX(.*)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

@@ -5,7 +5,7 @@
 //
 // Copyright 2026 Seamware
 //
-// Prometheus metrics for swBroker — see metrics.h.
+// Prometheus metrics for coraine — see metrics.h.
 //
 #include <stdbool.h>                               // bool
 #include <stddef.h>                                // NULL
@@ -16,12 +16,12 @@
 #include "kjson/KjNode.h"                          // KjNode, KjArray
 #include "kprom/kprom.h"                           // kprom*
 
-#include "swRest/SwRestState.h"                    // swRest
-#include "swNgsild/LdOp.h"                         // LdOp*
-#include "swNgsild/LdSubCache.h"                   // LdSubCache, LdSubCacheItem
-#include "swNgsild/LdRegCache.h"                   // LdRegCache, LdRegCacheItem
-#include "swNgsild/LdPernotCache.h"                // LdPernotCache, LdPernotItem
-#include "swNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
+#include "corRest/CorRestState.h"                    // corRest
+#include "corNgsild/LdOp.h"                         // LdOp*
+#include "corNgsild/LdSubCache.h"                   // LdSubCache, LdSubCacheItem
+#include "corNgsild/LdRegCache.h"                   // LdRegCache, LdRegCacheItem
+#include "corNgsild/LdPernotCache.h"                // LdPernotCache, LdPernotItem
+#include "corNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
 
 #include "db/Tenant.h"                             // tenant0, tenantList
 
@@ -270,10 +270,10 @@ static void tenantCounts(void)
 //
 bool metricsPreService(void)
 {
-  if (swRest.serviceP == NULL)
+  if (corRest.serviceP == NULL)
     return true;
 
-  uint64_t op = swRest.serviceP->ldOp;
+  uint64_t op = corRest.serviceP->ldOp;
   if (op == 0)
     return true;
 
@@ -284,11 +284,11 @@ bool metricsPreService(void)
   // For batch ops, observe the array length so we can size payloads
   // in dashboards.
   if ((op & LD_OPS_BATCH_MASK) != 0 &&
-      swRest.in.requestTree != NULL &&
-      swRest.in.requestTree->type == KjArray)
+      corRest.in.requestTree != NULL &&
+      corRest.in.requestTree->type == KjArray)
   {
     int n = 0;
-    for (KjNode* c = swRest.in.requestTree->value.firstChildP; c != NULL; c = c->next)
+    for (KjNode* c = corRest.in.requestTree->value.firstChildP; c != NULL; c = c->next)
       n++;
     kpromHistogramObserve(batchItemCount, (double) n);
   }
@@ -304,22 +304,22 @@ bool metricsPreService(void)
 //
 void metricsPostResponse(void)
 {
-  int sc = swRest.out.httpStatusCode;
+  int sc = corRest.out.httpStatusCode;
   if (sc >= 500 && sc < 600)
     kpromCounterInc(errors5xx);
   else if (sc >= 400 && sc < 500)
     kpromCounterInc(errors4xx);
 
   // End-to-end request latency. requestStartTimeMono is CLOCK_MONOTONIC
-  // nanoseconds (set by swRest on request entry — the SwRestState.h
-  // comment that says "microseconds" is wrong; see swRestInit.c:384).
+  // nanoseconds (set by corRest on request entry — the CorRestState.h
+  // comment that says "microseconds" is wrong; see corRestInit.c:384).
   // Guard the "never observed" case where the start time is 0.
-  if (swRest.requestStartTimeMono != 0)
+  if (corRest.requestStartTimeMono != 0)
   {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     uint64_t nowNs   = (uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec;
-    double   latency = (double) (nowNs - swRest.requestStartTimeMono) / 1e9;
+    double   latency = (double) (nowNs - corRest.requestStartTimeMono) / 1e9;
     kpromHistogramObserve(requestLatency, latency);
   }
 }
@@ -373,24 +373,24 @@ bool metricsRender(void)
   tenantCounts();
 
   int   bufSize = kpromRenderSize();
-  char* buf     = (char*) kaAlloc(&swRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
   if (buf == NULL)
   {
-    swRest.out.httpStatusCode = 500;
+    corRest.out.httpStatusCode = 500;
     return true;
   }
 
   int rendered = kpromRender(buf, bufSize);
   if (rendered < 0)
   {
-    swRest.out.httpStatusCode = 500;
+    corRest.out.httpStatusCode = 500;
     return true;
   }
 
-  swRest.out.payload        = buf;
-  swRest.out.payloadSize    = rendered;
-  swRest.out.contentType    = "text/plain; version=0.0.4";
-  swRest.out.httpStatusCode = 200;
+  corRest.out.payload        = buf;
+  corRest.out.payloadSize    = rendered;
+  corRest.out.contentType    = "text/plain; version=0.0.4";
+  corRest.out.httpStatusCode = 200;
   return true;
 }

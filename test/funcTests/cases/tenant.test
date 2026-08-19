@@ -12,9 +12,9 @@ Multi-tenant support via NGSILD-Tenant header
 tenant
 
 --INIT--
-swDbDrop
-swDbDrop -tenant t1
-swBrokerStart
+corDbDrop
+corDbDrop -tenant t1
+coraineStart
 
 --RUN--
 
@@ -29,7 +29,7 @@ swBrokerStart
 
 echo "01. GET /entities with unknown tenant t1 - 404 NonexistentTenant"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -41,21 +41,21 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
 echo
 echo
 
 
 echo "03. GET /entities (default tenant) - entity NOT visible"
 echo "======================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T'
+corCurl --url '/ngsi-ld/v1/entities?type=T'
 echo
 echo
 
 
 echo "04. GET /entities with NGSILD-Tenant: t1 - entity IS visible, response echoes tenant header"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -67,14 +67,14 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json"
 echo
 echo
 
 
 echo "06. GET /entities with NGSILD-Tenant: t1 - default entity NOT visible in t1"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -166,6 +166,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swDbDrop -tenant t1
+coraineStop
+corDbDrop
+corDbDrop -tenant t1

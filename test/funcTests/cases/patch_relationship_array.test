@@ -7,22 +7,22 @@ PATCH /attrs replaces a Relationship-array object
 --TAGS--
 entity-patch
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 echo "01. Create rel = Relationship object [urn:a, urn:b]"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:R:1","type":"T","rel":{"type":"Relationship","object":["urn:a","urn:b"]}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:R:1","type":"T","rel":{"type":"Relationship","object":["urn:a","urn:b"]}}' | grep HTTP
 echo
 echo
 echo "02. PATCH rel object -> [urn:c, urn:d, urn:e]"
 echo "============================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:R:1/attrs --payload '{"rel":{"type":"Relationship","object":["urn:c","urn:d","urn:e"]}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:R:1/attrs --payload '{"rel":{"type":"Relationship","object":["urn:c","urn:d","urn:e"]}}' | grep HTTP
 echo
 echo
 echo "03. GET — object is now [urn:c, urn:d, urn:e]"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:R:1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:R:1
 echo
 echo
 --EXPECT--
@@ -60,4 +60,4 @@ Content-Length: 155
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

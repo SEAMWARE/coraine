@@ -20,9 +20,9 @@ accept
 context
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
-swBrokerStart
+corDbDrop
+corDbDrop -db coraine
+coraineStart
 
 --RUN--
 
@@ -34,7 +34,7 @@ swBrokerStart
 
 echo "01. POST Vehicle with location"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:ngsi-ld:Vehicle:V1",
   "type":"Vehicle",
   "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1.0,2.0]}}
@@ -45,7 +45,7 @@ echo
 
 echo "02. POST /entityOperations/query Accept=geo+json → 200 FeatureCollection"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
   "type":"Query","entities":[{"type":"Vehicle"}]
 }' -H 'Accept: application/geo+json'
 echo
@@ -54,7 +54,7 @@ echo
 
 echo "03. POST /entityOperations/query Accept=ld+json → 200 (control)"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{
   "type":"Query","entities":[{"type":"Vehicle"}]
 }' -H 'Accept: application/ld+json'
 echo
@@ -140,5 +140,5 @@ Content-Length: 318
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

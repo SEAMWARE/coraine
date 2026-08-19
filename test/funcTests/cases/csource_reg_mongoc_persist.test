@@ -17,8 +17,8 @@ Context Source Registration persistence + cache rehydrate (mongoc)
 mongoc persist registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
   "endpoint": "http://csr.example/r1",
   "information": [{"entities": [{"type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -52,15 +52,15 @@ payload='{
   "endpoint": "http://csr.example/r2",
   "information": [{"entities": [{"type": "Building"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. Restart broker"
 echo "=================="
-swBrokerStop
-swBrokerStart -dist
+coraineStop
+coraineStart -dist
 echo "restarted"
 echo
 echo
@@ -68,30 +68,30 @@ echo
 
 echo "04. Query after restart - both visible"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
 echo
 echo
 
 
 echo "05. Retrieve R1 after restart"
 echo "============================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R1
 echo
 echo
 
 
 echo "06. Delete R2"
 echo "============="
-swCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R2
+corCurl -X DELETE --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:R2
 echo
 echo
 
 
 echo "07. Restart again, query - only R1 remains"
 echo "=========================================="
-swBrokerStop
-swBrokerStart -dist
-swCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
+coraineStop
+coraineStart -dist
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Vehicle,Building'
 echo
 echo
 
@@ -224,5 +224,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

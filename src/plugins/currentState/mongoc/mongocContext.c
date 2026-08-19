@@ -32,7 +32,7 @@
 // -----------------------------------------------------------------------------
 //
 // Reserved collection name. The reserved DB is mongocGlobalDb (--globalDb,
-// default "swBroker"), resolved at runtime so parallel brokers can each own
+// default "coraine"), resolved at runtime so parallel brokers can each own
 // a private global DB.
 //
 #define CONTEXT_COLLECTION   "contexts"

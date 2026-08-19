@@ -8,10 +8,10 @@
 --NAME--
 DistOps - Purge Entities forwarded to a CSR that supports purgeEntity (§ 5.6.21)
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --TAGS--
 distops purge registration
@@ -31,7 +31,7 @@ distops purge registration
 
 echo "01. Seed CP1 with V1 (Vehicle)"
 echo "=============================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
@@ -39,7 +39,7 @@ echo
 
 echo "02. Seed CB with V2 (Vehicle)"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":88}}'
 echo
 echo
@@ -55,28 +55,28 @@ payload='{
   "operations": ["retrieveEntity","queryEntity","purgeEntity"],
   "information": [{"entities": [{"type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. DELETE /entities?type=Vehicle on CB → 204"
 echo "=============================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
+corCurl -X DELETE --url /ngsi-ld/v1/entities --urlParams 'type=Vehicle'
 echo
 echo
 
 
 echo "05. GET V2 on CB ?local=true → 404 (purged locally)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
 echo
 echo
 
 
 echo "06. GET V1 on CP1 → 404 (purged via forward)"
 echo "============================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -153,7 +153,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

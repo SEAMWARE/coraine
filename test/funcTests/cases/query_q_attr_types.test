@@ -18,8 +18,8 @@ Query q across attribute types — Geo/Json existence, List membership
 query q geoproperty json-property
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,49 +33,49 @@ payload='{
   "lp": {"type": "ListProperty", "valueList": [10, 20, 30]},
   "lr": {"type": "ListRelationship", "objectList": ["urn:ngsi-ld:A", "urn:ngsi-ld:B"]}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. q=geo — GeoProperty existence, matches"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QT&q=geo'
+corCurl --url '/ngsi-ld/v1/entities?type=QT&q=geo'
 echo
 echo
 
 
 echo "03. q=jp — JsonProperty existence, matches"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QT&q=jp'
+corCurl --url '/ngsi-ld/v1/entities?type=QT&q=jp'
 echo
 echo
 
 
 echo "04. q=lp==20 — ListProperty, matches (20 is in the valueList)"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lp==20'
+corCurl --url '/ngsi-ld/v1/entities?type=QT&q=lp==20'
 echo
 echo
 
 
 echo "05. q=lp==99 — no match (99 not in the valueList)"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lp==99'
+corCurl --url '/ngsi-ld/v1/entities?type=QT&q=lp==99'
 echo
 echo
 
 
 echo "06. q=lr==\"urn:ngsi-ld:A\" — ListRelationship, matches (A is in the objectList)"
 echo "=============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lr==%22urn:ngsi-ld:A%22'
+corCurl --url '/ngsi-ld/v1/entities?type=QT&q=lr==%22urn:ngsi-ld:A%22'
 echo
 echo
 
 
 echo "07. q=lr==\"urn:ngsi-ld:Z\" — no match (Z not in the objectList)"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QT&q=lr==%22urn:ngsi-ld:Z%22'
+corCurl --url '/ngsi-ld/v1/entities?type=QT&q=lr==%22urn:ngsi-ld:Z%22'
 echo
 echo
 
@@ -312,4 +312,4 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

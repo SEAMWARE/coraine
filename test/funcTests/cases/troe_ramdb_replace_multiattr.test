@@ -16,14 +16,14 @@ TRoE - replaceEntity + multi-attr POST/PATCH
 troe replace patch
 
 --INIT--
-swDbDrop
-swBrokerStart --troe ramdb --apiPlugins admin
+corDbDrop
+coraineStart --troe ramdb --apiPlugins admin
 
 --RUN--
 
 echo "01. POST entity urn:V1 with one attr"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
 echo
 echo
 echo
@@ -31,26 +31,26 @@ echo
 
 echo "02. PUT /entities/urn:V1 — wholesale replace with 2 attrs"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"red"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"red"}}' | head -1
 echo
 
 
 echo "03. POST /entities/urn:V1/attrs — append two attrs"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"weight":{"type":"Property","value":1500},"brand":{"type":"Property","value":"X"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"weight":{"type":"Property","value":1500},"brand":{"type":"Property","value":"X"}}' | head -1
 echo
 
 
 echo "04. PATCH /entities/urn:V1/attrs — modify two attrs"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":120},"weight":{"type":"Property","value":1600}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":120},"weight":{"type":"Property","value":1600}}' | head -1
 echo
 echo
 
 
 echo "05. GET /admin/troe/dump — events in array order"
 echo "================================================"
-swCurl --url /admin/troe/dump | python3 -c "
+corCurl --url /admin/troe/dump | python3 -c "
 import sys, json, re
 hdr = ''
 body = ''
@@ -105,5 +105,5 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

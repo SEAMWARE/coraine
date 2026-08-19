@@ -17,10 +17,10 @@ DELETE /jsonldContexts/{id}?reload=true actually refreshes the body
 context
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 # Initial body: v1
 contextServerPush /jsonldContexts/ctxR '{
@@ -42,7 +42,7 @@ contextServerPush /jsonldContexts/ctxR '{
 
 echo "01. POST Cached for ctxR (broker downloads v1)"
 echo "=============================================="
-swCurl -X POST --url /ngsi-ld/v1/jsonldContexts \
+corCurl -X POST --url /ngsi-ld/v1/jsonldContexts \
   --payload '{"url":"http://localhost:7080/jsonldContexts/ctxR"}' | head -1
 echo
 echo
@@ -50,7 +50,7 @@ echo
 
 echo "02. GET — Cached without ?details is 422 OperationNotSupported (§ 5.13.4.4)"
 echo "==========================================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
+corCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR"
 echo
 echo
 
@@ -66,21 +66,21 @@ contextServerReplace /jsonldContexts/ctxR '{
 
 echo "03. GET ?details=true before reload — kind=Cached, entry present"
 echo "================================================================"
-swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?details=true"
+corCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?details=true"
 echo
 echo
 
 
 echo "04. DELETE ?reload=true"
 echo "======================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?reload=true"
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?reload=true"
 echo
 echo
 
 
 echo "05. GET ?details=true after reload — entry survived (re-downloaded body invisible per spec)"
 echo "==========================================================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?details=true"
+corCurl --url "/ngsi-ld/v1/jsonldContexts/http://localhost:7080/jsonldContexts/ctxR?details=true"
 echo
 echo
 
@@ -152,7 +152,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop -db swBroker
-swDbDrop
+corDbDrop -db coraine
+corDbDrop

@@ -7,17 +7,17 @@ POST /attrs with two @context members → 400
 --TAGS--
 context
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 echo "01. Seed entity"
 echo "==============="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:D:1","type":"T"}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:D:1","type":"T"}' | grep HTTP
 echo
 echo
 echo "02. POST /attrs ld+json with TWO @context → 400"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:D:1/attrs -H 'Content-Type: application/ld+json' --payload '{"@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld","@context":"https://example.org/x.jsonld","a":{"type":"Property","value":1}}' | grep -E 'HTTP|title|status'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:D:1/attrs -H 'Content-Type: application/ld+json' --payload '{"@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld","@context":"https://example.org/x.jsonld","a":{"type":"Property","value":1}}' | grep -E 'HTTP|title|status'
 echo
 echo
 --EXPECT--
@@ -34,4 +34,4 @@ HTTP/1.1 400 Bad Request
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

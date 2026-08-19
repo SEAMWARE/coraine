@@ -18,17 +18,17 @@
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp, strlen, memcpy
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swJsonld/swldInit.h"                       // swldCoreContext
-#include "swJsonld/swldExpand.h"                     // swldExpand
+#include "corRest/CorRestState.h"                      // corRest
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
-#include "swNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
+#include "corNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
 #include "troe/TroeDriver.h"                         // troe
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -69,7 +69,7 @@ static int forwardDeleteInstance(LdRegCacheItem* csr,
   int   atLen   = strlen(attrName);
   int   inLen   = strlen(instanceId);
 
-  char* url = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
+  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
   int   pos = 0;
   memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
   memcpy(url + pos, prefix, prefLen);        pos += prefLen;
@@ -80,16 +80,16 @@ static int forwardDeleteInstance(LdRegCacheItem* csr,
   memcpy(url + pos, instanceId, inLen);      pos += inLen;
   url[pos] = 0;
 
-  return ldDistOpSend(csr, SwVerbDelete, url, NULL, 0, ownAlias, errorDetailPP);
+  return ldDistOpSend(csr, CorVerbDelete, url, NULL, 0, ownAlias, errorDetailPP);
 }
 
 
 
 bool deleteEntityTemporalInstance(void)
 {
-  const char* entityId   = swRest.in.wildcard[0];
-  const char* attrWild   = swRest.in.wildcard[1];
-  const char* instanceId = swRest.in.wildcard[2];
+  const char* entityId   = corRest.in.wildcard[0];
+  const char* attrWild   = corRest.in.wildcard[1];
+  const char* instanceId = corRest.in.wildcard[2];
 
   if (entityId == NULL || entityId[0] == 0)
   {
@@ -114,18 +114,18 @@ bool deleteEntityTemporalInstance(void)
   }
 
   ldContextResolve();
-  SwldContext* ctxP    = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
-  const char*  attrIri = swldExpand(ctxP, attrWild, &swRest.kalloc, NULL, NULL);
+  CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
+  const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* errorsArrayP = kjArray(swRest.kjsonP, "errors");
+  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;
 
-  if (!swNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
+  if (!corNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
   {
-    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+    const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
     // Always dispatch; the builder marks loop-blocked CSRs and ldDistOpLoopReap emits 508 (§ 6.3.18).
     {
@@ -169,7 +169,7 @@ bool deleteEntityTemporalInstance(void)
       for (int i = 0; i < n; i++)
       {
         int   baseLen = strlen(items[i].csr->endpoint);
-        char* url     = (char*) kaAlloc(&swRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
+        char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
         int pos = 0;
         memcpy(url + pos, items[i].csr->endpoint, baseLen); pos += baseLen;
         memcpy(url + pos, prefix, prefLen);                 pos += prefLen;
@@ -184,7 +184,7 @@ bool deleteEntityTemporalInstance(void)
 
       n = ldDistOpLoopReap(items, n);
 
-      ldDistOpEntriesPerform(items, n, SwVerbDelete, ownAlias);
+      ldDistOpEntriesPerform(items, n, CorVerbDelete, ownAlias);
 
       for (int i = 0; i < n; i++)
       {
@@ -241,18 +241,18 @@ bool deleteEntityTemporalInstance(void)
 
   if (errorsCount == 0)
   {
-    swRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
-  KjNode* result     = kjObject(swRest.kjsonP, NULL);
-  KjNode* successArr = kjArray(swRest.kjsonP, "success");
+  KjNode* result     = kjObject(corRest.kjsonP, NULL);
+  KjNode* successArr = kjArray(corRest.kjsonP, "success");
   if (anySucceeded)
-    kjChildAdd(successArr, kjString(swRest.kjsonP, NULL, entityId));
+    kjChildAdd(successArr, kjString(corRest.kjsonP, NULL, entityId));
   kjChildAdd(result, successArr);
   kjChildAdd(result, errorsArrayP);
 
-  swRest.out.responseTree   = result;
-  swRest.out.httpStatusCode = anySucceeded ? 207 : 502;
+  corRest.out.responseTree   = result;
+  corRest.out.httpStatusCode = anySucceeded ? 207 : 502;
   return true;
 }

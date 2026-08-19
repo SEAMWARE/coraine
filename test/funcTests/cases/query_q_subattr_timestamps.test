@@ -22,8 +22,8 @@ Query q over sub-attribute timestamps — observedAt / createdAt at attr and dee
 query q sub-attributes observedAt datetime
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,42 +39,42 @@ payload='{
     "quality": {"type": "Property", "value": 9, "observedAt": "2024-09-01T00:00:00Z"}
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. q=temperature.observedAt>2024-01 — matches (June > Jan)"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt%3E2024-01-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt%3E2024-01-01T00:00:00Z'
 echo
 echo
 
 
 echo "03. q=temperature.observedAt>2099 — no match"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt%3E2099-01-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt%3E2099-01-01T00:00:00Z'
 echo
 echo
 
 
 echo "04. q=temperature.observedAt==2024-06-15T12:00:00Z — exact match"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt==2024-06-15T12:00:00Z'
+corCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.observedAt==2024-06-15T12:00:00Z'
 echo
 echo
 
 
 echo "05. q=temperature.quality.observedAt>2024-01 — sub-sub-attribute, matches"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.quality.observedAt%3E2024-01-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.quality.observedAt%3E2024-01-01T00:00:00Z'
 echo
 echo
 
 
 echo "06. q=temperature.createdAt<2099 — attribute-level createdAt, matches"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.createdAt%3C2099-01-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/entities?type=QO&q=temperature.createdAt%3C2099-01-01T00:00:00Z'
 echo
 echo
 
@@ -211,4 +211,4 @@ Content-Length: 297
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

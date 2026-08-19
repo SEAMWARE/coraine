@@ -23,9 +23,9 @@ notificationTrigger reasons on Replace (PUT) — created / updated / deleted att
 subscription notificationTrigger replace put
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ createSub() {
     '$2'
     "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
   }'
-  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" >/dev/null
+  corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" >/dev/null
 }
 
 echo "01. Create subs: S_DEF(default) S_AD(attributeDeleted) S_AU(attributeUpdated) S_AC(attributeCreated) S_EU(entityUpdated)"
@@ -54,7 +54,7 @@ echo
 
 echo "02. Create V1 {speed:100, color:red}, then reset (consume create notifs)"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 }, "color": { "type": "Property", "value": "red" } }' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 }, "color": { "type": "Property", "value": "red" } }' >/dev/null
 ftClientReset
 echo "done"
 echo
@@ -63,7 +63,7 @@ echo
 
 echo "03. PUT /entities/urn:V1 {speed:200, size:L} — drops color, updates speed, adds size"
 echo "==================================================================================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1 --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 200 }, "size": { "type": "Property", "value": "L" } }'
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1 --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 200 }, "size": { "type": "Property", "value": "L" } }'
 echo
 echo
 
@@ -106,4 +106,4 @@ Date: REGEX(.*)
   urn:S_DEF
   urn:S_EU
 --TEARDOWN--
-swBrokerStop
+coraineStop

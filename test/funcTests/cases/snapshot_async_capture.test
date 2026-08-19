@@ -21,25 +21,25 @@ Snapshot async background capture (§ 5.16.1.4 / Phase #144)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
+corDbDrop
+corSnapDrop
 ftClientStart
-swBrokerStart -asyncSnapshot
+coraineStart -asyncSnapshot
 
 --RUN--
 
 echo "01. Seed two Vehicles"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}'
 echo
 echo
 
 
 echo "02. POST /snapshots — returns 201 immediately (capture runs in background)"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Bg",
   "type": "Snapshot",
   "snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],
@@ -52,7 +52,7 @@ echo
 echo "03. Poll /snapshots/Bg until status is terminal (max 5s)"
 echo "========================================================"
 for i in 1 2 3 4 5 6 7 8 9 10; do
-    status=$(swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg 2>/dev/null \
+    status=$(corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg 2>/dev/null \
              | grep -o '"snapshotStatus": *"[^"]*"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
     if [ "$status" != "preparing" ] && [ -n "$status" ]; then
         echo "  status after iteration $i: $status"
@@ -66,7 +66,7 @@ echo
 
 echo "04. GET /snapshots/Bg — final state with snapshotQueriesDetails"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg
 echo
 echo
 
@@ -80,7 +80,7 @@ echo
 
 echo "06. Snapshot read works (entities captured by the worker)"
 echo "========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Bg'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Bg'
 echo
 echo
 
@@ -214,7 +214,7 @@ Content-Length: 269
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swSnapDrop
-swDbDrop
+corSnapDrop
+corDbDrop

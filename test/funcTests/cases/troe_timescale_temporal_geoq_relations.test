@@ -31,9 +31,9 @@ TRoE timescale - temporal geoQ topological relations
 troe timescale postgres temporal geo geoQ georel
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -45,42 +45,42 @@ payload='{
   "speed":   {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
   "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[5,5]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:B_out",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":20,"observedAt":"2026-04-28T09:00:00Z"},
   "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[20,20]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:C_equal",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":30,"observedAt":"2026-04-28T09:00:00Z"},
   "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[0,0],[0,10],[10,10],[10,0],[0,0]]]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:D_big",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":40,"observedAt":"2026-04-28T09:00:00Z"},
   "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[-5,-5],[-5,15],[15,15],[15,-5],[-5,-5]]]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:E_ovlp",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":50,"observedAt":"2026-04-28T09:00:00Z"},
   "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[5,5],[5,15],[15,15],[15,5],[5,5]]]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 payload='{
   "id":"urn:F_disj",
   "type":"Vehicle",
   "speed":   {"type":"Property","value":60,"observedAt":"2026-04-28T09:00:00Z"},
   "location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":[[[20,20],[20,30],[30,30],[30,20],[20,20]]]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 echo done
 echo
 echo
@@ -90,43 +90,43 @@ BASE="/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01
 
 echo "02. georel=within → A_in, C_equal"
 echo "================================="
-swCurl --url "$BASE&georel=within" | grep '"id"'
+corCurl --url "$BASE&georel=within" | grep '"id"'
 echo
 echo
 
 echo "03. georel=contains → C_equal, D_big"
 echo "===================================="
-swCurl --url "$BASE&georel=contains" | grep '"id"'
+corCurl --url "$BASE&georel=contains" | grep '"id"'
 echo
 echo
 
 echo "04. georel=intersects → A_in, C_equal, D_big, E_ovlp"
 echo "===================================================="
-swCurl --url "$BASE&georel=intersects" | grep '"id"'
+corCurl --url "$BASE&georel=intersects" | grep '"id"'
 echo
 echo
 
 echo "05. georel=overlaps → E_ovlp only (OGC overlap: neither geometry contains the other)"
 echo "==================================================================================="
-swCurl --url "$BASE&georel=overlaps" | grep '"id"'
+corCurl --url "$BASE&georel=overlaps" | grep '"id"'
 echo
 echo
 
 echo "06. georel=equals → C_equal"
 echo "==========================="
-swCurl --url "$BASE&georel=equals" | grep '"id"'
+corCurl --url "$BASE&georel=equals" | grep '"id"'
 echo
 echo
 
 echo "07. georel=disjoint → B_out, F_disj"
 echo "==================================="
-swCurl --url "$BASE&georel=disjoint" | grep '"id"'
+corCurl --url "$BASE&georel=disjoint" | grep '"id"'
 echo
 echo
 
 echo "08. Full body for within (id + type + speed, location filtered in SQL not returned)"
 echo "=================================================================================="
-swCurl --url "$BASE&georel=within"
+corCurl --url "$BASE&georel=within"
 echo
 echo
 
@@ -211,6 +211,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

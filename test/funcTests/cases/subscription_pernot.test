@@ -16,9 +16,9 @@ Periodic notification subscription (timeInterval)
 pernot subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -31,7 +31,7 @@ swBrokerStart
 
 echo "01. Create entity V1"
 echo "===================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:V1",
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 80}
@@ -42,7 +42,7 @@ echo
 
 echo "02. Create periodic subscription (timeInterval=2)"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:ngsi-ld:Subscription:Pernot1",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
@@ -104,6 +104,6 @@ Done sleeping
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

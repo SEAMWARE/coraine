@@ -12,8 +12,8 @@ PUT /entities/{id} - Replace Entity (§ 5.6.16)
 entity replace
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
   "color": { "type": "Property", "value": "blue" },
   "accuracy": { "type": "Property", "value": 0.9 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -52,14 +52,14 @@ payload='{
   "brand": { "type": "Property", "value": "Honda" },
   "fuelLevel": { "type": "Property", "value": 75 }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
 
 echo "03. GET — verify old attrs are gone, new ones in place"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -70,7 +70,7 @@ payload='{
   "type": "Vehicle",
   "model": { "type": "Property", "value": "Civic" }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -82,7 +82,7 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 1 }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -94,7 +94,7 @@ payload='{
   "type": "Motorcycle",
   "speed": { "type": "Property", "value": 1 }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
@@ -106,14 +106,14 @@ payload='{
   "type": "Vehicle",
   "speed": { "type": "Property", "value": 1 }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:DOES_NOT_EXIST --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:DOES_NOT_EXIST --payload "$payload"
 echo
 echo
 
 
 echo "08. PUT without payload — 400"
 echo "============================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1
 echo
 echo
 
@@ -124,14 +124,14 @@ payload='{
   "id": "urn:ngsi-ld:Vehicle:V1",
   "brand": { "type": "Property", "value": "Honda" }
 }'
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 --payload "$payload"
 echo
 echo
 
 
 echo "10. PUT with unsupported Content-Type — 415"
 echo "==========================================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 \
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 \
        --in text --payload "not json"
 echo
 echo
@@ -278,5 +278,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

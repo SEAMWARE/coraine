@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/entities - Multi-type entity creation and retrieval
 create entity multi-entity-type
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,14 +34,14 @@ payload='{
     "value": "My house"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Retrieve entity E1 - type returned as array"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:entity:E1
+corCurl --url /ngsi-ld/v1/entities/urn:entity:E1
 echo
 echo
 
@@ -56,14 +56,14 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. Retrieve entity E2 - type returned as string"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:entity:E2
+corCurl --url /ngsi-ld/v1/entities/urn:entity:E2
 echo
 echo
 
@@ -131,5 +131,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

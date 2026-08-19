@@ -28,15 +28,15 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjLookup.h"                          // kjLookup
 
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckDateTime.h"                // ldCheckDateTime, ldIsoToNanoseconds
-#include "swNgsild/LdEntityMap.h"                    // LdEntityMapStore, LdEntityMap
-#include "swNgsild/ldEntityMap.h"                    // ldEntityMapLookup, ldEntityMapSetExpiresAt
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckDateTime.h"                // ldCheckDateTime, ldIsoToNanoseconds
+#include "corNgsild/LdEntityMap.h"                    // LdEntityMapStore, LdEntityMap
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapLookup, ldEntityMapSetExpiresAt
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -50,8 +50,8 @@
 //
 bool patchEntityMap(void)
 {
-  const char* mapId = swRest.in.wildcard[0];
-  KjNode*     bodyP = swRest.in.requestTree;
+  const char* mapId = corRest.in.wildcard[0];
+  KjNode*     bodyP = corRest.in.requestTree;
 
   if (bodyP->type != KjObject)
   {
@@ -107,7 +107,7 @@ bool patchEntityMap(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   if (tenantP->entityMapStoreP == NULL)
   {
@@ -126,6 +126,6 @@ bool patchEntityMap(void)
 
   ldEntityMapSetExpiresAt(mapP, ldIsoToNanoseconds(expiresAtP->value.s));
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

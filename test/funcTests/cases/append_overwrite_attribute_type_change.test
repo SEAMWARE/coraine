@@ -23,41 +23,41 @@ Append with overwrite replaces an attribute and may change its type (§ 10.2.4)
 entity validation
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 echo "01. Seed an entity with a Property 'p1' -> 201"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","p1":{"type":"Property","value":1}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","p1":{"type":"Property","value":1}}' | grep HTTP
 echo
 echo
 
 
 echo "02. Append 'p1' as a Relationship (type change, overwrite default) -> 204"
 echo "========================================================================"
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs --payload '{"p1":{"type":"Relationship","object":"urn:ngsi-ld:X:1"}}' | grep HTTP
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs --payload '{"p1":{"type":"Relationship","object":"urn:ngsi-ld:X:1"}}' | grep HTTP
 echo
 echo
 
 
 echo "03. GET: p1 is now a Relationship"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
 
 echo "04. Append 'p1' again with noOverwrite -> 207, existing left untouched"
 echo "====================================================================="
-swCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs?options=noOverwrite' --payload '{"p1":{"type":"Property","value":999}}'
+corCurl -X POST --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs?options=noOverwrite' --payload '{"p1":{"type":"Property","value":999}}'
 echo
 echo
 
 
 echo "05. GET: p1 is still the Relationship (noOverwrite did not touch it)"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -131,4 +131,4 @@ Content-Length: 119
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

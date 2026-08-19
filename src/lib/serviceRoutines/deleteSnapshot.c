@@ -10,12 +10,12 @@
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strrchr
 
-#include "swRest/SwRestState.h"                          // swRest
+#include "corRest/CorRestState.h"                          // corRest
 
-#include "swNgsild/swNgsild.h"                           // ldError, swNgsild
-#include "swNgsild/LdProblem.h"                          // LD_ERROR_*
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemDelete, ldSnapshotCacheItemLookup
-#include "swNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
+#include "corNgsild/corNgsild.h"                           // ldError, corNgsild
+#include "corNgsild/LdProblem.h"                          // LD_ERROR_*
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, ldSnapshotCacheItemDelete, ldSnapshotCacheItemLookup
+#include "corNgsild/ldSnapshotNotify.h"                   // ldSnapshotNotify
 
 #include "db/DbDriver.h"                                 // db
 #include "db/Tenant.h"                                   // Tenant
@@ -27,10 +27,10 @@
 
 bool deleteSnapshot(void)
 {
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  const char* slash = strrchr(swRest.in.urlPath, '/');
-  const char* id    = (slash != NULL) ? slash + 1 : swRest.in.urlPath;
+  const char* slash = strrchr(corRest.in.urlPath, '/');
+  const char* id    = (slash != NULL) ? slash + 1 : corRest.in.urlPath;
 
   if (id == NULL || id[0] == 0)
   {
@@ -78,6 +78,6 @@ bool deleteSnapshot(void)
     db.tenantDrop(snapTenantP);
   snapshotTenantDestroy(snapTenantP);
 
-  swRest.out.httpStatusCode = 204;
+  corRest.out.httpStatusCode = 204;
   return true;
 }

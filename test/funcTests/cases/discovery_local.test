@@ -8,8 +8,8 @@
 --NAME--
 Discovery endpoints - mode 1 local (§ 5.7.5-§ 5.7.10)
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --TAGS--
 query
@@ -28,13 +28,13 @@ query
 
 echo "01. Seed three entities"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"red"}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":100},"brand":{"type":"Property","value":"Acme"}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --payload \
+corCurl --url /ngsi-ld/v1/entities --payload \
   '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22}}'
 echo
 echo
@@ -42,56 +42,56 @@ echo
 
 echo "02. GET /types → EntityTypeList"
 echo "================================"
-swCurl --url /ngsi-ld/v1/types
+corCurl --url /ngsi-ld/v1/types
 echo
 echo
 
 
 echo "03. GET /types?details=true → EntityType[]"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/types --urlParams 'details=true'
+corCurl --url /ngsi-ld/v1/types --urlParams 'details=true'
 echo
 echo
 
 
 echo "04. GET /types/Vehicle → EntityTypeInfo"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/types/Vehicle
+corCurl --url /ngsi-ld/v1/types/Vehicle
 echo
 echo
 
 
 echo "05. GET /types/NoSuch → 404"
 echo "============================"
-swCurl --url /ngsi-ld/v1/types/NoSuch
+corCurl --url /ngsi-ld/v1/types/NoSuch
 echo
 echo
 
 
 echo "06. GET /attributes → AttributeList"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/attributes
+corCurl --url /ngsi-ld/v1/attributes
 echo
 echo
 
 
 echo "07. GET /attributes?details=true → Attribute[]"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/attributes --urlParams 'details=true'
+corCurl --url /ngsi-ld/v1/attributes --urlParams 'details=true'
 echo
 echo
 
 
 echo "08. GET /attributes/speed → Attribute"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/attributes/speed
+corCurl --url /ngsi-ld/v1/attributes/speed
 echo
 echo
 
 
 echo "09. GET /attributes/noSuch → 404"
 echo "================================="
-swCurl --url /ngsi-ld/v1/attributes/noSuch
+corCurl --url /ngsi-ld/v1/attributes/noSuch
 echo
 echo
 
@@ -336,5 +336,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

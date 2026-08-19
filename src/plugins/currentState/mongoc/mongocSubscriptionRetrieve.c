@@ -10,7 +10,7 @@
 
 #include "ktrace/kTrace.h"                           // KT_E
 #include "kjson/KjNode.h"                            // KjNode
-#include "swRest/SwRestState.h"                      // swRest
+#include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
@@ -47,7 +47,7 @@ int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subP
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    *subPP = mongocBsonToKjTree(&swRest.kalloc, doc);
+    *subPP = mongocBsonToKjTree(&corRest.kalloc, doc);
     // `type` was stripped at insert — put back the JSON-LD constant.
     mongocInjectTypeAfterId(*subPP, "Subscription");
     result = DB_OK;

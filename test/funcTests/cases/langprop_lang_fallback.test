@@ -17,8 +17,8 @@ LanguageProperty lang-filter fallback — @none > en > first key
 langProp format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,50 +28,50 @@ payload='{
   "id":"urn:ngsi-ld:T:E1","type":"T",
   "g":{"type":"LanguageProperty","languageMap":{"es":"Hola","en":"Hello","sv":"Hej"}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 payload='{
   "id":"urn:ngsi-ld:T:E2","type":"T",
   "g":{"type":"LanguageProperty","languageMap":{"es":"Hola","sv":"Hej"}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 payload='{
   "id":"urn:ngsi-ld:T:E3","type":"T",
   "g":{"type":"LanguageProperty","languageMap":{"@none":"None","es":"Hola"}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 payload='{
   "id":"urn:ngsi-ld:T:E4","type":"T",
   "g":{"type":"LanguageProperty","languageMap":{"es":"Hola","@none":"None","en":"Hello"}}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 echo
 echo
 
 
 echo "02. E1 ?lang=fr (no fr, en present) — en chosen"
 echo "==============================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr'
 echo
 echo
 
 
 echo "03. E2 ?lang=fr (no fr, no en, no @none) — first key (es)"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2?lang=fr'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2?lang=fr'
 echo
 echo
 
 
 echo "04. E3 ?lang=fr (@none present) — @none chosen"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E3?lang=fr'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E3?lang=fr'
 echo
 echo
 
 
 echo "05. E4 ?lang=fr (@none and en present) — @none wins over en"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E4?lang=fr'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E4?lang=fr'
 echo
 echo
 
@@ -166,4 +166,4 @@ Content-Length: 125
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -20,8 +20,8 @@ orderBy ;desc keeps missing/null-valued attributes last (§ 7.6.2.2)
 orderBy query pagination
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -33,7 +33,7 @@ for v in \
   '{"id":"urn:ngsi-ld:E20","type":"T","speed":{"type":"Property","value":20}}' \
   '{"id":"urn:ngsi-ld:EMISS","type":"T","other":{"type":"Property","value":1}}' \
   '{"id":"urn:ngsi-ld:EMISS2","type":"T","another":{"type":"Property","value":2}}' ; do
-  swCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
+  corCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
 done
 echo
 echo
@@ -41,14 +41,14 @@ echo
 
 echo "02. orderBy=speed;desc — 30,20,10 then the two missing LAST"
 echo "==========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed;desc&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=speed (asc control) — 10,20,30 then the two missing LAST"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed&options=keyValues'
 echo
 echo
 
@@ -140,5 +140,5 @@ Content-Length: 363
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

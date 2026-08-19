@@ -22,10 +22,10 @@ Batch Entity Merge — exclusive CSR chops attrs, local keeps the rest
 batch entity merge
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -34,21 +34,21 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1 locally on CB with {color, size}"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"},"size":{"type":"Property","value":"large"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"red"},"size":{"type":"Property","value":"large"}}'
 echo
 echo
 
 
 echo "02. Seed V1 on CP1 — owner of 'speed'"
 echo "====================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "03. Register CB→CP1 exclusive claiming 'speed' (mergeBatch op)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["mergeBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["mergeBatch"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
@@ -57,7 +57,7 @@ echo "04. Batch Merge V1 {speed,color} — speed→CP1, color→local. 204 (surg
 echo "========================================================================="
 # V1.size stays intact (surgical), V1.color gets updated locally, V1.speed gets
 # merged onto CP1.
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99},"color":{"type":"Property","value":"blue"}}
 ]'
 echo
@@ -66,21 +66,21 @@ echo
 
 echo "05. GET CB V1 — color=blue, size=large (untouched), no speed (chopped)"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "06. GET CP1 V1 — speed=99 (forwarded)"
 echo "====================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
 echo
 echo
 
 
 echo "07. Batch Merge V1 with only speed — 100% chopped, nothing touches local"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":199}}
 ]'
 echo
@@ -89,14 +89,14 @@ echo
 
 echo "08. GET CB V1 — color=blue, size=large unchanged (local wasn't touched)"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues&local=true'
 echo
 echo
 
 
 echo "09. GET CP1 V1 — speed=199 (merged on remote)"
 echo "============================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?options=keyValues'
 echo
 echo
 
@@ -215,7 +215,7 @@ Content-Length: 58
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

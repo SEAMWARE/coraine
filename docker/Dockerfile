@@ -1,18 +1,18 @@
-# swBroker — NGSI-LD Context Broker (ETSI GS CIM 009 v1.9.1)
+# coraine — NGSI-LD Context Broker (ETSI GS CIM 009 v1.9.1)
 #
 # Multi-stage: stage 1 builds the whole dependency stack and the broker, stage 2
 # ships only what is needed to run it.
 #
 # Build from the REPO ROOT (not from docker/), and stage the private libs first:
 #   ./docker/vendor-libs.sh
-#   docker build -f docker/Dockerfile -t swbroker:local .
+#   docker build -f docker/Dockerfile -t coraine:local .
 #
 # Run with no external services at all (in-memory DB):
-#   docker run --rm -p 1026:1026 swbroker:local --database swRamDB
+#   docker run --rm -p 1026:1026 coraine:local --database corRamDB
 #
 # Run against MongoDB (the default backend) — see docker-compose.yml.
 #
-# The dependency pins below mirror bootstrap-swlibs.sh, which is the source of
+# The dependency pins below mirror bootstrap-corlibs.sh, which is the source of
 # truth for the dev-box stack. When those pins move, move these too.
 #
 # Copyright 2026 Seamware
@@ -57,7 +57,7 @@ RUN git clone --depth 1 --branch "${MONGOC_VERSION}" \
  && ldconfig \
  && rm -rf /tmp/mongo-c
 
-# The lib stack. swBroker's makefile resolves its sibling libs through $HOME/git,
+# The lib stack. coraine's makefile resolves its sibling libs through $HOME/git,
 # so the repos have to live there — same layout as a dev box.
 #
 # k-libs are public on GitLab, so they clone straight from their pinned release
@@ -79,7 +79,7 @@ RUN set -eux; \
         "https://gitlab.com/kzangeli/${repo}.git" "/root/git/${repo}"; \
     done
 
-# sw-libs are PRIVATE on GitHub — a container cannot clone them. docker/vendor-libs.sh
+# Cor-Libs are PRIVATE on GitHub — a container cannot clone them. docker/vendor-libs.sh
 # exports each one's committed HEAD next to this Dockerfile; MANIFEST.txt records the
 # exact SHAs that went in. Build fails here with a clear message if you skipped it.
 COPY docker/vendor/ /tmp/vendor/
@@ -90,12 +90,12 @@ RUN set -eux; \
     rm -rf /tmp/vendor
 
 # The umbrella builds every lib in dependency order and collects the artifacts.
-RUN make -C /root/git/swLibs di
+RUN make -C /root/git/corLibs di
 
 # The broker itself. .dockerignore keeps the host build trees out, so CMake
 # starts clean instead of inheriting a cache full of host paths.
-COPY . /root/git/swBroker
-WORKDIR /root/git/swBroker
+COPY . /root/git/coraine
+WORKDIR /root/git/coraine
 
 RUN make i
 
@@ -117,7 +117,7 @@ RUN printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
 # --------------------------------------------------------------------------- #
 FROM ubuntu:26.04
 
-LABEL org.opencontainers.image.title="swBroker" \
+LABEL org.opencontainers.image.title="coraine" \
       org.opencontainers.image.description="NGSI-LD Context Broker — ETSI GS CIM 009 v1.9.1" \
       org.opencontainers.image.vendor="Seamware" \
       org.opencontainers.image.licenses="Proprietary"
@@ -130,7 +130,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libsasl2-2 libzstd1 zlib1g curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/bin/swBroker /usr/local/bin/swBroker
+COPY --from=builder /usr/local/bin/coraine /usr/local/bin/coraine
 COPY --from=builder /opt/seamware/ /opt/seamware/
 COPY --from=builder /usr/local/lib/libmicrohttpd.so.12* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmongoc* /usr/local/lib/
@@ -145,8 +145,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD curl -fsS http://localhost:1026/ngsi-ld/v1/types >/dev/null || exit 1
 
 # -fg is mandatory in a container: without it the broker daemonizes and PID 1 exits.
-ENTRYPOINT ["swBroker", "-fg"]
+ENTRYPOINT ["coraine", "-fg"]
 
 # Overridable. Default is the Mongo backend, matching the dev/test default;
-# pass --database swRamDB to run with no external services.
+# pass --database corRamDB to run with no external services.
 CMD ["--database", "mongoc", "--troe", "none", "--apiPlugins", "admin"]

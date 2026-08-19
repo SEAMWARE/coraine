@@ -20,15 +20,15 @@ HTTP 411 / 413 — Content-Length required, request body cap (§ 6.3.4 / § 6.3.
 error http
 
 --INIT--
-swDbDrop
-swBrokerStart -mrs 1
+corDbDrop
+coraineStart -mrs 1
 
 --RUN--
 
 # 01. POST without body → 411 Length Required, NO body in response (per § 6.3.4).
 echo "01. POST /entities with no body — 411 (no payload)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities -X POST | head -20
+corCurl --url /ngsi-ld/v1/entities -X POST | head -20
 echo
 echo
 
@@ -36,7 +36,7 @@ echo
 # 02. POST with very small body → success path (cap not hit).
 echo "02. POST small body — 201 (well under the 1 MiB cap)"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
 echo
 echo
 
@@ -44,9 +44,9 @@ echo
 # 03. POST with body just over 1 MiB → 413 Request Entity Too Large.
 echo "03. POST oversized body — 413"
 echo "============================="
-python3 -c "import sys, json; print(json.dumps({'id':'urn:Big','type':'X','blob':{'type':'Property','value':'A'*1100000}}))" > /tmp/swCurlBig.json
-swCurl --url /ngsi-ld/v1/entities --payload /tmp/swCurlBig.json | grep -iE '^HTTP/|^Content-Type:|RequestEntityTooLarge'
-\rm -f /tmp/swCurlBig.json
+python3 -c "import sys, json; print(json.dumps({'id':'urn:Big','type':'X','blob':{'type':'Property','value':'A'*1100000}}))" > /tmp/corCurlBig.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/corCurlBig.json | grep -iE '^HTTP/|^Content-Type:|RequestEntityTooLarge'
+\rm -f /tmp/corCurlBig.json
 echo
 echo
 
@@ -54,7 +54,7 @@ echo
 # 04. GET — Content-Length is irrelevant; nothing should fire 411 / 413.
 echo "04. GET /entities — unaffected"
 echo "=============================="
-swCurl --url /ngsi-ld/v1/entities?type=Vehicle | head -1
+corCurl --url /ngsi-ld/v1/entities?type=Vehicle | head -1
 echo
 echo
 
@@ -88,5 +88,5 @@ HTTP/1.1 200 OK
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

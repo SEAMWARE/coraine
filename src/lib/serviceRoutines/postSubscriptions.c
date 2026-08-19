@@ -10,40 +10,40 @@
 #include <stdio.h>                                   // snprintf
 #include <time.h>                                    // time
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjClone.h"                           // kjClone
 #include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
 #include "kjson/KjNode.h"                            // KjNode, KjString
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "swJsonld/swldInit.h"                       // swldCoreContext
-#include "swJsonld/SwldContext.h"                    // SwldContext
-#include "swJsonld/SwldContextCache.h"               // SwldContextCache
-#include "swJsonld/swldCache.h"                      // swldCacheInsert
-#include "swJsonld/swldContextParse.h"               // swldContextFromObject, swldContextFromTree
-#include "swJsonld/swldIdGen.h"                      // swldIdGenerate
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/CorLdContext.h"                    // CorLdContext
+#include "corJsonld/CorLdContextCache.h"               // CorLdContextCache
+#include "corJsonld/corLdCache.h"                      // corLdCacheInsert
+#include "corJsonld/corLdContextParse.h"               // corLdContextFromObject, corLdContextFromTree
+#include "corJsonld/corLdIdGen.h"                      // corLdIdGenerate
 #include "kjson/kjRender.h"                          // kjFastRender
 #include "kjson/kjRenderSize.h"                      // kjFastRenderSize
 
-extern SwldContextCache* swldCacheGet(void);
-#include "swNgsild/SwNgsild.h"                       // ldBrokerHttpEndpoint, swNgsild
+extern CorLdContextCache* corLdCacheGet(void);
+#include "corNgsild/CorNgsild.h"                       // ldBrokerHttpEndpoint, corNgsild
 #include "db/DbDriver.h"                             // db, DB_CONTEXT_KIND_IMPLICIT
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckSubscription.h"            // ldCheckSubscription
-#include "swNgsild/LdOp.h"                           // LdOpCreateSubscription
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
-#include "swNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
-#include "swNgsild/ldQParse.h"                       // ldQParse
-#include "swNgsild/ldQRender.h"                      // ldQRender
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldDistSub.h"                      // ldDistSubFanout
-#include "swNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription
+#include "corNgsild/LdOp.h"                           // LdOpCreateSubscription
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
+#include "corNgsild/ldQParse.h"                       // ldQParse
+#include "corNgsild/ldQRender.h"                      // ldQRender
+#include "corNgsild/LdRegCache.h"                     // LdRegCache
+#include "corNgsild/ldDistSub.h"                      // ldDistSubFanout
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 
-#include "swJsonld/swldDownload.h"                   // swldContextFromUrl
+#include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -66,7 +66,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, swRest.kjsonP);
+  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
   if (fragP == NULL)
     return;
 
@@ -97,7 +97,7 @@ static char* subIdGenerate(KAlloc* allocP)
 //
 bool postSubscriptions(void)
 {
-  KjNode* subP = swRest.in.requestTree;
+  KjNode* subP = corRest.in.requestTree;
 
   //
   // Must have a JSON payload
@@ -107,7 +107,7 @@ bool postSubscriptions(void)
   // carried to ldSubCacheItemAdd below, so the string is matched only once.
   //
   LdFormat notifFormat = LdFormatNone;
-  if (ldCheckSubscription(subP, LdOpCreateSubscription, /*merged*/false, &notifFormat, &swRest.kalloc) == false)
+  if (ldCheckSubscription(subP, LdOpCreateSubscription, /*merged*/false, &notifFormat, &corRest.kalloc) == false)
     return true;
 
   //
@@ -117,9 +117,9 @@ bool postSubscriptions(void)
 
   if (idP == NULL)
   {
-    char* generatedId = subIdGenerate(&swRest.kalloc);
+    char* generatedId = subIdGenerate(&corRest.kalloc);
 
-    idP = kjString(swRest.kjsonP, "id", generatedId);
+    idP = kjString(corRest.kjsonP, "id", generatedId);
     kjChildAdd(subP, idP);
   }
   else if (idP->type != KjString)
@@ -133,7 +133,7 @@ bool postSubscriptions(void)
   // collection is shared across /subscriptions and /csourceSubscriptions.
   //
   {
-    Tenant* _t = (Tenant*) swNgsild.tenantP;
+    Tenant* _t = (Tenant*) corNgsild.tenantP;
     if (_t != NULL && _t->regSubCacheP != NULL
         && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, idP->value.s) != NULL)
     {
@@ -146,7 +146,7 @@ bool postSubscriptions(void)
   //
   // Expand q-filter attribute names using the request's @context.
   // The q string is opaque to JSON-LD expansion, so we parse it (which expands
-  // attr names via swNgsild.contextP), then render back to a string with the
+  // attr names via corNgsild.contextP), then render back to a string with the
   // expanded IRIs and replace the value in the subscription tree.
   //
   //
@@ -157,15 +157,15 @@ bool postSubscriptions(void)
   KjNode*  qP            = kjLookup(subP, "https://uri.etsi.org/ngsi-ld/q");
   if (qP != NULL && qP->type == KjString)
   {
-    Tenant* tP = (Tenant*) swNgsild.tenantP;
-    KAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &swRest.kalloc;
+    Tenant* tP = (Tenant*) corNgsild.tenantP;
+    KAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &corRest.kalloc;
 
-    // Single parse — expands attr names via swNgsild.contextP, allocates with cache allocator
+    // Single parse — expands attr names via corNgsild.contextP, allocates with cache allocator
     qExprForCache = ldQParse(qP->value.s, cacheAllocP);
     if (qExprForCache != NULL)
     {
       // Render back to expanded q-string for DB storage
-      char* expandedQ = ldQRender(qExprForCache, NULL, &swRest.kalloc, false);
+      char* expandedQ = ldQRender(qExprForCache, NULL, &corRest.kalloc, false);
       if (expandedQ != NULL)
         qP->value.s = expandedQ;
     }
@@ -192,7 +192,7 @@ bool postSubscriptions(void)
   if (expiresAtP != NULL && expiresAtP->type == KjString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
-    if (expiresNs > 0 && expiresNs < swRest.requestStartTime)
+    if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
               "'expiresAt' must be a DateTime in the future");
@@ -200,7 +200,7 @@ bool postSubscriptions(void)
     }
   }
 
-  KjNode* statusP = kjString(swRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
+  KjNode* statusP = kjString(corRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
 
   // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
@@ -230,7 +230,7 @@ bool postSubscriptions(void)
   KjNode* userJcP = kjLookup(subP, "jsonldContext");
   if (userJcP != NULL && userJcP->type == KjString)
   {
-    if (swldContextFromUrl(userJcP->value.s, &swRest.kalloc) == NULL)
+    if (corLdContextFromUrl(userJcP->value.s, &corRest.kalloc) == NULL)
     {
       ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
               "subscription jsonldContext '%s' could not be fetched", userJcP->value.s);
@@ -243,7 +243,7 @@ bool postSubscriptions(void)
     const char* jcUrl     = NULL;
     bool        isImplicit = false;   // true when the URL points to a broker-minted Implicit @context
 
-    SwldContext* reqCtxP = swNgsild.contextP;
+    CorLdContext* reqCtxP = corNgsild.contextP;
     if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
     {
       jcUrl = reqCtxP->url;
@@ -253,15 +253,15 @@ bool postSubscriptions(void)
     // of minting an Implicit. ETSI 046_10 / 046_11 supply their @context
     // this way, and a notification's Link header is expected to point
     // at the user's URL, not at a broker-minted alias.
-    else if (swNgsild.userContextBody != NULL &&
-             swNgsild.userContextBody->type == KjArray &&
-             swNgsild.userContextBody->value.firstChildP != NULL &&
-             swNgsild.userContextBody->value.firstChildP->next == NULL &&
-             swNgsild.userContextBody->value.firstChildP->type == KjString)
+    else if (corNgsild.userContextBody != NULL &&
+             corNgsild.userContextBody->type == KjArray &&
+             corNgsild.userContextBody->value.firstChildP != NULL &&
+             corNgsild.userContextBody->value.firstChildP->next == NULL &&
+             corNgsild.userContextBody->value.firstChildP->type == KjString)
     {
-      jcUrl = swNgsild.userContextBody->value.firstChildP->value.s;
+      jcUrl = corNgsild.userContextBody->value.firstChildP->value.s;
     }
-    else if (swNgsild.userContextBody != NULL)
+    else if (corNgsild.userContextBody != NULL)
     {
       // Mint an Implicit entry from the inline body. The same plumbing
       // that POST /jsonldContexts uses (id generation, body persistence,
@@ -271,18 +271,18 @@ bool postSubscriptions(void)
       // subscription (clients use it to dereference the minted
       // @context) — not the internal `_jcResolved` alias used by the
       // other auto-fill branches.
-      SwldContextCache* cacheP = swldCacheGet();
-      KAlloc*           storeP = (cacheP != NULL) ? cacheP->kaP : &swRest.kalloc;
-      char* implicitId = swldIdGenerate(storeP);
+      CorLdContextCache* cacheP = corLdCacheGet();
+      KAlloc*           storeP = (cacheP != NULL) ? cacheP->kaP : &corRest.kalloc;
+      char* implicitId = corLdIdGenerate(storeP);
       if (implicitId != NULL)
       {
-        SwldContext* implicitP = NULL;
-        if (swNgsild.userContextBody->type == KjObject)
-          implicitP = swldContextFromObject(swNgsild.userContextBody, storeP, NULL);
+        CorLdContext* implicitP = NULL;
+        if (corNgsild.userContextBody->type == KjObject)
+          implicitP = corLdContextFromObject(corNgsild.userContextBody, storeP, NULL);
         else
-          implicitP = swldContextFromTree(swNgsild.userContextBody, storeP, NULL);  // @context from the request - no URL of its own
+          implicitP = corLdContextFromTree(corNgsild.userContextBody, storeP, NULL);  // @context from the request - no URL of its own
 
-        int   bodyLen = kjFastRenderSize(swNgsild.userContextBody) + 32;
+        int   bodyLen = kjFastRenderSize(corNgsild.userContextBody) + 32;
         char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
         if (bodyBuf != NULL && implicitP != NULL)
         {
@@ -290,13 +290,13 @@ bool postSubscriptions(void)
           // GET /jsonldContexts/{id} returns a self-contained document.
           int p = 0;
           p += snprintf(bodyBuf + p, bodyLen - p, "{\"@context\":");
-          kjFastRender(swNgsild.userContextBody, bodyBuf + p);
+          kjFastRender(corNgsild.userContextBody, bodyBuf + p);
           p += strlen(bodyBuf + p);
           p += snprintf(bodyBuf + p, bodyLen - p, "}");
           implicitP->body = bodyBuf;
           implicitP->id   = implicitId;
-          implicitP->kind = SwldKindImplicit;
-          swldCacheInsert(implicitP);
+          implicitP->kind = CorLdKindImplicit;
+          corLdCacheInsert(implicitP);
           if (db.contextSave != NULL)
             db.contextSave(implicitId, NULL, DB_CONTEXT_KIND_IMPLICIT, bodyBuf);
         }
@@ -307,7 +307,7 @@ bool postSubscriptions(void)
         int   baseLen      = strlen(base);
         int   prefixLen    = strlen(prefix);
         int   idLen        = strlen(implicitId);
-        char* urlBuf       = (char*) kaAlloc(&swRest.kalloc, baseLen + prefixLen + idLen + 1);
+        char* urlBuf       = (char*) kaAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
         memcpy(urlBuf, base, baseLen);
         memcpy(urlBuf + baseLen, prefix, prefixLen);
         memcpy(urlBuf + baseLen + prefixLen, implicitId, idLen);
@@ -320,7 +320,7 @@ bool postSubscriptions(void)
     {
       // No user context (or only the core was used). Default to the
       // configured core URL so notifications still carry a workable Link.
-      SwldContext* coreP = swldCoreContext();
+      CorLdContext* coreP = corLdCoreContext();
       if (coreP != NULL && coreP->url != NULL)
         jcUrl = coreP->url;
     }
@@ -334,7 +334,7 @@ bool postSubscriptions(void)
     if (jcUrl != NULL)
     {
       const char* fieldName = isImplicit ? "jsonldContext" : "_jcResolved";
-      kjChildAdd(subP, kjString(swRest.kjsonP, fieldName, (char*) jcUrl));
+      kjChildAdd(subP, kjString(corRest.kjsonP, fieldName, (char*) jcUrl));
     }
   }
 
@@ -347,7 +347,7 @@ bool postSubscriptions(void)
     return true;
   }
 
-  int r = db.subscriptionCreate((Tenant*) swNgsild.tenantP, idP->value.s, subP);
+  int r = db.subscriptionCreate((Tenant*) corNgsild.tenantP, idP->value.s, subP);
 
   if (r == DB_ALREADY_EXISTS)
   {
@@ -364,7 +364,7 @@ bool postSubscriptions(void)
   //
   // Add to subscription cache
   //
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   //
   // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
   //
@@ -402,7 +402,7 @@ bool postSubscriptions(void)
     //
     if (cachedP != NULL && tenantP->regCacheP != NULL && ldDistributed)
     {
-      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &swRest.kalloc);
+      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
       ldDistSubFanout(cachedP, (LdRegCache*) tenantP->regCacheP, ownAlias,
                       distSubPersist, tenantP);
     }
@@ -413,18 +413,18 @@ bool postSubscriptions(void)
   //
   // 201 Created -- set Location and Link headers, no body
   //
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
 
   //
   // Location header: full path to the new subscription
   //
   const char* prefix  = "/ngsi-ld/v1/subscriptions/";
   int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
-  char*       locBuf  = kaAlloc(&swRest.kalloc, locLen);
+  char*       locBuf  = kaAlloc(&corRest.kalloc, locLen);
 
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);
-  swRestOutHeaderAdd("Location", locBuf);
+  corRestOutHeaderAdd("Location", locBuf);
 
   // § 6.3.6: no Link header on no-body responses.
 

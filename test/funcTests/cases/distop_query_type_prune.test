@@ -24,8 +24,8 @@ DistOps query — type prune limits the fan-out to type-matching registrations
 distops registration
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 ftClientStart --port 7712 --status 200
 
@@ -33,15 +33,15 @@ ftClientStart --port 7712 --status 200
 
 echo "01. Register A (type T2) -> 7711, B (type T3) -> 7712"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:A","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"T2"}]}]}' | grep HTTP
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:B","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","operations":["retrieveOps"],"information":[{"entities":[{"type":"T3"}]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:A","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"information":[{"entities":[{"type":"T2"}]}]}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:B","type":"ContextSourceRegistration","endpoint":"http://localhost:7712","operations":["retrieveOps"],"information":[{"entities":[{"type":"T3"}]}]}' | grep HTTP
 echo
 echo
 
 
 echo "02. GET ?type=T3 — forwards ONLY to B(7712); A(7711) gets nothing"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T3' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T3' > /dev/null
 sleep 0.5
 echo -n "A(7711) requests: "; ftClientDump --port 7711 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
 echo -n "B(7712) requests: "; ftClientDump --port 7712 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
@@ -52,7 +52,7 @@ echo
 
 echo "03. GET ?type=T2 — forwards ONLY to A(7711); B(7712) gets nothing"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T2' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T2' > /dev/null
 sleep 0.5
 echo -n "A(7711) requests: "; ftClientDump --port 7711 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
 echo -n "B(7712) requests: "; ftClientDump --port 7712 | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
@@ -80,6 +80,6 @@ B(7712) requests: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop --port 7711
 ftClientStop --port 7712

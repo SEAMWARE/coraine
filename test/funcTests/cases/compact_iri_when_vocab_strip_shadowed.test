@@ -26,8 +26,8 @@ Compact-IRI fallback when @vocab strip is shadowed by a user term
 context jsonld-context
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,14 +39,14 @@ payload='{
   "almostFull": { "type": "Property", "value": 42 },
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
 echo
 echo
 
 
 echo "02. Retrieve with NO user context — bare names (no conflict, @vocab strip OK)"
 echo "============================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E:1
+corCurl --url /ngsi-ld/v1/entities/urn:E:1
 echo
 echo
 
@@ -55,12 +55,12 @@ echo "03. Retrieve with user context that defines Building/almostFull to DIFFERE
 echo "================================================================================="
 echo "    → bare strip would be ambiguous"
 echo "    → broker must emit ngsi-ld:default-context/<name> compact-IRI form"
-swCurl --url /ngsi-ld/v1/entities/urn:E:1 \
+corCurl --url /ngsi-ld/v1/entities/urn:E:1 \
   --header 'Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 
 --EXPECT--
 01. Create entity with default core context — almostFull/Building expand via @vocab

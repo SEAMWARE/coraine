@@ -21,9 +21,9 @@ DistOps query forwards — GET vs POST per CSR ops; attrs is selection
 csource registration distops query forward attrs
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart --port 7711 --status 200
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -42,16 +42,16 @@ swBrokerStart -dist
 
 echo "01. Local entity urn:L1 (no speed)"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Vehicle","brandName":{"type":"Property","value":"Tesla"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Vehicle","brandName":{"type":"Property","value":"Tesla"}}'
 echo
 echo
 
 
 echo "02. queryEntity CSR (pinned id urn:R1, propertyNames speed) + GET ?type=Vehicle&attrs=speed"
 echo "============================================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
 echo
 echo
 
@@ -65,11 +65,11 @@ echo
 
 echo "04. queryBatch-only CSR → same client GET becomes a POST forward"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE -X DELETE
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE -X DELETE
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QB","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryBatch"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QB","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryBatch"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
 echo
 echo
 
@@ -83,11 +83,11 @@ echo
 
 echo "06. createEntity-only CSR → no query forward at all"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QB -X DELETE
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QB -X DELETE
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CE","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["createEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CE","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["createEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&attrs=speed'
 echo
 ftClientDump --port 7711
 echo
@@ -96,16 +96,16 @@ echo
 
 echo "07. queryEntity CSR pinned to urn:R1 again — fan-out narrowing setup"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:CE -X DELETE
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:CE -X DELETE
 echo
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE2","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE2","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
 
 echo "08. GET ?id=urn:OTHER — the pinned-id CSR cannot provide it: NO forward"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&id=urn:OTHER' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&id=urn:OTHER' | head -1
 ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
 echo
 echo
@@ -113,7 +113,7 @@ echo
 
 echo "09. GET ?id=urn:R1 — pinned id provided: forward happens"
 echo "=========================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&id=urn:R1' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&id=urn:R1' | head -1
 ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
 echo
 echo
@@ -121,7 +121,7 @@ echo
 
 echo "10. GET ?idPattern=^urn:R.* — pattern matches the pinned id: forward"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&idPattern=%5Eurn:R.%2A' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&idPattern=%5Eurn:R.%2A' | head -1
 ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
 echo
 echo
@@ -129,16 +129,16 @@ echo
 
 echo "11. GET ?idPattern=^urn:X.* — pattern cannot match the pinned id: NO forward"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&idPattern=%5Eurn:X.%2A' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&idPattern=%5Eurn:X.%2A' | head -1
 ftClientDump --port 7711 | grep -c "\"url\": \"/ngsi-ld/v1/entities\""
 echo
 echo
 
 echo "12. retrieveEntity via queryEntity-only CSR — forwarded as GET ?id="
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE2 -X DELETE >/dev/null
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE3","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R2","type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:R2 | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE2 -X DELETE >/dev/null
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QE3","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryEntity"],"information":[{"entities":[{"id":"urn:R2","type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:R2 | head -1
 ftClientDump --port 7711 | grep -E '"url"|"id"' | tail -2
 echo
 echo
@@ -146,9 +146,9 @@ echo
 
 echo "13. retrieveEntity via queryBatch-only CSR — forwarded as POST query"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE3 -X DELETE >/dev/null
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QB2","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryBatch"],"information":[{"entities":[{"id":"urn:R3","type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:R3 | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:QE3 -X DELETE >/dev/null
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:QB2","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["queryBatch"],"information":[{"entities":[{"id":"urn:R3","type":"Vehicle"}],"propertyNames":["speed"]}]}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:R3 | head -1
 ftClientDump --port 7711 | grep -E '"url"|"body"' | tail -2
 echo
 echo
@@ -401,6 +401,6 @@ HTTP/1.1 404 Not Found
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop --port 7711
-swDbDrop
+corDbDrop

@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities - scopeQ filtering (exact, hierarchy, wildcard, AND, OR
 entity query scope
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -55,7 +55,7 @@ payload='{
     "value": "Parque Norte"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -71,7 +71,7 @@ payload='{
     "value": "Parque Sur"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -87,7 +87,7 @@ payload='{
     "value": "Centro"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -103,7 +103,7 @@ payload='{
     "value": "Branch Office"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -118,119 +118,119 @@ payload='{
     "value": "Headquarters"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. scopeQ=/Madrid/Gardens/ParqueNorte - exact match (E1 only)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte'
 echo
 echo
 
 
 echo "07. scopeQ=/Madrid/Gardens/# - hierarchy wildcard (E1, E2)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/%23'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/%23'
 echo
 echo
 
 
 echo "08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/ParqueNorte'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/ParqueNorte'
 echo
 echo
 
 
 echo "09. scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro - OR (E1, E3)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro'
 echo
 echo
 
 
 echo "10. scopeQ=(/Madrid/Districts;/CompanyA) - AND, entity has both (E4)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=(/Madrid/Districts;/CompanyA)'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=(/Madrid/Districts;/CompanyA)'
 echo
 echo
 
 
 echo "11. scopeQ=/# - any entity with scope (E1, E2, E3, E4)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/%23'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/%23'
 echo
 echo
 
 
 echo "12. No scopeQ - all entities (E1-E5)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building'
 echo
 echo
 
 
 echo "13. scopeQ=/Madrid/# - hierarchy from Madrid (E1, E2, E3, E4)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/%23'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/%23'
 echo
 echo
 
 
 echo "14. scopeQ=/CompanyA - exact match (E4 only)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/CompanyA'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/CompanyA'
 echo
 echo
 
 
 echo "15. scopeQ=/Barcelona/# - no match (empty result)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Barcelona/%23'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Barcelona/%23'
 echo
 echo
 
 
 echo "16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/%23'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/%23'
 echo
 echo
 
 
 echo "17. scopeQ with | (pipe OR): /Madrid/Gardens/ParqueNorte|/Madrid/Districts/Centro - E1, E3"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte%7C/Madrid/Districts/Centro'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueNorte%7C/Madrid/Districts/Centro'
 echo
 echo
 
 
 echo "18. scopeQ complex OR-of-AND: (/Madrid/Districts;/CompanyA)|/Madrid/Gardens/ParqueNorte - E1, E4"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=(%2FMadrid%2FDistricts%3B%2FCompanyA)%7C%2FMadrid%2FGardens%2FParqueNorte'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=(%2FMadrid%2FDistricts%3B%2FCompanyA)%7C%2FMadrid%2FGardens%2FParqueNorte'
 echo
 echo
 
 
 echo "19. scopeQ with | (pipe OR): /Madrid/Gardens/ParqueSur|/CompanyA - E2, E4"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueSur%7C/CompanyA'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueSur%7C/CompanyA'
 echo
 echo
 
 
 echo "20. scopeQ multi-level +: /+/+/ParqueNorte - E1"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/+/+/ParqueNorte'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/+/+/ParqueNorte'
 echo
 echo
 
 
 echo "21. scopeQ OR with comma syntax: /Madrid/Gardens/ParqueSur,/Madrid/Districts/Centro - E2, E3"
 echo "==========================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueSur,/Madrid/Districts/Centro'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/Gardens/ParqueSur,/Madrid/Districts/Centro'
 echo
 echo
 
@@ -763,5 +763,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

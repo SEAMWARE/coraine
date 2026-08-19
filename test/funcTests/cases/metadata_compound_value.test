@@ -7,17 +7,17 @@ Sub-attribute (metadata) with a compound value round-trips
 --TAGS--
 sub-attributes
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 --RUN--
 echo "01. Create with temp.meta = compound {a:1, b:[2,3]}"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M:1","type":"T","temp":{"type":"Property","value":5,"meta":{"type":"Property","value":{"a":1,"b":[2,3]}}}}' | grep HTTP
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M:1","type":"T","temp":{"type":"Property","value":5,"meta":{"type":"Property","value":{"a":1,"b":[2,3]}}}}' | grep HTTP
 echo
 echo
 echo "02. GET — the compound metadata value is preserved"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:M:1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:M:1
 echo
 echo
 --EXPECT--
@@ -56,4 +56,4 @@ Content-Length: 239
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

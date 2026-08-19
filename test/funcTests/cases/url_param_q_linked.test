@@ -19,8 +19,8 @@ q-filter — linked-entity sub-query (q=rel{...})
 url-param query linked-entities
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -44,84 +44,84 @@ swBrokerStart
 
 echo "01. Seed urn:Alice (age 35)"
 echo "==========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Alice","type":"Person","age":{"type":"Property","value":35}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Alice","type":"Person","age":{"type":"Property","value":35}}'
 echo
 echo
 
 
 echo "02. Seed urn:Bob (age 22)"
 echo "========================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bob","type":"Person","age":{"type":"Property","value":22}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bob","type":"Person","age":{"type":"Property","value":22}}'
 echo
 echo
 
 
 echo "03. Seed urn:V1 (owner = Alice)"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:Alice"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:Alice"}}'
 echo
 echo
 
 
 echo "04. Seed urn:V2 (owner = Bob)"
 echo "============================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":17},"owner":{"type":"Relationship","object":"urn:Bob"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":17},"owner":{"type":"Relationship","object":"urn:Bob"}}'
 echo
 echo
 
 
 echo "05. Seed urn:V3 (owner = MISSING)"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":99},"owner":{"type":"Relationship","object":"urn:MISSING"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":99},"owner":{"type":"Relationship","object":"urn:MISSING"}}'
 echo
 echo
 
 
 echo "06. q=owner{age>30} — only V1 (Alice, 35)"
 echo "========================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D'
 echo
 echo
 
 
 echo "07. q=owner{age<30} — only V2 (Bob, 22)"
 echo "======================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3C30%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3C30%7D'
 echo
 echo
 
 
 echo "08. q=owner{age==35} — only V1"
 echo "=============================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3D%3D35%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3D%3D35%7D'
 echo
 echo
 
 
 echo "09. Combined: q=owner{age>30};speed>40 — V1 (V3 dropped: missing owner)"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D%3Bspeed%3E40'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E30%7D%3Bspeed%3E40'
 echo
 echo
 
 
 echo "10. q=owner{age>50} — empty"
 echo "==========================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E50%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E50%7D'
 echo
 echo
 
 
 echo "11. q=owner{age>0} — V1 + V2 (V3 dropped: target MISSING is unfetchable)"
 echo "========================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E0%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=owner%7Bage%3E0%7D'
 echo
 echo
 
 
 echo "12. q=manager{age>0} — empty (no Vehicle has a manager Relationship)"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=manager%7Bage%3E0%7D'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=manager%7Bage%3E0%7D'
 echo
 echo
 
@@ -339,5 +339,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

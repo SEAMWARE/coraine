@@ -29,9 +29,9 @@ TRoE timescale - deleted instances keep the attr kind (tombstone rows)
 troe timescale postgres temporal delete
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
   "locatedAt":  {"type":"Relationship","object":"urn:Place1","observedAt":"2026-06-01T09:00:00Z"},
   "name": {"type":"LanguageProperty","languageMap":{"en":"My vehicle","fr":"Ma voiture"},"observedAt":"2026-06-01T09:00:00Z"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
 echo done
 echo
 echo
@@ -54,9 +54,9 @@ echo
 
 echo "02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty), attrs/scope"
 echo "======================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/isParkedIn -X DELETE >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/name -X DELETE >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/scope -X DELETE >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/isParkedIn -X DELETE >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/name -X DELETE >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/scope -X DELETE >/dev/null
 echo done
 echo
 echo
@@ -64,7 +64,7 @@ echo
 
 echo "03. PATCH merge-patch deletes locatedAt (Relationship) via the NGSI-LD Null"
 echo "==========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"locatedAt":"urn:ngsi-ld:null"}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"locatedAt":"urn:ngsi-ld:null"}' >/dev/null
 echo done
 echo
 echo
@@ -72,14 +72,14 @@ echo
 
 echo "04. GET ?timeproperty=deletedAt — normalized: tombstones keep the attr kind"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt'
 echo
 echo
 
 
 echo "05. GET ?timeproperty=deletedAt&format=temporalValues — objects/languageMaps/scope pairs"
 echo "========================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt&format=temporalValues'
 echo
 echo
 
@@ -205,4 +205,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

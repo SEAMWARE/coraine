@@ -12,10 +12,10 @@ DistOps - Via header on forward + loop detection on receive (NGSI-LD § 5.7.5)
 distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --csourceAlias cb-alias -dist
-swBrokerStart -role CP1 --csourceAlias cp1-alias -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --csourceAlias cb-alias -dist
+coraineStart -role CP1 --csourceAlias cp1-alias -dist
 
 --RUN--
 #
@@ -45,7 +45,7 @@ payload='{
     "value": 42
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -69,28 +69,28 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. Plain GET V1 on CB -> forwarded to CP1, 200"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "04. GET V1 on CB with Via: 1.1 cb-alias -> loop skipped, local 404"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias"
 echo
 echo
 
 
 echo "05. GET V1 on CB with Via: 1.1 unrelated-alias -> 200 (no loop)"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 unrelated-alias"
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 unrelated-alias"
 echo
 echo
 
@@ -114,7 +114,7 @@ payload='{
     }
   ]
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -140,14 +140,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "08. GET urn:Loop:1 on CB -> two-hop loop, inner broker returns 404"
 echo "==================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:Loop:1
+corCurl --url /ngsi-ld/v1/entities/urn:Loop:1
 echo
 echo
 
@@ -156,7 +156,7 @@ echo "09. Tenant scoping: incoming Via cb-alias:tA -> no loop, forward proceeds"
 echo "=========================================================================="
 # Default-tenant alias is "cb-alias"; "cb-alias:tA" identifies a different
 # scope, so loop detection should not fire and the forward should proceed.
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias:tA"
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -H "Via: 1.1 cb-alias:tA"
 echo
 echo
 
@@ -292,7 +292,7 @@ Content-Length: 100
 
 
 --TEARDOWN--
-swBrokerStop --csourceAlias cb-alias
-swBrokerStop -role CP1 --csourceAlias cp1-alias
-swDbDrop
-swDbDrop -role CP1
+coraineStop --csourceAlias cb-alias
+coraineStop -role CP1 --csourceAlias cp1-alias
+corDbDrop
+corDbDrop -role CP1

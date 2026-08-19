@@ -16,8 +16,8 @@ Large numeric (float) attribute value round-trips without precision loss
 entity attr value-type
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -28,7 +28,7 @@ swBrokerStart
 
 echo "01. Create entity with a large float value"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
   "id": "http://a.b.c/xxx",
   "type": "T",
   "P1": { "type": "Property", "value": 1543924800.0 }
@@ -39,7 +39,7 @@ echo
 
 echo "02. GET the entity — value round-trips"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities/http://a.b.c/xxx'
+corCurl --url '/ngsi-ld/v1/entities/http://a.b.c/xxx'
 echo
 echo
 
@@ -75,5 +75,5 @@ Content-Length: 109
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

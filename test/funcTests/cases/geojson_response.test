@@ -12,8 +12,8 @@ GeoJSON response format (Accept: application/geo+json)
 format geo geojson
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -39,7 +39,7 @@ payload='{
   },
   "name": { "type": "Property", "value": "Madrid" }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -58,7 +58,7 @@ payload='{
     "value": { "type": "Polygon", "coordinates": [[[-5,35],[5,35],[5,44],[-5,44],[-5,35]]] }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -66,42 +66,42 @@ echo
 echo "03. Create entity E3 without any GeoProperty"
 echo "============================================="
 payload='{ "id": "urn:e3", "type": "City", "name": { "type": "Property", "value": "NoGeo" } }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "04. GET entity E1 as GeoJSON Feature"
 echo "====================================="
-swCurl --out geojson --url /ngsi-ld/v1/entities/urn:e1
+corCurl --out geojson --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
 
 echo "05. GET entities as GeoJSON FeatureCollection"
 echo "=============================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities?type=City'
+corCurl --out geojson --url '/ngsi-ld/v1/entities?type=City'
 echo
 echo
 
 
 echo "06. GET entity E2 with geometryProperty=operationArea"
 echo "======================================================"
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:e2' --urlParams 'geometryProperty=operationArea'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:e2' --urlParams 'geometryProperty=operationArea'
 echo
 echo
 
 
 echo "07. GET entity E3 as GeoJSON (no location - geometry null)"
 echo "=========================================================="
-swCurl --out geojson --url /ngsi-ld/v1/entities/urn:e3
+corCurl --out geojson --url /ngsi-ld/v1/entities/urn:e3
 echo
 echo
 
 
 echo "08. GET entity E1 with geometryProperty=nonexistent (geometry null)"
 echo "==================================================================="
-swCurl --out geojson --url '/ngsi-ld/v1/entities/urn:e1' --urlParams 'geometryProperty=nonexistent'
+corCurl --out geojson --url '/ngsi-ld/v1/entities/urn:e1' --urlParams 'geometryProperty=nonexistent'
 echo
 echo
 
@@ -428,5 +428,5 @@ Content-Length: 431
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

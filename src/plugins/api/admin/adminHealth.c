@@ -8,7 +8,7 @@
 #include <stddef.h>                               // NULL
 
 #include "kjson/kjBuilder.h"                      // kjObject, kjString, kjChildAdd
-#include "swRest/SwRestState.h"                   // swRest
+#include "corRest/CorRestState.h"                   // corRest
 
 #include "api/admin/adminHealth.h"                // Own interface
 
@@ -20,10 +20,10 @@
 //
 bool adminGetHealth(void)
 {
-  KjNode* root = kjObject(swRest.kjsonP, NULL);
+  KjNode* root = kjObject(corRest.kjsonP, NULL);
 
-  kjChildAdd(root, kjString(swRest.kjsonP, "status", "ok"));
+  kjChildAdd(root, kjString(corRest.kjsonP, "status", "ok"));
 
-  swRest.out.responseTree = root;
+  corRest.out.responseTree = root;
   return true;
 }

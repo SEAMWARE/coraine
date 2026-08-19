@@ -18,8 +18,8 @@ Linked entities — queryEntities flat + inline expansion
 query linked-entities
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,49 +37,49 @@ swBrokerStart
 
 echo "01. Seed urn:Garage"
 echo "==================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Garage","type":"Place","name":{"type":"Property","value":"Main"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Garage","type":"Place","name":{"type":"Property","value":"Main"}}'
 echo
 echo
 
 
 echo "02. Seed urn:V1 → Garage"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:Garage"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"parking":{"type":"Relationship","object":"urn:Garage"}}'
 echo
 echo
 
 
 echo "03. Seed urn:V2 → Garage"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":17},"parking":{"type":"Relationship","object":"urn:Garage"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":17},"parking":{"type":"Relationship","object":"urn:Garage"}}'
 echo
 echo
 
 
 echo "04. Seed urn:V3 (no relationship)"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":99}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":99}}'
 echo
 echo
 
 
 echo "05. Query type=Vehicle, no join — 3 vehicles"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
 echo
 echo
 
 
 echo "06. Query type=Vehicle, join=flat&joinLevel=1 — 3 vehicles + 1 Garage (deduped)"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=flat&joinLevel=1'
 echo
 echo
 
 
 echo "07. Query type=Vehicle, join=inline&joinLevel=1 — V1+V2 embed Garage, V3 unchanged"
 echo "=================================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=inline&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&join=inline&joinLevel=1'
 echo
 echo
 
@@ -285,5 +285,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

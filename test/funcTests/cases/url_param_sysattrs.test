@@ -12,8 +12,8 @@ GET entity/entities with sysAttrs=true returns timestamps
 sysattrs url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,28 +34,28 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity with sysAttrs=true - timestamps present"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?sysAttrs=true'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?sysAttrs=true'
 echo
 echo
 
 
 echo "03. GET entity without sysAttrs - timestamps stripped"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
 
 echo "04. GET entities with sysAttrs=true - array path with timestamps"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&sysAttrs=true'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&sysAttrs=true'
 echo
 echo
 
@@ -139,5 +139,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -16,8 +16,8 @@ Batch upsert (replace) may change an existing entity's type
 batch upsert replace entity
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -29,21 +29,21 @@ swBrokerStart
 
 echo "01. Create urn:E1 of type T1"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T1","P":{"type":"Property","value":1}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T1","P":{"type":"Property","value":1}}'
 echo
 echo
 
 
 echo "02. Batch upsert REPLACE urn:E1 as type T2"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entityOperations/upsert' --urlParams 'options=replace' -X POST --payload '[{"id":"urn:ngsi-ld:E1","type":"T2","P":{"type":"Property","value":2}}]'
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert' --urlParams 'options=replace' -X POST --payload '[{"id":"urn:ngsi-ld:E1","type":"T2","P":{"type":"Property","value":2}}]'
 echo
 echo
 
 
 echo "03. GET — now type T2, P=2"
 echo "=========================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
 echo
 echo
 
@@ -87,5 +87,5 @@ Content-Length: 98
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

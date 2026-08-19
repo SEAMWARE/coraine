@@ -12,10 +12,10 @@ DistOps - patchEntity (Merge): redirect, inclusive, ?local bypass, loop skip (re
 distops patch registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -34,7 +34,7 @@ swBrokerStart -role CP1 -dist
 # --- 01-04: redirect (CB has no local V1; CP1 owns it) ---
 echo "01. Seed CP1 with urn:V1 (speed=50, color=blue)"
 echo "==============================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"blue"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"blue"}}'
 echo
 echo
 
@@ -49,21 +49,21 @@ payload='{
   "operations": ["mergeEntity", "retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V1","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "03. PATCH urn:V1 on CB: speed=77, color=null → forwarded to CP1 → 204"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":77},"color":"urn:ngsi-ld:null"}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"speed":{"type":"Property","value":77},"color":"urn:ngsi-ld:null"}'
 echo
 echo
 
 
 echo "04. GET urn:V1 on CP1 directly → speed=77, color gone"
 echo "====================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
@@ -71,9 +71,9 @@ echo
 # --- 05-09: inclusive (local + forward) ---
 echo "05. Seed CP1 with urn:V2, AND local CB with urn:V2"
 echo "=================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
-swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
 echo
 echo
 
@@ -88,28 +88,28 @@ payload='{
   "operations": ["mergeEntity", "retrieveEntity"],
   "information": [{"entities":[{"id":"urn:V2","type":"Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "07. PATCH urn:V2: speed=111, color=white → local+forward → 204"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -X PATCH --payload '{"speed":{"type":"Property","value":111},"color":{"type":"Property","value":"white"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X PATCH --payload '{"speed":{"type":"Property","value":111},"color":{"type":"Property","value":"white"}}'
 echo
 echo
 
 
 echo "08. GET urn:V2 on CB ?local=true → speed=111, color=white (local merged)"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 --urlParams 'local=true'
 echo
 echo
 
 
 echo "09. GET urn:V2 on CP1 directly → speed=111, color=white (remote merged)"
 echo "======================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
@@ -117,7 +117,7 @@ echo
 # --- 10-13: ?local=true bypass ---
 echo "10. Seed CP1 with urn:V3, register exclusive CSR on CB claiming speed"
 echo "====================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":1}}'
 echo
 payload='{
   "id": "urn:CSR:PatchBypass",
@@ -132,30 +132,30 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "11. Seed CB's local urn:V3 with color"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V3","type":"Vehicle","color":{"type":"Property","value":"green"}}'
 echo
 echo
 
 
 echo "12. PATCH urn:V3 ?local=true: speed=9000 → 409 (exclusive claims speed); color=red → 204 (unclaimed, local-only merge)"
 echo "======================================================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"speed":{"type":"Property","value":9000}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"speed":{"type":"Property","value":9000}}'
 echo
-swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"color":{"type":"Property","value":"red"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true' -X PATCH --payload '{"color":{"type":"Property","value":"red"}}'
 echo
 echo
 
 
 echo "13. GET urn:V3 on CP1 → still speed=1 (?local=true did not forward)"
 echo "==================================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3
 echo
 echo
 
@@ -165,14 +165,14 @@ echo "14. PATCH with own Via alias → forward skipped, local merge still runs"
 echo "======================================================================"
 # CB's local V3 now has color=red. The Via loop suppresses the
 # forward to CP1 but the local merge of brand=Ghost still lands.
-swCurl --url /ngsi-ld/v1/entities/urn:V3 -X PATCH -H "Via: 1.1 localhost:$CB_PORT" --payload '{"brand":{"type":"Property","value":"Ghost"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 -X PATCH -H "Via: 1.1 localhost:$CB_PORT" --payload '{"brand":{"type":"Property","value":"Ghost"}}'
 echo
 echo
 
 
 echo "15. GET urn:V3 on CB ?local=true → now also has brand=Ghost"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V3 --urlParams 'local=true'
 echo
 echo
 
@@ -405,7 +405,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

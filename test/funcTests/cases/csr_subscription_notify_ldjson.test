@@ -20,10 +20,10 @@ CSR Subscription notify — ld+json carries @context inline, no Link (§ 6.5.3)
 csr-sub subscription notification ldjson context
 
 --INIT--
-swDbDrop
+corDbDrop
 contextServerStart
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -38,14 +38,14 @@ echo
 
 echo "01. csource-sub via ctxA, endpoint.accept = application/ld+json"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S-LD","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s","accept":"application/ld+json"}}}' -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S-LD","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s","accept":"application/ld+json"}}}' -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
 echo
 echo
 
 
 echo "02. Register matching CSR-A (Vehicle) — triggers a CsourceNotification"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
@@ -134,5 +134,5 @@ HTTP/1.1 201 Created
 --TEARDOWN--
 ftClientStop
 contextServerStop
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

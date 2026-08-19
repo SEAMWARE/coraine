@@ -17,10 +17,10 @@ Batch Entity Delete — exclusive CSR without deleteBatch op (207 conflict)
 batch delete entity
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart --noSplitEntities -dist
-swBrokerStart -role CP1 --noSplitEntities -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
 
@@ -29,21 +29,21 @@ CP1="http://localhost:${CP1_PORT}"
 
 echo "01. Seed V1 on CP1 only (CB has no V1)"
 echo "======================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}'
 echo
 echo
 
 
 echo "02. Seed V2 on CB only"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
 echo
 echo
 
 
 echo "03. Register CB→CP1 exclusive (V1/speed) but WITHOUT deleteBatch"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:EX","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"exclusive","operations":["retrieveEntity"],"information":[{"entities":[{"id":"urn:V1","type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
@@ -53,21 +53,21 @@ echo "====================================================================="
 # V1 is exclusively the CSR's; the reg doesn't support deleteBatch, so
 # the forward cannot proceed → Conflict in errors[], nothing happens to
 # the CP1 copy. V2 is uncovered → plain local delete → success[].
-swCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1", "urn:V2"]'
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:V1", "urn:V2"]'
 echo
 echo
 
 
 echo "05. GET CB V2 → 404 (deleted locally)"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2
+corCurl --url /ngsi-ld/v1/entities/urn:V2
 echo
 echo
 
 
 echo "06. GET CP1 V1 → 200 (untouched — the conflict blocked the forward)"
 echo "===================================================================="
-swCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?format=simplified'
 echo
 echo
 
@@ -172,7 +172,7 @@ Content-Length: 57
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

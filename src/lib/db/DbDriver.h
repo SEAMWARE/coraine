@@ -16,9 +16,9 @@
 #include "kargs/KArg.h"                                   // KArg
 #include "kjson/KjNode.h"                                 // KjNode
 
-#include "swNgsild/ldEntityMerge.h"                       // LdMergeReport
-#include "swNgsild/LdSubCache.h"                          // LdGeoMatchFunc
-#include "swNgsild/LdRegCache.h"                          // LdCsrGeoMatchFunc
+#include "corNgsild/ldEntityMerge.h"                       // LdMergeReport
+#include "corNgsild/LdSubCache.h"                          // LdGeoMatchFunc
+#include "corNgsild/LdRegCache.h"                          // LdCsrGeoMatchFunc
 
 #include "db/DbQueryFilter.h"                             // DbQueryFilter
 #include "db/Tenant.h"                                    // Tenant
@@ -64,7 +64,7 @@ typedef void (*DbCloseFunc)(void);
 //
 // JSON-LD context persistence (NGSI-LD § 5.13 Context Hosting).
 //
-// Context rows are stored in a fixed, reserved database (e.g. "swBroker")
+// Context rows are stored in a fixed, reserved database (e.g. "coraine")
 // independent of any tenant. Hosted, Cached, and ImplicitlyCreated contexts
 // are persisted. ImplicitlyCreated covers contexts the broker mints on
 // behalf of a request — most notably the one synthesised for a Subscription
@@ -168,7 +168,7 @@ typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 // notifications without an extra retrieve.
 //
 // mongoc impl does one $in fetch + one bulk_write of delete_one ops
-// (2 round-trips total). swRamDB just loops.
+// (2 round-trips total). corRamDB just loops.
 //
 typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
                                        int* resultsV, KjNode** snapshotsV);
@@ -219,7 +219,7 @@ typedef int  (*DbEntityAttrsSetFunc)(Tenant* tenantP, const char* entityId,
 // attrTypes and entityCount are only populated when details is true —
 // the simple list case short-circuits the heavier per-type scan.
 //
-// Nodes are allocated via swRest.kjsonP.
+// Nodes are allocated via corRest.kjsonP.
 //
 typedef int  (*DbTypeListFunc)(Tenant* tenantP, bool details, KjNode** arrayPP);
 
@@ -353,7 +353,7 @@ typedef struct DbDriver
   LdCsrGeoMatchFunc    csrGeoMatchFunc; // geoQ ↔ CSR geo-coverage match (§ 5.10.2.4 / dispatch)
 
   // JSON-LD context persistence — optional; NULL means no persistence
-  // (e.g. ramdb). The reserved DB name ("swBroker") is used internally.
+  // (e.g. ramdb). The reserved DB name ("coraine") is used internally.
   DbContextSaveFunc       contextSave;
   DbContextDeleteFunc     contextDelete;
   DbContextListFunc       contextList;

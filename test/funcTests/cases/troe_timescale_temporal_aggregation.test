@@ -19,9 +19,9 @@ TRoE timescale - format=aggregatedValues
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -39,21 +39,21 @@ payload='{
     {"type":"Property","value":60,"observedAt":"2026-04-28T14:30:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. avg+min+max per 1h bucket from 10:00 to 15:00 (window=PT1H)"
 echo "==============================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T15:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max&aggrPeriodDuration=PT1H'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T15:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max&aggrPeriodDuration=PT1H'
 echo
 echo
 
 
 echo "03. sum + count per 2h bucket"
 echo "============================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=sum,totalCount&aggrPeriodDuration=PT2H'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T16:00:00Z&format=aggregatedValues&aggrMethods=sum,totalCount&aggrPeriodDuration=PT2H'
 echo
 echo
 
@@ -195,6 +195,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

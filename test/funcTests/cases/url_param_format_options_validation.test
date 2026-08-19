@@ -12,8 +12,8 @@
 url-param validation error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -22,7 +22,7 @@ swBrokerStart
 #
 echo "01. GET /entities?format=invalidFormat -> 400 InvalidRequest"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T&format=invalidFormat'
+corCurl --url '/ngsi-ld/v1/entities?type=T&format=invalidFormat'
 echo
 echo
 
@@ -32,7 +32,7 @@ echo
 #
 echo "02. GET /entities?options=invalidOptions -> 400 InvalidRequest"
 echo "=============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&options=invalidOptions'
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=invalidOptions'
 echo
 echo
 
@@ -42,7 +42,7 @@ echo
 #
 echo "03. GET /entities?options=temporalValues,invalidOptions -> 400 InvalidRequest"
 echo "============================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&options=temporalValues,invalidOptions'
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=temporalValues,invalidOptions'
 echo
 echo
 
@@ -52,7 +52,7 @@ echo
 #
 echo "04. GET /entities?options=keyValues,sysAttrs -> 200 (no entities, but valid)"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues,sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues,sysAttrs'
 echo
 echo
 
@@ -62,7 +62,7 @@ echo
 #
 echo "05. GET /entities?format=normalized -> 200 (no entities, but valid)"
 echo "==================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=T&format=normalized'
+corCurl --url '/ngsi-ld/v1/entities?type=T&format=normalized'
 echo
 echo
 
@@ -141,4 +141,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

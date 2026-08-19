@@ -19,8 +19,8 @@ GeoProperty coordinate validation — malformed geometries rejected with 400
 geo geoproperty validation error
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -31,7 +31,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": 12 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -44,7 +44,7 @@ payload='{
   "G1": { "type": "Point", "coordinates": [ 1, 2 ] },
   "G1": { "type": "Point", "coordinates": [ 1, 3 ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -56,7 +56,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "coordinates": [ 1, 2 ] } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -68,7 +68,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "type": 12, "coordinates": [ 1, 2 ] } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -80,7 +80,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "type": "punto", "coordinates": [ 1, 2 ] }}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -92,7 +92,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Point", "coordinates": [ 1, 2 ], "type": "Point" }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -104,7 +104,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "type": "Point" } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -116,7 +116,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ 1, 2 ], "coordinates": [ 1, 2 ] }}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -128,7 +128,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": true } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -140,7 +140,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Point", "coordinates": [ ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -152,7 +152,7 @@ payload='{
   "type": "T",
   "G1": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ ] } }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -164,7 +164,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Point", "coordinates": [ 7 ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -176,7 +176,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Point", "coordinates": [ 1, 2.0, 3, 4.0 ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -188,7 +188,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Point", "coordinates": [ 5.0, false ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -200,7 +200,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Point", "coordinates": [ 1, 2.0, "string" ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -212,7 +212,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Polygon", "coordinates": [ [ 1, 2.0 ], [ 5, 4 ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -224,7 +224,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Polygon", "coordinates": [ [ [ [ 1, 2.0 ], [ 5, 4 ] ] ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -236,7 +236,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Polygon", "coordinates": [ [ [ 2, 0 ], [ 0, 5 ], [ 2, 0 ] ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -248,7 +248,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Polygon", "coordinates": [ [ [ 2, 0 ], [ 0, 5 ], [ 0, 0 ], "OK",  [ 2, 0 ] ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -260,7 +260,7 @@ payload='{
   "type": "T",
   "G1": { "type": "Polygon", "coordinates": [ [ [ 2, 0 ], [ 0, 5 ], [ 0, 0 ], [ 1, 0 ] ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -272,7 +272,7 @@ payload='{
   "type": "T",
   "G1": { "type": "LineString", "coordinates": [ 1, 2.0 ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -284,7 +284,7 @@ payload='{
   "type": "T",
   "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], "string" ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -296,7 +296,7 @@ payload='{
   "type": "T",
   "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], [ 5 ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -308,7 +308,7 @@ payload='{
   "type": "T",
   "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], [ 5, "string" ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -320,7 +320,7 @@ payload='{
   "type": "T",
   "G1": { "type": "LineString", "coordinates": [ [ 1, 2.0 ], [ ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -332,7 +332,7 @@ payload='{
   "type": "T",
   "G1": { "type": "MultiPoint", "coordinates": [ 1, 2.0 ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -344,7 +344,7 @@ payload='{
   "type": "T",
   "G1": { "type": "MultiPoint", "coordinates": [ [ 1, 2.0 ], [] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -356,7 +356,7 @@ payload='{
   "type": "T",
   "G1": { "type": "MultiPoint", "coordinates": [ [ 1, 2.0 ], [ 3, "string" ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -368,7 +368,7 @@ payload='{
   "type": "T",
   "G1": { "type": "MultiLineString", "coordinates": [ [ 1, 2.0 ], [ 5, 4 ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -380,7 +380,7 @@ payload='{
   "type": "T",
   "G1": { "type": "MultiLineString", "coordinates": [ [ [ [ 1, 2.0 ], [ 5, 4 ] ] ] ] }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -392,7 +392,7 @@ payload='{
   "type": "T",
   "R1": { "object": 14 }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -895,5 +895,5 @@ Content-Length: 255
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

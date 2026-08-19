@@ -12,8 +12,8 @@ PATCH /entities/{id} - format/lang/observedAt URL params
 entity patch url-param
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -68,91 +68,91 @@ payload='{
     "observedAt": "2026-01-01T00:00:00Z"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. PATCH owner with simplified URI — Relationship type must be preserved"
 echo "========================================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified' --payload '{"owner":"urn:bob"}'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified' --payload '{"owner":"urn:bob"}'
 echo
 echo
 
 
 echo "03. GET — owner.object updated, type still Relationship"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
 
 echo "04. PATCH name with lang=es — add Spanish entry, preserve en/fr"
 echo "==============================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified&lang=es' --payload '{"name":"Hola"}'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified&lang=es' --payload '{"name":"Hola"}'
 echo
 echo
 
 
 echo "05. GET — languageMap has en, fr, es"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
 
 echo "06. PATCH temp with observedAt URL param — sub-attr updated from URL"
 echo "===================================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?observedAt=2026-06-01T12:00:00Z' --payload '{"temp":25}'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?observedAt=2026-06-01T12:00:00Z' --payload '{"temp":25}'
 echo
 echo
 
 
 echo "07. GET with sysAttrs — temp.value=25 and temp.observedAt=2026-06-01..."
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?options=sysAttrs'
 echo
 echo
 
 
 echo "08. PATCH temp with no observedAt URL param — stored observedAt is preserved"
 echo "============================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"temp":30}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"temp":30}'
 echo
 echo
 
 
 echo "09. GET sysAttrs — temp.value=30, observedAt still 2026-06-01..."
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:e1?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities/urn:e1?options=sysAttrs'
 echo
 echo
 
 
 echo "10. Simplified PATCH on LanguageProperty without lang URL param — 400"
 echo "====================================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified' --payload '{"name":"nope"}'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?format=simplified' --payload '{"name":"nope"}'
 echo
 echo
 
 
 echo "11. The same scalar WITHOUT the flag — a concise body, so it is a Property"
 echo "=========================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"owner":"urn:carol"}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:e1 --payload '{"owner":"urn:carol"}'
 echo
 echo
 
 
 echo "12. options=keyValues is the deprecated spelling of the same flag"
 echo "================================================================="
-swCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?options=keyValues' --payload '{"owner":"urn:dave"}'
+corCurl -X PATCH --url '/ngsi-ld/v1/entities/urn:e1?options=keyValues' --payload '{"owner":"urn:dave"}'
 echo
 echo
 
 
 echo "13. GET — neither refusal touched the Entity, and step 12 did"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:e1
+corCurl --url /ngsi-ld/v1/entities/urn:e1
 echo
 echo
 
@@ -416,4 +416,4 @@ Content-Length: 345
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -5,11 +5,11 @@
 //
 // Copyright 2026 Seamware
 //
-#ifndef SWBROKER_VERSION
-#define SWBROKER_VERSION "unknown"
+#ifndef CORAINE_VERSION
+#define CORAINE_VERSION "unknown"
 #endif
 
-#include "swRest/swRest.h"                       // SwRestServiceSimplified, SwRestParam, SwRestVerb, SwVerb*
+#include "corRest/corRest.h"                       // CorRestServiceSimplified, CorRestParam, CorRestVerb, CorVerb*
 #include "plugin/ApiPlugin.h"                     // ApiPlugin
 
 #include "api/admin/adminVersion.h"               // adminGetVersion
@@ -40,7 +40,7 @@
 //
 // adminParams - URL parameters contributed by the admin plugin
 //
-static SwRestParam adminParams[] =
+static CorRestParam adminParams[] =
 {
   { "verbose",     ADMIN_PARAM_VERBOSE     },
   { "debug",       ADMIN_PARAM_DEBUG       },
@@ -55,39 +55,39 @@ static SwRestParam adminParams[] =
 //
 // adminServices - flat array of all services (verb included in each entry)
 //
-static SwRestServiceSimplified adminServices[] =
+static CorRestServiceSimplified adminServices[] =
 {
   // GET
-  { SwVerbGet,    "/admin/version", adminGetVersion, 0,                0 },
-  { SwVerbGet,    "/admin/health",  adminGetHealth,  0,                0 },
-  { SwVerbGet,    "/admin/log",     adminGetLog,     0,                0 },
-  { SwVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
-  { SwVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
-  { SwVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
-  { SwVerbGet,    "/metrics",       adminGetMetrics, 0,                0 },  // Prometheus default scrape path (metrics_path)
-  { SwVerbGet,    "/admin/troe/dump", adminGetTroeDump, 0,             0 },
+  { CorVerbGet,    "/admin/version", adminGetVersion, 0,                0 },
+  { CorVerbGet,    "/admin/health",  adminGetHealth,  0,                0 },
+  { CorVerbGet,    "/admin/log",     adminGetLog,     0,                0 },
+  { CorVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
+  { CorVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
+  { CorVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
+  { CorVerbGet,    "/metrics",       adminGetMetrics, 0,                0 },  // Prometheus default scrape path (metrics_path)
+  { CorVerbGet,    "/admin/troe/dump", adminGetTroeDump, 0,             0 },
   // PUT
-  { SwVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
+  { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
-  { SwVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
-  { SwVerbPost,   "/admin/subStats/flush",  adminPostSubStatsFlush,   0,                0 },
+  { CorVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
+  { CorVerbPost,   "/admin/subStats/flush",  adminPostSubStatsFlush,   0,                0 },
   // DELETE
-  { SwVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
+  { CorVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
   // PATCH
-  { SwVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS, 0 }
+  { CorVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS, 0 }
 };
 
 
 
 // -----------------------------------------------------------------------------
 //
-// apiRegister - called by swPluginLoadApi after dlopen
+// apiRegister - called by corPluginLoadApi after dlopen
 //
 void apiRegister(ApiPlugin* pluginP)
 {
   pluginP->alias        = "admin";
-  pluginP->version      = SWBROKER_VERSION;
+  pluginP->version      = CORAINE_VERSION;
   pluginP->services     = adminServices;
-  pluginP->serviceCount = sizeof(adminServices) / sizeof(SwRestServiceSimplified);
+  pluginP->serviceCount = sizeof(adminServices) / sizeof(CorRestServiceSimplified);
   pluginP->params       = adminParams;
 }

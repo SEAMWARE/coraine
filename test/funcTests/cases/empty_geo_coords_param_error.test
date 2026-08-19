@@ -12,8 +12,8 @@ Empty / missing geo coordinates URI param errors cleanly
 error geo query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -38,28 +38,28 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
 
 echo "02. Geo query with an empty coordinates param"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'geometry=Point&coordinates=&geometry=Point&georel=near;maxDistance==10&type=Building&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'geometry=Point&coordinates=&geometry=Point&georel=near;maxDistance==10&type=Building&options=keyValues'
 echo
 echo
 
 
 echo "03. Geo query with no coordinates param at all"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'geometry=Point&geometry=Point&georel=near;maxDistance==10&type=Building&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'geometry=Point&geometry=Point&georel=near;maxDistance==10&type=Building&options=keyValues'
 echo
 echo
 
 
 echo "04. Query the entity by type — broker alive"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T_Query'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T_Query'
 echo
 echo
 
@@ -136,4 +136,4 @@ Content-Length: 261
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

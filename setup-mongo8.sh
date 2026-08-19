@@ -3,7 +3,7 @@
 # setup-mongo8.sh - install MongoDB 8.0 side-by-side with MongoDB 4.4
 #
 # MongoDB 4.4 stays on port 27017 (for orionld)
-# MongoDB 8.0 runs on port 27018 (for swBroker/fwBroker)
+# MongoDB 8.0 runs on port 27018 (for coraine/fwBroker)
 #
 
 set -e

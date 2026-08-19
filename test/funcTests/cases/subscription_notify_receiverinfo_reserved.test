@@ -7,7 +7,7 @@
 #
 # endpoint.receiverInfo (TS 104-175 § 5.2.6.6.1) becomes "custom" HTTP headers on
 # the notification (TS 104-176 § 6.5.2, "shall adhere to RFC 7230"). The spec is
-# silent on reserved/broker-managed headers; swBroker's rules (spec-doubt #100):
+# silent on reserved/broker-managed headers; coraine's rules (spec-doubt #100):
 #   - Content-Length / Date / Transfer-Encoding / Host  -> 400 (always)
 #   - Content-Type: not a notif media type, or != endpoint.accept, or the
 #     urn:ngsi-ld:request sentinel  -> 400; otherwise it ACTS AS endpoint.accept
@@ -22,16 +22,16 @@ endpoint.receiverInfo reserved/broker-managed headers — 400 rules + Content-Ty
 subscription notification receiverInfo
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 sub() {
   # $1 = id, $2 = endpoint members (accept + receiverInfo)
   payload='{ "id": "'$1'", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", '$2' } } }'
-  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+  corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 }
 
 echo "01. receiverInfo Content-Length -> 400"
@@ -78,7 +78,7 @@ echo
 
 echo "08. Trigger notification for S_OK — body=ld+json (single Content-Type), X-Custom, @context in body"
 echo "================================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
 sleep 0.4
 ftClientDump
 ftClientReset >/dev/null
@@ -88,10 +88,10 @@ echo
 echo "09. OK: receiverInfo @context Link (accept=json, type Car) -> supplies the single notification Link"
 echo "==================================================================================================="
 payload='{ "id": "urn:S_LINK", "type": "Subscription", "entities": [ { "type": "Car" } ], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", "accept": "application/json", "receiverInfo": [ { "key": "Link", "value": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"" } ] } } }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Car1", "type": "Car", "speed": { "type": "Property", "value": 9 } }' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Car1", "type": "Car", "speed": { "type": "Property", "value": 9 } }' >/dev/null
 sleep 0.4
 ftClientDump
 
@@ -276,4 +276,4 @@ Content-Length: 0
   }
 ]
 --TEARDOWN--
-swBrokerStop
+coraineStop

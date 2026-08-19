@@ -33,22 +33,22 @@ q addresses every instance of a multi-attribute, not just the default one (claus
 q query multi-attr datasetId
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed: Q:1 has a datasetId instance AND a default one; Q:2 has NO default instance"
 echo "===================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Q:1", "type": "T",
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Q:1", "type": "T",
   "speed": [ { "type": "Property", "value": 55, "datasetId": "urn:ds:1" },
              { "type": "Property", "value": 10 } ],
   "held":  [ { "type": "Relationship", "object": "urn:o:1", "datasetId": "urn:ds:1" },
              { "type": "Relationship", "object": "urn:o:2" } ] }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Q:2", "type": "T",
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Q:2", "type": "T",
   "speed": [ { "type": "Property", "value": 77, "datasetId": "urn:ds:1" },
              { "type": "Property", "value": 88, "datasetId": "urn:ds:2" } ] }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Q:3", "type": "T",
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Q:3", "type": "T",
   "speed": { "type": "Property", "value": 10 } }' | head -1
 echo
 echo
@@ -56,63 +56,63 @@ echo
 
 echo "02. The DEFAULT instance still matches (Q:1 default=10, Q:3 single=10)"
 echo "======================================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==10&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==10&options=keyValues'
 echo
 echo
 
 
 echo "03. A datasetId instance matches too - this is what used to find nothing"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==55&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==55&options=keyValues'
 echo
 echo
 
 
 echo "04. ... including on an Entity that has NO default instance at all (Q:2)"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==77&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==77&options=keyValues'
 echo
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==88&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==88&options=keyValues'
 echo
 echo
 
 
 echo "05. Relational operators range over the instances as well"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed>50&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed>50&options=keyValues'
 echo
 echo
 
 
 echo "06. Negative operator: EVERY instance must satisfy it, so Q:1 (which has a 10) is out"
 echo "====================================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed!=10&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed!=10&options=keyValues'
 echo
 echo
 
 
 echo "07. A value no instance holds matches nothing"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==999&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed==999&options=keyValues'
 echo
 echo
 
 
 echo "08. Existence is unchanged - all three have the Attribute"
 echo "========================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=speed&options=keyValues'
 echo
 echo
 
 
 echo "09. A Relationship's object is 'any object of such instances' too"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=held=="urn:o:1"&options=keyValues'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=held=="urn:o:1"&options=keyValues'
 echo
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 
 --EXPECT--
 01. Seed: Q:1 has a datasetId instance AND a default one; Q:2 has NO default instance

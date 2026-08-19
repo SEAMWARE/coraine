@@ -20,63 +20,63 @@ CSR RegistrationInfo attributeNames — new form, old-pair merge, mix rejected
 registration attributeNames
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 
 --RUN--
 
 echo "01. Register with attributeNames (new form) -> 201"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN1","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed","brand"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN1","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed","brand"]}]}'
 echo
 echo
 
 
 echo "02. GET it -> attributeNames rendered"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN1
 echo
 echo
 
 
 echo "03. Register with propertyNames + relationshipNames (old pair) -> 201"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN2","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"],"relationshipNames":["isParked"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN2","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"],"relationshipNames":["isParked"]}]}'
 echo
 echo
 
 
 echo "04. GET it -> the pair is MERGED into one attributeNames"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN2
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN2
 echo
 echo
 
 
 echo "05. Register with relationshipNames only (old form) -> 201"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN3","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"relationshipNames":["isParked"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN3","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"relationshipNames":["isParked"]}]}'
 echo
 echo
 
 
 echo "06. GET it -> attributeNames rendered"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN3
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AN3
 echo
 echo
 
 
 echo "07. Mix attributeNames + propertyNames -> 400"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN4","type":"ContextSourceRegistration","endpoint":"http://cp4.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed"],"propertyNames":["brand"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN4","type":"ContextSourceRegistration","endpoint":"http://cp4.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed"],"propertyNames":["brand"]}]}'
 echo
 echo
 
 
 echo "08. Mix attributeNames + relationshipNames -> 400"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN5","type":"ContextSourceRegistration","endpoint":"http://cp5.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed"],"relationshipNames":["isParked"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:AN5","type":"ContextSourceRegistration","endpoint":"http://cp5.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"attributeNames":["speed"],"relationshipNames":["isParked"]}]}'
 echo
 echo
 
@@ -233,5 +233,5 @@ Content-Length: 251
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

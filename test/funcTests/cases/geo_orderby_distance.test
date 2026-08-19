@@ -22,59 +22,59 @@ orderBy dist-asc/dist-desc — sort entities by distance from orderFrom (§ 7.6.
 geoquery orderBy distance query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed A(near),C(mid),B(far) with location; D with no location"
 echo "==============================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.05,40.0]}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.1,40.0]}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[9.0,41.0]}}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:D","type":"P","name":{"type":"Property","value":"noloc"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:A","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.05,40.0]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[8.1,40.0]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B","type":"P","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[9.0,41.0]}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:D","type":"P","name":{"type":"Property","value":"noloc"}}' | head -1
 echo
 echo
 
 
 echo "02. orderBy=location;dist-asc — nearest first: A, C, B, then D (no location) last"
 echo "================================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=location;dist-desc — farthest first: B, C, A, then D last"
 echo "===================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-desc&orderFrom=%5B8,40%5D&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-desc&orderFrom=%5B8,40%5D&options=keyValues'
 echo
 echo
 
 
 echo "04. dist-asc limit=2 — the two nearest: A, C"
 echo "============================================"
-swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&limit=2&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&limit=2&options=keyValues'
 echo
 echo
 
 
 echo "05. dist-asc offset=2 limit=5 — pages into the non-geo tail: B, D"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&offset=2&limit=5&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&offset=2&limit=5&options=keyValues'
 echo
 echo
 
 
 echo "06. dist-asc without orderFrom — 400 BadRequestData"
 echo "==================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc'
 echo
 echo
 
 
 echo "07. dist-asc with a non-Point orderGeometry — 501 Not Implemented"
 echo "================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B7,39%5D,%5B9,41%5D%5D&orderGeometry=LineString'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B7,39%5D,%5B9,41%5D%5D&orderGeometry=LineString'
 echo
 echo
 
@@ -298,5 +298,5 @@ Content-Length: 216
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

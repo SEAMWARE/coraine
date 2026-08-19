@@ -15,7 +15,7 @@
 #
 # The discriminating case is Entity creation: a ["attributeCreated"] sub fires
 # on it (entity-create = all attributes created), yet a ["entityUpdated"] sub
-# does NOT — even though entityUpdated includes attributeCreated. swBroker treats
+# does NOT — even though entityUpdated includes attributeCreated. coraine treats
 # entity-create as an entityCreated event, not an entityUpdated one (the spec is
 # silent on this symmetry; see the triggerMatches comment / ETSI 046_22).
 #
@@ -26,9 +26,9 @@ notificationTrigger entityCreated vs entityUpdated — isolated, incl. the creat
 subscription notificationTrigger entityCreated entityUpdated
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -45,8 +45,8 @@ for s in sorted(e['body']['subscriptionId'] for e in d):
 
 echo "01. Create S_EC [entityCreated] and S_EU [entityUpdated] (both on type Vehicle)"
 echo "==============================================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_EC", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notificationTrigger": ["entityCreated"], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' >/dev/null
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_EU", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notificationTrigger": ["entityUpdated"], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_EC", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notificationTrigger": ["entityCreated"], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_EU", "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notificationTrigger": ["entityUpdated"], "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' >/dev/null
 echo "done"
 echo
 echo
@@ -54,7 +54,7 @@ echo
 
 echo "02. Create V1 {speed} → S_EC fires; S_EU does NOT (create != update)"
 echo "===================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
 dump
 echo
 echo
@@ -62,7 +62,7 @@ echo
 
 echo "03. PATCH add attr color → S_EU fires (attributeCreated); S_EC does NOT"
 echo "======================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "color": { "type": "Property", "value": "red" } }' >/dev/null
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "color": { "type": "Property", "value": "red" } }' >/dev/null
 dump
 echo
 echo
@@ -70,7 +70,7 @@ echo
 
 echo "04. PATCH modify speed → S_EU fires (attributeUpdated); S_EC does NOT"
 echo "===================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "speed": { "type": "Property", "value": 200 } }' >/dev/null
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "speed": { "type": "Property", "value": 200 } }' >/dev/null
 dump
 echo
 echo
@@ -78,7 +78,7 @@ echo
 
 echo "05. PATCH delete color (urn:ngsi-ld:null) → S_EU fires (attributeDeleted); S_EC does NOT"
 echo "======================================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "color": "urn:ngsi-ld:null" }' >/dev/null
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{ "color": "urn:ngsi-ld:null" }' >/dev/null
 dump
 echo
 echo
@@ -86,7 +86,7 @@ echo
 
 echo "06. DELETE entity → neither fires (entityUpdated != entityDeleted)"
 echo "================================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 >/dev/null
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 >/dev/null
 dump
 
 --EXPECT--
@@ -123,4 +123,4 @@ done
 =================================================================
 0 notifications
 --TEARDOWN--
-swBrokerStop
+coraineStop

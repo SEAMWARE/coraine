@@ -24,9 +24,9 @@ TRoE timescale - aggregatedValues on Array, Object, and Relationship
 troe timescale postgres temporal aggregation
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -52,28 +52,28 @@ payload='{
     {"type":"Relationship","object":"urn:Bob",  "observedAt":"2026-04-28T12:00:00Z"}
   ]
 }'
-swCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. Array: avg/sum/min/max bucket per 2h — operates on array SIZES"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T14:00:00Z&format=aggregatedValues&aggrMethods=avg,sum,min,max,totalCount,distinctCount&aggrPeriodDuration=PT2H&pick=tags'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T14:00:00Z&format=aggregatedValues&aggrMethods=avg,sum,min,max,totalCount,distinctCount&aggrPeriodDuration=PT2H&pick=tags'
 echo
 echo
 
 
 echo "03. Object: only totalCount + distinctCount survive (avg/min/max emit empty)"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T14:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max,totalCount,distinctCount&aggrPeriodDuration=PT2H&pick=config'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T14:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max,totalCount,distinctCount&aggrPeriodDuration=PT2H&pick=config'
 echo
 echo
 
 
 echo "04. Relationship: totalCount + distinctCount on object (numeric/lex methods skipped)"
 echo "====================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T14:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max,totalCount,distinctCount&aggrPeriodDuration=PT2H&pick=driver'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T14:00:00Z&format=aggregatedValues&aggrMethods=avg,min,max,totalCount,distinctCount&aggrPeriodDuration=PT2H&pick=driver'
 echo
 echo
 
@@ -270,6 +270,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop

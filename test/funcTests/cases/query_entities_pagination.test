@@ -12,8 +12,8 @@ GET /entities with limit, offset, and count pagination
 entity pagination query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
     "value": 1
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -61,7 +61,7 @@ payload='{
     "value": 2
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -76,7 +76,7 @@ payload='{
     "value": 3
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -91,7 +91,7 @@ payload='{
     "value": 4
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -106,84 +106,84 @@ payload='{
     "value": 5
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. GET entities?limit=2 - see E1, E2"
 echo "====================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=2&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=2&type=T'
 echo
 echo
 
 
 echo "07. GET entities?limit=2&offset=2 - see E3, E4"
 echo "=============================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=2&offset=2&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=2&offset=2&type=T'
 echo
 echo
 
 
 echo "08. GET entities?limit=2&offset=4 - see E5"
 echo "=========================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=2&offset=4&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=2&offset=4&type=T'
 echo
 echo
 
 
 echo "09. GET entities?count=true - all 5 + NGSILD-Results-Count: 5"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?count=true&type=T'
+corCurl --url '/ngsi-ld/v1/entities?count=true&type=T'
 echo
 echo
 
 
 echo "10. GET entities?limit=2&count=true - E1, E2 + NGSILD-Results-Count: 5"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/entities?limit=2&count=true&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=2&count=true&type=T'
 echo
 echo
 
 
 echo "11. GET entities?limit=0&count=true - empty array + NGSILD-Results-Count: 5"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=0&count=true&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=0&count=true&type=T'
 echo
 echo
 
 
 echo "12. GET entities?limit=0 (without count) - 400 error"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities?limit=0&type=T'
+corCurl --url '/ngsi-ld/v1/entities?limit=0&type=T'
 echo
 echo
 
 
 echo "13. GET entities?offset=10 (past end) - last element E5 (§ 6.4.7.2)"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?offset=10&type=T'
+corCurl --url '/ngsi-ld/v1/entities?offset=10&type=T'
 echo
 echo
 
 
 echo "14. GET entities (no limit param) - all 5 (default limit 20 > 5)"
 echo "================================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=T'
+corCurl --url '/ngsi-ld/v1/entities?type=T'
 echo
 echo
 
 
 echo "15. GET entities?offset=10&count=true (past end) - last E5 + Results-Count 5"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?offset=10&count=true&type=T'
+corCurl --url '/ngsi-ld/v1/entities?offset=10&count=true&type=T'
 echo
 echo
 
 
 echo "16. GET entities?type=NoSuch&offset=10 (past end on empty set) - empty array"
 echo "==========================================================================="
-swCurl --url '/ngsi-ld/v1/entities?offset=10&type=NoSuch'
+corCurl --url '/ngsi-ld/v1/entities?offset=10&type=NoSuch'
 echo
 echo
 
@@ -546,5 +546,5 @@ Content-Length: 3
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

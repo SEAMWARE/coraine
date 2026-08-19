@@ -15,7 +15,7 @@
 #include <mongoc/mongoc.h>                            // bson_t
 
 #include "kjson/KjNode.h"                             // KjNode
-#include "swNgsild/ldEntityMerge.h"                   // LdMergeReport
+#include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/Tenant.h"                                 // Tenant
 

@@ -19,15 +19,15 @@ Subscription notification — geo+json + format concise (§ 5.2.14)
 subscription notification geojson concise
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
 echo "01. Subscription: accept = geo+json, format = concise"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id":"urn:ngsi-ld:Subscription:geoc",
   "type":"Subscription",
   "entities":[{"type":"Sensor"}],
@@ -45,7 +45,7 @@ echo
 
 echo "02. POST a Sensor (Property + sub-attr, GeoProperty) → geo+json concise notification"
 echo "==================================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id":"urn:S1",
   "type":"Sensor",
   "temp":{"type":"Property","value":22,"unitCode":"CEL"},
@@ -139,5 +139,5 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop

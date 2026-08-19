@@ -18,8 +18,8 @@ q over a ListProperty valueList — float and boolean element containment
 q query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -31,42 +31,42 @@ payload='{
   "fl": { "type": "ListProperty", "valueList": [1.5, 2.5, 3.5] },
   "bl": { "type": "ListProperty", "valueList": [true, false] }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
 echo
 echo
 
 
 echo "02. q=fl==2.5 — float present in valueList, matches"
 echo "=================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl==2.5' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl==2.5' | grep '"id"'
 echo
 echo
 
 
 echo "03. q=fl==9.9 — float absent, no match"
 echo "======================================"
-swCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl==9.9' | grep -c '"id"' || true
+corCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl==9.9' | grep -c '"id"' || true
 echo
 echo
 
 
 echo "04. q=fl!=9.9 — no element equals 9.9, matches"
 echo "============================================="
-swCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl!=9.9' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=LM&q=fl!=9.9' | grep '"id"'
 echo
 echo
 
 
 echo "05. q=bl==true — boolean present in valueList, matches"
 echo "====================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=LM&q=bl==true' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=LM&q=bl==true' | grep '"id"'
 echo
 echo
 
 
 echo "06. q=bl==false — boolean present in valueList, matches"
 echo "======================================================"
-swCurl --url '/ngsi-ld/v1/entities?type=LM&q=bl==false' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=LM&q=bl==false' | grep '"id"'
 
 --EXPECT--
 01. Create E with a float-list and a boolean-list ListProperty
@@ -103,4 +103,4 @@ Content-Length: 0
 ======================================================
     "id": "urn:ngsi-ld:LM:E1",
 --TEARDOWN--
-swBrokerStop
+coraineStop

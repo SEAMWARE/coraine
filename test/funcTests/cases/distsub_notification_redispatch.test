@@ -27,11 +27,11 @@ DistSub - end-to-end notification re-dispatch
 create distops subscription distsub notification
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
+corDbDrop
+corDbDrop -role CP1
 ftClientStart
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -55,28 +55,28 @@ payload='{
     { "entities": [ { "type": "Vehicle" } ] }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. Create local sub urn:S1 on CB → ftClient/s1"
 echo "==============================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
 echo
 echo
 
 
 echo "03. GET /subscriptions on CP1 — derived urn:S1:1 visible"
 echo "========================================================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
 echo
 echo
 
 
 echo "04. POST Vehicle urn:V1 on CP1 — fires derived sub"
 echo "=================================================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
@@ -188,8 +188,8 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
+coraineStop
+coraineStop -role CP1
 ftClientStop
-swDbDrop
-swDbDrop -role CP1
+corDbDrop
+corDbDrop -role CP1

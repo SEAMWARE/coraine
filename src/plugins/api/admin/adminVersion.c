@@ -15,10 +15,10 @@
 #include "ktrace/ktraceVersion.h"                  // KTRACE_VERSION
 #include "kjson/version.h"                        // KJSON_VERSION
 #include "kargs/kargsVersion.h"                   // KARGS_VERSION
-#include "swRest/version.h"                       // SWREST_VERSION
-#include "swRest/SwRestState.h"                   // swRest
-#include "swJsonld/swJsonld.h"                    // SWJSONLD_VERSION
-#include "swNgsild/swNgsild.h"                    // SWNGSILD_VERSION
+#include "corRest/version.h"                       // CORREST_VERSION
+#include "corRest/CorRestState.h"                   // corRest
+#include "corJsonld/corJsonld.h"                    // CORJSONLD_VERSION
+#include "corNgsild/corNgsild.h"                    // CORNGSILD_VERSION
 
 #include "kjson/kjBuilder.h"                      // kjObject, kjString, kjInteger, kjChildAdd
 
@@ -31,10 +31,10 @@
 
 // -----------------------------------------------------------------------------
 //
-// SWBROKER_VERSION - injected from the broker's swBroker.c via -D at compile time
+// CORAINE_VERSION - injected from the broker's coraine.c via -D at compile time
 //
-#ifndef SWBROKER_VERSION
-#define SWBROKER_VERSION "unknown"
+#ifndef CORAINE_VERSION
+#define CORAINE_VERSION "unknown"
 #endif
 
 
@@ -45,24 +45,24 @@
 //
 bool adminGetVersion(void)
 {
-  Kjson*   kjsonP = swRest.kjsonP;
+  Kjson*   kjsonP = corRest.kjsonP;
   KjNode*  root   = kjObject(kjsonP, NULL);
 
-  kjChildAdd(root, kjString(kjsonP, "swBroker version", SWBROKER_VERSION));
+  kjChildAdd(root, kjString(kjsonP, "coraine version", CORAINE_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kbase",            KBASE_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kalloc",           KALLOC_VERSION));
   kjChildAdd(root, kjString(kjsonP, "ktrace",           KTRACE_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kjson",            KJSON_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kargs",            KARGS_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "swRest",           SWREST_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "swJsonld",         SWJSONLD_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "swNgsild",         SWNGSILD_VERSION));
+  kjChildAdd(root, kjString(kjsonP, "corRest",           CORREST_VERSION));
+  kjChildAdd(root, kjString(kjsonP, "corJsonld",         CORJSONLD_VERSION));
+  kjChildAdd(root, kjString(kjsonP, "corNgsild",         CORNGSILD_VERSION));
 
   //
   // DB plugin version info
   //
   if (db.versionInfo != NULL)
-    db.versionInfo(&swRest.kalloc, root);
+    db.versionInfo(&corRest.kalloc, root);
 
   //
   // API plugin version info
@@ -70,7 +70,7 @@ bool adminGetVersion(void)
   for (int i = 0; i < apiPluginCount; i++)
   {
     if (apiPlugins[i].versionInfo != NULL)
-      apiPlugins[i].versionInfo(&swRest.kalloc, root);
+      apiPlugins[i].versionInfo(&corRest.kalloc, root);
   }
 
   //
@@ -83,6 +83,6 @@ bool adminGetVersion(void)
     close(fd);
   }
 
-  swRest.out.responseTree = root;
+  corRest.out.responseTree = root;
   return true;
 }

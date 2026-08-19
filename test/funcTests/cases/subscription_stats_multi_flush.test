@@ -25,22 +25,22 @@ Subscription stats — back-to-back flushes use deltas, no double count
 subscription stats persist mongoc
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart --apiPlugins admin
+coraineStart --apiPlugins admin
 
 --RUN--
 
 echo "01. Create sub + 2 notifs"
 echo "========================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type":"Vehicle"}],
   "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}
 }' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle"}' | head -1
 echo
 echo
 
@@ -48,15 +48,15 @@ echo
 echo "02. Flush #1"
 echo "============"
 sleep 0.2           # both notifs must be counted before the flush captures the delta (parallel-load flake)
-swValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
-swCurl --url /admin/subStats/flush -X POST | head -1
+corValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
+corCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "03. +1 notif"
 echo "============"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle"}' | head -1
 echo
 echo
 
@@ -64,24 +64,24 @@ echo
 echo "04. Flush #2 (delta=1)"
 echo "======================"
 sleep 0.2           # the +1 notif must be counted before this flush captures the delta (parallel-load flake)
-swValgrindSleep 3   # under --vt the notification+stats update lags; let it settle
-swCurl --url /admin/subStats/flush -X POST | head -1
+corValgrindSleep 3   # under --vt the notification+stats update lags; let it settle
+corCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "05. Flush #3 (delta=0, no-op)"
 echo "============================="
-swCurl --url /admin/subStats/flush -X POST | head -1
+corCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "06. Restart, GET sub → timesSent=3 (not 5, not 6)"
 echo "================================================="
-swBrokerStop
-swBrokerStart --apiPlugins admin
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+coraineStop
+coraineStart --apiPlugins admin
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
@@ -120,6 +120,6 @@ HTTP/1.1 204 No Content
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

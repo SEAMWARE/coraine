@@ -12,10 +12,10 @@ DistOps - POST /entities/{id}/attrs forwarded to exclusive registration
 distops registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
 
 --RUN--
 
@@ -29,14 +29,14 @@ swBrokerStart -role CP1 -dist
 
 echo "01. Seed CP1 with V1 (speed=42)"
 echo "==============================="
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
 echo
 echo
 
 
 echo "02. Seed CB local V1 (no attrs) so local append can land"
 echo "========================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V1","type":"Vehicle"}'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'local=true' --payload '{"id":"urn:V1","type":"Vehicle"}'
 echo
 echo
 
@@ -56,7 +56,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -65,21 +65,21 @@ echo "04. POST V1/attrs on CB: speed=99, brand=Zephyr"
 echo "==============================================="
 # speed is chopped + forwarded (→ CP1 replaces its speed). brand stays local.
 payload='{"speed":{"type":"Property","value":99},"brand":{"type":"Property","value":"Zephyr"}}'
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload "$payload"
 echo
 echo
 
 
 echo "05. GET V1 on CP1 → speed=99"
 echo "============================"
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1
 echo
 echo
 
 
 echo "06. GET V1 on CB ?local=true → brand=Zephyr (speed not local)"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --urlParams 'local=true'
 echo
 echo
 
@@ -162,7 +162,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swDbDrop
-swDbDrop -role CP1
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

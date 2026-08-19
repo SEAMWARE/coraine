@@ -23,9 +23,9 @@ notificationTrigger reasons for PUT-replace-instance and DELETE-instance / DELET
 subscription notificationTrigger replace delete datasetId instance
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ createSub() {
     '$2'
     "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
   }'
-  swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" >/dev/null
+  corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" >/dev/null
 }
 
 dump() {
@@ -64,7 +64,7 @@ echo
 
 echo "02. Create V1 speed = [ default 100, datasetId:radar 98 ], then reset"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": [ { "type": "Property", "value": 100 }, { "type": "Property", "value": 98, "datasetId": "urn:ngsi-ld:dataset:radar" } ] }' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": [ { "type": "Property", "value": 100 }, { "type": "Property", "value": 98, "datasetId": "urn:ngsi-ld:dataset:radar" } ] }' >/dev/null
 ftClientReset >/dev/null
 echo "done"
 echo
@@ -73,7 +73,7 @@ echo
 
 echo "03. PUT /attrs/speed {value:200} → replaces default instance → attributeUpdated"
 echo "==============================================================================="
-swCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed --payload '{ "type": "Property", "value": 200 }' >/dev/null
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed --payload '{ "type": "Property", "value": 200 }' >/dev/null
 dump
 echo
 echo
@@ -81,7 +81,7 @@ echo
 
 echo "04. DELETE /attrs/speed?datasetId=urn:ngsi-ld:dataset:radar → radar instance gone, default remains"
 echo "=================================================================================================="
-swCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ngsi-ld:dataset:radar' >/dev/null
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ngsi-ld:dataset:radar' >/dev/null
 dump
 echo
 echo
@@ -89,7 +89,7 @@ echo
 
 echo "05. DELETE /attrs/speed → whole Attribute removed → attributeDeleted"
 echo "==================================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed >/dev/null
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed >/dev/null
 dump
 
 --EXPECT--
@@ -124,4 +124,4 @@ done
   urn:S_AD
   urn:S_EU
 --TEARDOWN--
-swBrokerStop
+coraineStop

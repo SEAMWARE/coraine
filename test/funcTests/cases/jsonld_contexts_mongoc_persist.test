@@ -13,10 +13,10 @@ JSON-LD context persistence — survives broker restart (mongoc)
 context
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxP '{
   "@context": {
@@ -30,16 +30,16 @@ contextServerPush /jsonldContexts/ctxP '{
 # 01. POST Hosted — captures the assigned id
 # 02. POST Cached
 # 03. LIST before restart — both kinds present
-# 04. swBrokerStop / swBrokerStart
+# 04. coraineStop / coraineStart
 # 05. LIST after restart — both still there (loaded from DB)
 # 06. DELETE the Hosted one
-# 07. swBrokerStop / swBrokerStart
+# 07. coraineStop / coraineStart
 # 08. LIST after restart — only Cached remains
 #
 
 echo "01. POST Hosted"
 echo "==============="
-hostedOut=$(swCurl -X POST --url /ngsi-ld/v1/jsonldContexts --in jsonld \
+hostedOut=$(corCurl -X POST --url /ngsi-ld/v1/jsonldContexts --in jsonld \
   --payload '{"@context":{"speed":"https://example.org/speed"}}')
 hostedId=$(echo "$hostedOut" | awk -F '/jsonldContexts/' '/^Location:/ {print $2}' | tr -d '\r')
 echo "$hostedOut" | head -1
@@ -49,7 +49,7 @@ echo
 
 echo "02. POST Cached"
 echo "==============="
-swCurl -X POST --url /ngsi-ld/v1/jsonldContexts \
+corCurl -X POST --url /ngsi-ld/v1/jsonldContexts \
   --payload '{"url":"http://localhost:7080/jsonldContexts/ctxP"}' | head -1
 echo
 echo
@@ -57,15 +57,15 @@ echo
 
 echo "03. LIST before restart"
 echo "======================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
 echo
 echo
 
 
 echo "04. Restart broker"
 echo "=================="
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo "restarted"
 echo
 echo
@@ -73,22 +73,22 @@ echo
 
 echo "05. LIST after restart (both still there)"
 echo "========================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
 echo
 echo
 
 
 echo "06. DELETE the Hosted one"
 echo "========================="
-swCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/${hostedId}" | head -1
+corCurl -X DELETE --url "/ngsi-ld/v1/jsonldContexts/${hostedId}" | head -1
 echo
 echo
 
 
 echo "07. Restart broker again"
 echo "========================"
-swBrokerStop
-swBrokerStart
+coraineStop
+coraineStart
 echo "restarted"
 echo
 echo
@@ -96,7 +96,7 @@ echo
 
 echo "08. LIST after restart (Hosted gone, Cached survives)"
 echo "====================================================="
-swCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
 echo
 echo
 
@@ -157,7 +157,7 @@ restarted
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop -db swBroker
-swDbDrop
+corDbDrop -db coraine
+corDbDrop

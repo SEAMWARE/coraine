@@ -22,23 +22,23 @@
 #include <stdio.h>                                   // snprintf
 #include <time.h>                                    // time
 
-#include "swRest/SwRestState.h"                      // swRest
-#include "swRest/swRestOutHeader.h"                  // swRestOutHeaderAdd
+#include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 #include "kjson/kjLookup.h"                          // kjLookup
 #include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
 #include "kjson/KjNode.h"                            // KjNode, KjString
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "swJsonld/swldInit.h"                       // swldCoreContext
-#include "swJsonld/SwldContext.h"                    // SwldContext
-#include "swNgsild/swNgsild.h"                       // ldError, LD_ERROR_*, swNgsild
-#include "swNgsild/ldCheckSubscription.h"            // ldCheckSubscription
-#include "swNgsild/LdOp.h"                           // LdOpCreateCsourceSubscription
-#include "swNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
-#include "swNgsild/LdSubCache.h"                     // LdSubCache
-#include "swNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemLookup
-#include "swNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
-#include "swNgsild/LdRegCache.h"                     // LdRegCache
-#include "swNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
+#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/CorLdContext.h"                    // CorLdContext
+#include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
+#include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription
+#include "corNgsild/LdOp.h"                           // LdOpCreateCsourceSubscription
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_IS_ACTIVE, LD_VOCAB_STATUS
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemLookup
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
+#include "corNgsild/LdRegCache.h"                     // LdRegCache
+#include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -61,10 +61,10 @@ static char* csrSubIdGenerate(KAlloc* allocP)
 
 bool postCsourceSubscriptions(void)
 {
-  KjNode* subP = swRest.in.requestTree;
+  KjNode* subP = corRest.in.requestTree;
 
   LdFormat notifFormat = LdFormatNone;
-  if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, /*merged*/false, &notifFormat, &swRest.kalloc) == false)
+  if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, /*merged*/false, &notifFormat, &corRest.kalloc) == false)
     return true;
 
   // § 5.11.7 — timeInterval drives periodic CsourceNotifications.
@@ -93,9 +93,9 @@ bool postCsourceSubscriptions(void)
 
   if (idP == NULL)
   {
-    char* generatedId = csrSubIdGenerate(&swRest.kalloc);
+    char* generatedId = csrSubIdGenerate(&corRest.kalloc);
 
-    idP = kjString(swRest.kjsonP, "id", generatedId);
+    idP = kjString(corRest.kjsonP, "id", generatedId);
     kjChildAdd(subP, idP);
   }
   else if (idP->type != KjString)
@@ -104,7 +104,7 @@ bool postCsourceSubscriptions(void)
     return true;
   }
 
-  Tenant* tenantP = (Tenant*) swNgsild.tenantP;
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
   // Reject duplicate id in either sub cache — /subscriptions and
   // /csourceSubscriptions share the mongo collection, so the id space
@@ -141,7 +141,7 @@ bool postCsourceSubscriptions(void)
   KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
   bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
 
-  KjNode* statusP = kjString(swRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
+  KjNode* statusP = kjString(corRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
   kjChildAdd(subP, statusP);
 
   // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
@@ -161,22 +161,22 @@ bool postCsourceSubscriptions(void)
   if (kjLookup(subP, "jsonldContext") == NULL)
   {
     const char*  jcUrl   = NULL;
-    SwldContext* reqCtxP = (swNgsild.contextP != NULL) ? swNgsild.contextP : swldCoreContext();
+    CorLdContext* reqCtxP = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
 
     if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
       jcUrl = reqCtxP->url;
-    else if (swNgsild.userContextBody != NULL &&
-             swNgsild.userContextBody->type == KjArray &&
-             swNgsild.userContextBody->value.firstChildP != NULL &&
-             swNgsild.userContextBody->value.firstChildP->next == NULL &&
-             swNgsild.userContextBody->value.firstChildP->type == KjString)
-      jcUrl = swNgsild.userContextBody->value.firstChildP->value.s;
+    else if (corNgsild.userContextBody != NULL &&
+             corNgsild.userContextBody->type == KjArray &&
+             corNgsild.userContextBody->value.firstChildP != NULL &&
+             corNgsild.userContextBody->value.firstChildP->next == NULL &&
+             corNgsild.userContextBody->value.firstChildP->type == KjString)
+      jcUrl = corNgsild.userContextBody->value.firstChildP->value.s;
     else if (reqCtxP != NULL && reqCtxP->url != NULL)
       jcUrl = reqCtxP->url;
 
     if (jcUrl != NULL)
     {
-      KjNode* jcP = kjString(swRest.kjsonP, "_jcResolved", jcUrl);
+      KjNode* jcP = kjString(corRest.kjsonP, "_jcResolved", jcUrl);
       kjChildAdd(subP, jcP);
     }
   }
@@ -185,7 +185,7 @@ bool postCsourceSubscriptions(void)
   // Internal marker: distinguishes CSR-subs from entity-subs in the
   // shared mongo collection. Stripped from GET responses.
   //
-  kjChildAdd(subP, kjString(swRest.kjsonP, "_subKind", "csr"));
+  kjChildAdd(subP, kjString(corRest.kjsonP, "_subKind", "csr"));
 
   //
   // Persist (same collection as entity subs). If no DB plugin is
@@ -236,15 +236,15 @@ bool postCsourceSubscriptions(void)
   //
   // 201 Created — Location + Link headers
   //
-  swRest.out.httpStatusCode = 201;
+  corRest.out.httpStatusCode = 201;
 
   const char* prefix  = "/ngsi-ld/v1/csourceSubscriptions/";
   int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
-  char*       locBuf  = kaAlloc(&swRest.kalloc, locLen);
+  char*       locBuf  = kaAlloc(&corRest.kalloc, locLen);
 
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);
-  swRestOutHeaderAdd("Location", locBuf);
+  corRestOutHeaderAdd("Location", locBuf);
 
   // § 6.3.6: no Link header on no-body responses.
 

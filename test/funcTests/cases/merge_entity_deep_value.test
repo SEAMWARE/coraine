@@ -21,8 +21,8 @@ Merge Entity (RFC 7396) surgically deep-merges json/languageMap values
 merge patch json langprop attr
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -34,7 +34,7 @@ payload='{
   "jdoc": { "type": "JsonProperty", "json": { "a": 1, "b": 2 } },
   "greeting": { "type": "LanguageProperty", "languageMap": { "en": "hi", "es": "hola" } }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
@@ -45,42 +45,42 @@ payload='{
   "jdoc": { "type": "JsonProperty", "json": { "b": 20, "c": 3 } },
   "greeting": { "type": "LanguageProperty", "languageMap": { "en": "hey" } }
 }'
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload "$payload"
 echo
 echo
 
 
 echo "03. GET E1 - jdoc.json {a:1,b:20,c:3} (a KEPT), greeting {en:hey,es:hola} (es KEPT)"
 echo "==================================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
 
 echo "04. PARTIAL ATTRIBUTE UPDATE (NOT merge) PATCH /attrs/jdoc json {x:9} -> REPLACE"
 echo "==============================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/jdoc' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"JsonProperty","json":{"x":9}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/jdoc' -X PATCH --header 'Content-Type: application/json' --payload '{"type":"JsonProperty","json":{"x":9}}'
 echo
 echo
 
 
 echo "05. GET E1 - jdoc.json {x:9} (replaced wholesale; a,b,c gone)"
 echo "============================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
 
 echo "06. MERGE E1: greeting {es: urn:ngsi-ld:null} -> deletes only the es language"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload '{"greeting":{"type":"LanguageProperty","languageMap":{"es":"urn:ngsi-ld:null"}}}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1' -X PATCH --header 'Content-Type: application/json' --payload '{"greeting":{"type":"LanguageProperty","languageMap":{"es":"urn:ngsi-ld:null"}}}'
 echo
 echo
 
 
 echo "07. GET E1 - greeting {en:hey} (es deleted, en kept)"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1'
 echo
 echo
 
@@ -205,4 +205,4 @@ Content-Length: 220
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

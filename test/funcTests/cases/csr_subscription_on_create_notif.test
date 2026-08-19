@@ -16,9 +16,9 @@ CSR Subscription - notification on CSR creation
 create csr-sub subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
@@ -38,21 +38,21 @@ swBrokerStart -dist
 
 echo "01. Sub S1 (Vehicle + watchedAttributes=[speed])"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1"}}}'
 echo
 echo
 
 
 echo "02. Sub S2 (Temperature, all attrs)"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Temperature"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s2"}}}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Temperature"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s2"}}}'
 echo
 echo
 
 
 echo "03. Register CSR-A (Vehicle propertyNames=[speed])"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]}'
 echo
 echo
 
@@ -66,7 +66,7 @@ echo
 
 echo "05. Register CSR-B (Temperature propertyNames=[temperature])"
 echo "============================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:B","type":"ContextSourceRegistration","endpoint":"http://cp2.example","mode":"inclusive","information":[{"entities":[{"type":"Temperature"}],"propertyNames":["temperature"]}]}'
 echo
 echo
 
@@ -80,7 +80,7 @@ echo
 
 echo "07. Register CSR-C (Device) — neither sub matches"
 echo "================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Device"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:C","type":"ContextSourceRegistration","endpoint":"http://cp3.example","mode":"inclusive","information":[{"entities":[{"type":"Device"}]}]}'
 echo
 echo
 
@@ -466,6 +466,6 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

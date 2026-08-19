@@ -22,15 +22,15 @@ Subscription stats persist across broker restart (mongoc)
 subscription stats persist mongoc
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart --apiPlugins admin
+coraineStart --apiPlugins admin
 
 --RUN--
 
 echo "01. Create sub matching Vehicle → ftClient"
 echo "=========================================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:S1",
   "type": "Subscription",
   "entities": [{"type":"Vehicle"}],
@@ -42,8 +42,8 @@ echo
 
 echo "02. POST 2 Vehicle entities → 2 notifs"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}' | head -1
 echo
 echo
 
@@ -51,23 +51,23 @@ echo
 echo "03. GET sub → timesSent=2"
 echo "========================="
 sleep 0.2           # let the async notification+stats update land (parallel-load flake)
-swValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+corValgrindSleep 3   # under --vt the notification+stats updates lag; let them settle
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
 
 echo "04. POST /admin/subStats/flush"
 echo "=============================="
-swCurl --url /admin/subStats/flush -X POST | head -1
+corCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "05. Restart broker (cache reload from mongo)"
 echo "============================================"
-swBrokerStop
-swBrokerStart --apiPlugins admin
+coraineStop
+coraineStart --apiPlugins admin
 echo "restarted"
 echo
 echo
@@ -75,14 +75,14 @@ echo
 
 echo "06. GET sub after restart → timesSent=2 (persisted)"
 echo "==================================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
 
 echo "07. POST 1 more Vehicle entity → timesSent=3"
 echo "============================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30}}' | head -1
 echo
 echo
 
@@ -90,8 +90,8 @@ echo
 echo "08. GET sub → timesSent=3 (accumulated on top of persisted 2)"
 echo "============================================================="
 sleep 0.2           # let the async notification+stats update land (parallel-load flake)
-swValgrindSleep 3   # under --vt the 3rd notification+stats update lags; let it settle
-swCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+corValgrindSleep 3   # under --vt the 3rd notification+stats update lags; let it settle
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
 echo
 echo
 
@@ -139,6 +139,6 @@ HTTP/1.1 201 Created
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

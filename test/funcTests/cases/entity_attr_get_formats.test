@@ -24,8 +24,8 @@ GET single attribute — normalized / sysAttrs / concise / simplified, every att
 retrieve attr attribute format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -46,7 +46,7 @@ payload='{
   "j": { "type": "JsonProperty",     "json": { "a": 1, "b": 2 },           "xtra": 1 },
   "pe": { "type": "Property",        "value": 7, "expiresAt": "2099-12-31T23:59:59Z" }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -54,25 +54,25 @@ echo
 for attr in p r v l j; do
   echo "GET /attrs/$attr — normalized"
   echo "============================="
-  swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/$attr
+  corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/$attr
   echo
   echo
 
   echo "GET /attrs/$attr — options=sysAttrs"
   echo "==================================="
-  swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'options=sysAttrs'
+  corCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'options=sysAttrs'
   echo
   echo
 
   echo "GET /attrs/$attr — format=concise"
   echo "================================="
-  swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'format=concise'
+  corCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'format=concise'
   echo
   echo
 
   echo "GET /attrs/$attr — format=simplified"
   echo "===================================="
-  swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'format=simplified'
+  corCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/$attr" --urlParams 'format=simplified'
   echo
   echo
 done
@@ -80,21 +80,21 @@ done
 
 echo "EX1. GET /attrs/pe — normalized, NO sysAttrs: expiresAt stays (it is NOT a system attr)"
 echo "======================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/pe
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/pe
 echo
 echo
 
 
 echo "EX2. GET /attrs/pe — options=sysAttrs: expiresAt + createdAt + modifiedAt"
 echo "========================================================================="
-swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/pe" --urlParams 'options=sysAttrs'
+corCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/pe" --urlParams 'options=sysAttrs'
 echo
 echo
 
 
 echo "ZZ. GET /attrs/p — format=simplified + options=sysAttrs (not a 400; simplified wins)"
 echo "==================================================================================="
-swCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/p" --urlParams 'format=simplified&options=sysAttrs'
+corCurl --url "/ngsi-ld/v1/entities/urn:E1/attrs/p" --urlParams 'format=simplified&options=sysAttrs'
 echo
 echo
 
@@ -529,4 +529,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

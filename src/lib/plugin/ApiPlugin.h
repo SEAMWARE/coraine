@@ -12,7 +12,7 @@
 #include "kalloc/KAlloc.h"                            // KAlloc
 #include "kargs/KArg.h"                               // KArg
 #include "kjson/KjNode.h"                             // KjNode
-#include "swRest/SwRestService.h"                     // SwRestServiceSimplified, SwRestParam
+#include "corRest/CorRestService.h"                     // CorRestServiceSimplified, CorRestParam
 
 
 
@@ -28,7 +28,7 @@
 //
 // ApiPlugin - descriptor filled by an API plugin's register function
 //
-// In the swRest model, services are flat (verb included in each entry).
+// In the corRest model, services are flat (verb included in each entry).
 // A plugin fills a single services[] array and serviceCount.
 //
 typedef struct ApiPlugin
@@ -36,8 +36,8 @@ typedef struct ApiPlugin
   const char*                alias;               // "admin", "test", etc.
   const char*                version;             // plugin version string
   KArg*                      args;                // plugin CLI args (NULL if none)
-  SwRestParam*               params;              // plugin URL params (NULL if none)
-  SwRestServiceSimplified*   services;            // flat array of services (each includes verb)
+  CorRestParam*               params;              // plugin URL params (NULL if none)
+  CorRestServiceSimplified*   services;            // flat array of services (each includes verb)
   int                        serviceCount;        // number of entries in services[]
   int                      (*init)(void);         // post-kargsParse init
   void                     (*close)(void);        // shutdown cleanup

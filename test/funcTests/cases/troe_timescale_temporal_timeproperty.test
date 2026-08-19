@@ -22,9 +22,9 @@ TRoE temporal timeproperty axis — createdAt (creation row) / modifiedAt (all) 
 troe timescale postgres temporal timeproperty query
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
@@ -36,7 +36,7 @@ swBrokerStart --troe timescale
 
 echo "01. Create E1 P1=10 observedAt June"
 echo "==================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","P1":{"type":"Property","value":10,"observedAt":"2024-06-15T12:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","P1":{"type":"Property","value":10,"observedAt":"2024-06-15T12:00:00Z"}}'
 echo
 echo
 
@@ -44,7 +44,7 @@ sleep 1.1
 
 echo "02. Update E1 P1=20 observedAt March"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"P1":{"type":"Property","value":20,"observedAt":"2024-03-15T12:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"P1":{"type":"Property","value":20,"observedAt":"2024-03-15T12:00:00Z"}}'
 echo
 echo
 
@@ -52,14 +52,14 @@ sleep 1.1
 
 echo "03. Update E1 P1=30 observedAt September"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"P1":{"type":"Property","value":30,"observedAt":"2024-09-15T12:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"P1":{"type":"Property","value":30,"observedAt":"2024-09-15T12:00:00Z"}}'
 echo
 echo
 
 
 echo "04. Create E2 P1=100 observedAt April"
 echo "====================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","P1":{"type":"Property","value":100,"observedAt":"2024-04-10T12:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","P1":{"type":"Property","value":100,"observedAt":"2024-04-10T12:00:00Z"}}'
 echo
 echo
 
@@ -67,49 +67,49 @@ sleep 1
 
 echo "05. GET E1 timeproperty=createdAt — only the creation instance (P1=10)"
 echo "======================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2099-12-31T23:59:59Z&timeproperty=createdAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2099-12-31T23:59:59Z&timeproperty=createdAt'
 echo
 echo
 
 
 echo "06. GET E1 timeproperty=modifiedAt — all instances, record-time ordered"
 echo "======================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2099-12-31T23:59:59Z&timeproperty=modifiedAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2099-12-31T23:59:59Z&timeproperty=modifiedAt'
 echo
 echo
 
 
 echo "07. GET multi timeproperty=createdAt — only creation instances for E1, E2"
 echo "========================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities?type=T&timerel=before&timeAt=2099-12-31T23:59:59Z&timeproperty=createdAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=T&timerel=before&timeAt=2099-12-31T23:59:59Z&timeproperty=createdAt'
 echo
 echo
 
 
 echo "08. POST query timeproperty=modifiedAt — all instances"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/temporal/entityOperations/query --payload '{"type":"Query","entities":[{"type":"T"}],"temporalQ":{"timerel":"before","timeAt":"2099-12-31T23:59:59Z","timeproperty":"modifiedAt"}}'
+corCurl --url /ngsi-ld/v1/temporal/entityOperations/query --payload '{"type":"Query","entities":[{"type":"T"}],"temporalQ":{"timerel":"before","timeAt":"2099-12-31T23:59:59Z","timeproperty":"modifiedAt"}}'
 echo
 echo
 
 
 echo "09. GET E1 timeproperty=modifiedAt timerel=before timeAt=2020 — empty (record time is now)"
 echo "=========================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
 echo
 echo
 
 
 echo "10. GET E1 timeproperty=modifiedAt timerel=after timeAt=2020 — all instances"
 echo "============================================================================"
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
 echo
 echo
 
 
 echo "11. GET E1 default (observedAt) timerel=before timeAt=2024-07 — only June + March"
 echo "================================================================================="
-swCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2024-07-01T00:00:00Z'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?timerel=before&timeAt=2024-07-01T00:00:00Z'
 echo
 echo
 
@@ -375,4 +375,4 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

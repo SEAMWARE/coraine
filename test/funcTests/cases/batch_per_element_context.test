@@ -19,10 +19,10 @@ Batch create — per-element @context, each entity expands via its own
 context batch create
 
 --INIT--
-swDbDrop
-swDbDrop -db swBroker
+corDbDrop
+corDbDrop -db coraine
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/ctxA '{
   "@context": {
@@ -61,7 +61,7 @@ payload='[
     "@context": "http://localhost:7080/jsonldContexts/ctxB"
   }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/create \
+corCurl --url /ngsi-ld/v1/entityOperations/create \
   --header 'Content-Type: application/ld+json' \
   --payload "$payload" | head -1
 echo
@@ -70,21 +70,21 @@ echo
 
 echo "02. GET urn:E1 (core) — A/attr"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1
+corCurl --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "03. GET urn:E2 (core) — B/attr"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/entities/urn:E2
+corCurl --url /ngsi-ld/v1/entities/urn:E2
 echo
 echo
 
 
 echo "04. GET urn:E2 via ctxA — B/attr stays a full IRI"
 echo "=================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E2 \
+corCurl --url /ngsi-ld/v1/entities/urn:E2 \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -E 'example.org|"b"'
 echo
 echo
@@ -139,5 +139,5 @@ Content-Length: 114
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop

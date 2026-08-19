@@ -20,9 +20,9 @@ Complex Agri-Crop payload under a hosted custom @context is accepted, broker ali
 context entity relationship
 
 --INIT--
-swDbDrop
+corDbDrop
 contextServerStart
-swBrokerStart
+coraineStart
 
 contextServerPush /jsonldContexts/agricrop '{
   "@context": {
@@ -120,14 +120,14 @@ payload='{
         "value": "daily"
     }
 }'
-swCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/ld+json' --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/ld+json' --payload "$payload"
 echo
 echo
 
 
 echo "02. GET the entity back — broker alive"
 echo "======================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:AgriCrop:df72dc57-1eb9-42a3-88a9-8647ecc954b4 --header 'Link: <http://localhost:7080/jsonldContexts/agricrop>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:AgriCrop:df72dc57-1eb9-42a3-88a9-8647ecc954b4 --header 'Link: <http://localhost:7080/jsonldContexts/agricrop>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
@@ -222,6 +222,6 @@ Content-Length: 1528
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 contextServerStop
-swDbDrop
+corDbDrop

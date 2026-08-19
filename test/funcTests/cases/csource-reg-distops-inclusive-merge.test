@@ -13,12 +13,12 @@ DistOps - inclusive multi-source merge per § 4.5.5.3
 distops merge registration
 
 --INIT--
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
-swBrokerStart -dist
-swBrokerStart -role CP1 -dist
-swBrokerStart -role CP2 -dist
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
 
 --RUN--
 #
@@ -73,7 +73,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -96,7 +96,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
@@ -117,7 +117,7 @@ payload='{
     "observedAt": "2026-01-01T00:00:00Z"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -133,7 +133,7 @@ payload='{
     "observedAt": "2026-02-01T00:00:00Z"
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -149,14 +149,14 @@ payload='{
     "observedAt": "2026-03-01T00:00:00Z"
   }
 }'
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "06. GET urn:E1 on CB - newest observedAt wins (CP2 speed=30)"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -166,21 +166,21 @@ echo
 
 echo "07. Delete urn:E1 on CB"
 echo "======================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "08. Delete urn:E1 on CP1"
 echo "========================"
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+corCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "09. Delete urn:E1 on CP2"
 echo "========================"
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
@@ -197,7 +197,7 @@ payload='{
     "value": 300
   }
 }'
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -212,7 +212,7 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -228,14 +228,14 @@ payload='{
     "observedAt": "2020-01-01T00:00:00Z"
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "13. GET urn:E1 on CB - CP1 has observedAt so CP1 wins (speed=200)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -245,21 +245,21 @@ echo
 
 echo "14. Delete urn:E1 on CB"
 echo "======================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "15. Delete urn:E1 on CP1"
 echo "========================"
-swCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+corCurl --port $CP1_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
 
 echo "16. Delete urn:E1 on CP2"
 echo "========================"
-swCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
+corCurl --port $CP2_PORT -X DELETE --url /ngsi-ld/v1/entities/urn:E1
 echo
 echo
 
@@ -274,7 +274,7 @@ payload='{
     "value": 3000
   }
 }'
-swCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -289,7 +289,7 @@ payload='{
     "value": 2000
   }
 }'
-swCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -304,14 +304,14 @@ payload='{
     "value": 1000
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "20. GET urn:E1 on CB - newest modifiedAt wins (CB speed=1000)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
 echo
 echo
 
@@ -524,9 +524,9 @@ Content-Length: 59
 
 
 --TEARDOWN--
-swBrokerStop
-swBrokerStop -role CP1
-swBrokerStop -role CP2
-swDbDrop
-swDbDrop -role CP1
-swDbDrop -role CP2
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

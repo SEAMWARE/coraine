@@ -18,8 +18,8 @@ Attribute value sub-resource — GET/PUT value-only (Property, GeoProperty, Rela
 entity attr value
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -32,79 +32,79 @@ payload='{
   "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [1, 2]}},
   "refDevice": {"type": "Relationship", "object": "urn:ngsi-ld:Device:A"}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET temperature/value — bare 21 (application/json)"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value
 echo
 echo
 
 
 echo "03. PUT temperature/value = 45 — 204"
 echo "===================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -X PUT --payload '45'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -X PUT --payload '45'
 echo
 echo
 
 
 echo "04. GET temperature/value — now 45"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value
 echo
 echo
 
 
 echo "05. GET full temperature — type Property + unitCode preserved, value 45"
 echo "======================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature
 echo
 echo
 
 
 echo "06. GET location/value — bare GeoJSON geometry"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value
 echo
 echo
 
 
 echo "07. PUT location/value = new Point — 204, then GET shows it"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value -X PUT --payload '{"type": "Point", "coordinates": [10, 20]}'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value -X PUT --payload '{"type": "Point", "coordinates": [10, 20]}'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value
 echo
 echo
 
 
 echo "08. GET refDevice/value — bare object URI"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value
 echo
 echo
 
 
 echo "09. PUT refDevice/value = new URI — 204, then GET shows it"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value -X PUT --payload '"urn:ngsi-ld:Device:B"'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value -X PUT --payload '"urn:ngsi-ld:Device:B"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value
 echo
 echo
 
 
 echo "10. PUT value on a non-existent attribute — 404 (value-only cannot create)"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/nope/value -X PUT --payload '1'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/nope/value -X PUT --payload '1'
 echo
 echo
 
 
 echo "11. PUT value with Content-Type application/ld+json — 400 (value-only is plain JSON)"
 echo "===================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -X PUT --payload '9' -H "Content-Type: application/ld+json"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -X PUT --payload '9' -H "Content-Type: application/ld+json"
 echo
 echo
 
@@ -259,4 +259,4 @@ Content-Length: 210
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop

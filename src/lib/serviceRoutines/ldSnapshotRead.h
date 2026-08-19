@@ -17,7 +17,7 @@
 // reg-cache consultation.
 //
 #include <stdbool.h>                                     // bool
-#include "swNgsild/LdSnapshotCache.h"                    // LdSnapshotCacheItem
+#include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCacheItem
 
 
 // -----------------------------------------------------------------------------
@@ -48,7 +48,7 @@ extern LdSnapshotCacheItem* ldSnapshotItemFromHeader(bool* seenP);
 //
 // Looks up entityId in itemP->entities, deep-clones the match into the
 // request arena (so the response renderer can mutate freely), and
-// publishes it as swRest.out.responseTree. Returns true; raises 404 if
+// publishes it as corRest.out.responseTree. Returns true; raises 404 if
 // the entity isn't part of the snapshot.
 //
 extern bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId);

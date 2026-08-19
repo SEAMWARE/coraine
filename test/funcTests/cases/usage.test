@@ -16,7 +16,7 @@ usage
 --RUN--
 
 #
-# 01. Usage with swRamDB plugin (no extra CLI args)
+# 01. Usage with corRamDB plugin (no extra CLI args)
 # 02. Usage with mongoc plugin (shows DB connection args)
 # 03. Usage with non-existent plugin (error + usage)
 # 04. EXTENDED usage (-U)
@@ -28,182 +28,182 @@ usage
 # field is padded as a unit, so the columns actually line up.
 #
 
-echo "01. Usage with swRamDB plugin (no extra CLI args)"
+echo "01. Usage with corRamDB plugin (no extra CLI args)"
 echo "=================================================="
-$SW_BROKER -u -db swRamDB 2>&1
+$COR_BROKER -u -db corRamDB 2>&1
 echo
 echo
 
 
 echo "02. Usage with mongoc plugin (shows DB connection args)"
 echo "======================================================="
-$SW_BROKER -u -db mongoc 2>&1
+$COR_BROKER -u -db mongoc 2>&1
 echo
 echo
 
 
 echo "03. Usage with non-existent plugin (error + usage)"
 echo "==================================================="
-$SW_BROKER -u -db dummy2 2>&1
+$COR_BROKER -u -db dummy2 2>&1
 echo
 echo
 
 
 echo "04. Extended usage (-U) - one aligned row per option, no separator rows"
 echo "======================================================================="
-$SW_BROKER -U -db swRamDB 2>&1
+$COR_BROKER -U -db corRamDB 2>&1
 echo
 echo
 
 
 --EXPECT--
-01. Usage with swRamDB plugin (no extra CLI args)
+01. Usage with corRamDB plugin (no extra CLI args)
 ==================================================
-Usage: swBroker  [--usage/-u (usage)]
-                 [--Usage/-U (extended usage)]
-                 [--verbose/-v (verbose mode)]
-                 [--debug/-d (debug mode)]
-                 [--traceLevels/-t <trace levels>]
-                 [--port/-p <TCP port to listen on>]
-                 [--database/-db <swRamDB|mongoc>]
-                 [--troe/-troe <none|timescale|ramdb>]
-                 [--apiPlugins/-api <admin>]
-                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
-                 [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
-                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
-                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
-                 [--defaultUserContext/-duc <default user @context URL>]
-                 [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: the advertised endpoint authority)>]
-                 [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
-                 [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
-                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
-                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
-                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
-                 [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
-                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
-                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
-                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
-                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
-                 [--foreground/-fg (run in foreground (don't daemonize))]
-                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
-                 [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
+Usage: coraine  [--usage/-u (usage)]
+                [--Usage/-U (extended usage)]
+                [--verbose/-v (verbose mode)]
+                [--debug/-d (debug mode)]
+                [--traceLevels/-t <trace levels>]
+                [--port/-p <TCP port to listen on>]
+                [--database/-db <corRamDB|mongoc>]
+                [--troe/-troe <none|ramdb|timescale>]
+                [--apiPlugins/-api <admin>]
+                [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                [--connectionPoolSize/-cps <MHD thread pool size>]
+                [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
+                [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                [--defaultUserContext/-duc <default user @context URL>]
+                [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: the advertised endpoint authority)>]
+                [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
+                [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
+                [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
+                [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
+                [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
+                [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
+                [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
+                [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
+                [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
+                [--foreground/-fg (run in foreground (don't daemonize))]
+                [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
+                [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
-                 Plugins are loaded from /opt/seamware/plugins
+                Plugins are loaded from /opt/seamware/plugins
 
 
 02. Usage with mongoc plugin (shows DB connection args)
 =======================================================
-Usage: swBroker  [--usage/-u (usage)]
-                 [--Usage/-U (extended usage)]
-                 [--verbose/-v (verbose mode)]
-                 [--debug/-d (debug mode)]
-                 [--traceLevels/-t <trace levels>]
-                 [--port/-p <TCP port to listen on>]
-                 [--database/-db <swRamDB|mongoc>]
-                 [--troe/-troe <none|timescale|ramdb>]
-                 [--apiPlugins/-api <admin>]
-                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
-                 [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
-                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
-                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
-                 [--defaultUserContext/-duc <default user @context URL>]
-                 [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: the advertised endpoint authority)>]
-                 [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
-                 [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
-                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
-                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
-                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
-                 [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
-                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
-                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
-                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
-                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
-                 [--foreground/-fg (run in foreground (don't daemonize))]
-                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
-                 [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
+Usage: coraine  [--usage/-u (usage)]
+                [--Usage/-U (extended usage)]
+                [--verbose/-v (verbose mode)]
+                [--debug/-d (debug mode)]
+                [--traceLevels/-t <trace levels>]
+                [--port/-p <TCP port to listen on>]
+                [--database/-db <corRamDB|mongoc>]
+                [--troe/-troe <none|ramdb|timescale>]
+                [--apiPlugins/-api <admin>]
+                [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                [--connectionPoolSize/-cps <MHD thread pool size>]
+                [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
+                [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                [--defaultUserContext/-duc <default user @context URL>]
+                [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: the advertised endpoint authority)>]
+                [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
+                [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
+                [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
+                [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
+                [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
+                [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
+                [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
+                [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
+                [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
+                [--foreground/-fg (run in foreground (don't daemonize))]
+                [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
+                [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
-                 Database (mongoc) plugin options:
-                 [--dbHost/-dbHost <database server host>]
-                 [--dbName/-dbName <database name>]
-                 [--globalDb/-globalDb <reserved DB for global (non-tenant) state, e.g. JSON-LD contexts>]
-                 [--dbPort/-dbPort <database server port>]
-                 [--dbUser/-dbUser <database user>]
-                 [--dbPwd/-dbPwd <database password>]
-                 [--dbURI/-dbURI <full database URI>]
-                 [--dbTimeout/-dbTimeout <database connection timeout (s)>]
+                Database (mongoc) plugin options:
+                [--dbHost/-dbHost <database server host>]
+                [--dbName/-dbName <database name>]
+                [--globalDb/-globalDb <reserved DB for global (non-tenant) state, e.g. JSON-LD contexts>]
+                [--dbPort/-dbPort <database server port>]
+                [--dbUser/-dbUser <database user>]
+                [--dbPwd/-dbPwd <database password>]
+                [--dbURI/-dbURI <full database URI>]
+                [--dbTimeout/-dbTimeout <database connection timeout (s)>]
 
-                 Plugins are loaded from /opt/seamware/plugins
+                Plugins are loaded from /opt/seamware/plugins
 
 
 03. Usage with non-existent plugin (error + usage)
 ===================================================
 DB plugin 'dummy2' (/opt/seamware/plugins/db/currentState/dummy2.so): not found
-Usage: swBroker  [--usage/-u (usage)]
-                 [--Usage/-U (extended usage)]
-                 [--verbose/-v (verbose mode)]
-                 [--debug/-d (debug mode)]
-                 [--traceLevels/-t <trace levels>]
-                 [--port/-p <TCP port to listen on>]
-                 [--database/-db <swRamDB|mongoc>]
-                 [--troe/-troe <none|timescale|ramdb>]
-                 [--apiPlugins/-api <admin>]
-                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
-                 [--connectionPoolSize/-cps <MHD thread pool size>]
-                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
-                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
-                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
-                 [--defaultUserContext/-duc <default user @context URL>]
-                 [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: the advertised endpoint authority)>]
-                 [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
-                 [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
-                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
-                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
-                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
-                 [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
-                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
-                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
-                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
-                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
-                 [--foreground/-fg (run in foreground (don't daemonize))]
-                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
-                 [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
+Usage: coraine  [--usage/-u (usage)]
+                [--Usage/-U (extended usage)]
+                [--verbose/-v (verbose mode)]
+                [--debug/-d (debug mode)]
+                [--traceLevels/-t <trace levels>]
+                [--port/-p <TCP port to listen on>]
+                [--database/-db <corRamDB|mongoc>]
+                [--troe/-troe <none|ramdb|timescale>]
+                [--apiPlugins/-api <admin>]
+                [--pretty-print/-pp <default JSON indentation (0=compact)>]
+                [--connectionPoolSize/-cps <MHD thread pool size>]
+                [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
+                [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
+                [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
+                [--defaultUserContext/-duc <default user @context URL>]
+                [--csourceAlias/-csourceAlias <contextSourceAlias base for Via headers (default: the advertised endpoint authority)>]
+                [--httpEndpoint/-he <externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)>]
+                [--contextSourceExtras/-csx <path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)>]
+                [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
+                [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
+                [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
+                [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
+                [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
+                [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
+                [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
+                [--foreground/-fg (run in foreground (don't daemonize))]
+                [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
+                [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
-                 Plugins are loaded from /opt/seamware/plugins
+                Plugins are loaded from /opt/seamware/plugins
 
 
 04. Extended usage (-U) - one aligned row per option, no separator rows
 =======================================================================
-  --usage                 (-u)                                              Optional   Bool     Default Value  
-  --Usage                 (-U)                                              Optional   Bool     Short Option   
-  --verbose               (-v)               SWBROKER_VERBOSE               Optional   Bool     Default Value  
-  --debug                 (-d)               SWBROKER_DEBUG                 Optional   Bool     Default Value  
-  --traceLevels           (-t)               SWBROKER_TRACELEVELS           Optional   String   Default Value  
-  --port                  (-p)               SWBROKER_PORT                  Optional   UShort   Default Value  
-  --database              (-db)              SWBROKER_DATABASE              Optional   String   Short Option   
-  --troe                  (-troe)            SWBROKER_TROE                  Optional   String   Default Value  
-  --apiPlugins            (-api)             SWBROKER_APIPLUGINS            Optional   String   Default Value  
-  --pretty-print          (-pp)              SWBROKER_PRETTY_PRINT          Optional   UInt     Default Value  
-  --connectionPoolSize    (-cps)             SWBROKER_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
-  --notifyValueChangeOnly (-nvco)            SWBROKER_NOTIFYVALUECHANGEONLY Optional   Bool     Default Value  
-  --corsOrigin            (-corsOrigin)      SWBROKER_CORSORIGIN            Optional   String   Default Value  
-  --corsMaxAge            (-corsMaxAge)      SWBROKER_CORSMAXAGE            Optional   Int      Default Value  
-  --defaultUserContext    (-duc)             SWBROKER_DEFAULTUSERCONTEXT    Optional   String   Default Value  
-  --csourceAlias          (-csourceAlias)    SWBROKER_CSOURCEALIAS          Optional   String   Default Value  
-  --httpEndpoint          (-he)              SWBROKER_HTTPENDPOINT          Optional   String   Default Value  
-  --contextSourceExtras   (-csx)             SWBROKER_CONTEXTSOURCEEXTRAS   Optional   String   Default Value  
-  --distributed           (-dist)            SWBROKER_DISTRIBUTED           Optional   Bool     Default Value  
-  --noSplitEntities       (-noSplitEntities) SWBROKER_NOSPLITENTITIES       Optional   Bool     Default Value  
-  --high-precision        (-hp)              SWBROKER_HIGH_PRECISION        Optional   Bool     Default Value  
-  --asyncSnapshot         (-asyncSnapshot)   SWBROKER_ASYNCSNAPSHOT         Optional   Bool     Default Value  
-  --maxRequestSize        (-mrs)             SWBROKER_MAXREQUESTSIZE        Optional   Int      Default Value  
-  --subStatsFlushInterval (-ssfi)            SWBROKER_SUBSTATSFLUSHINTERVAL Optional   Int      Default Value  
-  --distOpTimeout         (-dtmo)            SWBROKER_DISTOPTIMEOUT         Optional   Int      Default Value  
-  --cooldownMillis        (-cms)             SWBROKER_COOLDOWNMILLIS        Optional   Int      Default Value  
-  --foreground            (-fg)              SWBROKER_FOREGROUND            Optional   Bool     Default Value  
-  --insecureNotif         (-insecureNotif)   SWBROKER_INSECURENOTIF         Optional   Bool     Default Value  
-  --ha                    (-ha)              SWBROKER_HA                    Optional   String   Default Value  
+  --usage                 (-u)                                             Optional   Bool     Default Value  
+  --Usage                 (-U)                                             Optional   Bool     Short Option   
+  --verbose               (-v)               CORAINE_VERBOSE               Optional   Bool     Default Value  
+  --debug                 (-d)               CORAINE_DEBUG                 Optional   Bool     Default Value  
+  --traceLevels           (-t)               CORAINE_TRACELEVELS           Optional   String   Default Value  
+  --port                  (-p)               CORAINE_PORT                  Optional   UShort   Default Value  
+  --database              (-db)              CORAINE_DATABASE              Optional   String   Short Option   
+  --troe                  (-troe)            CORAINE_TROE                  Optional   String   Default Value  
+  --apiPlugins            (-api)             CORAINE_APIPLUGINS            Optional   String   Default Value  
+  --pretty-print          (-pp)              CORAINE_PRETTY_PRINT          Optional   UInt     Default Value  
+  --connectionPoolSize    (-cps)             CORAINE_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
+  --notifyValueChangeOnly (-nvco)            CORAINE_NOTIFYVALUECHANGEONLY Optional   Bool     Default Value  
+  --corsOrigin            (-corsOrigin)      CORAINE_CORSORIGIN            Optional   String   Default Value  
+  --corsMaxAge            (-corsMaxAge)      CORAINE_CORSMAXAGE            Optional   Int      Default Value  
+  --defaultUserContext    (-duc)             CORAINE_DEFAULTUSERCONTEXT    Optional   String   Default Value  
+  --csourceAlias          (-csourceAlias)    CORAINE_CSOURCEALIAS          Optional   String   Default Value  
+  --httpEndpoint          (-he)              CORAINE_HTTPENDPOINT          Optional   String   Default Value  
+  --contextSourceExtras   (-csx)             CORAINE_CONTEXTSOURCEEXTRAS   Optional   String   Default Value  
+  --distributed           (-dist)            CORAINE_DISTRIBUTED           Optional   Bool     Default Value  
+  --noSplitEntities       (-noSplitEntities) CORAINE_NOSPLITENTITIES       Optional   Bool     Default Value  
+  --high-precision        (-hp)              CORAINE_HIGH_PRECISION        Optional   Bool     Default Value  
+  --asyncSnapshot         (-asyncSnapshot)   CORAINE_ASYNCSNAPSHOT         Optional   Bool     Default Value  
+  --maxRequestSize        (-mrs)             CORAINE_MAXREQUESTSIZE        Optional   Int      Default Value  
+  --subStatsFlushInterval (-ssfi)            CORAINE_SUBSTATSFLUSHINTERVAL Optional   Int      Default Value  
+  --distOpTimeout         (-dtmo)            CORAINE_DISTOPTIMEOUT         Optional   Int      Default Value  
+  --cooldownMillis        (-cms)             CORAINE_COOLDOWNMILLIS        Optional   Int      Default Value  
+  --foreground            (-fg)              CORAINE_FOREGROUND            Optional   Bool     Default Value  
+  --insecureNotif         (-insecureNotif)   CORAINE_INSECURENOTIF         Optional   Bool     Default Value  
+  --ha                    (-ha)              CORAINE_HA                    Optional   String   Default Value  
 
 
 --TEARDOWN--

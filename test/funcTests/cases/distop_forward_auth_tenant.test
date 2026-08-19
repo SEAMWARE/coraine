@@ -23,15 +23,15 @@ DistOps forward — Authorization from the request + tenant (original vs registr
 distops registration tenant
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 200
 
 --RUN--
 
 echo "01. Register (default tenant) — contextSourceInfo Authorization = urn:ngsi-ld:request"
 echo "===================================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
   "id": "urn:ngsi-ld:CSR:1", "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:7711", "operations": ["retrieveOps"],
   "contextSourceInfo": [{"key": "Authorization", "value": "urn:ngsi-ld:request"}],
@@ -44,7 +44,7 @@ echo
 echo "02. GET ?type=T with Authorization (default tenant) — forward carries Authorization, no tenant"
 echo "============================================================================================="
 ftClientReset --port 7711
-swCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Authorization: Bearer tok-xyz' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Authorization: Bearer tok-xyz' > /dev/null
 sleep 0.8
 ftClientDump --port 7711
 echo
@@ -53,7 +53,7 @@ echo
 
 echo "03. Register on tenant acme (no rewrite) + Authorization; GET ?type=T2 on acme"
 echo "=============================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: acme' --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: acme' --payload '{
   "id": "urn:ngsi-ld:CSR:2", "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:7711", "operations": ["retrieveOps"],
   "contextSourceInfo": [{"key": "Authorization", "value": "urn:ngsi-ld:request"}],
@@ -61,7 +61,7 @@ swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: acme' --payload
 }'
 echo
 ftClientReset --port 7711
-swCurl --url '/ngsi-ld/v1/entities?type=T2' -H 'NGSILD-Tenant: acme' -H 'Authorization: Bearer tok-xyz' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T2' -H 'NGSILD-Tenant: acme' -H 'Authorization: Bearer tok-xyz' > /dev/null
 sleep 0.8
 echo "(forward carries Authorization + NGSILD-Tenant: acme — original tenant)"
 ftClientDump --port 7711
@@ -71,14 +71,14 @@ echo
 
 echo "04. Register on tenant beta WITH tenant rewrite (tenant=backend); GET ?type=T3 on beta"
 echo "======================================================================================"
-swCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payload '{
+corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payload '{
   "id": "urn:ngsi-ld:CSR:3", "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:7711", "operations": ["retrieveOps"], "tenant": "backend",
   "information": [{"entities": [{"type": "T3"}]}]
 }'
 echo
 ftClientReset --port 7711
-swCurl --url '/ngsi-ld/v1/entities?type=T3' -H 'NGSILD-Tenant: beta' > /dev/null
+corCurl --url '/ngsi-ld/v1/entities?type=T3' -H 'NGSILD-Tenant: beta' > /dev/null
 sleep 0.8
 echo "(forward carries NGSILD-Tenant: backend — registration rewrite)"
 ftClientDump --port 7711
@@ -181,4 +181,4 @@ Content-Length: 0
 
 --TEARDOWN--
 ftClientStop --port 7711
-swBrokerStop
+coraineStop

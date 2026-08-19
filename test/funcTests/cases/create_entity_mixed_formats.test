@@ -12,8 +12,8 @@ POST /ngsi-ld/v1/entities - mixed normalized/concise/simplified input
 create entity format
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -47,14 +47,14 @@ payload='{
     "coordinates": [10.0, 20.0]
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity E1 - verify all attributes normalized"
 echo "===================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:mix:E1
+corCurl --url /ngsi-ld/v1/entities/urn:mix:E1
 echo
 echo
 
@@ -120,5 +120,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

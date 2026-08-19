@@ -21,9 +21,9 @@
 notification subscription patch attr
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ swBrokerStart
 
 echo "01. Create subscription"
 echo "======================="
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:ngsi-ld:Subscription:S1",
   "type": "Subscription",
   "entities": [ { "type": "IEO" } ],
@@ -53,7 +53,7 @@ echo
 
 echo "02. Create a matching entity"
 echo "============================"
-swCurl --url /ngsi-ld/v1/entities --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{
   "id": "urn:ngsi-ld:IEO:1",
   "type": "IEO",
   "temperature": { "type": "Property", "value": 29.1 }
@@ -75,7 +75,7 @@ echo "04. PATCH the entity 100 times (temperature 6..105)"
 echo "==================================================="
 t=6
 while [ $t -lt 106 ]; do
-  swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1/attrs -X PATCH --payload '{"temperature":'$t'}' > /dev/null
+  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1/attrs -X PATCH --payload '{"temperature":'$t'}' > /dev/null
   t=$((t+1))
 done
 echo "100 patches sent"
@@ -85,7 +85,7 @@ echo
 
 echo "05. Broker alive, every update applied (temperature 105)"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1?format=keyValues'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:IEO:1?format=keyValues'
 echo
 echo
 
@@ -138,6 +138,6 @@ Content-Length: 71
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

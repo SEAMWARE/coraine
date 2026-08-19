@@ -14,8 +14,8 @@ Admin API plugin endpoints (mongoc)
 admin mongoc
 
 --INIT--
-swDbDrop
-swBrokerStart --apiPlugins admin
+corDbDrop
+coraineStart --apiPlugins admin
 
 --RUN--
 
@@ -42,84 +42,84 @@ swBrokerStart --apiPlugins admin
 
 echo "01. GET /admin/health - liveness probe"
 echo "======================================"
-swCurl --url /admin/health
+corCurl --url /admin/health
 echo
 echo
 
 
 echo "02. GET /admin/version - broker version info"
 echo "============================================"
-swCurl --url /admin/version
+corCurl --url /admin/version
 echo
 echo
 
 
 echo "03. GET /admin/log - default log settings (all off)"
 echo "==================================================="
-swCurl --url /admin/log
+corCurl --url /admin/log
 echo
 echo
 
 
 echo "04. GET /admin/tenants - no tenants yet"
 echo "======================================="
-swCurl --url /admin/tenants
+corCurl --url /admin/tenants
 echo
 echo
 
 
 echo "05. GET /admin/plugins - loaded plugins (mongoc + admin)"
 echo "========================================================"
-swCurl --url /admin/plugins
+corCurl --url /admin/plugins
 echo
 echo
 
 
 echo "06. PUT /admin/log?verbose=on - turn on verbose"
 echo "==============================================="
-swCurl -X PUT --url '/admin/log?verbose=on'
+corCurl -X PUT --url '/admin/log?verbose=on'
 echo
 echo
 
 
 echo "07. GET /admin/log - verbose is on"
 echo "=================================="
-swCurl --url /admin/log
+corCurl --url /admin/log
 echo
 echo
 
 
 echo "08. POST /admin/log?traceLevels=1,2,5-8 - add trace levels"
 echo "=========================================================="
-swCurl -X POST --url '/admin/log?traceLevels=1,2,5-8'
+corCurl -X POST --url '/admin/log?traceLevels=1,2,5-8'
 echo
 echo
 
 
 echo "09. PATCH /admin/log?traceLevels=10,11 - add more trace levels"
 echo "=============================================================="
-swCurl -X PATCH --url '/admin/log?traceLevels=10,11'
+corCurl -X PATCH --url '/admin/log?traceLevels=10,11'
 echo
 echo
 
 
 echo "10. DELETE /admin/log?traceLevels=5-8 - remove some trace levels"
 echo "================================================================"
-swCurl -X DELETE --url '/admin/log?traceLevels=5-8'
+corCurl -X DELETE --url '/admin/log?traceLevels=5-8'
 echo
 echo
 
 
 echo "11. PUT /admin/log?traceLevels=99&info=on - replace all trace levels, turn on info"
 echo "=================================================================================="
-swCurl -X PUT --url '/admin/log?traceLevels=99&info=on'
+corCurl -X PUT --url '/admin/log?traceLevels=99&info=on'
 echo
 echo
 
 
 echo "12. DELETE /admin/log?verbose=off&info=off - turn off verbose and info"
 echo "======================================================================"
-swCurl -X DELETE --url '/admin/log?verbose=off&info=off'
+corCurl -X DELETE --url '/admin/log?verbose=off&info=off'
 echo
 echo
 
@@ -131,7 +131,7 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t1"
 echo
 echo
 
@@ -143,35 +143,35 @@ payload='{
   "type": "T",
   "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t2"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "NGSILD-Tenant: t2"
 echo
 echo
 
 
 echo "15. GET /admin/tenants - now shows t1 and t2"
 echo "============================================"
-swCurl --url /admin/tenants
+corCurl --url /admin/tenants
 echo
 echo
 
 
 echo "16. PUT /admin/log?debug=on - turn on debug"
 echo "==========================================="
-swCurl -X PUT --url '/admin/log?debug=on'
+corCurl -X PUT --url '/admin/log?debug=on'
 echo
 echo
 
 
 echo "17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99"
 echo "======================================================================================"
-swCurl -X DELETE --url '/admin/log?debug=off&traceLevels=99'
+corCurl -X DELETE --url '/admin/log?debug=off&traceLevels=99'
 echo
 echo
 
 
 echo "18. GET /admin/log - all clean"
 echo "=============================="
-swCurl --url /admin/log
+corCurl --url /admin/log
 echo
 echo
 
@@ -201,6 +201,10 @@ Content-Length: REGEX(\d+)
 
 {
   "Next File Descriptor": REGEX(\d+),
+  "corJsonld": "0.1.0",
+  "corNgsild": "post-0.2.0",
+  "corRest": "0.1.0",
+  "coraine version": "0.2.0",
   "kalloc": "0.10.1",
   "kargs": "0.10.0",
   "kbase": "0.10.0",
@@ -208,11 +212,7 @@ Content-Length: REGEX(\d+)
   "ktrace": "0.10.0",
   "mongoc driver": "2.2.2",
   "mongoc plugin": "0.1.0",
-  "mongodb server": "4.4.30",
-  "swBroker version": "0.2.0",
-  "swJsonld": "0.1.0",
-  "swNgsild": "post-0.2.0",
-  "swRest": "0.1.0"
+  "mongodb server": "4.4.30"
 }
 
 
@@ -471,7 +471,7 @@ Content-Length: 79
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swDbDrop -tenant t1
-swDbDrop -tenant t2
+coraineStop
+corDbDrop
+corDbDrop -tenant t1
+corDbDrop -tenant t2

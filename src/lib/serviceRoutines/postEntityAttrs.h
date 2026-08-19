@@ -1,5 +1,5 @@
-#ifndef SWBROKER_POST_ENTITY_ATTRS_H_
-#define SWBROKER_POST_ENTITY_ATTRS_H_
+#ifndef CORAINE_POST_ENTITY_ATTRS_H_
+#define CORAINE_POST_ENTITY_ATTRS_H_
 
 //
 // FILE            postEntityAttrs.h
@@ -16,4 +16,4 @@
 
 extern bool postEntityAttrs(void);
 
-#endif  // SWBROKER_POST_ENTITY_ATTRS_H_
+#endif  // CORAINE_POST_ENTITY_ATTRS_H_

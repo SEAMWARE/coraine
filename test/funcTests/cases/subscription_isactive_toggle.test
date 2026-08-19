@@ -12,9 +12,9 @@ Subscription isActive toggle via PATCH — pause/resume notifications
 subscription
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart
+coraineStart
 
 --RUN--
 
@@ -45,7 +45,7 @@ payload='{
     }
   }
 }'
-swCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
 echo
 echo
 
@@ -57,7 +57,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 100}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -80,14 +80,14 @@ echo
 echo "05. PATCH subscription: isActive=false"
 echo "========================================"
 payload='{"isActive": false}'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle --payload "$payload"
 echo
 echo
 
 
 echo "06. Retrieve subscription — status=paused"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
 echo
 echo
 
@@ -99,7 +99,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 200}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -114,14 +114,14 @@ echo
 echo "09. PATCH subscription: isActive=true"
 echo "======================================="
 payload='{"isActive": true}'
-swCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle --payload "$payload"
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle --payload "$payload"
 echo
 echo
 
 
 echo "10. Retrieve subscription — status=active"
 echo "==========================================="
-swCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Toggle
 echo
 echo
 
@@ -133,7 +133,7 @@ payload='{
   "type": "Vehicle",
   "speed": {"type": "Property", "value": 300}
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -340,6 +340,6 @@ Content-Length: 0
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

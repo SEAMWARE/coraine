@@ -21,14 +21,14 @@ POST /entityOperations/merge — Batch Entity Merge (§ 5.6.10)
 batch entity merge
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Seed — create V1 {speed:10, color:red, size:large} and V2 {speed:20}"
 echo "========================================================================"
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"},"size":{"type":"Property","value":"large"}},
   {"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}
 ]'
@@ -39,7 +39,7 @@ echo
 echo "02. Merge V1.color=blue + V2.size=small → 204 (surgical)"
 echo "========================================================"
 # V1.speed and V1.size must remain intact.
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"blue"}},
   {"id":"urn:V2","type":"Vehicle","size":{"type":"Property","value":"small"}}
 ]'
@@ -49,21 +49,21 @@ echo
 
 echo "03. GET V1 — speed=10, color=blue, size=large (all present)"
 echo "==========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "04. GET V2 — speed=20, size=small"
 echo "================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V2?options=keyValues
 echo
 echo
 
 
 echo "05. Merge V1 with simplified urn:ngsi-ld:null → delete V1.size (§ 4.5.5.9)"
 echo "=========================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","size":"urn:ngsi-ld:null"}
 ]'
 echo
@@ -72,14 +72,14 @@ echo
 
 echo "06. GET V1 — speed=10, color=blue (size gone)"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "07. Batch with a missing id → 207 partial"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":99}},
   {"id":"urn:VX","type":"Vehicle","speed":{"type":"Property","value":999}}
 ]'
@@ -89,14 +89,14 @@ echo
 
 echo "08. GET V1 — speed=99 (merge applied for V1 even though VX failed)"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "09. All ids missing → 409"
 echo "========================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:missingA","type":"Vehicle","speed":{"type":"Property","value":1}},
   {"id":"urn:missingB","type":"Vehicle","speed":{"type":"Property","value":2}}
 ]'
@@ -109,7 +109,7 @@ echo "========================================================================="
 # V1 currently has speed=99, color=blue. Array: frag1 deletes color, frag2 resets color=green.
 # Plugin applies fragments in order per fragment — last fragment sees color removed then
 # creates it again.
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V1","type":"Vehicle","color":"urn:ngsi-ld:null"},
   {"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"green"}}
 ]'
@@ -119,28 +119,28 @@ echo
 
 echo "11. GET V1 — speed=99, color=green"
 echo "=================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
+corCurl --url /ngsi-ld/v1/entities/urn:V1?options=keyValues
 echo
 echo
 
 
 echo "12. Empty array → 400"
 echo "====================="
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[]'
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[]'
 echo
 echo
 
 
 echo "13. null element → 400"
 echo "======================"
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:V1","type":"Vehicle"},null]'
 echo
 echo
 
 
 echo "14. Non-array body → 400"
 echo "========================"
-swCurl --url /ngsi-ld/v1/entityOperations/merge --payload '{"id":"urn:V1","type":"Vehicle"}'
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '{"id":"urn:V1","type":"Vehicle"}'
 echo
 echo
 
@@ -363,5 +363,5 @@ Content-Length: 175
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

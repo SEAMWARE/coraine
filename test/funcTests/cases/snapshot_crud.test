@@ -34,22 +34,22 @@ Snapshot CRUD scaffold (§ 5.16, Phase 1)
 snapshot
 
 --INIT--
-swDbDrop
-swSnapDrop
-swBrokerStart
+corDbDrop
+corSnapDrop
+coraineStart
 
 --RUN--
 
 echo "01. POST /snapshots empty → 400"
 echo "==============================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{}'
+corCurl --url /ngsi-ld/v1/snapshots --payload '{}'
 echo
 echo
 
 
 echo "02. POST /snapshots with wrong type → 400"
 echo "========================================="
-swCurl --url /ngsi-ld/v1/snapshots --payload '{"type":"NotASnapshot","snapshotQueries":[]}'
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"type":"NotASnapshot","snapshotQueries":[]}'
 echo
 echo
 
@@ -60,7 +60,7 @@ payload='{
   "type": "Snapshot",
   "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
@@ -73,49 +73,49 @@ payload='{
   "snapshotPriority": 7,
   "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
 }'
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "05. POST same id → 409"
 echo "======================"
-swCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
 echo
 echo
 
 
 echo "06. GET /snapshots/urn:ngsi-ld:Snapshot:S1 → 200"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 echo
 echo
 
 
 echo "07. GET /snapshots/urn:ngsi-ld:Snapshot:DoesNotExist → 404"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:DoesNotExist
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:DoesNotExist
 echo
 echo
 
 
 echo "08. DELETE /snapshots/urn:ngsi-ld:Snapshot:S1 → 204"
 echo "==================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+corCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 echo
 echo
 
 
 echo "09. GET /snapshots/urn:ngsi-ld:Snapshot:S1 → 404 (was deleted)"
 echo "=============================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 echo
 echo
 
 
 echo "10. DELETE unknown id → 404"
 echo "==========================="
-swCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch
+corCurl -X DELETE --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:NoSuch
 echo
 echo
 
@@ -280,6 +280,6 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
+coraineStop
+corSnapDrop
+corDbDrop

@@ -33,184 +33,184 @@ Entity members: scope is deletable, id and type are not, and the NGSI-LD Null de
 entity scope delete null
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
 echo "01. Create urn:E1 - type T, scope [/a, /b], attribute p"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E1", "type": "T", "scope": [ "/a", "/b" ], "p": { "type": "Property", "value": 1 } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E1", "type": "T", "scope": [ "/a", "/b" ], "p": { "type": "Property", "value": 1 } }' | head -1
 echo
 echo
 
 
 echo "02. DELETE /attrs/id -> 400, 'id' is not an Attribute"
 echo "====================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/id
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/id
 echo
 echo
 
 
 echo "03. DELETE /attrs/type -> 400, 'type' is not an Attribute"
 echo "========================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/type
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/type
 echo
 echo
 
 
 echo "04. The Entity is untouched by either refusal"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
 echo
 echo
 
 
 echo "05. DELETE /attrs/scope -> 204, the Scope is gone (§ 10.2.7.4)"
 echo "=============================================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
 echo
 echo
 
 
 echo "06. DELETE /attrs/scope again -> 404, there is none left"
 echo "========================================================"
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
 echo
 echo
 
 
 echo "07. Merge a scope and nothing else - it has to reach the database"
 echo "================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/z" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/z" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"'
 echo
 echo
 
 
 echo "08. Merge a type and nothing else - union with the stored type"
 echo "=============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "type": "T2" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "type": "T2" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
 echo
 echo
 
 
 echo "09. Merge scope = NGSI-LD Null -> the Scope is deleted (§ 5.4.1)"
 echo "================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
 echo
 echo
 
 
 echo "10. Update Attributes with scope = NGSI-LD Null -> deleted, not stored"
 echo "======================================================================"
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/again" }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/again" }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
 echo
 echo
 
 
 echo "11. Append with scope = NGSI-LD Null -> deleted, not stored"
 echo "==========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/again" }' | head -1
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "/again" }' | head -1
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
 echo
 echo
 
 
 echo "12. Merge type = NGSI-LD Null -> 400, the type is mandatory"
 echo "==========================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "type": "urn:ngsi-ld:null" }'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "type": "urn:ngsi-ld:null" }'
 echo
 echo
 
 
 echo "13. Update Attributes with type = NGSI-LD Null -> 400 as well"
 echo "============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "type": "urn:ngsi-ld:null" }'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "type": "urn:ngsi-ld:null" }'
 echo
 echo
 
 
 echo "14. The NGSI-LD Null inside the scope array -> 400, it names no Scope"
 echo "===================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": [ "/x", "urn:ngsi-ld:null" ] }'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": [ "/x", "urn:ngsi-ld:null" ] }'
 echo
 echo
 
 
 echo "15. ... and on Create Entity it is refused too"
 echo "=============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E2", "type": "T", "scope": "urn:ngsi-ld:null" }'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E2", "type": "T", "scope": "urn:ngsi-ld:null" }'
 echo
 echo
 
 
 echo "16. The Entity still has its id and its type, after all of it"
 echo "============================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
 echo
 echo
 
 
 echo "17. DELETE /attrs/createdAt -> 400, the broker owns it"
 echo "======================================================"
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/createdAt
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/createdAt
 echo
 echo
 
 
 echo "18. DELETE /attrs/modifiedAt -> 400, likewise"
 echo "============================================="
-swCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/modifiedAt
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/modifiedAt
 echo
 echo
 
 
 echo "19. Create urn:E3, transient - and merge a later expiresAt onto it"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E3", "type": "T", "expiresAt": "2099-01-01T00:00:00Z", "p": { "type": "Property", "value": 1 } }' | head -1
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "2100-06-01T00:00:00Z" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E3", "type": "T", "expiresAt": "2099-01-01T00:00:00Z", "p": { "type": "Property", "value": 1 } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "2100-06-01T00:00:00Z" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
 echo
 echo
 
 
 echo "20. Merge expiresAt = NGSI-LD Null -> the Entity is no longer transient"
 echo "======================================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "urn:ngsi-ld:null" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"' || echo "no expiresAt"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "urn:ngsi-ld:null" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"' || echo "no expiresAt"
 echo
 echo
 
 
 echo "21. Update Attributes sets it again, Append moves it once more"
 echo "=============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3/attrs --payload '{ "expiresAt": "2101-01-01T00:00:00Z" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
-swCurl -X POST --url /ngsi-ld/v1/entities/urn:E3/attrs --payload '{ "expiresAt": "2102-01-01T00:00:00Z" }' | head -1
-swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3/attrs --payload '{ "expiresAt": "2101-01-01T00:00:00Z" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:E3/attrs --payload '{ "expiresAt": "2102-01-01T00:00:00Z" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
 echo
 echo
 
 
 echo "22. An expiresAt that is not a DateTime -> 400, on every path"
 echo "============================================================="
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "not-a-datetime" }'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": "not-a-datetime" }'
 echo
-swCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": 5 }'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3 --payload '{ "expiresAt": 5 }'
 echo
 echo
 
 
 echo "23. urn:E3 kept the last DateTime it was actually given"
 echo "======================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | grep '"expiresAt"'
 echo
 echo
 
@@ -507,5 +507,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

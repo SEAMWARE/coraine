@@ -22,8 +22,8 @@ HTTP 405 Method Not Allowed carries Allow header (§ 6.3.2)
 error http
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -31,7 +31,7 @@ swBrokerStart
 # but NOT PATCH or PUT. Hitting it with PATCH should yield 405 + Allow.
 echo "01. PATCH /entities — 405 with Allow header listing GET, POST, DELETE"
 echo "====================================================================="
-swCurl --url /ngsi-ld/v1/entities -X PATCH --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+corCurl --url /ngsi-ld/v1/entities -X PATCH --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
 echo
 echo
 
@@ -39,7 +39,7 @@ echo
 # Same path, PUT — also not registered for /entities (PUT is for /entities/*).
 echo "02. PUT /entities — 405"
 echo "======================="
-swCurl --url /ngsi-ld/v1/entities -X PUT --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+corCurl --url /ngsi-ld/v1/entities -X PUT --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
 echo
 echo
 
@@ -48,7 +48,7 @@ echo
 # POST is not registered there.
 echo "03. POST /entities/urn:V1 — 405 (POST registered on /entities, not /entities/{id})"
 echo "==================================================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
 echo
 echo
 
@@ -56,7 +56,7 @@ echo
 # Genuinely unknown path: 404, no Allow.
 echo "04. PATCH /not/a/route — 404 (no Allow because the path is unknown for ALL verbs)"
 echo "================================================================================="
-swCurl --url /not/a/route -X PATCH --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
+corCurl --url /not/a/route -X PATCH --payload '{}' 2>&1 | grep -iE '^(HTTP/|Allow:)'
 echo
 echo
 
@@ -65,7 +65,7 @@ echo
 # NOT 405: the request is malformed, so no Allow header is emitted.
 echo "05. PUNK /entities — 400 Invalid HTTP Method (not an HTTP method)"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities -X PUNK
+corCurl --url /ngsi-ld/v1/entities -X PUNK
 echo
 echo
 
@@ -74,7 +74,7 @@ echo
 # a known path it is recognised-but-not-allowed → 405 + Allow (not 400).
 echo "06. TRACE /entities — 405 + Allow (valid HTTP method, not used by NGSI-LD)"
 echo "========================================================================="
-swCurl --url /ngsi-ld/v1/entities -X TRACE 2>&1 | grep -iE '^(HTTP/|Allow:)'
+corCurl --url /ngsi-ld/v1/entities -X TRACE 2>&1 | grep -iE '^(HTTP/|Allow:)'
 echo
 echo
 
@@ -126,5 +126,5 @@ Allow: GET, POST, DELETE, HEAD, OPTIONS
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -12,8 +12,8 @@ GET /ngsi-ld/v1/entities/{id} - lang parameter reduces LanguageProperty
 entity retrieve
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -44,35 +44,35 @@ payload='{
     "value": 100
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "02. GET entity with lang=en - LanguageProperty reduced to Property"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=en'
+corCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=en'
 echo
 echo
 
 
 echo "03. GET entity with lang=fr - value Voiture Bleue"
 echo "================================================="
-swCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=fr'
+corCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=fr'
 echo
 echo
 
 
 echo "04. GET entity with lang=de - fallback to first key (en)"
 echo "========================================================"
-swCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=de'
+corCurl --url '/ngsi-ld/v1/entities/urn:lang:E1?lang=de'
 echo
 echo
 
 
 echo "05. GET entity without lang - LanguageProperty intact"
 echo "====================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:lang:E1
+corCurl --url /ngsi-ld/v1/entities/urn:lang:E1
 echo
 echo
 
@@ -188,5 +188,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

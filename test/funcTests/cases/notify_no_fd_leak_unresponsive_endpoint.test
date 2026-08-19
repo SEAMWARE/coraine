@@ -22,9 +22,9 @@ Notifications to an unresponsive endpoint do not leak file descriptors
 subscription notification admin
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart --delay 2000
-swBrokerStart --apiPlugins admin --distOpTimeout 1000
+coraineStart --apiPlugins admin --distOpTimeout 1000
 
 --RUN--
 
@@ -36,20 +36,20 @@ swBrokerStart --apiPlugins admin --distOpTimeout 1000
 #     is back at the baseline (no leak)
 #
 
-fd1=$(swCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+fd1=$(corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
 
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","a":{"type":"Property","value":0}}' > /dev/null
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/noresponse"}}}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","a":{"type":"Property","value":0}}' > /dev/null
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/noresponse"}}}' > /dev/null
 
 i=1
 while [ $i -le 30 ]; do
-  swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":'$i'}' > /dev/null
+  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":'$i'}' > /dev/null
   i=$((i+1))
 done
 
 # Wait for the hung notification sockets to time out (1s) and be reclaimed.
 sleep 8
-fd2=$(swCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+fd2=$(corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
 
 echo "01. No file-descriptor leak after 30 unresponsive notifications"
 echo "=============================================================="
@@ -65,7 +65,7 @@ echo
 
 echo "02. Broker healthy"
 echo "=================="
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 | grep "^HTTP/"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1 | grep "^HTTP/"
 echo
 echo
 
@@ -82,6 +82,6 @@ HTTP/1.1 200 OK
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

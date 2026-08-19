@@ -40,7 +40,7 @@ extern mongoc_client_pool_t* poolP;
 //
 // The change stream's own parse arena
 //
-// NOT swRest.kalloc: the apply resets that one for what IT reads from the
+// NOT corRest.kalloc: the apply resets that one for what IT reads from the
 // database, and the event tree - which the HaEvent's id points into - has to
 // outlive the apply. One arena per owner, each reset by its owner.
 //

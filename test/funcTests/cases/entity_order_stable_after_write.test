@@ -19,8 +19,8 @@ GET /entities order stays stable across Replace / batch Update / Upsert
 entity update replace upsert order
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -31,14 +31,14 @@ payload='[
   { "id": "urn:ngsi-ld:O:2", "type": "OT", "a": { "type": "Property", "value": 2 } },
   { "id": "urn:ngsi-ld:O:3", "type": "OT", "a": { "type": "Property", "value": 3 } }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
 echo
 echo
 
 
 echo "02. GET baseline order — O:1 O:2 O:3"
 echo "===================================="
-swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
 echo
 echo
 
@@ -46,14 +46,14 @@ echo
 echo "03. PUT replace O:2 (single Replace Entity)"
 echo "==========================================="
 payload='{ "id": "urn:ngsi-ld:O:2", "type": "OT", "a": { "type": "Property", "value": 20 } }'
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:O:2 -X PUT --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:O:2 -X PUT --payload "$payload"
 echo
 echo
 
 
 echo "04. GET — O:2 keeps its slot, order still O:1 O:2 O:3"
 echo "===================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
 echo
 echo
 
@@ -61,14 +61,14 @@ echo
 echo "05. Batch update O:1"
 echo "===================="
 payload='[ { "id": "urn:ngsi-ld:O:1", "type": "OT", "a": { "type": "Property", "value": 10 } } ]'
-swCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload "$payload"
 echo
 echo
 
 
 echo "06. GET — order still O:1 O:2 O:3"
 echo "================================"
-swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
 echo
 echo
 
@@ -79,14 +79,14 @@ payload='[
   { "id": "urn:ngsi-ld:O:3", "type": "OT", "a": { "type": "Property", "value": 30 } },
   { "id": "urn:ngsi-ld:O:4", "type": "OT", "a": { "type": "Property", "value": 4 } }
 ]'
-swCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
 echo
 echo
 
 
 echo "08. GET — updated O:3 stays put, O:4 appended: O:1 O:2 O:3 O:4"
 echo "============================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=OT' | grep '"id"'
 
 --EXPECT--
 01. Batch-create O:1 O:2 O:3
@@ -161,4 +161,4 @@ Content-Length: 24
     "id": "urn:ngsi-ld:O:3",
     "id": "urn:ngsi-ld:O:4",
 --TEARDOWN--
-swBrokerStop
+coraineStop

@@ -22,16 +22,16 @@ Pernot subscription stats persist across broker restart (mongoc)
 subscription pernot stats persist mongoc
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart --apiPlugins admin
+coraineStart --apiPlugins admin
 
 --RUN--
 
 echo "01. Create a matching entity + pernot sub (timeInterval=1)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
-swCurl --url /ngsi-ld/v1/subscriptions --payload '{
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle"}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:P1",
   "type": "Subscription",
   "entities": [{"type":"Vehicle"}],
@@ -52,22 +52,22 @@ echo
 
 echo "03. GET pernot — timesSent field present"
 echo "========================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
 echo
 echo
 
 
 echo "04. POST /admin/subStats/flush"
 echo "=============================="
-swCurl --url /admin/subStats/flush -X POST | head -1
+corCurl --url /admin/subStats/flush -X POST | head -1
 echo
 echo
 
 
 echo "05. Restart broker"
 echo "=================="
-swBrokerStop
-swBrokerStart --apiPlugins admin
+coraineStop
+coraineStart --apiPlugins admin
 echo "restarted"
 echo
 echo
@@ -75,7 +75,7 @@ echo
 
 echo "06. GET pernot after restart — timesSent STILL present"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
 echo
 echo
 
@@ -113,6 +113,6 @@ restarted
 
 
 --TEARDOWN--
-swBrokerStop
+coraineStop
 ftClientStop
-swDbDrop
+corDbDrop

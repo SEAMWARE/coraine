@@ -19,22 +19,22 @@ CSR Subscription - endpoint.receiverInfo as outbound headers (§ 6.5.3)
 csr-sub subscription notification receiverinfo
 
 --INIT--
-swDbDrop
+corDbDrop
 ftClientStart
-swBrokerStart -dist
+coraineStart -dist
 
 --RUN--
 
 echo "01. Subscribe S1 (Vehicle) with receiverInfo (X-Token, X-Tenant)"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1","receiverInfo":[{"key":"X-Token","value":"abc123"},{"key":"X-Tenant","value":"demo"}]}}}' | head -1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s1","receiverInfo":[{"key":"X-Token","value":"abc123"},{"key":"X-Tenant","value":"demo"}]}}}' | head -1
 echo
 echo
 
 
 echo "02. Register CSR-A (Vehicle) — triggers a CsourceNotification to S1"
 echo "=================================================================="
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:A","type":"ContextSourceRegistration","endpoint":"http://cp1.example","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
 echo
 echo
 
@@ -70,5 +70,5 @@ HTTP/1.1 201 Created
 
 --TEARDOWN--
 ftClientStop
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

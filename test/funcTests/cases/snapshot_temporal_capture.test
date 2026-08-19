@@ -21,17 +21,17 @@ Snapshot temporal capture (§ 5.16.1.4 / Phase #146b)
 snapshot troe timescale postgres
 
 --INIT--
-swDbDrop
-swSnapDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corSnapDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. Seed two Vehicle entities (TRoE captures createds)"
 echo "======================================================"
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":80}}' >/dev/null
 echo "  seeded V1, V2"
 echo
 echo
@@ -39,10 +39,10 @@ echo
 
 echo "02. PATCH each speed twice — three temporal instances per entity"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2/attrs/speed -X PATCH --payload '{"value":85}' >/dev/null
-swCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2/attrs/speed -X PATCH --payload '{"value":90}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":50}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs/speed -X PATCH --payload '{"value":55}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2/attrs/speed -X PATCH --payload '{"value":85}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V2/attrs/speed -X PATCH --payload '{"value":90}' >/dev/null
 echo "  patched each twice"
 echo
 echo
@@ -50,7 +50,7 @@ echo
 
 echo "03. POST snapshot with snapshotTemporalQueries — capture history"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/snapshots --payload '{
+corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Hist",
   "type": "Snapshot",
   "snapshotTemporalQueries":[
@@ -67,7 +67,7 @@ echo
 
 echo "04. GET /snapshots/Hist — snapshotTemporalQueriesDetails populated, status=success"
 echo "==================================================================================="
-swCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Hist
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Hist
 echo
 echo
 
@@ -75,11 +75,11 @@ echo
 echo "05. timescale: snap-tenant attr rows match the live-tenant count (3 per entity)"
 echo "================================================================================"
 # Each tenant — including the per-snapshot snap-tenant — owns its own physical
-# TRoE database. Live rows are in $SW_TROE_DB; the snapshot's rows are in its
-# own "${SW_TROE_DB}_snap_<seq>" database.
+# TRoE database. Live rows are in $COR_TROE_DB; the snapshot's rows are in its
+# own "${COR_TROE_DB}_snap_<seq>" database.
 sleep 0.2
-echo "$(psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
-snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${SW_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
+echo "$(psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
+snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
 echo "$(psql -h localhost -p 5432 -U postgres -d "$snapDb" -tAc "SELECT count(*) FROM troe_attrs")|snap"
 echo
 echo
@@ -152,7 +152,7 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swSnapDrop
-swDbDrop
-swTroeDrop
+coraineStop
+corSnapDrop
+corDbDrop
+corTroeDrop

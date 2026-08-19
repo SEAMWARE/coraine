@@ -12,8 +12,8 @@ DistOps - replaceEntity error modes (ftClient mocks): excl-no-op → 409, dead+l
 distops error registration replace
 
 --INIT--
-swDbDrop
-swBrokerStart -dist
+corDbDrop
+coraineStart -dist
 ftClientStart --port 7711 --status 204
 ftClientStart --port 7712 --status 503
 
@@ -42,14 +42,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "02. PUT urn:V1 on CB → 409 (CSR claims speed + refuses op)"
 echo "=========================================================="
-swCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":9}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PUT --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":9}}'
 echo
 echo
 
@@ -69,7 +69,7 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 payload='{
   "id": "urn:CSR:LiveRepl",
@@ -84,14 +84,14 @@ payload='{
     }
   ]
 }'
-swCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
 echo
 echo
 
 
 echo "04. PUT urn:V2 → Dead fails, Live succeeds → 207"
 echo "================================================"
-swCurl --url /ngsi-ld/v1/entities/urn:V2 -X PUT --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"teal"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X PUT --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":50},"color":{"type":"Property","value":"teal"}}'
 echo
 echo
 
@@ -179,5 +179,5 @@ Content-Length: 336
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

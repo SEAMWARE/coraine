@@ -12,8 +12,8 @@ GET /entities?type=X&pick=Y combines type filter with pick
 entity query
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -37,7 +37,7 @@ payload='{
     "value": "red"
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
@@ -52,14 +52,14 @@ payload='{
     "value": 50
   }
 }'
-swCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
 
 
 echo "03. GET entities?type=Vehicle&pick=speed - only V1 with only speed"
 echo "=================================================================="
-swCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed'
 echo
 echo
 
@@ -105,5 +105,5 @@ Content-Length: 78
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

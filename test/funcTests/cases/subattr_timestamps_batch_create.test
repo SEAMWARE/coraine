@@ -18,8 +18,8 @@ Sub-attribute createdAt/modifiedAt are set on batch create (visible via sysAttrs
 batch entity sysAttrs createdAt
 
 --INIT--
-swDbDrop
-swBrokerStart
+corDbDrop
+coraineStart
 
 --RUN--
 
@@ -30,7 +30,7 @@ swBrokerStart
 
 echo "01. Batch-create E1 and E2, each with A1 carrying sub-property MD1"
 echo "================================================================="
-swCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {
     "id": "urn:ngsi-ld:entities:E1",
     "type": "T",
@@ -48,7 +48,7 @@ echo
 
 echo "02. GET ?type=T with sysAttrs — timestamps on A1 and sub-attr MD1"
 echo "================================================================"
-swCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&sysAttrs=true'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&sysAttrs=true'
 echo
 echo
 
@@ -118,5 +118,5 @@ Content-Length: REGEX(\d+)
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
+coraineStop
+corDbDrop

@@ -16,25 +16,25 @@ TRoE timescale - value extraction into typed columns
 troe timescale postgres
 
 --INIT--
-swDbDrop
-swTroeInit
-swBrokerStart --troe timescale
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
 
 --RUN--
 
 echo "01. POST entity urn:V1 + PATCH each attr type"
 echo "============================================="
-swCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
 # number
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":99,"unitCode":"km/h"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":99,"unitCode":"km/h"}}' >/dev/null
 # string Property
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"color":{"type":"Property","value":"red"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"color":{"type":"Property","value":"red"}}' >/dev/null
 # bool
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"running":{"type":"Property","value":true}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"running":{"type":"Property","value":true}}' >/dev/null
 # Relationship → v_text
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"owner":{"type":"Relationship","object":"urn:Person:1"}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"owner":{"type":"Relationship","object":"urn:Person:1"}}' >/dev/null
 # GeoProperty → v_compound (GeoJSON object)
-swCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1.2,3.4]}}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1.2,3.4]}}}' >/dev/null
 sleep 0.2
 echo "done"
 echo
@@ -43,7 +43,7 @@ echo
 
 echo "02. troe_attrs columns"
 echo "======================"
-psql -h localhost -p 5432 -U postgres -d "$SW_TROE_DB" -tA -F'|' \
+psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), attr_kind, v_text, v_number, v_bool, (v_compound IS NOT NULL), sub_attrs FROM troe_attrs WHERE op='modified' OR op='created' ORDER BY modified_at"
 echo
 echo
@@ -66,6 +66,6 @@ location|3||||t|
 
 
 --TEARDOWN--
-swBrokerStop
-swDbDrop
-swTroeDrop
+coraineStop
+corDbDrop
+corTroeDrop
