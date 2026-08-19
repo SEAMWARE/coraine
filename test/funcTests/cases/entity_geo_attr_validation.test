@@ -7,8 +7,8 @@
 #
 # § 4.7 — `location`, `observationSpace`, `operationSpace` are well-known
 # GeoProperty names. Entities MUST NOT use them for any other attribute
-# type. The validator runs always; the dispatch-side use is gated by
-# build-time feature flags (fw only).
+# type. The validator runs always, independently of the build-time
+# feature flags that gate the dispatch-side use of these attributes.
 #
 --NAME--
 Entity attribute validation — location/observationSpace/operationSpace must be GeoProperty (§ 4.7)
