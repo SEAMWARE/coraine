@@ -316,7 +316,7 @@ coraine/
 │       ├── api/admin/       # admin API plugin
 │       └── shared/          # geoMatch.c etc. shared across plugins
 ├── test/funcTests/          # corTest functional tests
-├── doc/                     # implementation status, feature overview, port triage
+├── doc/                     # implementation status, feature overview, spec-coverage gaps
 ├── CMakeLists.txt           # real build (feature flags, lib wiring)
 └── makefile                 # convenience wrapper (release/debug/install/test/coverage)
 ```
@@ -329,7 +329,7 @@ Functional tests run through `corTest` (installed by the `corLibs` umbrella into
 `~/git/corLibs/bin/corTest`):
 
 ```sh
-make test                    # whole suite against a corRamDB broker
+make test                    # whole suite (mongoc; use corTest -db ramdb for in-memory)
 ```
 
 Tests live under `test/funcTests/`. Coverage:
