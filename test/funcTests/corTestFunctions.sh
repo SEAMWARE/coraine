@@ -598,21 +598,48 @@ corHttpsCertGen() {
 #
 # Context Server (wistefan/context-server on port 7080)
 #
-CONTEXT_SERVER_PORT=7080
+CONTEXT_SERVER_PORT=${COR_CONTEXT_SERVER_PORT:-7080}
+
+# Set when THIS run started the container, so teardown only stops what it
+# started. A server that was already up - someone's own, or one provided by the
+# environment - is left exactly as it was found.
+CONTEXT_SERVER_OURS=0
 
 
-# contextServerStart - ensure the Docker context server is running
+# contextServerReady - does something already answer on the context-server port?
+#
+# curl exit 0 means a response came back, whatever the HTTP code.
+#
+contextServerReady() {
+  curl -s -o /dev/null --max-time 2 \
+       "http://localhost:$CONTEXT_SERVER_PORT/jsonldContexts/_ready_probe" 2>/dev/null
+}
+
+
+# contextServerStart - ensure a context server is reachable on the port
+#
+# ASK BEFORE ACTING: if one already answers, use it. That is not just an
+# optimisation - it is what lets the suite run where the server is provided
+# rather than launched. A CI job declares it as a service container and there
+# is no docker command inside the test container to start anything with; the
+# old code went looking for docker first and failed before ever checking
+# whether the thing it wanted was already there.
 #
 contextServerStart() {
+  if contextServerReady; then
+    return 0
+  fi
+
   local dockerExec=$(which docker 2>/dev/null)
   if [ -z "$dockerExec" ]; then
-    echo "contextServerStart: docker not found"
+    echo "contextServerStart: nothing answering on port $CONTEXT_SERVER_PORT, and no docker to start one"
     return 1
   fi
 
   local running=$(docker ps --filter name='^context-server$' -q 2>/dev/null)
   if [ -z "$running" ]; then
     docker run --rm -d --name context-server -p $CONTEXT_SERVER_PORT:8080 -e MEMORY_ENABLED=true wistefan/context-server > /dev/null 2>&1
+    CONTEXT_SERVER_OURS=1
   fi
 
   # Poll until the server actually accepts connections — a fixed sleep is racy:
@@ -631,10 +658,15 @@ contextServerStart() {
 }
 
 
-# contextServerStop - stop the Docker context server
+# contextServerStop - stop the context server, if this run started it
+#
+# Leaving someone else's server running is correct: we did not start it, and in
+# CI it belongs to the job, not to the suite.
 #
 contextServerStop() {
+  [ "$CONTEXT_SERVER_OURS" = 1 ] || return 0
   docker kill context-server > /dev/null 2>&1
+  CONTEXT_SERVER_OURS=0
 }
 
 
