@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 PROJECT(coraine C)
 
@@ -57,6 +58,21 @@ set(CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage")
 #
 # Cor-Libs / k-libs live in sibling repos (one .a per repo), linked statically.
 #
+#
+# The version lives in ONE place: src/app/coraine/coraineVersion.h, which is
+# what the broker itself compiles in. Everything that needs to report a version
+# reads it from here. Hand-kept copies drift - this project had four, and the
+# broker was announcing 0.3 in its User-Agent while /admin/version said 0.2.0.
+#
+FILE(STRINGS ${PROJECT_SOURCE_DIR}/src/app/coraine/coraineVersion.h _cor_version_line
+     REGEX "^#define[ \t]+CORAINE_VERSION[ \t]+\"")
+STRING(REGEX REPLACE "^#define[ \t]+CORAINE_VERSION[ \t]+\"([^\"]+)\".*" "\\1"
+       CORAINE_VERSION "${_cor_version_line}")
+IF(NOT CORAINE_VERSION)
+  MESSAGE(FATAL_ERROR "could not read CORAINE_VERSION from src/app/coraine/coraineVersion.h")
+ENDIF()
+MESSAGE(STATUS "coraine version: ${CORAINE_VERSION}")
+
 set(COR_LIBS_DIR ${PROJECT_SOURCE_DIR}/..)
 
 include_directories(${COR_LIBS_DIR})

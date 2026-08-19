@@ -132,7 +132,7 @@ Content-Length: REGEX(\d+)
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "version": "0.2.0"
+    "version": "REGEX([0-9.]+)"
   },
   "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(.*)",
@@ -157,7 +157,7 @@ Content-Length: REGEX(\d+)
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "version": "0.2.0"
+    "version": "REGEX([0-9.]+)"
   },
   "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(.*)",
@@ -182,7 +182,7 @@ Content-Length: REGEX(\d+)
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "version": "0.2.0"
+    "version": "REGEX([0-9.]+)"
   },
   "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(.*)",
