@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Per-connection defer queue. The linked list head/tail/count live in the
 // per-connection corNgsild (so the worker that runs the request and the I/O

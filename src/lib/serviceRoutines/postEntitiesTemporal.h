@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // POST /ngsi-ld/v1/temporal/entities — § 5.6.11 / § 6.18.3.1.
 // Create or Update Temporal Evolution of an Entity.

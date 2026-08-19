@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 #
 # corTestParams.sh - repo-specific CLI parameters for coraine test suite
 #

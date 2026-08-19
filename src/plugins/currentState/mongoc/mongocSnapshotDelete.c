@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Remove a Snapshot's metadata document from the originating tenant's
 // "snapshots" collection. Frozen entity bodies live in the per-snapshot

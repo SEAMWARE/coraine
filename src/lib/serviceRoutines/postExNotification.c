@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // POST /ngsi-ld/ex/v1/notifications/{parentSubId} — receive a
 // notification produced by a remote Context Source for a derived

@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // POST /ngsi-ld/v1/temporal/entityOperations/query — § 5.7.4 / § 6.24.3.1.
 // Mirrors the GET /temporal/entities behaviour but moves all filter

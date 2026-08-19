@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Per-snapshot DB tenant — a Tenant struct dedicated to holding the
 // frozen entity bodies of a single snapshot. The struct is NOT added

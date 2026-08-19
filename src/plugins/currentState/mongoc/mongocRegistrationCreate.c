@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one

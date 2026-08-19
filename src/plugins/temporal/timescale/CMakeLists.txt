@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 FIND_PACKAGE(PkgConfig REQUIRED)
 PKG_CHECK_MODULES(LIBPQ REQUIRED libpq)
 

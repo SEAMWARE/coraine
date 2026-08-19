@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // corRamDB Batch Delete: per id, clone the stored entity into the
 // request arena (for the service's delete notification), then remove

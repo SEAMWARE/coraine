@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 #
 # ftClient — test notification receiver (for subscription tests)
 #

@@ -1,2 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
 ADD_LIBRARY(troeNone SHARED noneRegister.c)
 SET_TARGET_PROPERTIES(troeNone PROPERTIES OUTPUT_NAME "none" PREFIX "")

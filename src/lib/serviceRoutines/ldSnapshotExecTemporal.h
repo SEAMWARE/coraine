@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Snapshot temporal-query execution (§ 5.16.1.4 / Phase #146b).
 //

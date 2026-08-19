@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Write a TroeEvent to postgres. The dispatch layer hands us one event
 // at a time (or a list); each entry point acquires a connection from the

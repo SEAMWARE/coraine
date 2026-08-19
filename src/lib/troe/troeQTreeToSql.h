@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Compile an LdQNode tree (NGSI-LD ?q= expression, § 4.9) into a
 // postgres-compatible WHERE-clause fragment for the troe_attrs table.

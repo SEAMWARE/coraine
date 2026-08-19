@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // POST /ngsi-ld/v1/jsonldContexts — Add JSON-LD Context.
 // NGSI-LD v1.9.1 § 5.13.2.

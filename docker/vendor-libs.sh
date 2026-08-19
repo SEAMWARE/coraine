@@ -21,6 +21,7 @@
 # the default because it needs no secret and no repo-visibility change.
 #
 # Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
 

@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // HTTP / HTTPS forwarding plugin. Translates an LdForwardRequest into
 // a corRest CorRestClientRequest, sends it synchronously, and copies the

@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Background-thread Snapshot capture (§ 5.16.1.4 / § 5.16.2.4 — "the
 // following is executed in the background"). Spawned by postSnapshot /

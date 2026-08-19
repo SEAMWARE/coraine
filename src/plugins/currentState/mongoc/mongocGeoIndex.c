@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Geo-index management for MongoDB:
 //   - At startup, an aggregation pipeline discovers all (attrName, datasetKey) pairs

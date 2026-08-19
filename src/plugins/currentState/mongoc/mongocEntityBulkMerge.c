@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // mongoc Batch Merge persistence — two round-trips for the whole batch, with
 // the merge itself done by the broker in between:

@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Read path. v1 retrieves the full temporal evolution of one entity
 // — no time-window / q / pick filtering yet. The result is a

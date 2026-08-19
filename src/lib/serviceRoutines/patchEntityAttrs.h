@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // PATCH /ngsi-ld/v1/entities/{entityId}/attrs — Update Attributes
 // (NGSI-LD § 5.6.2 / § 6.6.3.2).

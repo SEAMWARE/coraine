@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // JSON-LD context persistence (NGSI-LD § 5.13). Backed by a fixed
 // "coraine" database (collection "contexts"), independent of any tenant.

@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Direct write paths for the temporal-write endpoints (§ 5.6.12,
 // § 5.6.13, § 5.6.16, § 5.6.11). Bypass the current-state DB and

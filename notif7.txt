@@ -1,0 +1,11 @@
+POST /notify?subscriptionId=urn:sq HTTP/1.1
+Host: localhost:9978
+User-Agent: orion/1.15.0-next libcurl/8.18.0
+Fiware-Servicepath: /
+Accept: application/json
+Content-Length: 231
+Content-Type: application/json; charset=utf-8
+Ngsiv2-AttrsFormat: keyValues
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+{"id":"urn:ngsi-ld:Notification:59a50eda-9427-11f1-8000-f44eb47e8a9b","type":"Notification","subscriptionId":"urn:sq","notifiedAt":"2026-08-09T21:20:15.381Z","data":[{"id":"urn:E-hot","type":"AirQualityObserved","temperature":21}]}

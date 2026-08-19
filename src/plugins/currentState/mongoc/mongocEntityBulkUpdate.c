@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // mongoc bulk update — two round-trips: one pre-check to learn which
 // _ids exist, then one bulk_operation_execute with replace_one for

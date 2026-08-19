@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /info/sourceIdentity — return ContextSourceIdentity (§ 5.2.40) for
 // this broker process. The contextSourceAlias is the per-tenant Via

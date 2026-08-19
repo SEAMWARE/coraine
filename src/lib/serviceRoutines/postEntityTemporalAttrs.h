@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // POST /ngsi-ld/v1/temporal/entities/{id}/attrs — § 5.6.12 / § 6.20.3.1.
 //

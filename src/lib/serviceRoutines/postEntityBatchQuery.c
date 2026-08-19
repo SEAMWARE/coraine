@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // POST /ngsi-ld/v1/entityOperations/query — § 6.23.3.1. Mirrors the
 // GET /entities behaviour (§ 5.7.2) but moves all filter parameters

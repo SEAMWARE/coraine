@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Apply pending schema migrations against the supplied connection's database.
 // Idempotent: each migration is gated on a row in troe_schema_version,

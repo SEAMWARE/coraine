@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 #ifndef SRC_LIB_TROE_TROENOTAVAILABLE_H_
 #define SRC_LIB_TROE_TROENOTAVAILABLE_H_

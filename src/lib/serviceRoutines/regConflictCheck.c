@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // § 5.9.2 / § 12.2.3.4 — registration mode-conflict checks, shared by the
 // Create (POST) and Update (PATCH) paths.

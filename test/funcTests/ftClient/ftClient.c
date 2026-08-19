@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Test notification receiver for functional tests.
 // Accumulates all incoming requests (e.g. POST /notify) in a global array.

@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // HTTP / HTTPS forwarding plugin — registers itself for the "http" and
 // "https" URL schemes against the LdForwarding registry. Built into

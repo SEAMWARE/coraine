@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /ngsi-ld/v1/types — Retrieve Available Entity Types (§ 5.7.5) /
 // Retrieve Details of Available Entity Types (§ 5.7.6) when ?details=true.

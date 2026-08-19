@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Drop a tenant's entire database. Currently only used by the
 // snapshot subsystem to reclaim per-snapshot tenant storage on

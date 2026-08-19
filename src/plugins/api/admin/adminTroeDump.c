@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /admin/troe/dump — return events captured by a dev/test TRoE plugin
 // (today: troeRamdb). Production plugins (timescale, parquet) leave the

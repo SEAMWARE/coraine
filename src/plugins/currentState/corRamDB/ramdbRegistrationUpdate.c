@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Stores a full registration document, replacing whatever is on record for
 // `regId`. The NGSI-LD merge (JSON Merge Patch incl. the urn:ngsi-ld:null

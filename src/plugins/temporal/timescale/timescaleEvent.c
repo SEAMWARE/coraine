@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Write path for the timescale TRoE plugin. Walks the attrSnapshot to
 // extract typed values into the v_text / v_number / v_bool / v_compound

@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /ngsi-ld/v1/types/{type} — Retrieve Available Entity Type Information
 // (§ 5.7.7). Returns EntityTypeInfo (§ 5.2.26): the type, its entity count

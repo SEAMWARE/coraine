@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
 #
 # setup-mongo8.sh - install MongoDB 8.0 side-by-side with MongoDB 4.4
 #

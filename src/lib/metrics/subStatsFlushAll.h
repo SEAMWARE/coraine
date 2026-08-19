@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Walk every tenant + every sub cache (entity / CSR / pernot) and
 // flush delta counters to the current-state DB plugin. Shared by:

@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /ngsi-ld/v1/attributes — Retrieve Available Attributes (§ 5.7.8) /
 // Retrieve Details of Available Attributes (§ 5.7.9) when ?details=true.

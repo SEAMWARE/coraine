@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Shared state for the timescale TRoE plugin. Each tenant owns its own
 // physical database and a bounded connection pool (see timescalePool.h);

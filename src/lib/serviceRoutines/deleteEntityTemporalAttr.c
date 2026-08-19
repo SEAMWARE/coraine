@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // DELETE /ngsi-ld/v1/temporal/entities/{id}/attrs/{attr} (§ 5.6.13 / § 6.21.3.1).
 // URL params:

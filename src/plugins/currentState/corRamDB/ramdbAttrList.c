@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Discovery § 5.7.8 / § 5.7.9 / § 5.7.10:
 // aggregate distinct attribute names across all locally stored entities,

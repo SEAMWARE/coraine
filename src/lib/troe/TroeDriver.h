@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Plugin interface for Temporal Representation of Entities (NGSI-LD § 5.7.4 /
 // § 5.6.16+). Mirrors the shape of db/DbDriver.h. The plugin owns hot/cold

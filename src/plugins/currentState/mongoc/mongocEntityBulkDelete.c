@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // mongoc bulk delete — two round-trips: a $in find that fetches the
 // full pre-delete document for each matched id (so the service can

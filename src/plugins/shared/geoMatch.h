@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Shared GEOS-based geo matching for entity queries and subscription notifications.
 // Compiled into both corRamDB and mongoc plugins.

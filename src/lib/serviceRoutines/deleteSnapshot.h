@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // DELETE /ngsi-ld/v1/snapshots/{id} — Delete Snapshot (§ 5.16.5).
 //

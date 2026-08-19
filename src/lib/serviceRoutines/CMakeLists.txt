@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 SET(SOURCES
   getEntities.c
   getEntity.c

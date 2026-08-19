@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // mongoc entityAttrsSet: fetch the current document, apply
 // ldEntityAttrsSet in memory, then $set the touched wrappers and

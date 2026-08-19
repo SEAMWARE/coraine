@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Persist a Snapshot's metadata into the originating tenant's
 // "snapshots" collection. The persisted tree carries the same fields

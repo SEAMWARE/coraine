@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Prometheus metrics facade for coraine. All counters/gauges live
 // in a single translation unit (metrics.c). Hot-path mutators are

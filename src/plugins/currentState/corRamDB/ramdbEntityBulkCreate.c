@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // corRamDB is a malloc-backed in-process store — there is no bulk-write
 // primitive to exploit. We walk the input array, honour the first-wins

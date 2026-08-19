@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // PUT /ngsi-ld/v1/entities/{entityId} — Replace Entity.
 // NGSI-LD v1.9.1 § 5.6.18 / § 5.5.12.

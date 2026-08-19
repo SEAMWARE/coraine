@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Thin ramdb wrapper around corNgsild's ldEntityAttrsSet — locates the
 // live entity in the tenant store and applies the fragment in place.

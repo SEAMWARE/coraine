@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // HA-safe delta flush:
 //   $inc { notification.timesSent: delta, notification.timesFailed: delta }

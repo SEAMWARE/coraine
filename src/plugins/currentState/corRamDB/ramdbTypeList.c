@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Discovery § 5.7.5 / § 5.7.6 / § 5.7.7:
 // aggregate distinct entity types across all locally stored entities,

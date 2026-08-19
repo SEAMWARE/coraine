@@ -10,7 +10,7 @@ NGSI-LD; the plugins decide *where data lives*, *what extra endpoints exist* and
 - **Product version:** 0.3
 - **Spec target:** ETSI GS CIM 009 v1.9.1 (NGSI-LD)
 - **Language / build:** C, CMake (wrapped by a convenience `makefile`)
-- **License / © :** Seamware
+- **License:** [Apache License 2.0](LICENSE) — Copyright 2026 Seamware
 
 For a feature-by-feature breakdown of what's implemented, see
 [`doc/implementation-status.md`](doc/implementation-status.md).

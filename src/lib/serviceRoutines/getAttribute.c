@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /ngsi-ld/v1/attributes/{attrId} — Retrieve Available Attribute
 // Information (§ 5.7.10). Returns full Attribute (§ 5.2.28): id, type,

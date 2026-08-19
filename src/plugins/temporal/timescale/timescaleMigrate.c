@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Schema migration runner. One numbered migration per entry in the
 // migrationsV table; each migration is a function that runs idempotent

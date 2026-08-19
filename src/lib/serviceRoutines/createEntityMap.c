@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // GET /ngsi-ld/v1/entityMaps — § 5.14.4 / § 6.34.3.1 "Create EntityMap for
 // Query Entities". Spec binds this to GET (counterintuitive, since 201

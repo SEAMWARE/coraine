@@ -7,6 +7,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // NGSI-LD § 4.5.23 — linked-entity retrieval. Walk the primary
 // entity's Relationships, fetch target entities, recurse up to

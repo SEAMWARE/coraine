@@ -4,6 +4,7 @@
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
+// SPDX-License-Identifier: Apache-2.0
 //
 // Enumerate all snapshots persisted in the tenant's "snapshots"
 // collection. Used at boot by tenantSnapshotCacheReload.
