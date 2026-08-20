@@ -90,9 +90,10 @@ Usage: coraine  [--usage/-u (usage)]
                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
+                [--version/-V (print version and exit)]
                 [--foreground/-fg (run in foreground (don't daemonize))]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
-                [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
+                [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
                 Plugins are loaded from /opt/seamware/plugins
 
@@ -125,9 +126,10 @@ Usage: coraine  [--usage/-u (usage)]
                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
+                [--version/-V (print version and exit)]
                 [--foreground/-fg (run in foreground (don't daemonize))]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
-                [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
+                [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
                 Database (mongoc) plugin options:
                 [--dbHost/-dbHost <database server host>]
@@ -171,9 +173,10 @@ Usage: coraine  [--usage/-u (usage)]
                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
+                [--version/-V (print version and exit)]
                 [--foreground/-fg (run in foreground (don't daemonize))]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
-                [--ha/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
+                [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
                 Plugins are loaded from /opt/seamware/plugins
 
@@ -206,9 +209,10 @@ Usage: coraine  [--usage/-u (usage)]
   --subStatsFlushInterval (-ssfi)            CORAINE_SUBSTATSFLUSHINTERVAL Optional   Int      Default Value  
   --distOpTimeout         (-dtmo)            CORAINE_DISTOPTIMEOUT         Optional   Int      Default Value  
   --cooldownMillis        (-cms)             CORAINE_COOLDOWNMILLIS        Optional   Int      Default Value  
+  --version               (-V)               CORAINE_VERSION               Optional   Bool     Default Value  
   --foreground            (-fg)              CORAINE_FOREGROUND            Optional   Bool     Default Value  
   --insecureNotif         (-insecureNotif)   CORAINE_INSECURENOTIF         Optional   Bool     Default Value  
-  --ha                    (-ha)              CORAINE_HA                    Optional   String   Default Value  
+  --high-availability     (-ha)              CORAINE_HIGH_AVAILABILITY     Optional   String   Default Value  
 
 
 --TEARDOWN--

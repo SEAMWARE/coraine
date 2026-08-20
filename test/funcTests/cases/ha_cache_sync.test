@@ -9,7 +9,7 @@
 # REQUIRE_HA: yes
 #
 --NAME--
-HA - a second instance learns what the first one wrote (--ha mongo)
+HA - a second instance learns what the first one wrote (--high-availability mongo)
 
 --TAGS--
 ha mongoc subscription registration context tenant
@@ -20,14 +20,14 @@ corDbDrop -role CB2
 corDbDrop -db coraine
 corDbDrop -tenant t1
 ftClientStart
-coraineStart --ha mongo -dist
-coraineStart -role CB2 --dbName corTest --ha mongo -dist
+coraineStart --high-availability mongo -dist
+coraineStart -role CB2 --dbName corTest --high-availability mongo -dist
 
 --RUN--
 
 #
 # Two brokers, ONE database (CB2 is started with CB's --dbName), both with
-# --ha mongo. Everything below is created on CB and read back from CB2 - and
+# --high-availability mongo. Everything below is created on CB and read back from CB2 - and
 # what CB2 answers with comes from its CACHE, not from the database:
 # GET /subscriptions walks the sub cache, GET /csourceRegistrations walks the
 # reg cache and GET /jsonldContexts is served from the @context cache. So a

@@ -162,6 +162,7 @@ char*          apiNames     = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
+bool           versionOnly  = false;   // --version: handled before kargsInit; in the table so --usage lists it
 int            poolSize     = 32;
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
@@ -203,9 +204,10 @@ static KArg kargV[] =
   { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--distOpTimeout",      "-dtmo",        KaInt,    _vp &corRestClientDefaultRequestTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--cooldownMillis",     "-cms",         KaInt,    _vp &cooldownMillis, KaOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
+  { "--version",            "-V",           KaBool,   _vp &versionOnly,  KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "print version and exit" },
   { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
   { "--insecureNotif",      "-insecureNotif",KaBool,  _vp &insecureNotif, KaOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
-  { "--ha",                 "-ha",          KaString, _vp &haChannel,    KaOpt, _vp NULL,      NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
+  { "--high-availability",  "-ha",          KaString, _vp &haChannel,    KaOpt, _vp NULL,      NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
   KARGS_END
 };
 
@@ -729,6 +731,22 @@ int main(int argC, char* argV[])
   // Strip path from program name (use basename only)
   char* progName = strrchr(argV[0], '/');
   progName = (progName != NULL) ? progName + 1 : argV[0];
+
+  //
+  // --version is answered before kargs is initialized and before any plugin is
+  // loaded: asking a binary what it is must not depend on a plugin directory
+  // being present, nor on a DB plugin being loadable. It is the one question a
+  // broken installation still has to be able to answer.
+  //
+  // kargsPeek is what makes that possible without hand-parsing argV - it reads
+  // the option table directly, answers "SET" for a KaBool, and matches the short
+  // name too. It is the same mechanism the plugin peek below uses.
+  //
+  if (kargsPeek(argC, argV, kargV, "--version") != NULL)
+  {
+    printf("%s %s\n", progName, CORAINE_VERSION);
+    exit(0);
+  }
 
   KArgsStatus ks = kargsInit(progName, kargV, "CORAINE");
   if (ks != KargsOk)

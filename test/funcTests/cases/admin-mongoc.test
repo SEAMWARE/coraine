@@ -204,7 +204,7 @@ Content-Length: REGEX(\d+)
   "corJsonld": "0.1.0",
   "corNgsild": "post-0.2.0",
   "corRest": "0.1.0",
-  "coraine version": "0.3",
+  "coraine version": "0.3.0",
   "kalloc": "0.10.1",
   "kargs": "0.10.0",
   "kbase": "0.10.0",
