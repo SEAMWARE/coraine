@@ -74,7 +74,7 @@ jobs:
       # a container job, so it is a service here.
       #
       context-server:
-        image: wistefan/context-server
+        image: wistefan/context-server:0.2.0
         env:
           MEMORY_ENABLED: 'true'
         ports:
