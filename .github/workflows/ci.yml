@@ -25,6 +25,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+#
+# A container job defaults to `sh -e {0}` - bash is in the image, GitHub just does
+# not assume it. The harness and bootstrap.sh are bash.
+#
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -82,6 +90,7 @@ jobs:
         run: ./bootstrap.sh
 
       - name: Build and install coraine
+        id: build
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
@@ -109,8 +118,14 @@ jobs:
         working-directory: stack/coraine
         run: ../corLibs/bin/corTest -db mongoc --noColor
 
+      #
+      # Runs even when the mongoc suite failed - the two are separate measurements
+      # and a red mongoc run should not hide a red corDB one. But only if there is
+      # a broker to run: `always()` would have run it after a failed build, which
+      # it did, producing a second confusing failure on the first CI run.
+      #
       - name: Functional tests - corDB
-        if: always()
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         working-directory: stack/coraine
         run: ../corLibs/bin/corTest -db corDB --noColor
 
