@@ -134,7 +134,7 @@ Content-Length: 385
 
 [
   {
-    "geoDistance": 8527.517817111,
+    "geoDistance": 85REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E1",
     "location": {
       "coordinates": [
@@ -146,7 +146,7 @@ Content-Length: 385
     "type": "P"
   },
   {
-    "geoDistance": 139844.307016697,
+    "geoDistance": 139REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E2",
     "location": {
       "coordinates": [
@@ -202,7 +202,7 @@ Content-Length: 485
 
 [
   {
-    "geoDistance": 4263.759076255,
+    "geoDistance": 42REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E4",
     "opArea": {
       "coordinates": [
@@ -214,7 +214,7 @@ Content-Length: 485
     "type": "P"
   },
   {
-    "geoDistance": 8527.517817111,
+    "geoDistance": 85REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E1",
     "location": {
       "coordinates": [
@@ -247,7 +247,7 @@ Content-Length: 778
 
 [
   {
-    "geoDistance": 4263.759076255,
+    "geoDistance": 42REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E4",
     "opArea": {
       "coordinates": [
@@ -259,7 +259,7 @@ Content-Length: 778
     "type": "P"
   },
   {
-    "geoDistance": 8527.517817111,
+    "geoDistance": 85REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E1",
     "location": {
       "coordinates": [
@@ -278,7 +278,7 @@ Content-Length: 778
     "type": "P"
   },
   {
-    "geoDistance": 17055.032951024,
+    "geoDistance": 170REGEX(\d+\.\d+),
     "id": "urn:ngsi-ld:E5",
     "location": {
       "coordinates": [

@@ -1,5 +1,5 @@
 #
-# FILE            discovery_attribute_type_aggregation.test
+# FILE            discovery_attribute_type_aggregation_ramdb.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -13,27 +13,19 @@
 # (TS 104-175 § 5.2.6.6 Attribute: attributeTypes is "the union of the
 # Attribute types", typeNames "the union of Entity type names").
 #
-# ONE combination the mongoc backend cannot hold, and it is a storage limit, not
-# an NGSI-LD rule: a GeoProperty and any other Attribute type under the SAME name
-# in the same tenant. mongoc indexes each GeoProperty attribute path with a
-# 2dsphere index, and that index is collection-wide - i.e. tenant-wide - so a
-# non-geometry at that path cannot be stored beside a geometry. It answers 409
-# Attribute Type Conflict either way round. ramdb has no such index and stores the
-# mix happily, which is exactly what the ramdb variant of this test pins.
+# The in-memory variant of discovery_attribute_type_aggregation. Steps 01-05 are
+# the same union behaviour, which is DB-independent. Steps 06-07 are where the
+# two backends part: mongoc indexes every GeoProperty path with a tenant-wide
+# 2dsphere index and therefore REFUSES a GeoProperty and another Attribute type
+# under one name (409). ramdb has no such index, stores the mix, and must then
+# aggregate GeoProperty into attributeTypes alongside the others - which is what
+# this file pins. It is a storage limit on one side, not an NGSI-LD rule; neither
+# answer is more correct than the other.
 #
-# So the union below is built from Property + Relationship, and the GeoProperty
-# gets its own Attribute name - with the refusal pinned at the end so the limit is
-# recorded next to the behaviour it constrains.
-#
-# Likewise an Entity with multiple Entity types contributes its attributes
-# to BOTH types in GET /types?details=true.
-# Steps 06-07 pin a mongoc storage limit, so this file is mongoc-only; the ramdb
-# side of the same behaviour is discovery_attribute_type_aggregation_ramdb.test.
-#
-# REQUIRE_DB: mongoc
+# REQUIRE_DB: ramdb
 #
 --NAME--
-GET /attributes/{attr} unions attributeTypes + typeNames across entities
+GET /attributes/{attr} unions attributeTypes + typeNames, in-memory (GeoProperty mixes in)
 
 --TAGS--
 attributes types discovery introspection
@@ -94,8 +86,8 @@ echo
 echo
 
 
-echo "06. mongoc cannot hold a GeoProperty and another type under one name - 409, both ways round"
-echo "==========================================================================================="
+echo "06. ramdb holds a GeoProperty and another type under one name - both accepted"
+echo "============================================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X1", "type": "Plot", "plot": { "type": "Property", "value": "not a geometry" } }'
 echo
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X2", "type": "Building", "owner": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }'
@@ -103,8 +95,8 @@ echo
 echo
 
 
-echo "07. ... and neither refusal left anything behind"
-echo "==============================================="
+echo "07. ... and both names now aggregate the GeoProperty alongside the other type"
+echo "============================================================================"
 corCurl --url /ngsi-ld/v1/attributes/plot
 echo
 corCurl --url /ngsi-ld/v1/attributes/owner
@@ -262,50 +254,37 @@ Content-Length: 236
 
 
 
-06. mongoc cannot hold a GeoProperty and another type under one name - 409, both ways round
-===========================================================================================
-HTTP/1.1 409 Conflict
+06. ramdb holds a GeoProperty and another type under one name - both accepted
+=============================================================================
+HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 402
-
-{
-  "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/plot",
-  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/plot' is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
-  "status": 409,
-  "title": "Attribute Type Conflict",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
-}
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:X1
+Content-Length: 0
 
 
-HTTP/1.1 409 Conflict
+
+HTTP/1.1 201 Created
 Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 404
-
-{
-  "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/owner",
-  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/owner' is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
-  "status": 409,
-  "title": "Attribute Type Conflict",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
-}
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:X2
+Content-Length: 0
 
 
 
-07. ... and neither refusal left anything behind
-===============================================
+
+07. ... and both names now aggregate the GeoProperty alongside the other type
+============================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 215
+Content-Length: 231
 
 {
-  "attributeCount": 1,
+  "attributeCount": 2,
   "attributeName": "plot",
   "attributeTypes": [
-    "GeoProperty"
+    "GeoProperty",
+    "Property"
   ],
   "id": "https://uri.etsi.org/ngsi-ld/default-context/plot",
   "type": "Attribute",
@@ -319,14 +298,15 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 250
+Content-Length: 269
 
 {
-  "attributeCount": 2,
+  "attributeCount": 3,
   "attributeName": "owner",
   "attributeTypes": [
     "Property",
-    "Relationship"
+    "Relationship",
+    "GeoProperty"
   ],
   "id": "https://uri.etsi.org/ngsi-ld/default-context/owner",
   "type": "Attribute",

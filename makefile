@@ -12,8 +12,18 @@ PREFIX         = /usr/local
 BUILD_RELEASE  = BUILD_RELEASE
 BUILD_DEBUG    = BUILD_DEBUG
 BUILD_COVERAGE = BUILD_COVERAGE
-COV_DIR        = coverage
+#
+# Functional-test coverage is measured PER CURRENT-STATE DB, because the two DB
+# plugins take different paths through the broker and each leaves the other's
+# plugin sources unexecuted. `make coverage` runs ramdb, `make coverage DB=mongoc`
+# runs mongoc, and each writes its own report - comparing a ramdb run against a
+# mongoc one is comparing two different measurements.
+#
+COV_DB        ?= $(if $(DB),$(DB),ramdb)
+COV_DIR        = coverage-$(COV_DB)
 COV_REPORT     = $(COV_DIR)/index.html
+COV_OTHER_DB   = $(if $(filter mongoc,$(COV_DB)),corRamDB,mongoc)
+COV_PLUGIN_DIR = $(BUILD_COVERAGE)/plugins
 COV_ETSI_DIR   = coverage-etsi
 COV_LIBS       = corRest corNgsild corJsonld
 
@@ -67,7 +77,7 @@ debug: libs etc/contextSourceExtras.json
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
-	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) $(COV_DIR) $(COV_ETSI_DIR)
+	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) coverage coverage-* $(COV_ETSI_DIR)
 
 #
 # The file is DATA, not source - nothing includes it and nothing compiles from
@@ -113,15 +123,32 @@ test:
 coverage:
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
+#
+# Stage the instrumented plugins in the INSTALLED layout. The harness composes
+# $COR_PLUGIN_DIR/db/currentState/<name>.so, so without this it loads whatever
+# sits in /opt/seamware - an ordinary build with no counters - and every plugin
+# source then reports as unexecuted while the run appears to have covered it.
+#
+	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api
+	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
+	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
+	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@find $(BUILD_COVERAGE) -name '*.gcda' -delete
 	COR_BROKER=$(CURDIR)/$(BUILD_COVERAGE)/src/app/coraine/coraine \
-	COR_BROKER_EXTRA_PARAMS="--database $(CURDIR)/$(BUILD_COVERAGE)/src/plugins/currentState/corRamDB/corRamDB.so --pretty-print 2 --foreground" \
-	$(CORTEST) || true
+	COR_PLUGIN_DIR=$(CURDIR)/$(COV_PLUGIN_DIR) \
+	$(CORTEST) -db $(COV_DB) || true
 	@mkdir -p $(COV_DIR)
+#
+# The DB plugin that is NOT under test is excluded from the report. A ramdb run
+# cannot execute a line of mongoc.so and vice versa, so counting the other one
+# as unexecuted measures the choice of DB rather than the state of the suite.
+#
 	$(GCOVR) --root $(CURDIR)/src --object-directory $(BUILD_COVERAGE) \
-	      --html-details $(COV_REPORT) --html-title "coraine Coverage"
+	      -e '.*/plugins/currentState/$(COV_OTHER_DB)/.*' \
+	      --html-details $(COV_REPORT) --html-title "coraine coverage ($(COV_DB))" \
+	      --print-summary
 	@echo ""
-	@echo "Coverage report: file://$(CURDIR)/$(COV_REPORT)"
+	@echo "Coverage report ($(COV_DB)): file://$(CURDIR)/$(COV_REPORT)"
 
 # Full ETSI-suite coverage: instrument the broker + NGSI-LD libs (corRest
 # corNgsild corJsonld) + mongoc/timescale plugins, run the ETSI TP suite via

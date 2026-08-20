@@ -15,6 +15,11 @@
 # knowingly approximated here — each step below says which way it errs. The
 # in-memory GEOS matcher is exact for all of them; its answers are pinned by the
 # twin test query_geo_relations_matrix_ramdb.
+# The APPROXIMATION steps below are mongo's, not the spec's - GEOS answers them
+# exactly, so this file cannot run on ramdb. The exact answers are pinned in
+# query_geo_relations_matrix_ramdb.test.
+#
+# REQUIRE_DB: mongoc
 #
 --NAME--
 Entity geo-query — the georel matrix (mongoc pushdown, with its approximations)

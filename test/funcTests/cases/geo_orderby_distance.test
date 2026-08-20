@@ -14,6 +14,12 @@
 #
 # On mongoc this is the $geoNear (index-backed) path for the geo-bearing
 # entities plus a $unionWith for the non-geo tail, paginated across both.
+# This variant pins the mongoc backend ($geoNear/$unionWith). The distances it
+# reports come from mongo's earth model and differ from the in-memory haversine
+# in the fourth digit, so the two cannot share one set of expects - the ramdb
+# path is covered by geo_orderby_distance_ramdb.test.
+#
+# REQUIRE_DB: mongoc
 #
 --NAME--
 orderBy dist-asc/dist-desc — sort entities by distance from orderFrom (§ 7.6.2.2)
