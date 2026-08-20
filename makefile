@@ -58,18 +58,32 @@ libs:
 	  $(MAKE) -C $(SIBLING_DIR)/$$lib di || exit 1; \
 	done
 
-release: libs
+release: libs etc/contextSourceExtras.json
 	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
-debug: libs
+debug: libs etc/contextSourceExtras.json
 	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
 	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) $(COV_DIR) $(COV_ETSI_DIR)
 
-etc/contextSourceExtras.json: makefile src/app/coraine/coraineVersion.h
+#
+# The file is DATA, not source - nothing includes it and nothing compiles from
+# it. The broker reads it at startup and renders it verbatim on
+# /info/sourceIdentity (§ 5.2.40), so its content is a claim about the build
+# that is running: version, commit, build time.
+#
+# Which is why it is regenerated unconditionally (FORCE) and is NOT in git. It
+# used to be both committed and dependent on makefile+coraineVersion.h, so a
+# fresh clone shipped whatever sha happened to be committed and `make` had no
+# reason to correct it - the broker then announced a commit that was not the one
+# serving the request.
+#
+FORCE:
+
+etc/contextSourceExtras.json: FORCE
 	@mkdir -p etc
 	@printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
 	  "$(CORAINE_VERSION)" "$(CORAINE_GIT_SHA)" "$(CORAINE_BUILD_AT)" > $@

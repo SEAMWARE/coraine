@@ -44,3 +44,7 @@ CLAUDE
 
 # Docker build staging: exported Cor-Lib sources (regenerate with docker/vendor-libs.sh)
 docker/vendor/
+
+# Generated at build time: it stamps the version, commit and build timestamp
+# that /info/sourceIdentity reports. A committed copy is a stale claim.
+etc/contextSourceExtras.json

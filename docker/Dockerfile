@@ -97,11 +97,10 @@ WORKDIR /root/git/coraine
 
 RUN make i
 
-# Stamp real provenance. etc/contextSourceExtras.json is committed AND older than the
-# makefile, so `make` never regenerates it — and .git is out of the build context, so
-# the makefile's `git rev-parse` would yield "unknown" regardless. Without this, the
-# image serves a months-old gitSha on sourceIdentity and bug reports land on the wrong
-# commit. Pass the values in:
+# Stamp real provenance. The makefile regenerates etc/contextSourceExtras.json on every
+# build, but .git is out of the build context, so its `git rev-parse` yields "unknown"
+# in here. Without this step the image serves gitSha "unknown" on sourceIdentity and bug
+# reports cannot be traced to a commit. Pass the values in:
 #   --build-arg GIT_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ARG GIT_SHA=unknown
 ARG BUILD_AT=unknown
