@@ -13,7 +13,7 @@ There are **four** kinds of plugin:
 - **Current-state DB** — where entities, subscriptions and registrations live.
   Loaded via `--database` / `-db`; resolves to `<base>/db/currentState/<name>.so`;
   register symbol `dbRegister`; fills the `DbDriver` struct (`db`). **One active at
-  a time.** Bundled: `mongoc` (default), `corRamDB`.
+  a time.** Bundled: `mongoc` (default), `corDB`.
 
 - **History DB** — the temporal evolution of entities (TRoE — Temporal
   Representation of Entities). Loaded via `--troe` / `-troe`; resolves to
@@ -47,7 +47,7 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
 /opt/seamware/plugins/
 ├── db/currentState/
 │   ├── mongoc.so          # MongoDB-backed store
-│   └── corRamDB.so         # in-memory store
+│   └── corDB.so         # in-memory store
 ├── troe/temporal/
 │   ├── none.so            # no-op (temporal disabled)
 │   ├── ramdb.so           # in-memory history (dev/test)
@@ -61,7 +61,7 @@ which bypasses base-dir resolution — handy for pointing at a freshly-built `.s
 in a build tree without installing:
 
 ```sh
-coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corRamDB/corRamDB.so
+coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corDB/corDB.so
 ```
 
 ## How loading works (the mechanism)
@@ -97,7 +97,7 @@ convention: a **NULL function pointer means "unsupported"**, and the service
 routine returns **501 Not Implemented** (or treats it as a no-op where the spec
 allows). Examples called out in the headers: `subscriptionStatsFlush`,
 `snapshot*`, `tenantDrop`, and the whole context-persistence quartet
-(`contextSave/Delete/List/Get`) are NULL on `corRamDB`. This is how the in-memory
+(`contextSave/Delete/List/Get`) are NULL on `corDB`. This is how the in-memory
 driver legitimately ships without persistence.
 
 ## The driver interfaces
@@ -123,7 +123,7 @@ the headers — read these before writing a plugin:
 | Plugin | Category | Notes |
 |--------|----------|-------|
 | **mongoc** | DB | MongoDB via `libmongoc` v2; `$geoNear` aggregation, persistence, context hosting, per-tenant DBs. The default (`--database mongoc`). Needs the mongo-c **v2** driver at build time. |
-| **corRamDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
+| **corDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
 | **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
 | **ramdb** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
@@ -132,7 +132,7 @@ the headers — read these before writing a plugin:
 ## Writing a new plugin (sketch)
 
 A DB plugin is one `.so` exporting `void dbRegister(DbDriver*)`. Minimal shape,
-mirroring `src/plugins/currentState/corRamDB/ramdbRegister.c`:
+mirroring `src/plugins/currentState/corDB/corDbRegister.c`:
 
 ```c
 #include "db/DbDriver.h"

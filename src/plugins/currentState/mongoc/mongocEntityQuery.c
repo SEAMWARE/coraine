@@ -987,7 +987,7 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
     // matches here (Mongo cannot express containment in the other direction,
     // see LdGeoContains below), and the same-dimension rule is not applied.
     // The in-broker matcher (plugins/shared/geoMatch.c), which serves the
-    // corRamDB backend, subscriptions, snapshots and the temporal API, is
+    // corDB backend, subscriptions, snapshots and the temporal API, is
     // exact — so the two backends deliberately differ for those cases.
     //
     // The negation goes in a top-level $nor rather than next to the

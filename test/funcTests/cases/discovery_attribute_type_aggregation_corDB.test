@@ -1,0 +1,320 @@
+#
+# FILE            discovery_attribute_type_aggregation_corDB.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The same Attribute name can appear with different Attribute types in
+# different Entities (e.g. "owner" as a Property in one Entity and a
+# Relationship in another). GET /attributes/{attr} must aggregate ALL the
+# observed attribute types into attributeTypes and ALL the owning entity
+# types into typeNames, and attributeCount must count every instance
+# (TS 104-175 § 5.2.6.6 Attribute: attributeTypes is "the union of the
+# Attribute types", typeNames "the union of Entity type names").
+#
+# The in-memory variant of discovery_attribute_type_aggregation. Steps 01-05 are
+# the same union behaviour, which is DB-independent. Steps 06-07 are where the
+# two backends part: mongoc indexes every GeoProperty path with a tenant-wide
+# 2dsphere index and therefore REFUSES a GeoProperty and another Attribute type
+# under one name (409). corDB has no such index, stores the mix, and must then
+# aggregate GeoProperty into attributeTypes alongside the others - which is what
+# this file pins. It is a storage limit on one side, not an NGSI-LD rule; neither
+# answer is more correct than the other.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+GET /attributes/{attr} unions attributeTypes + typeNames, in-memory (GeoProperty mixes in)
+
+--TAGS--
+attributes types discovery introspection
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed: owner as Property (Building) and Relationship (Room); plot as GeoProperty (Plot)"
+echo "=========================================================================================="
+payload='{ "id": "urn:ngsi-ld:B1", "type": "Building", "owner": { "type": "Property", "value": "ACME" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{ "id": "urn:ngsi-ld:R1", "type": "Room", "owner": { "type": "Relationship", "object": "urn:ngsi-ld:ACME" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+payload='{ "id": "urn:ngsi-ld:P1", "type": "Plot", "plot": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET /attributes/owner → attributeTypes=[Property,Relationship], typeNames=2, count=2"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/attributes/owner
+echo
+echo
+
+
+echo "02b. GET /attributes/plot → the GeoProperty is aggregated under its own name"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/attributes/plot
+echo
+echo
+
+
+echo "03. Seed a multi-type entity (type=[Building,Landmark]) with attr height"
+echo "======================================================================="
+payload='{ "id": "urn:ngsi-ld:B2", "type": ["Building", "Landmark"], "height": { "type": "Property", "value": 30 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /types?details=true → height appears under BOTH Building and Landmark"
+echo "============================================================================"
+corCurl --url '/ngsi-ld/v1/types' --urlParams 'details=true'
+echo
+echo
+
+
+echo "05. GET /attributes/height → typeNames=[Building,Landmark]"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/attributes/height
+echo
+echo
+
+
+echo "06. corDB holds a GeoProperty and another type under one name - both accepted"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X1", "type": "Plot", "plot": { "type": "Property", "value": "not a geometry" } }'
+echo
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:X2", "type": "Building", "owner": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] } } }'
+echo
+echo
+
+
+echo "07. ... and both names now aggregate the GeoProperty alongside the other type"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/attributes/plot
+echo
+corCurl --url /ngsi-ld/v1/attributes/owner
+
+--EXPECT--
+01. Seed: owner as Property (Building) and Relationship (Room); plot as GeoProperty (Plot)
+==========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:B1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:R1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:P1
+Content-Length: 0
+
+
+
+
+02. GET /attributes/owner → attributeTypes=[Property,Relationship], typeNames=2, count=2
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 250
+
+{
+  "attributeCount": 2,
+  "attributeName": "owner",
+  "attributeTypes": [
+    "Property",
+    "Relationship"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/owner",
+  "type": "Attribute",
+  "typeNames": [
+    "Building",
+    "Room"
+  ]
+}
+
+
+
+02b. GET /attributes/plot → the GeoProperty is aggregated under its own name
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 215
+
+{
+  "attributeCount": 1,
+  "attributeName": "plot",
+  "attributeTypes": [
+    "GeoProperty"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/plot",
+  "type": "Attribute",
+  "typeNames": [
+    "Plot"
+  ]
+}
+
+
+
+03. Seed a multi-type entity (type=[Building,Landmark]) with attr height
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:B2
+Content-Length: 0
+
+
+
+
+04. GET /types?details=true → height appears under BOTH Building and Landmark
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 699
+
+[
+  {
+    "attributeNames": [
+      "owner",
+      "height"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Building",
+    "type": "EntityType",
+    "typeName": "Building"
+  },
+  {
+    "attributeNames": [
+      "owner"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Room",
+    "type": "EntityType",
+    "typeName": "Room"
+  },
+  {
+    "attributeNames": [
+      "plot"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Plot",
+    "type": "EntityType",
+    "typeName": "Plot"
+  },
+  {
+    "attributeNames": [
+      "height"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Landmark",
+    "type": "EntityType",
+    "typeName": "Landmark"
+  }
+]
+
+
+
+05. GET /attributes/height → typeNames=[Building,Landmark]
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 236
+
+{
+  "attributeCount": 1,
+  "attributeName": "height",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/height",
+  "type": "Attribute",
+  "typeNames": [
+    "Building",
+    "Landmark"
+  ]
+}
+
+
+
+06. corDB holds a GeoProperty and another type under one name - both accepted
+=============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:X1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:X2
+Content-Length: 0
+
+
+
+
+07. ... and both names now aggregate the GeoProperty alongside the other type
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 231
+
+{
+  "attributeCount": 2,
+  "attributeName": "plot",
+  "attributeTypes": [
+    "GeoProperty",
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/plot",
+  "type": "Attribute",
+  "typeNames": [
+    "Plot"
+  ]
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 269
+
+{
+  "attributeCount": 3,
+  "attributeName": "owner",
+  "attributeTypes": [
+    "Property",
+    "Relationship",
+    "GeoProperty"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/owner",
+  "type": "Attribute",
+  "typeNames": [
+    "Building",
+    "Room"
+  ]
+}
+
+--TEARDOWN--
+coraineStop

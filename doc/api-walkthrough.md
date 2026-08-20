@@ -3,7 +3,7 @@
 Everything below runs against a broker started with no external service:
 
 ```sh
-coraine --database corRamDB --troe none --apiPlugins admin -pp 2
+coraine --database corDB --troe none --apiPlugins admin -pp 2
 ```
 
 The examples use port 1026 and `curl`. NGSI-LD lives under `/ngsi-ld/v1`.

@@ -48,7 +48,7 @@ Two rules matter more than the rest:
 - **A behaviour change carries its test.** A fix without a test that fails before it
   and passes after it is not finished.
 - **The suite must be green before a pull request.** `make test` runs it against
-  MongoDB; `corTest -db ramdb` runs the in-memory variant. Both are expected to pass.
+  MongoDB; `corTest -db corDB` runs the in-memory variant. Both are expected to pass.
 
 Coverage of the suite is measured per DB and reported in
 [`doc/coverage.md`](./doc/coverage.md).

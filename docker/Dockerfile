@@ -8,7 +8,7 @@
 #   docker build -f docker/Dockerfile -t coraine:local .
 #
 # Run with no external services at all (in-memory DB):
-#   docker run --rm -p 1026:1026 coraine:local --database corRamDB
+#   docker run --rm -p 1026:1026 coraine:local --database corDB
 #
 # Run against MongoDB (the default backend) — see docker-compose.yml.
 #
@@ -150,5 +150,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 ENTRYPOINT ["coraine", "-fg"]
 
 # Overridable. Default is the Mongo backend, matching the dev/test default;
-# pass --database corRamDB to run with no external services.
+# pass --database corDB to run with no external services.
 CMD ["--database", "mongoc", "--troe", "none", "--apiPlugins", "admin"]

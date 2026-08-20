@@ -7,7 +7,7 @@
 #
 # Three scopeQ behaviours (TS 104-175 § 7.2.5), each of them a place where the two
 # implementations of the scope query - the one pushed down to the database and the one
-# evaluated inside the broker (subscriptions, registrations, temporal, ramdb) - used to
+# evaluated inside the broker (subscriptions, registrations, temporal, corDB) - used to
 # disagree:
 #
 #  1. The trailing "/#" wildcard matches "the given scope and the whole hierarchy of

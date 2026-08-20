@@ -12,7 +12,7 @@
 # query_q_langprop.
 #
 # Two code paths are exercised: the entity query goes through the DB backend
-# (mongoc compiles "[*]" to a $expr over $objectToArray; ramdb uses the in-memory
+# (mongoc compiles "[*]" to a $expr over $objectToArray; corDB uses the in-memory
 # matcher), and the subscription section drives the in-memory matcher directly
 # (subscription q is evaluated in the broker on every write).
 #

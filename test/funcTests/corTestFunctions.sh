@@ -95,7 +95,7 @@ coraineStart() {
   # Current-state DB plugin
   case "$COR_DB_TYPE" in
     mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbPort $COR_MONGO_PORT" ;;
-    ramdb)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corRamDB.so" ;;
+    corDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corDB.so" ;;
     NONE)   ;;  # compiled-in default
     *)      echo "coraineStart: unknown -db type: $COR_DB_TYPE"; return 1 ;;
   esac
@@ -261,7 +261,7 @@ corDbDrop() {
         fi
       fi
       ;;
-    ramdb|NONE)
+    corDB|NONE)
       # No-op: broker restart clears the RAM store
       ;;
   esac
@@ -371,7 +371,7 @@ corSnapDrop() {
           .filter(n=>n.startsWith(\"$rolePrefix\")&&n.includes(\"-_snap_\")) \
           .forEach(n=>db.getSiblingDB(n).dropDatabase())" > /dev/null 2>&1
       ;;
-    ramdb|NONE)
+    corDB|NONE)
       ;;
   esac
 }

@@ -169,7 +169,7 @@ typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 // notifications without an extra retrieve.
 //
 // mongoc impl does one $in fetch + one bulk_write of delete_one ops
-// (2 round-trips total). corRamDB just loops.
+// (2 round-trips total). corDB just loops.
 //
 typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
                                        int* resultsV, KjNode** snapshotsV);

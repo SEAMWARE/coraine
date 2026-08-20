@@ -1,0 +1,297 @@
+#
+# FILE            query_geo_relations_matrix_corDB.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The full § 7.2.4 georel matrix against one reference Polygon R, over a fixture
+# holding every topological case at once: a Polygon containing R, one equal to R,
+# one properly overlapping R, one within R, a faraway Point, and an Entity with
+# no location at all.
+#
+# In-memory (GEOS) variant of query_geo_relations_matrix. GEOS evaluates every
+# relation exactly, so this file is where the spec answers live: contains means
+# contains, overlaps is the OGC 06-103r4 one (equal dimension, interiors meeting,
+# neither containing the other), and equals is geometric, not textual. The three
+# steps the mongoc twin marks APPROXIMATION are the ones that differ here.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+Entity geo-query — the georel matrix, GEOS/in-memory (exact § 7.2.4 answers)
+
+--TAGS--
+geo query georel
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01-06. Create the fixture
+# 07. georel=within      → equal, inside
+# 08. georel=intersects  → big, equal, inside, ovlp
+# 09. georel=contains    → big, equal — exact
+# 10. georel=overlaps    → ovlp only — exact OGC overlap
+# 11. georel=equals      → equal
+# 12. georel=equals, same square written from another vertex → equal, it is the same geometry
+# 13. georel=disjoint    → far only — the location-less Entity is NOT disjoint (§ 7.2.4)
+# 14. georel=disjoint with count=true → 1, the count agrees with the body
+#
+
+echo "01. Create big — a Polygon that CONTAINS the reference square"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:geo:big",
+  "type": "Geo",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Polygon",
+      "coordinates": [[ [-1,-1], [5,-1], [5,5], [-1,5], [-1,-1] ]]
+    }
+  }
+}'
+echo
+echo
+
+echo "02. Create equal — a Polygon EQUAL to the reference square"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:geo:equal",
+  "type": "Geo",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Polygon",
+      "coordinates": [[ [0,0], [4,0], [4,4], [0,4], [0,0] ]]
+    }
+  }
+}'
+echo
+echo
+
+echo "03. Create ovlp — a Polygon PROPERLY OVERLAPPING the reference square"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:geo:ovlp",
+  "type": "Geo",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Polygon",
+      "coordinates": [[ [2,2], [6,2], [6,6], [2,6], [2,2] ]]
+    }
+  }
+}'
+echo
+echo
+
+echo "04. Create inside — a Polygon WITHIN the reference square"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:geo:inside",
+  "type": "Geo",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Polygon",
+      "coordinates": [[ [1,1], [2,1], [2,2], [1,2], [1,1] ]]
+    }
+  }
+}'
+echo
+echo
+
+echo "05. Create far — a Point well outside the reference square"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:geo:far",
+  "type": "Geo",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "type": "Point",
+      "coordinates": [10,10]
+    }
+  }
+}'
+echo
+echo
+
+echo "06. Create nogeo — an Entity with NO location GeoProperty"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:geo:nogeo",
+  "type": "Geo",
+  "weight": {
+    "type": "Property",
+    "value": 1
+  }
+}'
+echo
+echo
+
+R='%5B%5B%5B0,0%5D,%5B4,0%5D,%5B4,4%5D,%5B0,4%5D,%5B0,0%5D%5D%5D'
+BASE="/ngsi-ld/v1/entities?type=Geo&geometry=Polygon&coordinates=$R"
+
+echo "07. georel=within → equal, inside"
+echo "================================="
+corCurl --url "$BASE&georel=within" | grep '"id"'
+echo
+echo
+
+echo "08. georel=intersects → big, equal, inside, ovlp"
+echo "================================================"
+corCurl --url "$BASE&georel=intersects" | grep '"id"'
+echo
+echo
+
+echo "09. georel=contains → big, equal"
+echo "================================"
+corCurl --url "$BASE&georel=contains" | grep '"id"'
+echo
+echo
+
+echo "10. georel=overlaps → ovlp only"
+echo "==============================="
+corCurl --url "$BASE&georel=overlaps" | grep '"id"'
+echo
+echo
+
+echo "11. georel=equals → equal"
+echo "========================="
+corCurl --url "$BASE&georel=equals" | grep '"id"'
+echo
+echo
+
+echo "12. georel=equals, ring from another vertex → equal, the same geometry"
+echo "======================================================================"
+corCurl --url "/ngsi-ld/v1/entities?type=Geo&geometry=Polygon&coordinates=%5B%5B%5B0,4%5D,%5B4,4%5D,%5B4,0%5D,%5B0,0%5D,%5B0,4%5D%5D%5D&georel=equals" | grep '"id"'
+echo
+echo
+
+echo "13. georel=disjoint → far only, nogeo does NOT match (§ 7.2.4)"
+echo "=============================================================="
+corCurl --url "$BASE&georel=disjoint" | grep '"id"'
+echo
+echo
+
+echo "14. georel=disjoint with count=true → the count agrees with the body"
+echo "===================================================================="
+corCurl --url "$BASE&georel=disjoint&count=true" | grep -i "NGSILD-Results-Count"
+echo
+echo
+
+--EXPECT--
+01. Create big — a Polygon that CONTAINS the reference square
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:geo:big
+Content-Length: 0
+
+
+
+
+02. Create equal — a Polygon EQUAL to the reference square
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:geo:equal
+Content-Length: 0
+
+
+
+
+03. Create ovlp — a Polygon PROPERLY OVERLAPPING the reference square
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:geo:ovlp
+Content-Length: 0
+
+
+
+
+04. Create inside — a Polygon WITHIN the reference square
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:geo:inside
+Content-Length: 0
+
+
+
+
+05. Create far — a Point well outside the reference square
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:geo:far
+Content-Length: 0
+
+
+
+
+06. Create nogeo — an Entity with NO location GeoProperty
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:geo:nogeo
+Content-Length: 0
+
+
+
+
+07. georel=within → equal, inside
+=================================
+    "id": "urn:ngsi-ld:geo:equal",
+    "id": "urn:ngsi-ld:geo:inside",
+
+
+08. georel=intersects → big, equal, inside, ovlp
+================================================
+    "id": "urn:ngsi-ld:geo:big",
+    "id": "urn:ngsi-ld:geo:equal",
+    "id": "urn:ngsi-ld:geo:ovlp",
+    "id": "urn:ngsi-ld:geo:inside",
+
+
+09. georel=contains → big, equal
+================================
+    "id": "urn:ngsi-ld:geo:big",
+    "id": "urn:ngsi-ld:geo:equal",
+
+
+10. georel=overlaps → ovlp only
+===============================
+    "id": "urn:ngsi-ld:geo:ovlp",
+
+
+11. georel=equals → equal
+=========================
+    "id": "urn:ngsi-ld:geo:equal",
+
+
+12. georel=equals, ring from another vertex → equal, the same geometry
+======================================================================
+    "id": "urn:ngsi-ld:geo:equal",
+
+
+13. georel=disjoint → far only, nogeo does NOT match (§ 7.2.4)
+==============================================================
+    "id": "urn:ngsi-ld:geo:far",
+
+
+14. georel=disjoint with count=true → the count agrees with the body
+====================================================================
+NGSILD-Results-Count: 1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

@@ -24,8 +24,8 @@
 # The second used to be SILENT: the write was accepted, the index never built, and
 # the first georel=near answered 500 long afterwards.
 #
-# ramdb has no such index and stores the mix exactly as the spec describes - see
-# geo_attr_type_conflict_ramdb, which pins that deliberate divergence.
+# corDB has no such index and stores the mix exactly as the spec describes - see
+# geo_attr_type_conflict_corDB, which pins that deliberate divergence.
 #
 # REQUIRE_DB: mongoc
 #

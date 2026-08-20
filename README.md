@@ -76,7 +76,7 @@ Release build, stripped, x86-64:
 | Artifact | Size |
 |----------|-----:|
 | `coraine` — the broker | **967 KiB** |
-| `corRamDB.so` — in-memory DB | 39 KiB |
+| `corDB.so` — in-memory DB | 39 KiB |
 | `mongoc.so` — MongoDB DB | 116 KiB |
 | `none.so` / `ramdb.so` — TRoE | 14 KiB each |
 | `timescale.so` — TRoE | 67 KiB |
@@ -98,7 +98,7 @@ after:
 
 | Configuration | Ready in | RSS |
 |---------------|---------:|----:|
-| `--database corRamDB` | **10 ms** | 14 MB |
+| `--database corDB` | **10 ms** | 14 MB |
 | `--database mongoc` (localhost Mongo) | **17 ms** | 21 MB |
 
 That is fast enough that the broker is not something you keep warm — it is
@@ -114,10 +114,10 @@ of three 5 s runs:
 | DB plugin | c50 req/s | p99 | c200 req/s | p99 |
 |-----------|----------:|----:|-----------:|----:|
 | `mongoc` | 24 500 | 3.0 ms | 23 100 | 9.9 ms |
-| `corRamDB` | 30 400 | 2.6 ms | 28 800 | 9.9 ms |
+| `corDB` | 30 400 | 2.6 ms | 28 800 | 9.9 ms |
 
 At 20 entities per response that is **~490 000 entities/s** against MongoDB and
-~610 000 in memory. Single-entity retrieve (`GET /entities/{id}`, corRamDB, c50):
+~610 000 in memory. Single-entity retrieve (`GET /entities/{id}`, corDB, c50):
 **181 000 req/s, p99 766 µs**.
 
 > Numbers are from one machine and one shape of request — reproduce them on yours
@@ -139,7 +139,7 @@ no subscription engine on a read-only edge node, no geo, no tenants, no Mongo.
 Where it stands today, honestly: **the flags are declared, the work behind them
 has barely started.** What works is selection at the build-tree level —
 `-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
-build host, run `--database corRamDB`). Everything else is still a promise: the
+build host, run `--database corDB`). Everything else is still a promise: the
 per-feature `#ifdef`s inside the C are next to nonexistent, so switching off a
 core feature leaves its symbols referenced from code that still compiles, and
 the link fails. The same holds for the optional runtime deps — MQTT
@@ -160,7 +160,7 @@ feature you can use yet.
 
 | Category | Selected with | Active at a time | Bundled |
 |----------|---------------|------------------|---------|
-| **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corRamDB` |
+| **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` |
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `ramdb`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
 | **Communication protocol** | — | REST/HTTP, built in | *planned* |
@@ -177,7 +177,7 @@ questions.
 Two properties make that practical rather than aspirational. A **NULL function
 pointer means "unsupported"**, answered as `501 Not Implemented`, so a new backend can
 ship the day it does entity CRUD and grow snapshots, registrations or context
-persistence later — `corRamDB` legitimately ships without persistence on exactly that
+persistence later — `corDB` legitimately ships without persistence on exactly that
 basis. And the choice is made **at startup, not at build time**: the same binary runs
 on MongoDB in production, in RAM for a test, and on your own store in the field,
 because `--database` takes a path as readily as a name.
@@ -236,7 +236,7 @@ that).
 | Toolchain | `cmake build-essential` |
 
 > Don't need Mongo? Build without it: `cmake -DCOR_FEATURE_MONGOC=OFF` and run with
-> `--database corRamDB`. The mongo-c v2 driver is the most common build snag.
+> `--database corDB`. The mongo-c v2 driver is the most common build snag.
 
 ### Make targets
 
@@ -267,7 +267,7 @@ no API plugins.
 
 ```sh
 # In-memory, pretty JSON, admin API on — zero external services:
-coraine --database corRamDB --troe none --apiPlugins admin -pp 2
+coraine --database corDB --troe none --apiPlugins admin -pp 2
 
 # Default (Mongo) on a custom port:
 coraine --port 1027 --database mongoc
@@ -299,7 +299,7 @@ coraine speaks NGSI-LD under `/ngsi-ld/v1`. Start a broker that needs nothing el
 create an entity, and read it back:
 
 ```sh
-coraine --database corRamDB --troe none --apiPlugins admin -pp 2 &
+coraine --database corDB --troe none --apiPlugins admin -pp 2 &
 
 curl -X POST http://localhost:1026/ngsi-ld/v1/entities \
   -H 'Content-Type: application/json' \
@@ -348,7 +348,7 @@ coraine/
 │   │   ├── forwarding/      # distributed-ops (CSR) forwarding
 │   │   └── metrics/         # Prometheus via kprom
 │   └── plugins/
-│       ├── currentState/    # mongoc, corRamDB   (DB plugins)
+│       ├── currentState/    # mongoc, corDB   (DB plugins)
 │       ├── temporal/        # none, ramdb, timescale  (TRoE plugins)
 │       ├── api/admin/       # admin API plugin
 │       └── shared/          # geoMatch.c etc. shared across plugins
@@ -366,7 +366,7 @@ Functional tests run through `corTest` (installed by the `corLibs` umbrella into
 `~/git/corLibs/bin/corTest`):
 
 ```sh
-make test                    # whole suite (mongoc; use corTest -db ramdb for in-memory)
+make test                    # whole suite (mongoc; use corTest -db corDB for in-memory)
 ```
 
 Tests live under `test/funcTests/`.
@@ -374,7 +374,7 @@ Tests live under `test/funcTests/`.
 ### Coverage
 
 ```sh
-make coverage                # ramdb   → coverage-ramdb/index.html
+make coverage                # corDB   → coverage-corDB/index.html
 make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
 make coverage-etsi           # ETSI TP suite → coverage-etsi/index.html
 ```
@@ -384,14 +384,14 @@ Measured **2026-08-20**, on `d49798a`:
 | Run | Tests | Lines | Functions | Branches |
 |-----|-------|-------|-----------|----------|
 | `DB=mongoc` | 613 / 613 pass | 72.6% (12028/16567) | 79.5% (478/601) | **55.2%** (7094/12841) |
-| `DB=ramdb` | 563 / 563 pass | 65.5% (9614/14671) | 71.2% (399/560) | **49.5%** (5835/11793) |
+| `DB=corDB` | 563 / 563 pass | 65.5% (9614/14671) | 71.2% (399/560) | **49.5%** (5835/11793) |
 
 The two runs are separate measurements, not two views of one. A test that pins a
 backend-specific answer — mongo's earth model in the fourth digit of a distance,
 or the tenant-wide 2dsphere index that makes a GeoProperty and a Property refuse
 to share an Attribute name — declares `REQUIRE_DB` and belongs to one run only,
 which is why the test counts differ. Each report also excludes the DB plugin that
-is *not* under test: a ramdb run cannot execute a line of `mongoc.so`, and
+is *not* under test: a corDB run cannot execute a line of `mongoc.so`, and
 counting it would measure the choice of backend rather than the state of the
 suite.
 

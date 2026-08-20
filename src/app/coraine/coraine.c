@@ -240,7 +240,7 @@ static void onSignal(int sigNo)
   (void) sigNo;
 
   // Graceful stop: free DB-plugin resources before exit so an in-memory store
-  // (corRamDB) is released rather than leaked — exit(0) then lets valgrind (--vt)
+  // (corDB) is released rather than leaked — exit(0) then lets valgrind (--vt)
   // and any leak gate see a clean shutdown.
   dbClose();
 

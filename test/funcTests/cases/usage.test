@@ -16,7 +16,7 @@ usage
 --RUN--
 
 #
-# 01. Usage with corRamDB plugin (no extra CLI args)
+# 01. Usage with corDB plugin (no extra CLI args)
 # 02. Usage with mongoc plugin (shows DB connection args)
 # 03. Usage with non-existent plugin (error + usage)
 # 04. EXTENDED usage (-U)
@@ -33,9 +33,9 @@ usage
 # field is padded as a unit, so the columns actually line up.
 #
 
-echo "01. Usage with corRamDB plugin (no extra CLI args)"
+echo "01. Usage with corDB plugin (no extra CLI args)"
 echo "=================================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db corRamDB 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db corDB 2>&1
 echo
 echo
 
@@ -56,13 +56,13 @@ echo
 
 echo "04. Extended usage (-U) - one aligned row per option, no separator rows"
 echo "======================================================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -U -db corRamDB 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -U -db corDB 2>&1
 echo
 echo
 
 
 --EXPECT--
-01. Usage with corRamDB plugin (no extra CLI args)
+01. Usage with corDB plugin (no extra CLI args)
 ==================================================
 Usage: coraine  [--usage/-u (usage)]
                 [--Usage/-U (extended usage)]
@@ -70,7 +70,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
-                [--database/-db <corRamDB|mongoc>]
+                [--database/-db <corDB|mongoc>]
                 [--troe/-troe <none|ramdb|timescale>]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
@@ -106,7 +106,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
-                [--database/-db <corRamDB|mongoc>]
+                [--database/-db <corDB|mongoc>]
                 [--troe/-troe <none|ramdb|timescale>]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
@@ -153,7 +153,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
-                [--database/-db <corRamDB|mongoc>]
+                [--database/-db <corDB|mongoc>]
                 [--troe/-troe <none|ramdb|timescale>]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]

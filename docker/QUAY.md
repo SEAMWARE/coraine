@@ -14,7 +14,7 @@ The broker ships with an in-memory storage backend, so a single container is a c
 working NGSI-LD endpoint. Nothing to install, nothing to connect:
 
 ```sh
-docker run --rm -p 1026:1026 quay.io/seamware/coraine --database corRamDB
+docker run --rm -p 1026:1026 quay.io/seamware/coraine --database corDB
 ```
 
 ```sh
@@ -52,7 +52,7 @@ docker run --rm quay.io/seamware/coraine --database mongoc --apiPlugins admin --
 ```
 
 - `--port` / `-p` — TCP listen port (default 1026)
-- `--database` / `-db` — storage plugin: `mongoc` (default) or `corRamDB`
+- `--database` / `-db` — storage plugin: `mongoc` (default) or `corDB`
 - `--troe` / `-troe` — temporal history plugin: `none` (default), `ramdb`, `timescale`
 - `--apiPlugins` / `-api` — extra API plugins, comma-separated; `admin` adds ops endpoints
 - `--pretty-print` / `-pp` — JSON indentation (0 = compact)
@@ -72,7 +72,7 @@ switch it on with `--distributed`:
 
 ```sh
 docker run -d --name b1 --network ngsild -p 1026:1026 \
-    quay.io/seamware/coraine --database corRamDB --distributed
+    quay.io/seamware/coraine --database corDB --distributed
 ```
 
 Without it, registrations are still stored and discoverable, but nothing is ever

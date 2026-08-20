@@ -18,8 +18,8 @@
 # in the same tenant. mongoc indexes each GeoProperty attribute path with a
 # 2dsphere index, and that index is collection-wide - i.e. tenant-wide - so a
 # non-geometry at that path cannot be stored beside a geometry. It answers 409
-# Attribute Type Conflict either way round. ramdb has no such index and stores the
-# mix happily, which is exactly what the ramdb variant of this test pins.
+# Attribute Type Conflict either way round. corDB has no such index and stores the
+# mix happily, which is exactly what the corDB variant of this test pins.
 #
 # So the union below is built from Property + Relationship, and the GeoProperty
 # gets its own Attribute name - with the refusal pinned at the end so the limit is
@@ -27,8 +27,8 @@
 #
 # Likewise an Entity with multiple Entity types contributes its attributes
 # to BOTH types in GET /types?details=true.
-# Steps 06-07 pin a mongoc storage limit, so this file is mongoc-only; the ramdb
-# side of the same behaviour is discovery_attribute_type_aggregation_ramdb.test.
+# Steps 06-07 pin a mongoc storage limit, so this file is mongoc-only; the corDB
+# side of the same behaviour is discovery_attribute_type_aggregation_corDB.test.
 #
 # REQUIRE_DB: mongoc
 #

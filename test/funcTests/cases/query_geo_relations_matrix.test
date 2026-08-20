@@ -14,10 +14,10 @@
 # $geoOverlaps and no geometric-equality operator, so three relations are
 # knowingly approximated here — each step below says which way it errs. The
 # in-memory GEOS matcher is exact for all of them; its answers are pinned by the
-# twin test query_geo_relations_matrix_ramdb.
+# twin test query_geo_relations_matrix_corDB.
 # The APPROXIMATION steps below are mongo's, not the spec's - GEOS answers them
-# exactly, so this file cannot run on ramdb. The exact answers are pinned in
-# query_geo_relations_matrix_ramdb.test.
+# exactly, so this file cannot run on corDB. The exact answers are pinned in
+# query_geo_relations_matrix_corDB.test.
 #
 # REQUIRE_DB: mongoc
 #

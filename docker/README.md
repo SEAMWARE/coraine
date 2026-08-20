@@ -1,6 +1,6 @@
 # coraine in Docker
 
-The image runs the broker with no external service required (`--database corRamDB`),
+The image runs the broker with no external service required (`--database corDB`),
 or against MongoDB (`--database mongoc`, the default).
 
 ## Build
@@ -20,7 +20,7 @@ context.
 
 ```sh
 # In-memory, nothing else needed
-docker run --rm -p 1026:1026 coraine:local --database corRamDB --apiPlugins admin
+docker run --rm -p 1026:1026 coraine:local --database corDB --apiPlugins admin
 
 # Against MongoDB
 docker run --rm -p 1026:1026 coraine:local --database mongoc --dbHost mongo

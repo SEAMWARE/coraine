@@ -6,7 +6,7 @@
 # appear in -u (usage) and are parsed alongside built-in options.
 #
 
-corCliParamAdd "-db"     "COR_DB_TYPE"      "mongoc" "Current-state DB: ramdb|mongoc"    "DB"
+corCliParamAdd "-db"     "COR_DB_TYPE"      "mongoc" "Current-state DB: corDB|mongoc"    "DB"
 corCliParamAdd "-troeDb" "COR_TROE_DB_TYPE" "NONE" "TRoE DB: postgres|mongo|..."       "TROEDB"
 
 #

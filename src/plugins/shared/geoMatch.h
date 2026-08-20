@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Shared GEOS-based geo matching for entity queries and subscription notifications.
-// Compiled into both corRamDB and mongoc plugins.
+// Compiled into both corDB and mongoc plugins.
 //
 #include <stdbool.h>
 

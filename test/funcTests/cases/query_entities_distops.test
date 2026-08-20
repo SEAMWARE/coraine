@@ -144,7 +144,7 @@ echo "11. Exclusive reg: CB→CP1 for Sensor → query Sensor returns CP1's data
 echo "======================================================================="
 coraineStart -role CP2 -dist
 sleep 1
-# Re-seed CP2's V5 — ramdb wipes on restart, mongoc keeps it.
+# Re-seed CP2's V5 — corDB wipes on restart, mongoc keeps it.
 corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":50}}' > /dev/null 2>&1
 corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":25}}'
 echo

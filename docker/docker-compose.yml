@@ -4,7 +4,7 @@
 #   curl localhost:1026/ngsi-ld/v1/types
 #
 # For a broker with no external services at all, skip compose entirely:
-#   docker run --rm -p 1026:1026 <image> --database corRamDB
+#   docker run --rm -p 1026:1026 <image> --database corDB
 #
 # Copyright 2026 Seamware
 

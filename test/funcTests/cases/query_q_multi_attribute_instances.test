@@ -17,7 +17,7 @@
 #   mongoc  compiled the term to the fixed path <attr>.@none.value, so only the
 #           DEFAULT instance was ever compared - and an Attribute with no default
 #           instance at all (urn:Q:2 below) could not be matched by any term.
-#   ramdb   took wrapper->firstChild, so only the FIRST instance was compared.
+#   corDB   took wrapper->firstChild, so only the FIRST instance was compared.
 # Existence (`q=speed`) was the one thing both got right, which is why nothing
 # noticed. The earlier q sweep used single-instance fixtures throughout.
 #

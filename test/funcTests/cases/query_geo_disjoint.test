@@ -14,7 +14,7 @@
 # as disjoint and DOES match (step 07). The latter is a mongo/S2 boundary quirk —
 # the in-memory GEOS engine is OGC-consistent (boundary contact = not disjoint), so
 # this test is mongoc-only; the GEOS behaviour is covered by
-# query_geo_disjoint_ramdb.test.
+# query_geo_disjoint_corDB.test.
 #
 # REQUIRE_DB: mongoc
 #

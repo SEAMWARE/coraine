@@ -22,7 +22,7 @@ TimescaleDB extension.
 
 The mongo-c **v2** driver is the most common build snag — it is packaged by few
 distributions and is normally compiled from source. Build without MongoDB support
-with `cmake -DCOR_FEATURE_MONGOC=OFF` and run with `--database corRamDB`.
+with `cmake -DCOR_FEATURE_MONGOC=OFF` and run with `--database corDB`.
 
 ## Install from source
 
@@ -59,7 +59,7 @@ and `none` (temporal), and no API plugins are loaded.
 
 ```sh
 # In-memory, pretty JSON, admin API on - no external service required
-coraine --database corRamDB --troe none --apiPlugins admin -pp 2
+coraine --database corDB --troe none --apiPlugins admin -pp 2
 
 # MongoDB on a custom port
 coraine --port 1027 --database mongoc --dbHost localhost
@@ -149,7 +149,7 @@ is the intended way to debug a live instance rather than restarting it with `-t`
 ## Multi-tenancy
 
 Tenants are selected per request with the `NGSILD-Tenant` header. With the `mongoc`
-plugin each tenant is a separate database; with `corRamDB` each tenant is a separate
+plugin each tenant is a separate database; with `corDB` each tenant is a separate
 in-memory store. No configuration is needed to create one: a write naming an
 unknown tenant creates it, while a read of a tenant that does not exist answers
 **404 NonexistentTenant** rather than an empty result.

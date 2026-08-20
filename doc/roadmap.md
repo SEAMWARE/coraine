@@ -11,7 +11,7 @@ lands rather than at release boundaries.
   conformance test suite.
 - Plugin-driven: current-state DB, temporal (TRoE) and extra API surfaces are shared
   libraries chosen at startup.
-- Two DB backends (`mongoc`, `corRamDB`), three temporal backends (`none`, `ramdb`,
+- Two DB backends (`mongoc`, `corDB`), three temporal backends (`none`, `ramdb`,
   `timescale`), one API plugin (`admin`).
 
 ## Short term

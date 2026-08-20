@@ -15,14 +15,14 @@ BUILD_COVERAGE = BUILD_COVERAGE
 #
 # Functional-test coverage is measured PER CURRENT-STATE DB, because the two DB
 # plugins take different paths through the broker and each leaves the other's
-# plugin sources unexecuted. `make coverage` runs ramdb, `make coverage DB=mongoc`
-# runs mongoc, and each writes its own report - comparing a ramdb run against a
+# plugin sources unexecuted. `make coverage` runs corDB, `make coverage DB=mongoc`
+# runs mongoc, and each writes its own report - comparing a corDB run against a
 # mongoc one is comparing two different measurements.
 #
-COV_DB        ?= $(if $(DB),$(DB),ramdb)
+COV_DB        ?= $(if $(DB),$(DB),corDB)
 COV_DIR        = coverage-$(COV_DB)
 COV_REPORT     = $(COV_DIR)/index.html
-COV_OTHER_DB   = $(if $(filter mongoc,$(COV_DB)),corRamDB,mongoc)
+COV_OTHER_DB   = $(if $(filter mongoc,$(COV_DB)),corDB,mongoc)
 COV_PLUGIN_DIR = $(BUILD_COVERAGE)/plugins
 COV_ETSI_DIR   = coverage-etsi
 COV_LIBS       = corRest corNgsild corJsonld
@@ -103,7 +103,7 @@ define install_from
 	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(ETC_DIR)
 	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
-	cp -p $(1)/src/plugins/currentState/corRamDB/corRamDB.so     $(PLUGIN_DIR)/db/currentState/
+	cp -p $(1)/src/plugins/currentState/corDB/corDB.so     $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/ramdb/ramdb.so             $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
@@ -147,7 +147,7 @@ coverage:
 	$(CORTEST) -db $(COV_DB) || true
 	@mkdir -p $(COV_DIR)
 #
-# The DB plugin that is NOT under test is excluded from the report. A ramdb run
+# The DB plugin that is NOT under test is excluded from the report. A corDB run
 # cannot execute a line of mongoc.so and vice versa, so counting the other one
 # as unexecuted measures the choice of DB rather than the state of the suite.
 #

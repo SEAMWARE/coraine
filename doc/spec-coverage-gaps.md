@@ -16,7 +16,7 @@ baseline. COMPLETE.
 
 ## Line-coverage baseline (2026-08-20, `d49798a`)
 - `make coverage DB=mongoc`, 613/613 pass: Lines 72.6% (12028/16567) · Functions 79.8%… see below · **Branches 55.2% (7094/12841)** = real target
-- `make coverage` (ramdb), 563/563 pass: Lines 65.5% (9614/14671) · Functions 71.2% (399/560) · **Branches 49.5% (5835/11793)**
+- `make coverage` (corDB), 563/563 pass: Lines 65.5% (9614/14671) · Functions 71.2% (399/560) · **Branches 49.5% (5835/11793)**
 - Functions, mongoc: 79.5% (478/601). Each run excludes the DB plugin it cannot reach.
 - 0%-coverage spec file: `deleteEntityMap.c`. Thin: `getEntityMap.c` 64%, snapshots 82-85%, `geoMatch.c` 41%, `getEntityAttr.c` 52%, `troeQTreeToSql.c` 43%.
 
