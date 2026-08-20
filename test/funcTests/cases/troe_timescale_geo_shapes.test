@@ -56,7 +56,7 @@ echo
 echo "03. troe_attrs.v_compound — geometry stored verbatim as JSONB"
 echo "============================================================="
 sleep 0.2
-psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tA -F'|' \
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), v_compound FROM troe_attrs WHERE v_compound IS NOT NULL ORDER BY attr_name"
 echo
 echo
@@ -64,7 +64,7 @@ echo
 
 echo "04. troe_attrs.sub_attrs — geo sub-property kept under its parent"
 echo "================================================================"
-psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tA -F'|' \
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), sub_attrs->'https://uri.etsi.org/ngsi-ld/default-context/where'->'value' FROM troe_attrs WHERE sub_attrs IS NOT NULL ORDER BY attr_name"
 echo
 echo

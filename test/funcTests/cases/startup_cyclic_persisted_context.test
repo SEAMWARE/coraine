@@ -24,7 +24,7 @@ corDbDrop -db coraine
 
 # Seed the persisted context cache (coraine.contexts) with the A<->B cycle.
 # kind 1 = DB_CONTEXT_KIND_CACHED; body is the raw stand-alone @context document.
-mongosh --port $COR_MONGO_PORT --quiet coraine <<'MONGOEOF'
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet coraine <<'MONGOEOF'
 db.contexts.insertMany([
   { _id: "http://localhost:7080/jsonldContexts/cycleA",
     url: "http://localhost:7080/jsonldContexts/cycleA", kind: 1,

@@ -21,5 +21,5 @@ corCliParamAdd "-troeDb" "COR_TROE_DB_TYPE" "NONE" "TRoE DB: postgres|mongo|..."
 # -ha yes|no.
 #
 corCliParamAdd "-ha" "COR_HA" \
-              "$(mongosh --port ${COR_MONGO_PORT:-27017} --quiet --eval 'db.adminCommand({isMaster:1}).setName ? "yes" : "no"' 2>/dev/null || echo no)" \
+              "$(mongosh --host ${COR_MONGO_HOST:-localhost} --port ${COR_MONGO_PORT:-27017} --quiet --eval 'db.adminCommand({isMaster:1}).setName ? "yes" : "no"' 2>/dev/null || echo no)" \
               "HA cache-sync tests: yes|no (yes needs a mongo replica set)" "HA"

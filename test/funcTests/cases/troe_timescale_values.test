@@ -43,7 +43,7 @@ echo
 
 echo "02. troe_attrs columns"
 echo "======================"
-psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tA -F'|' \
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), attr_kind, v_text, v_number, v_bool, (v_compound IS NOT NULL), sub_attrs FROM troe_attrs WHERE op='modified' OR op='created' ORDER BY modified_at"
 echo
 echo

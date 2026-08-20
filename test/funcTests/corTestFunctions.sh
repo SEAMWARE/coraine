@@ -4,7 +4,15 @@
 #
 export COR_BROKER="${COR_BROKER:-coraine}"        # broker from PATH (installed via make di)
 export COR_DB_NAME="${COR_DB_NAME:-corTest}"
+#
+# Where MongoDB is. The port has always been overridable; the HOST was assumed to
+# be this machine, which stops being true the moment the suite runs anywhere the
+# database is a separate container - a CI job with a mongo service, for one. Both
+# now default to the local instance and are overridable together.
+#
+COR_MONGO_HOST=${COR_MONGO_HOST:-localhost}
 COR_MONGO_PORT=${COR_MONGO_PORT:-27017}
+COR_TROE_HOST=${COR_TROE_HOST:-localhost}          # timescale/postgres host - see COR_MONGO_HOST
 COR_TROE_PORT=${COR_TROE_PORT:-5432}               # timescale/postgres port
 COR_TROE_USER=${COR_TROE_USER:-postgres}           # timescale/postgres user
 
@@ -94,7 +102,7 @@ coraineStart() {
 
   # Current-state DB plugin
   case "$COR_DB_TYPE" in
-    mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbPort $COR_MONGO_PORT" ;;
+    mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT" ;;
     corDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corDB.so" ;;
     NONE)   ;;  # compiled-in default
     *)      echo "coraineStart: unknown -db type: $COR_DB_TYPE"; return 1 ;;
@@ -112,7 +120,7 @@ coraineStart() {
   # explicit --troeName keep full control.
   if printf '%s\n' "${extraParams[@]}" | grep -qx 'timescale' && \
      ! printf '%s\n' "${extraParams[@]}" | grep -qx -- '--troeName'; then
-    extraParams+=(--troeName "$(corTroeDbName "$role")" --troeUser "$COR_TROE_USER")
+    extraParams+=(--troeName "$(corTroeDbName "$role")" --troeUser "$COR_TROE_USER" --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT")
   fi
 
   # Append test-specific extra params
@@ -241,19 +249,19 @@ corDbDrop() {
   case "$COR_DB_TYPE" in
     mongoc)
       if [ -n "$explicitDb" ]; then
-        mongosh --port $COR_MONGO_PORT --quiet --eval 'db.dropDatabase()' "$explicitDb" > /dev/null 2>&1
+        mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'db.dropDatabase()' "$explicitDb" > /dev/null 2>&1
       else
         corRoleLookup "$role" || return 1
         local db="$COR_ROLE_DB_PREFIX"
         if [ -n "$tenant" ]; then
           db="${db}-${tenant}"
-          mongosh --port $COR_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop(); db.snapshots.drop()' "$db" > /dev/null 2>&1
+          mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop(); db.snapshots.drop()' "$db" > /dev/null 2>&1
         else
           # No tenant specified → drop default + all tenant-suffixed dbs.
           # Tests that leave tenant state behind shouldn't bleed into later
           # tests that assume ngsild_tenants_total == 1.
           local prefix="$COR_ROLE_DB_PREFIX"
-          mongosh --port $COR_MONGO_PORT --quiet --eval \
+          mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval \
             "db.adminCommand('listDatabases').databases \
               .map(d=>d.name) \
               .filter(n=>n===\"$prefix\"||n.startsWith(\"$prefix-\")) \
@@ -302,14 +310,14 @@ corTroeInit() {
   # Drop any per-tenant / per-snapshot child databases ("<db>_<suffix>") left
   # by a previous run before recreating the base — each tenant now owns its own
   # physical database, so stale children would otherwise leak across runs.
-  psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -tAc \
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -tAc \
     "SELECT datname FROM pg_database WHERE datname LIKE '${db}_%'" 2>/dev/null | \
     while read -r child; do
-      [ -n "$child" ] && psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
+      [ -n "$child" ] && psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
     done
 
-  psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
-  psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "CREATE DATABASE $db"          >/dev/null
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "CREATE DATABASE $db"          >/dev/null
 }
 
 corTroeDrop() {
@@ -326,12 +334,12 @@ corTroeDrop() {
   # "<db>_t1" or "<db>_snap_<hex>"), then the base. Each tenant now owns its own
   # physical database; a child with the base as a prefix would otherwise leak
   # across runs.
-  psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -tAc \
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -tAc \
     "SELECT datname FROM pg_database WHERE datname LIKE '${db}_%'" 2>/dev/null | \
     while read -r child; do
-      [ -n "$child" ] && psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
+      [ -n "$child" ] && psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS \"$child\"" >/dev/null 2>&1
     done
-  psql -h localhost -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
 }
 
 # Default-role (CB) TRoE DB name, for tests that inspect the TRoE tables
@@ -365,7 +373,7 @@ corSnapDrop() {
     mongoc)
       corRoleLookup "$role" || return 1
       local rolePrefix="${COR_ROLE_DB_PREFIX}-"
-      mongosh --port $COR_MONGO_PORT --quiet --eval \
+      mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval \
         "db.adminCommand('listDatabases').databases \
           .map(d=>d.name) \
           .filter(n=>n.startsWith(\"$rolePrefix\")&&n.includes(\"-_snap_\")) \

@@ -35,8 +35,8 @@ db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-1", kind: 2,
 db.contexts.insertOne({_id: "urn:ngsi-ld:Context:lazy-2", kind: 2,
                        body: '{"@context":{"world":"https://example.org/world"}}'});
 JSEOF
-mongosh --port $COR_MONGO_PORT --quiet coraine /tmp/lazyReloadInsert.js
-mongosh --port $COR_MONGO_PORT --quiet --eval 'print("inserted: " + db.contexts.countDocuments())' coraine
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet coraine /tmp/lazyReloadInsert.js
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'print("inserted: " + db.contexts.countDocuments())' coraine
 
 --RUN--
 

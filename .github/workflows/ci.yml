@@ -1,0 +1,126 @@
+#
+# Build coraine and run the functional test suite, against both current-state
+# backends.
+#
+# The job runs INSIDE the Cor stack's CI base image (corLibs builds and publishes
+# it). Two dependencies - the mongo-c v2 driver and libmicrohttpd - are packaged by
+# no distribution and have to be compiled; baking them once turns each run's setup
+# into a pull.
+#
+# MongoDB is a SERVICE container, not something inside the image: the image is a
+# build and test environment, and a database server does not belong in one. The
+# harness reaches it through COR_MONGO_HOST/COR_MONGO_PORT, which is why it is
+# addressed as `mongo` here and as localhost on a workstation.
+#
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    #
+    # The base image is PUBLIC, so the job needs no registry credential at all -
+    # only the workflow that publishes it does. That is the difference between a
+    # pipeline that can be broken by someone else's secret and one that cannot.
+    #
+    container:
+      image: quay.io/coraine/coraine-ci:latest
+
+    services:
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+
+      #
+      # The 46 temporal tests exercise a plugin we ship, so they run here rather
+      # than being quietly excluded. TimescaleDB is postgres plus an extension;
+      # the harness creates and drops its own databases per role.
+      #
+      timescale:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+
+    env:
+      COR_MONGO_HOST: mongo
+      COR_TROE_HOST: timescale
+      SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+
+    steps:
+      #
+      # The build contract is that the repos are SIBLINGS - every CMakeLists and
+      # every include path resolves ../<name>. So coraine is checked out into a
+      # subdirectory of a common parent, and bootstrap.sh puts the rest beside it.
+      #
+      - name: Check out coraine
+        uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+
+      - name: Check out corLibs
+        uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+
+      - name: Build and install coraine
+        working-directory: stack/coraine
+        run: |
+          mkdir -p /opt/seamware/plugins /opt/seamware/etc
+          make di
+
+      - name: Wait for the databases
+        run: |
+          for i in $(seq 1 30); do
+            mongosh --host mongo --quiet --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break
+            [ "$i" = 30 ] && { echo "mongo never became reachable"; exit 1; }
+            sleep 2
+          done
+          for i in $(seq 1 30); do
+            psql -h timescale -U postgres -c 'SELECT 1' >/dev/null 2>&1 && break
+            [ "$i" = 30 ] && { echo "timescale never became reachable"; exit 1; }
+            sleep 2
+          done
+          echo "both databases are up"
+
+      #
+      # Two runs, because they are two different measurements: a test that pins a
+      # backend-specific answer declares REQUIRE_DB and belongs to one of them only.
+      #
+      - name: Functional tests - mongoc
+        working-directory: stack/coraine
+        run: ../corLibs/bin/corTest -db mongoc --noColor
+
+      - name: Functional tests - corDB
+        if: always()
+        working-directory: stack/coraine
+        run: ../corLibs/bin/corTest -db corDB --noColor
+
+      - name: Keep the output of anything that failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-test-output
+          path: |
+            stack/coraine/test/funcTests/cases/*.out
+            stack/coraine/test/funcTests/cases/*.diff
+            stack/coraine/test/funcTests/cases/*.log
+          retention-days: 7

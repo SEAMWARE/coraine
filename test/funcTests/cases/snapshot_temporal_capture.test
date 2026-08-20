@@ -78,9 +78,9 @@ echo "==========================================================================
 # TRoE database. Live rows are in $COR_TROE_DB; the snapshot's rows are in its
 # own "${COR_TROE_DB}_snap_<seq>" database.
 sleep 0.2
-echo "$(psql -h localhost -p 5432 -U postgres -d "$COR_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
-snapDb=$(psql -h localhost -p 5432 -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
-echo "$(psql -h localhost -p 5432 -U postgres -d "$snapDb" -tAc "SELECT count(*) FROM troe_attrs")|snap"
+echo "$(psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tAc "SELECT count(*) FROM troe_attrs")|live"
+snapDb=$(psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -tAc "SELECT datname FROM pg_database WHERE datname LIKE '${COR_TROE_DB}_snap_%' ORDER BY datname LIMIT 1")
+echo "$(psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$snapDb" -tAc "SELECT count(*) FROM troe_attrs")|snap"
 echo
 echo
 
