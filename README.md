@@ -23,9 +23,6 @@ endpoints exist* and *how the broker talks to the world*.
 > of it simply don't run as published — never relaxations of what the broker must
 > do. The fixes are filed upstream with ETSI.
 
-For a feature-by-feature breakdown of what's implemented, see
-[`doc/implementation-status.md`](doc/implementation-status.md).
-
 ---
 
 ## Table of contents
@@ -272,7 +269,7 @@ coraine/
 │       ├── api/admin/       # admin API plugin
 │       └── shared/          # geoMatch.c etc. shared across plugins
 ├── test/funcTests/          # corTest functional tests
-├── doc/                     # implementation status, feature overview, spec-coverage gaps
+├── doc/                     # plugin architecture, functest coverage audit
 ├── CMakeLists.txt           # real build (feature flags, lib wiring)
 └── makefile                 # convenience wrapper (release/debug/install/test/coverage)
 ```

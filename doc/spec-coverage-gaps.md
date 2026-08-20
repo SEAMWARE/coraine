@@ -1,16 +1,28 @@
-# coraine spec-feature coverage gaps (TS 104-175)
+# coraine functest coverage of the spec (TS 104-175)
 
-Generated from the spec-feature audit workflow (70 spec units) + `make coverage` baseline. COMPLETE.
+**What this file is — read this before the numbers.** This is a **test-coverage**
+audit, not an implementation audit. Every spec statement in TS 104-175 was
+checked against the functional test suite and asked one question: *does a test
+assert this?* A `[ ]` means **no test asserts it**, not that the broker fails it
+— the vast majority of the entries below are behaviour that works and that the
+suite simply does not pin down. Each line names the gap in those terms ("no test
+sends…", "no batch-merge test asserts…"), which is what makes it actionable.
+
+It is a working document: a to-write list for the test suite, kept in the open
+because untested behaviour is a real risk even when the behaviour is correct.
+
+Generated from the spec-feature audit workflow (70 spec units) + `make coverage`
+baseline. COMPLETE.
 
 ## Line-coverage baseline (`make coverage`, mongoc, 480 tests)
 - Lines 70.0% (15103/21572) · Functions 79.8% (481/603) · **Branches 46.9% (10147/21628)** = real target
 - 0%-coverage spec file: `deleteEntityMap.c`. Thin: `getEntityMap.c` 64%, snapshots 82-85%, `geoMatch.c` 41%, `getEntityAttr.c` 52%, `troeQTreeToSql.c` 43%.
 
-## Matrix: 2314 features — 1051 covered, 373 partial, 890 missing; 245 high-priority gaps
+## Matrix: 2314 spec statements — 1051 asserted by a test, 373 partially, 890 unasserted; 245 high-priority
 
-Legend: `[ ]` missing, `[~]` partial. Tick as covered.
+Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 
-## Coverage by area (total / yes / partial / missing)
+## Coverage by area (spec statements / asserted / partial / unasserted)
 
 - **entity-attr-CRUD**: 357 / 150 / 54 / 153
 - **temporal**: 274 / 90 / 39 / 145
