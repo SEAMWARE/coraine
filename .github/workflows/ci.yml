@@ -68,6 +68,18 @@ jobs:
         ports:
           - 5432:5432
 
+      #
+      # The @context server the context tests push to and then reference by URL.
+      # On a workstation the harness starts it with docker; there is no docker in
+      # a container job, so it is a service here.
+      #
+      context-server:
+        image: wistefan/context-server
+        env:
+          MEMORY_ENABLED: 'true'
+        ports:
+          - 7080:8080
+
     env:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
@@ -79,6 +91,14 @@ jobs:
       # part of the k-libs; it is simply not on PATH here.
       #
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      #
+      # A shared runner is slower than a workstation, and a forward that answers
+      # in 5s there can exceed it here - which surfaces as an NGSILD-Warning 199
+      # in the response and a failed comparison. Every option has an environment
+      # variable; a test that is ABOUT timeouts passes its own -dtmo, and the
+      # command line wins over the environment.
+      #
+      CORAINE_DISTOPTIMEOUT: '15000'
 
     steps:
       #
@@ -121,6 +141,21 @@ jobs:
             sleep 2
           done
           echo "both databases are up"
+
+      #
+      # 36 tests hardcode http://localhost:7080/jsonldContexts/... and assert that
+      # URL back in Link headers, so pointing them at the service by name is not
+      # an option - localhost:7080 has to work INSIDE this container. socat makes
+      # it work, and the tests stay identical here and on a workstation.
+      #
+      - name: Forward localhost:7080 to the @context server
+        run: |
+          socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null --max-time 2 http://localhost:7080/jsonldContexts/_probe && break
+            sleep 1
+          done
+          curl -s -o /dev/null -w 'context server answers: %{http_code}\n' http://localhost:7080/jsonldContexts/_probe
 
       #
       # Ten seconds that save an hour: if the broker cannot start, every one of the

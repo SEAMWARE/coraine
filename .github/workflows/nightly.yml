@@ -66,16 +66,25 @@ jobs:
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
+      context-server:
+        image: wistefan/context-server
+        env:
+          MEMORY_ENABLED: 'true'
+        ports: ['7080:8080']
     env:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORAINE_DISTOPTIMEOUT: '15000'
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Forward localhost:7080 to the @context server
+        run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
+
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
@@ -132,16 +141,25 @@ jobs:
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
+      context-server:
+        image: wistefan/context-server
+        env:
+          MEMORY_ENABLED: 'true'
+        ports: ['7080:8080']
     env:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORAINE_DISTOPTIMEOUT: '15000'
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Forward localhost:7080 to the @context server
+        run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
+
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
@@ -187,16 +205,25 @@ jobs:
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
+      context-server:
+        image: wistefan/context-server
+        env:
+          MEMORY_ENABLED: 'true'
+        ports: ['7080:8080']
     env:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORAINE_DISTOPTIMEOUT: '15000'
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Forward localhost:7080 to the @context server
+        run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
+
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
