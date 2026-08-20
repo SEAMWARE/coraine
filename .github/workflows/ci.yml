@@ -35,7 +35,7 @@ jobs:
     # pipeline that can be broken by someone else's secret and one that cannot.
     #
     container:
-      image: quay.io/coraine/coraine-ci:latest
+      image: quay.io/coraine/ci:latest
 
     services:
       mongo:
