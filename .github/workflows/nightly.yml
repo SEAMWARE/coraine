@@ -62,7 +62,7 @@ jobs:
         image: mongo:8.0
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb:latest-pg16
+        image: timescale/timescaledb-ha:pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
@@ -106,9 +106,11 @@ jobs:
 
   #
   # Valgrind: the same suite, with the broker under valgrind, failing on definite
-  # or indirect leaks. It is 10-20x slower than a native run, which puts a single
-  # job uncomfortably close to the 6-hour ceiling - so it is split by test index
-  # and the shards run in parallel.
+  # or indirect leaks. Measured elsewhere at roughly 7 s per test under valgrind,
+  # so 613 tests is about 1.2 hours - comfortably inside the 6-hour ceiling even
+  # unsplit. It is split into FOUR anyway: four is the shape the sibling project
+  # uses for its functional runs, a shard finishes in ~20 minutes, and a leak in
+  # shard 3 does not make you wait for shards 1, 2 and 4 to finish first.
   #
   valgrind:
     needs: gate
@@ -117,7 +119,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4]
     container:
       image: quay.io/coraine/ci-nightly:latest
     services:
@@ -125,7 +127,7 @@ jobs:
         image: mongo:8.0
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb:latest-pg16
+        image: timescale/timescaledb-ha:pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
@@ -146,11 +148,11 @@ jobs:
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
           make di
-      - name: Suite under valgrind - shard ${{ matrix.shard }} of 6
+      - name: Suite under valgrind - shard ${{ matrix.shard }} of 4
         working-directory: stack/coraine
         run: |
           total=$(../corLibs/bin/corTest --dryrun 2>/dev/null | grep -c . || echo 613)
-          per=$(( (total + 5) / 6 ))
+          per=$(( (total + 3) / 4 ))
           from=$(( (${{ matrix.shard }} - 1) * per + 1 ))
           to=$(( ${{ matrix.shard }} * per ))
           echo "tests $from..$to of $total"
@@ -179,7 +181,7 @@ jobs:
         image: mongo:8.0
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb:latest-pg16
+        image: timescale/timescaledb-ha:pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']

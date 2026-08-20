@@ -56,8 +56,13 @@ jobs:
       # than being quietly excluded. TimescaleDB is postgres plus an extension;
       # the harness creates and drops its own databases per role.
       #
+      #
+      # The -ha variant, because the timescale plugin's migration does
+      # CREATE EXTENSION postgis and declares a geography column - the plain
+      # timescaledb image has neither, and every broker start dies on it.
+      #
       timescale:
-        image: timescale/timescaledb:latest-pg16
+        image: timescale/timescaledb-ha:pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
@@ -111,6 +116,26 @@ jobs:
           echo "both databases are up"
 
       #
+      # Ten seconds that save an hour: if the broker cannot start, every one of the
+      # 1175 tests fails identically with "port 1026 not ready" and the run says
+      # nothing about why. This says why.
+      #
+      - name: Smoke test - does the broker start
+        run: |
+          set -x
+          which coraine && coraine --version
+          ls -l /opt/seamware/plugins/db/currentState/ /opt/seamware/plugins/troe/temporal/
+          coraine --port 1026 --database corDB --troe none --apiPlugins admin \
+                  > /tmp/smoke.log 2>&1 &
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break
+            sleep 1
+          done
+          echo "--- broker log:"; cat /tmp/smoke.log
+          curl -sf http://localhost:1026/admin/version || { echo "BROKER DID NOT START"; exit 1; }
+          pkill -x coraine || true
+
+      #
       # Two runs, because they are two different measurements: a test that pins a
       # backend-specific answer declares REQUIRE_DB and belongs to one of them only.
       #
@@ -138,4 +163,6 @@ jobs:
             stack/coraine/test/funcTests/cases/*.out
             stack/coraine/test/funcTests/cases/*.diff
             stack/coraine/test/funcTests/cases/*.log
+            /tmp/coraine*.log
+            /tmp/smoke.log
           retention-days: 7
