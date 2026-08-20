@@ -684,10 +684,22 @@ contextServerStop() {
 #
 # Usage: contextServerPush <url-path> '<json-ld-context>'
 #
+# A push DELETEs first, always. wistefan/context-server answers a re-POST to an
+# existing path with the ORIGINAL body and no error, so a plain POST is a push
+# that silently does not push whenever the server outlives the test.
+#
+# On a workstation it never showed: the harness starts the container and stops it
+# again per test, so the server is always empty. In CI there is no docker to stop -
+# the server is a service container living for the whole job - and the first test
+# to use a path decided its content for every test after it. That surfaced as a
+# notification compacted with another test's terms, which reads like a broker bug
+# and is not one.
+#
 contextServerPush() {
   local urlPath="$1"
   local payload="$2"
 
+  curl -s -X DELETE "http://localhost:$CONTEXT_SERVER_PORT$urlPath" > /dev/null
   curl -s -X POST "http://localhost:$CONTEXT_SERVER_PORT$urlPath" \
     -H 'Content-Type: application/ld+json' \
     -d "$payload" > /dev/null
