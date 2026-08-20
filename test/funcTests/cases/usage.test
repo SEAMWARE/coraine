@@ -21,6 +21,11 @@ usage
 # 03. Usage with non-existent plugin (error + usage)
 # 04. EXTENDED usage (-U)
 #
+# The usage text names the plugin base directory, which is exactly what
+# SEAMWARE_PLUGIN_DIR overrides - and a coverage run sets it, to load the
+# instrumented plugins. This test pins the DEFAULT, so it clears the variable
+# for its own invocations rather than reporting whatever the environment had.
+#
 # -U used to SEGFAULT before printing a single line: its column-width helper
 # ran strlen() over every longName, and a KARGS_SEPARATOR (the section headings
 # in the -u listing) legitimately has none. Separators are skipped here — they
@@ -30,28 +35,28 @@ usage
 
 echo "01. Usage with corRamDB plugin (no extra CLI args)"
 echo "=================================================="
-$COR_BROKER -u -db corRamDB 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db corRamDB 2>&1
 echo
 echo
 
 
 echo "02. Usage with mongoc plugin (shows DB connection args)"
 echo "======================================================="
-$COR_BROKER -u -db mongoc 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db mongoc 2>&1
 echo
 echo
 
 
 echo "03. Usage with non-existent plugin (error + usage)"
 echo "==================================================="
-$COR_BROKER -u -db dummy2 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db dummy2 2>&1
 echo
 echo
 
 
 echo "04. Extended usage (-U) - one aligned row per option, no separator rows"
 echo "======================================================================="
-$COR_BROKER -U -db corRamDB 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -U -db corRamDB 2>&1
 echo
 echo
 

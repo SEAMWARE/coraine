@@ -134,8 +134,16 @@ coverage:
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@find $(BUILD_COVERAGE) -name '*.gcda' -delete
+#
+# COR_PLUGIN_DIR is how the HARNESS spells a plugin path (--database ...).
+# SEAMWARE_PLUGIN_DIR is how the BROKER resolves a short name a test passes
+# itself - `coraineStart --apiPlugins admin`. Without the second one the broker
+# loads the installed admin.so, which carries no counters, and the whole admin
+# plugin reads as 0% in a run whose tests exercise it.
+#
 	COR_BROKER=$(CURDIR)/$(BUILD_COVERAGE)/src/app/coraine/coraine \
 	COR_PLUGIN_DIR=$(CURDIR)/$(COV_PLUGIN_DIR) \
+	SEAMWARE_PLUGIN_DIR=$(CURDIR)/$(COV_PLUGIN_DIR) \
 	$(CORTEST) -db $(COV_DB) || true
 	@mkdir -p $(COV_DIR)
 #
