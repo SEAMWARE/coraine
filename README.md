@@ -379,23 +379,20 @@ make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
 make coverage-etsi           # ETSI TP suite → coverage-etsi/index.html
 ```
 
-Measured **2026-08-20**, on `d49798a`:
+Measured **2026-08-20** on `e8e6bb6`:
 
 | Run | Tests | Lines | Functions | Branches |
 |-----|-------|-------|-----------|----------|
-| `DB=mongoc` | 613 / 613 pass | 72.6% (12028/16567) | 79.5% (478/601) | **55.2%** (7094/12841) |
-| `DB=corDB` | 563 / 563 pass | 65.5% (9614/14671) | 71.2% (399/560) | **49.5%** (5835/11793) |
+| `DB=mongoc` | 613 / 613 pass | 80.7% | 93.7% | **60.8%** |
+| `DB=corDB` | 563 / 563 pass | 74.4% | 85.7% | **55.4%** |
 
-The two runs are separate measurements, not two views of one. A test that pins a
-backend-specific answer — mongo's earth model in the fourth digit of a distance,
-or the tenant-wide 2dsphere index that makes a GeoProperty and a Property refuse
-to share an Attribute name — declares `REQUIRE_DB` and belongs to one run only,
-which is why the test counts differ. Each report also excludes the DB plugin that
-is *not* under test: a corDB run cannot execute a line of `mongoc.so`, and
-counting it would measure the choice of backend rather than the state of the
-suite.
-
-Branch coverage is the honest number of the three, and the one to move.
+Branch coverage is the honest number of the three, and the one to move. Of the
+uncovered lines, roughly **one in six** is a failure path no test can reach without
+fault injection — a database that fails on demand, a socket that dies mid-write —
+and the rest is reachable code nobody has written a test for yet, most of it
+distributed-operation forwarding and batch partial-success assembly.
+[`doc/coverage.md`](doc/coverage.md) has the full breakdown, the method behind it,
+and why the two runs are separate measurements rather than two views of one.
 
 The ETSI target instruments the broker **and** the NGSI-LD libs (whole-archived,
 so they flush through the broker's gcov runtime) **and** the mongoc/timescale

@@ -121,6 +121,16 @@ test:
 	$(CORTEST)
 
 coverage:
+#
+# The coverage tree is built from scratch, deliberately. gcov counters live in
+# .gcno/.gcda files next to the objects, and nothing removes the ones belonging to
+# a source that was renamed or deleted - gcovr then reports those vanished files as
+# entirely unexecuted. That is not hypothetical: after corRamDB became corDB, a
+# stale tree added ~700 phantom uncovered lines and moved the mongoc figure from
+# 80.7% to 77.5%. A wrong coverage number is worse than none, and the rebuild is a
+# couple of minutes against a twenty-minute suite.
+#
+	rm -rf $(BUILD_COVERAGE)
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
