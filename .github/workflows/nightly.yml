@@ -1,0 +1,246 @@
+#
+# The slow half of the testing: the ETSI conformance suite, the whole functional
+# suite under valgrind, and coverage. None of it belongs on a pull request - it
+# would turn a two-minute check into an hour - and none of it is worth running on
+# a day when nothing merged, which is what the `gate` job decides.
+#
+# Standard runners are free for public repositories, so the constraint here is not
+# cost but the 6-hour per-job ceiling. That is why valgrind is sharded.
+#
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run even if nothing merged in the last 24 hours'
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "forced"; echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -n "$(git log --since='24 hours ago' --oneline)" ]; then
+            echo "main moved in the last 24h - running"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "nothing merged since yesterday - skipping"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  #
+  # Coverage: both DBs, because they are two different measurements. The report
+  # lands as an artifact and the numbers in the run summary, so a trend is visible
+  # without downloading anything.
+  #
+  coverage:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/coraine/ci-nightly:latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ['27017:27017']
+      timescale:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+    env:
+      COR_MONGO_HOST: mongo
+      COR_TROE_HOST: timescale
+      SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: stack/coraine }
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+      - name: Coverage - mongoc
+        working-directory: stack/coraine
+        run: make coverage DB=mongoc GCOVR=gcovr CORTEST=../corLibs/bin/corTest
+      - name: Coverage - corDB
+        working-directory: stack/coraine
+        run: make coverage GCOVR=gcovr CORTEST=../corLibs/bin/corTest
+      - name: Summarise
+        if: always()
+        working-directory: stack/coraine
+        run: |
+          {
+            echo "### Coverage"
+            for db in mongoc corDB; do
+              [ -f "coverage-$db/index.html" ] || continue
+              echo "- **$db**: report generated"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports
+          path: |
+            stack/coraine/coverage-mongoc
+            stack/coraine/coverage-corDB
+          retention-days: 14
+
+  #
+  # Valgrind: the same suite, with the broker under valgrind, failing on definite
+  # or indirect leaks. It is 10-20x slower than a native run, which puts a single
+  # job uncomfortably close to the 6-hour ceiling - so it is split by test index
+  # and the shards run in parallel.
+  #
+  valgrind:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    container:
+      image: quay.io/coraine/ci-nightly:latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ['27017:27017']
+      timescale:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+    env:
+      COR_MONGO_HOST: mongo
+      COR_TROE_HOST: timescale
+      SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: stack/coraine }
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+      - name: Build and install coraine
+        working-directory: stack/coraine
+        run: |
+          mkdir -p /opt/seamware/plugins /opt/seamware/etc
+          make di
+      - name: Suite under valgrind - shard ${{ matrix.shard }} of 6
+        working-directory: stack/coraine
+        run: |
+          total=$(../corLibs/bin/corTest --dryrun 2>/dev/null | grep -c . || echo 613)
+          per=$(( (total + 5) / 6 ))
+          from=$(( (${{ matrix.shard }} - 1) * per + 1 ))
+          to=$(( ${{ matrix.shard }} * per ))
+          echo "tests $from..$to of $total"
+          ../corLibs/bin/corTest -db mongoc --noColor -vt --fromIx "$from" --toIx "$to"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: valgrind-shard-${{ matrix.shard }}
+          path: stack/coraine/test/funcTests/cases/*.out
+          retention-days: 7
+
+  #
+  # The ETSI conformance suite, against OUR corrected branch of it. The fixes are
+  # test-side - the published suite has bugs of its own and parts of it do not run
+  # - and they are filed upstream; until they land, this branch is what a coraine
+  # conformance claim is measured against.
+  #
+  etsi:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/coraine/ci-nightly:latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ['27017:27017']
+      timescale:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+    env:
+      COR_MONGO_HOST: mongo
+      COR_TROE_HOST: timescale
+      SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: stack/coraine }
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+      - name: Build and install coraine
+        working-directory: stack/coraine
+        run: |
+          mkdir -p /opt/seamware/plugins /opt/seamware/etc
+          make di
+
+      - name: Clone the corrected ETSI suite
+        run: |
+          git clone --depth 1 --branch integration/all-fixes \
+            https://forge.etsi.org/rep/cim/ngsi-ld-test-suite.git etsi-suite
+          cd etsi-suite && git log --oneline -1
+
+      - name: Python environment for Robot Framework
+        working-directory: etsi-suite
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Start the broker
+        run: |
+          coraine --port 1026 --database mongoc --dbHost mongo --dbName etsi \
+                  --troe timescale --troeHost timescale --troeName etsi_troe \
+                  --distributed --apiPlugins admin > /tmp/etsi-broker.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:1026/admin/version
+
+      - name: Run the TP suite
+        working-directory: etsi-suite
+        run: |
+          .venv/bin/robot --outputdir /tmp/etsi-out \
+            --variable url:"http://localhost:1026/ngsi-ld/v1" \
+            --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
+            --variable notification_server_port:8085 \
+            --variable context_server_port:8087 \
+            TP/NGSI-LD/
+
+      - name: Broker log and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: etsi-results
+          path: |
+            /tmp/etsi-out
+            /tmp/etsi-broker.log
+          retention-days: 14
