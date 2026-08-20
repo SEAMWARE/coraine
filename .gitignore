@@ -18,8 +18,7 @@
 *.gcda
 *.gcno
 coverage/
-coverage-etsi/
-coverage-mongoc/
+coverage-*/
 BUILD_RELEASE/
 BUILD_DEBUG/
 BUILD_COVERAGE/
