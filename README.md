@@ -1,16 +1,27 @@
 # coraine
 
-A lightweight **NGSI-LD Context Broker** written in C, targeting **ETSI GS CIM 009
-v1.9.1**. coraine is small, fast, and — most importantly — **plugin-driven**:
-storage backends, temporal history, extra API surfaces and (soon) the wire
-protocol itself are all `.so` plugins loaded at startup. The core broker speaks
-NGSI-LD; the plugins decide *where data lives*, *what extra endpoints exist* and
-*how the broker talks to the world*.
+A lightweight **NGSI-LD Context Broker** written in C, **fully implementing ETSI GS
+CIM 009 v1.9.1** and passing the official **ETSI NGSI-LD conformance test suite
+with a 100% success rate**. coraine is small, fast, and — most importantly —
+**plugin-driven**. Loaded at startup as shared libraries:
+
+- **storage backends** — where the current state lives
+- **temporal history** — the temporal evolution of entities (TRoE)
+- **extra API surfaces** — ops/admin endpoints beyond NGSI-LD
+- **the wire protocol itself** — REST/HTTP today, pluggable transports next
+
+The core broker speaks NGSI-LD; the plugins decide *where data lives*, *what extra
+endpoints exist* and *how the broker talks to the world*.
 
 - **Product version:** 0.3
-- **Spec target:** ETSI GS CIM 009 v1.9.1 (NGSI-LD)
+- **Spec:** ETSI GS CIM 009 v1.9.1 (NGSI-LD) — fully implemented
 - **Language / build:** C, CMake (wrapped by a convenience `makefile`)
 - **License:** [Apache License 2.0](LICENSE) — Copyright 2026 Seamware
+
+> **On that 100%:** the conformance runs use a *corrected fork* of the ETSI test
+> suite. The changes are test-side fixes — the suite has bugs of its own and parts
+> of it simply don't run as published — never relaxations of what the broker must
+> do. The fixes are filed upstream with ETSI.
 
 For a feature-by-feature breakdown of what's implemented, see
 [`doc/implementation-status.md`](doc/implementation-status.md).
@@ -19,7 +30,8 @@ For a feature-by-feature breakdown of what's implemented, see
 
 ## Table of contents
 
-- [Plugin architecture](#plugin-architecture) ← **start here**
+- [Footprint and speed](#footprint-and-speed) ← **start here**
+- [Plugin architecture](#plugin-architecture)
 - [Building](#building)
 - [Running](#running)
 - [Project layout](#project-layout)
@@ -27,168 +39,111 @@ For a feature-by-feature breakdown of what's implemented, see
 
 ---
 
+## Footprint and speed
+
+coraine is a **1 MB broker**. Not a 1 MB container image with a runtime inside —
+a 967 KiB stripped ELF binary that starts in 10 milliseconds and answers NGSI-LD
+on the next one.
+
+### Size
+
+Release build, stripped, x86-64:
+
+| Artifact | Size |
+|----------|-----:|
+| `coraine` — the broker | **967 KiB** |
+| `corRamDB.so` — in-memory DB | 39 KiB |
+| `mongoc.so` — MongoDB DB | 116 KiB |
+| `none.so` / `ramdb.so` — TRoE | 14 KiB each |
+| `timescale.so` — TRoE | 67 KiB |
+| `admin.so` — admin API | 23 KiB |
+
+A complete, self-sufficient broker — binary + in-memory store + TRoE-off — is
+**~1.0 MiB** on disk and needs no external service at all.
+
+Those figures are the code coraine itself ships. The shared libraries it links —
+`libmicrohttpd`, `libssl`/`libcrypto`, `libmosquitto` (MQTT notifications), ICU
+(orderBy collation), GEOS (geo-queries, via the DB plugin) — are mapped by the
+loader on top, and dominate the resident set: 14 MB RSS, of which only 2.6 MB is
+private and dirty.
+
+### Start-up
+
+From `exec` to a listening socket, median of five, and the resident set right
+after:
+
+| Configuration | Ready in | RSS |
+|---------------|---------:|----:|
+| `--database corRamDB` | **10 ms** | 14 MB |
+| `--database mongoc` (localhost Mongo) | **17 ms** | 21 MB |
+
+That is fast enough that the broker is not something you keep warm — it is
+something you start. Scale-to-zero, per-test instances, one broker per tenant on
+a gateway: all of them stop being awkward at 10 ms and 14 MB.
+
+### Throughput
+
+32-core x86-64, `wrk -t8`, `GET /ngsi-ld/v1/entities?type=Vehicle&limit=20` over
+100 preloaded five-attribute entities (~550 B each, ~11 KB per response), median
+of three 5 s runs:
+
+| DB plugin | c50 req/s | p99 | c200 req/s | p99 |
+|-----------|----------:|----:|-----------:|----:|
+| `mongoc` | 24 500 | 3.0 ms | 23 100 | 9.9 ms |
+| `corRamDB` | 30 400 | 2.6 ms | 28 800 | 9.9 ms |
+
+At 20 entities per response that is **~490 000 entities/s** against MongoDB and
+~610 000 in memory. Single-entity retrieve (`GET /entities/{id}`, corRamDB, c50):
+**181 000 req/s, p99 766 µs**.
+
+> Numbers are from one machine and one shape of request — reproduce them on yours
+> before quoting them. What travels is the shape: sub-millisecond work per
+> request, and throughput that barely moves (−6%) when concurrency quadruples
+> from 50 to 200.
+
+### Compiling out what you don't need
+
+`CMakeLists.txt` exposes `COR_FEATURE_*` options — subscriptions, registrations,
+geoq, scopes, datasetId, multi-type, context download/hosting, tenants, mongoc,
+admin API, metrics, ICU collation, geo-dispatch on
+location/observationSpace/operationSpace. All default ON except the
+observation/operation-space dispatch; toggle with `cmake -DCOR_FEATURE_X=OFF`.
+
+The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
+no subscription engine on a read-only edge node, no geo, no tenants, no Mongo.
+
+Where it stands today, honestly: **the flags are declared, the work behind them
+has barely started.** What works is selection at the build-tree level —
+`-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
+build host, run `--database corRamDB`). Everything else is still a promise: the
+per-feature `#ifdef`s inside the C are next to nonexistent, so switching off a
+core feature leaves its symbols referenced from code that still compiles, and
+the link fails. The same holds for the optional runtime deps — MQTT
+notifications, for instance, are ~2 KB of broker code against a `libmosquitto`
+that every build links and every process maps, whether or not a single MQTT
+notification is ever sent. Shrink-to-fit is a goal with a flag table, not a
+feature you can use yet.
+
+---
+
 ## Plugin architecture
 
-> **This is the heart of coraine.** The broker binary contains the NGSI-LD
-> protocol logic, the REST layer, the JSON-LD engine and the subscription
-> matcher. It contains **no storage code and no temporal code**. Those — plus any
-> non-NGSI-LD admin/ops endpoints — are dynamically loaded shared objects. You
-> choose them at startup; you can write your own without touching the core.
+> **This is the heart of coraine.** The broker binary holds the NGSI-LD protocol
+> logic, the REST layer, the JSON-LD engine and the subscription matcher — and
+> **no storage code, no temporal code**. Those, plus any non-NGSI-LD admin/ops
+> endpoints, are shared libraries loaded at startup. You pick them on the command
+> line; you can write your own without touching the core.
 
-### The four plugin categories
+| Category | Selected with | Active at a time | Bundled |
+|----------|---------------|------------------|---------|
+| **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corRamDB` |
+| **History DB (TRoE)** | `--troe` | one | `none` (default), `ramdb`, `timescale` |
+| **API services** | `--apiPlugins` / `-api` | any number | `admin` |
+| **Communication protocol** | — | REST/HTTP, built in | *planned* |
 
-There are **four** kinds of plugin:
-
-- **Current-state DB** — where entities, subscriptions and registrations live.
-  Loaded via `--database` / `-db`; resolves to `<base>/db/currentState/<name>.so`;
-  register symbol `dbRegister`; fills the `DbDriver` struct (`db`). **One active at
-  a time.** Bundled: `mongoc` (default), `corRamDB`.
-
-- **History DB** — the temporal evolution of entities (TRoE — Temporal
-  Representation of Entities). Loaded via `--troe` / `-troe`; resolves to
-  `<base>/troe/temporal/<name>.so`; register symbol `troeRegister`; fills the
-  `TroeDriver` struct (`troe`). **One active at a time** (`none` disables history).
-  Bundled: `none` (default), `ramdb`, `timescale`.
-
-- **API services** — extra HTTP endpoints beyond the NGSI-LD core (ops, admin,
-  health, …). Loaded via `--apiPlugins` / `-api`; resolves to `<base>/api/<name>.so`;
-  register symbol `apiRegister`; fills an `ApiPlugin` entry. **Any number** active
-  (comma-separated, up to `API_PLUGINS_MAX = 16`). Bundled: `admin`.
-
-- **Communication protocols** — the transport over which the broker speaks to
-  clients and to other brokers. The default is **REST/HTTP**, which is what ships
-  today. A pluggable transport layer that lets an **ad-hoc binary protocol** be
-  swapped in alongside (or instead of) REST is **planned, not yet implemented** —
-  the architecture is designed around it, but there is no `protocol` register
-  symbol or driver struct yet.
-
-So today three of the four are live; the communication-protocol category is the
-next plugin axis to land.
-
-### Where plugins are loaded from
-
-The base directory defaults to **`/opt/seamware/plugins`** and is overridable by
-the **`SEAMWARE_PLUGIN_DIR`** environment variable
-(`corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR")` in
-`coraine.c`). `make install` copies the bundled plugins into this tree:
-
-```
-/opt/seamware/plugins/
-├── db/currentState/
-│   ├── mongoc.so          # MongoDB-backed store
-│   └── corRamDB.so         # in-memory store
-├── troe/temporal/
-│   ├── none.so            # no-op (temporal disabled)
-│   ├── ramdb.so           # in-memory history (dev/test)
-│   └── timescale.so       # TimescaleDB/Postgres history
-└── api/
-    └── admin.so           # health/version/log/tenants/plugins
-```
-
-A plugin can also be given as a **full path** (any argument containing a `/`),
-which bypasses base-dir resolution — handy for pointing at a freshly-built `.so`
-in a build tree without installing:
-
-```sh
-coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corRamDB/corRamDB.so
-```
-
-### How loading works (the mechanism)
-
-`src/lib/plugin/pluginLoader.c` does, per plugin:
-
-1. `corPluginResolve(base, category, subcategory, name, path, …)` → builds the `.so`
-   path (skipped when `name` already looks like a path).
-2. `corPluginOpen(path, "<symbol>", …)` → `dlopen` + `dlsym` for the register symbol
-   (`dbRegister` / `troeRegister` / `apiRegister`). Handles are tracked for
-   `corPluginCloseAll()` at shutdown.
-3. The register function is called with a zeroed driver struct, which it fills with
-   its function pointers.
-
-Plugins do **not** statically link the NGSI-LD/k-lib symbols — the broker is linked
-`rdynamic`, so a plugin `.so` resolves `kjson`, `corNgsild`, etc. from the running
-broker at `dlopen` time. Keep that in mind: a plugin must be built against the
-**same** lib headers as the broker it will be loaded into.
-
-### Plugin-contributed CLI args
-
-A plugin can publish its own command-line options. It sets `driverP->args`
-(a `KArg*` array) in its register function; the broker **peeks** at
-`--database`/`--troe`/`--apiPlugins` *before* the main parse, loads the plugins,
-then splices each plugin's `args` into the global arg table so they show up in
-`--help` and parse normally. This is why `coraine --help` shows different options
-depending on which DB/TRoE plugin you selected.
-
-### NULL-allowed methods → graceful 501
-
-Driver structs are big, and not every plugin implements every operation. The
-convention: a **NULL function pointer means "unsupported"**, and the service
-routine returns **501 Not Implemented** (or treats it as a no-op where the spec
-allows). Examples called out in the headers: `subscriptionStatsFlush`,
-`snapshot*`, `tenantDrop`, and the whole context-persistence quartet
-(`contextSave/Delete/List/Get`) are NULL on `corRamDB`. This is how the in-memory
-driver legitimately ships without persistence.
-
-### The driver interfaces
-
-The contracts a plugin fills are fully documented (with per-function semantics) in
-the headers — read these before writing a plugin:
-
-- **`src/lib/db/DbDriver.h`** — current-state DB. Entity CRUD + bulk ops,
-  subscriptions, registrations, snapshots, discovery (`typeList`/`attrList`),
-  tenant setup, geo-match callbacks, and optional JSON-LD context persistence.
-  Error codes: `DB_OK`, `DB_NOT_FOUND`, `DB_ALREADY_EXISTS`, `DB_INVALID_GEOMETRY`,
-  `DB_BAD_INPUT`, `DB_ERR`.
-- **`src/lib/troe/TroeDriver.h`** — temporal. The broker queues `TroeEvent`s
-  during a request and drains them *after* the response (per-event or bulk
-  `eventList`); read paths return `EntityTemporal` trees. Error codes: `TROE_OK`,
-  `TROE_NOT_FOUND`, `TROE_UPDATED`, `TROE_ERR`.
-- **`src/lib/plugin/ApiPlugin.h`** — extra endpoints. A flat
-  `CorRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
-  optional `args`, and `init`/`close`/`versionInfo` hooks.
-
-### Bundled plugins
-
-| Plugin | Category | Notes |
-|--------|----------|-------|
-| **mongoc** | DB | MongoDB via `libmongoc` v2; `$geoNear` aggregation, persistence, context hosting, per-tenant DBs. The default (`--database mongoc`). Needs the mongo-c **v2** driver at build time. |
-| **corRamDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
-| **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
-| **ramdb** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
-| **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
-| **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
-
-### Writing a new plugin (sketch)
-
-A DB plugin is one `.so` exporting `void dbRegister(DbDriver*)`. Minimal shape,
-mirroring `src/plugins/currentState/corRamDB/ramdbRegister.c`:
-
-```c
-#include "db/DbDriver.h"
-
-void dbRegister(DbDriver* driverP)
-{
-  driverP->alias          = "myStore";
-  driverP->version        = "0.1.0";
-  driverP->args           = myArgV;          // or NULL
-  driverP->init           = myInit;          // post-arg-parse init
-  driverP->close          = myClose;
-  driverP->entityCreate   = myEntityCreate;
-  driverP->entityRetrieve = myEntityRetrieve;
-  driverP->entityQuery    = myEntityQuery;
-  driverP->entityDelete   = myEntityDelete;
-  // … fill what you support; leave the rest NULL (→ 501)
-  driverP->tenantSetup    = myTenantSetup;
-}
-```
-
-Build it as a `SHARED` library that drops `myStore.so` into
-`<base>/db/currentState/`, then run `coraine --database myStore`. The existing
-plugin `CMakeLists.txt` files (e.g.
-`src/plugins/currentState/mongoc/CMakeLists.txt`) are the template — note they
-**don't** link the broker's libs (resolved at runtime), only their own backend
-deps (`mongoc2`, `geos_c`, …). API and TRoE plugins follow the same pattern with
-`apiRegister`/`troeRegister`.
+The full story — where plugins are resolved from, how the loader works, the driver
+interfaces, plugin-contributed CLI args, and how to write your own — is in
+[`doc/plugin-architecture.md`](doc/plugin-architecture.md).
 
 ---
 
@@ -259,15 +214,8 @@ that).
 Install writes to `/opt/seamware/...` and `/usr/local/bin` — run with appropriate
 permissions or pre-create the dirs.
 
-### Feature flags
-
-`CMakeLists.txt` exposes `COR_FEATURE_*` options (subscriptions, registrations,
-geoq, scopes, datasetId, multi-type, context download/hosting, tenants, mongoc,
-admin API, metrics, geo-dispatch on location/observationSpace/operationSpace). All
-default ON except the observation/operation-space dispatch. Toggle with
-`cmake -DCOR_FEATURE_X=OFF`. Note: most flags currently gate *which sources compile
-in*; the corresponding `#ifdef`s in the C are still being filled in, so turning one
-off may drop symbols referenced elsewhere — treat them as scaffolding for now.
+Build-time feature selection lives in
+[Compiling out what you don't need](#compiling-out-what-you-dont-need).
 
 ---
 
@@ -277,8 +225,8 @@ Default listen port is **1026**. Plugins default to `mongoc` (DB) + `none` (TRoE
 no API plugins.
 
 ```sh
-# In-memory, foreground, pretty JSON, admin API on — zero external services:
-coraine --database corRamDB --troe none --apiPlugins admin --foreground -pp 2
+# In-memory, pretty JSON, admin API on — zero external services:
+coraine --database corRamDB --troe none --apiPlugins admin -pp 2
 
 # Default (Mongo) on a custom port:
 coraine --port 1027 --database mongoc
@@ -295,7 +243,7 @@ Selected common options (`--usage` for the full list):
 | `--database` / `-db` | `mongoc` | DB plugin (short name or path) |
 | `--troe` / `-troe` | `none` | TRoE plugin (`none` disables history) |
 | `--apiPlugins` / `-api` | — | comma-separated API plugins |
-| `--foreground` / `-fg` | off | don't daemonize |
+| `--foreground` / `-fg` | — | accepted, no effect — the broker always runs in the foreground |
 | `--pretty-print` / `-pp` | 0 | JSON indent (0 = compact) |
 | `--localOnly` / `-local` | off | disable distributed operations |
 | `--defaultUserContext` / `-duc` | — | default `@context` URL |
