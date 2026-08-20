@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about NGSI-LD or coraine
+    url: https://stackoverflow.com/questions/tagged/fiware-coraine
+    about: Questions are answered on Stack Overflow under the fiware-coraine tag. Use GitHub issues for bugs and feature requests.
+  - name: FIWARE Catalogue
+    url: https://www.fiware.org/developers/catalogue/
+    about: coraine is part of FIWARE Core Context Management.

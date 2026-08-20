@@ -1,0 +1,19 @@
+site_name: coraine
+site_url: https://coraine.readthedocs.io
+repo_url: https://github.com/SEAMWARE/coraine
+site_description: coraine - a lightweight NGSI-LD Context Broker in C
+docs_dir: doc
+site_dir: html
+markdown_extensions: [toc, fenced_code, tables, admonition]
+use_directory_urls: false
+theme: readthedocs
+extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
+nav:
+  - Home: index.md
+  - Installation & Administration: installation.md
+  - API walkthrough: api-walkthrough.md
+  - Plugin architecture: plugin-architecture.md
+  - Test coverage: coverage.md
+  - Functest coverage of the spec: spec-coverage-gaps.md
+  - Roadmap: roadmap.md
+  - FIWARE GE checklist: fiware-ge-checklist.md

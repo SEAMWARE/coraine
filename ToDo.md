@@ -68,20 +68,26 @@ broker pushes over the standing connection.
 
 ## 5. haaux — the HA sync auxiliary
 
-The second channel for keeping several broker instances' caches in step. Today
-`--ha mongo` uses the database's own change feed and measures **~50 ms**, with
-two costs that cannot be tuned away: a change stream only delivers
+The second channel for keeping several broker instances' caches in step.
+
+**The first reason is not latency, it is coverage.** `--high-availability mongo`
+works only when the current-state DB *is* mongo **and** that mongo is a **replica
+set** — a change stream needs an oplog. Run the in-memory store and there is no
+shared store to listen to at all: such a deployment has **no HA whatsoever** today.
+That, far more than the milliseconds, is what haaux is for.
+
+Latency comes second, and is still real: the mongo channel measures **~50 ms**, with
+two costs that cannot be tuned away — a change stream only delivers
 majority-committed events, and the event carries no payload, so the receiver
-re-reads the document before applying it. haaux has neither — the instance that
-made the change pushes the change itself. **Single-digit milliseconds** is the
-target, and it works for deployments with no shared database at all.
+re-reads the document before applying it. haaux has neither: the instance that made
+the change pushes the change itself. **Single-digit milliseconds** is the target.
 
 Settled already: brokers **register at startup and the connection is
 maintained**; **no polling, interrupt driven**; its own repository, same
 libraries; REST endpoints `/subscriptions`, `/registrations`, `/contexts`,
 `/admin`.
 
-The seam is in place: `--ha <ip:port>` parses and refuses with *"the haaux
+The seam is in place: `--high-availability <ip:port>` parses and refuses with *"the haaux
 server, which is not implemented yet"* (`src/lib/ha/haInit.c`), and `HaEvent::apiP`
 already carries the API representation so a payload-carrying channel needs no
 database hop — `haEventApply()` refuses a non-NULL `apiP` on purpose, so the day
@@ -152,6 +158,42 @@ That drops the hard link, the mapping and the init, and makes libmosquitto an
 - PostGIS as a geo backend.
 
 **Libs**
+
+- **Array reduction — belongs in `corJsonld`, done once instead of five times.**
+  It is a JSON-LD rule, and `corJsonld` is what owns @context knowledge: term
+  definitions, `@type`, `@container`. Nothing above it can decide the question
+  correctly, which is why the rule currently lives as five hand-written copies
+  in the layers that should have been asking:
+  `ldCheckAttribute.c:368` and `:630` (collapse on storage, § 5.2.6.4.6),
+  `ldEntityToApi.c:174` (collapse on render), and the `@context` case written
+  twice, in `postSubscriptions.c:260` and `postCsourceSubscriptions.c:172`.
+  What is missing is one term-aware reducer in `corJsonld`, called at the INPUT
+  boundary, so every layer above meets one shape.
+  `corLdContextParse.c:278` is where it would pay for itself
+  immediately: it wraps ANY array, one element included, as
+  `isArray=true, url=NULL`, which is the whole reason the two subscription
+  paths cannot use their own pass-through test and reach around the parsed
+  context into the raw body instead.
+
+  ⚠️ It is NOT a blanket transformation, and the render path already knows why
+  (`ldEntityToApi.c:159`): a term whose `@type` is `@json` carries opaque JSON
+  where an array's cardinality is meaningful - the JsonProperty `json` member,
+  but ALSO any user-context term declared `@type: @json`, so the exclusion is a
+  property of the term, not a fixed field name. `@container: @list` and
+  `@container: @language` are excluded for the same reason, as is the temporal
+  path, where array length feeds the aggregations. Any input-side reduction has
+  to consult the active @context per term, exactly as the renderer does - which
+  is the argument for putting it in `corJsonld` rather than repeating the
+  judgement in `corNgsild` and in the broker.
+
+  And it needs nothing from `corNgsild` to decide: every exception is stated in
+  the @context itself - `@type: @json`, `@container: @list`,
+  `@container: @language` - not in the API layer. `corJsonld` holds the term
+  definitions, so it can answer alone. That makes the caller-side
+  `collapseSingletonArrays` flag (`ldEntityToApi.c:171`) a symptom to remove
+  rather than a pattern to copy: the temporal path should come out right because
+  of what its terms are declared to be, not because a caller remembered to pass
+  false.
 
 - `ngsildParse`: a **keyword enum** in the parsed node instead of a name
   pointer, so the hot path switches on an integer rather than `strcmp`. Worth

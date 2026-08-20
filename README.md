@@ -1,9 +1,21 @@
 # coraine
 
+[![FIWARE Core Context Management](https://fiware.github.io/catalogue/badges/chapters/core.svg)](https://www.fiware.org/developers/catalogue/)
+[![License badge](https://img.shields.io/github/license/SEAMWARE/coraine.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Container badge](https://img.shields.io/badge/quay.io-seamware%2Fcoraine-grey?logo=red%20hat&labelColor=EE0000)](https://quay.io/repository/seamware/coraine)
+[![Support badge](https://img.shields.io/badge/tag-fiware+coraine-orange.svg?logo=stackoverflow)](https://stackoverflow.com/questions/tagged/fiware+coraine)
+[![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/committee/cim)
+<br/>
+[![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
+![Status](https://fiware.github.io/catalogue/badges/statuses/status-incubating.svg)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/PROJECT_ID/badge)](https://bestpractices.coreinfrastructure.org/projects/PROJECT_ID)
+
 A lightweight **NGSI-LD Context Broker** written in C, **fully implementing ETSI GS
 CIM 009 v1.9.1** and passing the official **ETSI NGSI-LD conformance test suite
-with a 100% success rate**. coraine is small, fast, and — most importantly —
-**plugin-driven**. Loaded at startup as shared libraries:
+with a 100% success rate**.<sup>\*</sup>
+
+coraine is small, fast, and — most importantly — **plugin-driven**. Loaded at
+startup as shared libraries:
 
 - **storage backends** — where the current state lives
 - **temporal history** — the temporal evolution of entities (TRoE)
@@ -18,10 +30,19 @@ endpoints exist* and *how the broker talks to the world*.
 - **Language / build:** C, CMake (wrapped by a convenience `makefile`)
 - **License:** [Apache License 2.0](LICENSE) — Copyright 2026 Seamware
 
-> **On that 100%:** the conformance runs use a *corrected fork* of the ETSI test
-> suite. The changes are test-side fixes — the suite has bugs of its own and parts
-> of it simply don't run as published — never relaxations of what the broker must
-> do. The fixes are filed upstream with ETSI.
+This project is part of [FIWARE](https://www.fiware.org/). For more information check
+the FIWARE Catalogue entry for
+[Core Context Management](https://github.com/FIWARE/catalogue/tree/master/core).
+
+Questions are answered on
+[Stack Overflow](https://stackoverflow.com/questions/tagged/fiware+coraine) using the
+tags `fiware` and `coraine`; bugs and feature requests belong in
+[GitHub issues](https://github.com/SEAMWARE/coraine/issues).
+
+> <sup>\*</sup> **On that 100%:** the conformance runs use a *corrected fork* of
+> the ETSI test suite. The changes are test-side fixes — the suite has bugs of its
+> own and parts of it simply don't run as published — never relaxations of what
+> the broker must do. The fixes are filed upstream with ETSI.
 
 ---
 
@@ -31,8 +52,14 @@ endpoints exist* and *how the broker talks to the world*.
 - [Plugin architecture](#plugin-architecture)
 - [Building](#building)
 - [Running](#running)
+- [API walkthrough](#api-walkthrough)
+- [Documentation](#documentation)
 - [Project layout](#project-layout)
 - [Testing](#testing)
+- [Quality assurance](#quality-assurance)
+- [Training](#training)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -137,6 +164,23 @@ feature you can use yet.
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `ramdb`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
 | **Communication protocol** | — | REST/HTTP, built in | *planned* |
+
+**Why that matters, beyond tidiness.** The broker never talks to a database. It talks
+to a *driver interface* — `DbDriver.h` for current state, `TroeDriver.h` for history —
+and those two headers are the entire contract, function by function, documented
+semantics included. So bringing coraine to a store it has never seen is writing one
+shared library against a documented header. It is not forking a broker, not patching
+a query builder, and not learning NGSI-LD: the protocol, the JSON-LD engine and the
+subscription matcher stay in the core, and the driver is only ever asked storage
+questions.
+
+Two properties make that practical rather than aspirational. A **NULL function
+pointer means "unsupported"**, answered as `501 Not Implemented`, so a new backend can
+ship the day it does entity CRUD and grow snapshots, registrations or context
+persistence later — `corRamDB` legitimately ships without persistence on exactly that
+basis. And the choice is made **at startup, not at build time**: the same binary runs
+on MongoDB in production, in RAM for a test, and on your own store in the field,
+because `--database` takes a path as readily as a name.
 
 The full story — where plugins are resolved from, how the loader works, the driver
 interfaces, plugin-contributed CLI args, and how to write your own — is in
@@ -249,6 +293,46 @@ Selected common options (`--usage` for the full list):
 
 ---
 
+## API walkthrough
+
+coraine speaks NGSI-LD under `/ngsi-ld/v1`. Start a broker that needs nothing else,
+create an entity, and read it back:
+
+```sh
+coraine --database corRamDB --troe none --apiPlugins admin -pp 2 &
+
+curl -X POST http://localhost:1026/ngsi-ld/v1/entities \
+  -H 'Content-Type: application/json' \
+  -d '{ "id": "urn:ngsi-ld:Vehicle:A100", "type": "Vehicle",
+        "brand": { "type": "Property", "value": "Mercedes" },
+        "speed": { "type": "Property", "value": 80 } }'
+
+curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&q=speed>50'
+```
+
+Queries, the three representations (`normalized`, `concise`, `keyValues`), updates,
+subscriptions and notifications are walked through in
+[`doc/api-walkthrough.md`](doc/api-walkthrough.md).
+
+---
+
+## Documentation
+
+| Document | What it covers |
+|----------|----------------|
+| [Installation & Administration](doc/installation.md) | dependencies, build, install, every option, the admin API, tenants |
+| [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
+| [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
+| [Test coverage](doc/coverage.md) | what the suite covers, per DB, and what is left |
+| [Functest coverage of the spec](doc/spec-coverage-gaps.md) | every spec statement, and whether a test asserts it |
+| [Roadmap](doc/roadmap.md) | where coraine is going |
+
+The full API is the specification itself: **ETSI GS CIM 009 / TS 104 175**, which
+coraine implements in full. Every command-line option is listed by
+`coraine --usage`, including the options contributed by the plugins you selected.
+
+---
+
 ## Project layout
 
 ```
@@ -285,13 +369,84 @@ Functional tests run through `corTest` (installed by the `corLibs` umbrella into
 make test                    # whole suite (mongoc; use corTest -db ramdb for in-memory)
 ```
 
-Tests live under `test/funcTests/`. Coverage:
+Tests live under `test/funcTests/`.
+
+### Coverage
 
 ```sh
-make coverage                # unit/functional coverage  → coverage/index.html
-make coverage-etsi           # ETSI TP suite coverage     → coverage-etsi/index.html
+make coverage                # ramdb   → coverage-ramdb/index.html
+make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
+make coverage-etsi           # ETSI TP suite → coverage-etsi/index.html
 ```
+
+Measured **2026-08-20**, on `d49798a`:
+
+| Run | Tests | Lines | Functions | Branches |
+|-----|-------|-------|-----------|----------|
+| `DB=mongoc` | 613 / 613 pass | 72.6% (12028/16567) | 79.5% (478/601) | **55.2%** (7094/12841) |
+| `DB=ramdb` | 563 / 563 pass | 65.5% (9614/14671) | 71.2% (399/560) | **49.5%** (5835/11793) |
+
+The two runs are separate measurements, not two views of one. A test that pins a
+backend-specific answer — mongo's earth model in the fourth digit of a distance,
+or the tenant-wide 2dsphere index that makes a GeoProperty and a Property refuse
+to share an Attribute name — declares `REQUIRE_DB` and belongs to one run only,
+which is why the test counts differ. Each report also excludes the DB plugin that
+is *not* under test: a ramdb run cannot execute a line of `mongoc.so`, and
+counting it would measure the choice of backend rather than the state of the
+suite.
+
+Branch coverage is the honest number of the three, and the one to move.
 
 The ETSI target instruments the broker **and** the NGSI-LD libs (whole-archived,
 so they flush through the broker's gcov runtime) **and** the mongoc/timescale
 plugin `.so`s.
+
+---
+
+## Quality assurance
+
+- **Conformance:** 100% of the official ETSI NGSI-LD conformance test suite
+  (see the note at the top of this file).
+- **Functional tests:** 613 tests against MongoDB, 563 against the in-memory store,
+  run through `corTest`. A change in behaviour is not finished until a test pins it.
+- **Coverage:** measured per DB and published in [`doc/coverage.md`](doc/coverage.md),
+  along with an estimate of how much of what is left can only be reached by making
+  the environment fail.
+- **Memory safety:** the harness can run the whole suite with the broker under
+  valgrind (`corTest -vt`), failing on definite or indirect leaks and on valgrind
+  errors.
+
+The FIWARE GE ratings badges (documentation completeness, responsiveness, FIWARE
+testing) are published from the Catalogue once the entry exists; they will be added
+here at that point.
+
+---
+
+## Training
+
+| [Documentation](https://coraine.readthedocs.io/) | [FIWARE Academy](https://fiware-academy.readthedocs.io/) | [NGSI-LD Tutorials](https://ngsi-ld-tutorials.readthedocs.io/) | [FIWARE Catalogue](https://www.fiware.org/developers/catalogue/) |
+| --- | --- | --- | --- |
+
+The NGSI-LD tutorials apply to coraine unchanged — it implements the same API. The
+[step-by-step guide](doc/api-walkthrough.md) in this repository is the shortest path
+from a running broker to a working subscription.
+
+---
+
+## Contributing
+
+Contributions are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) describes the terms —
+including the Individual Contributor License Agreement that every pull request must
+carry — how to build and test, and what a good bug report contains. Participation is
+governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+The backlog is [`ToDo.md`](ToDo.md): what is not built yet, and what is deferred by
+design.
+
+---
+
+## License
+
+coraine is licensed under the [Apache License 2.0](LICENSE) — Copyright 2026 Seamware.
+Every source file carries an `SPDX-License-Identifier`. The people and projects it is
+built on are named in [CREDITS.md](CREDITS.md).

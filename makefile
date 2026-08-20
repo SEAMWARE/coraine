@@ -151,7 +151,14 @@ coverage:
 # cannot execute a line of mongoc.so and vice versa, so counting the other one
 # as unexecuted measures the choice of DB rather than the state of the suite.
 #
+#
+# --gcov-ignore-parse-errors: gcov occasionally reports a NEGATIVE hit count for
+# a line in a threaded binary (GCC bug 68080), and gcovr treats that as fatal -
+# a ten-minute run then ends with no report at all. coverage-etsi already passes
+# this for the same reason.
+#
 	$(GCOVR) --root $(CURDIR)/src --object-directory $(BUILD_COVERAGE) \
+	      --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
 	      -e '.*/plugins/currentState/$(COV_OTHER_DB)/.*' \
 	      --html-details $(COV_REPORT) --html-title "coraine coverage ($(COV_DB))" \
 	      --print-summary

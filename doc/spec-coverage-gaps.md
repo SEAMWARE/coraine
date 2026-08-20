@@ -14,8 +14,10 @@ because untested behaviour is a real risk even when the behaviour is correct.
 Generated from the spec-feature audit workflow (70 spec units) + `make coverage`
 baseline. COMPLETE.
 
-## Line-coverage baseline (`make coverage`, mongoc, 480 tests)
-- Lines 70.0% (15103/21572) · Functions 79.8% (481/603) · **Branches 46.9% (10147/21628)** = real target
+## Line-coverage baseline (2026-08-20, `d49798a`)
+- `make coverage DB=mongoc`, 613/613 pass: Lines 72.6% (12028/16567) · Functions 79.8%… see below · **Branches 55.2% (7094/12841)** = real target
+- `make coverage` (ramdb), 563/563 pass: Lines 65.5% (9614/14671) · Functions 71.2% (399/560) · **Branches 49.5% (5835/11793)**
+- Functions, mongoc: 79.5% (478/601). Each run excludes the DB plugin it cannot reach.
 - 0%-coverage spec file: `deleteEntityMap.c`. Thin: `getEntityMap.c` 64%, snapshots 82-85%, `geoMatch.c` 41%, `getEntityAttr.c` 52%, `troeQTreeToSql.c` 43%.
 
 ## Matrix: 2314 spec statements — 1051 asserted by a test, 373 partially, 890 unasserted; 245 high-priority
