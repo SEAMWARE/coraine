@@ -72,6 +72,13 @@ jobs:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+      #
+      # corCurl sorts JSON bodies with this tool, and every expect was captured
+      # sorted - without it the bodies arrive in insertion order and every
+      # JSON-bearing test fails on member order alone. bootstrap.sh builds it as
+      # part of the k-libs; it is simply not on PATH here.
+      #
+      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
 
     steps:
       #

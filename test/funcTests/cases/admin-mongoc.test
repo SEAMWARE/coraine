@@ -212,7 +212,7 @@ Content-Length: REGEX(\d+)
   "ktrace": "0.10.0",
   "mongoc driver": "2.2.2",
   "mongoc plugin": "0.1.0",
-  "mongodb server": "4.4.30"
+  "mongodb server": "REGEX(\d+\.\d+\.\d+)"
 }
 
 
