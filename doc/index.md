@@ -33,5 +33,5 @@ Questions are answered on
 
 ## License
 
-[Apache License 2.0](https://github.com/SEAMWARE/coraine/blob/master/LICENSE) —
+[Apache License 2.0](https://github.com/SEAMWARE/coraine/blob/main/LICENSE) —
 Copyright 2026 Seamware.

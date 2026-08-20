@@ -46,5 +46,6 @@ The port is not fixed in the image: pass `--port` and publish what you chose.
 
 ## Tags
 
-Images are published as `quay.io/seamware/coraine:<version>`, versioned with SemVer.
-See [QUAY.md](QUAY.md) for the publishing procedure.
+Published images will be `quay.io/seamware/coraine:<version>`, versioned with SemVer;
+publishing runs from CI, which is not enabled yet. Until then, build locally as above.
+See [QUAY.md](QUAY.md) for the procedure.

@@ -15,11 +15,11 @@ FIWARE Foundation.
 | Code repository on GitHub | ✅ | `github.com/SEAMWARE/coraine` |
 | Documentation source on GitHub | ✅ | `doc/` |
 | Open-source licence | ✅ | Apache 2.0, SPDX header in every source file |
-| Default branch is `master` or `develop` | ✅ | `master` |
+| Default branch is `master` or `develop` | ✅ | `main` — the org’s public repos all use it; FIWARE accepts either |
 | README — description of the GE | ✅ | |
 | README — table of contents | ✅ | |
 | README — FIWARE paragraph | ✅ | chapter and catalogue named |
-| README — badges (chapter, licence, docs, container, status, OpenSSF) | ⏳ | all present; the **OpenSSF project id** is a placeholder |
+| README — badges (chapter, licence, docs, container, status) | ⏳ | present and resolving; the **OpenSSF badge is absent** until the project is registered — a placeholder id renders a 404 |
 | README — CI build badge | ⛔ | no CI yet — see below |
 | README — how to deploy | ✅ | Building / Running, plus `docker/README.md` |
 | README — API walkthrough | ✅ | summary in README, full version in `doc/api-walkthrough.md` |

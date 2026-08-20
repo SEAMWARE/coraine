@@ -34,7 +34,7 @@ raised the same idea.
 - **Major contribution** (a new feature, a change of behaviour): open an issue first,
   so the design can be discussed before anyone writes code.
 
-Pull requests go against `master`. Keep a pull request to one subject; a commit
+Pull requests go against `main`. Keep a pull request to one subject; a commit
 message says *why*, not only *what*.
 
 ## Building and testing

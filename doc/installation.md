@@ -49,8 +49,9 @@ Other targets: `make debug` / `make di` (debug + install), `make clean`, `make t
 
 ## Install with Docker
 
-See [the docker README](https://github.com/SEAMWARE/coraine/blob/master/docker/README.md).
-Images are published as `quay.io/seamware/coraine:<version>`.
+See [the docker README](https://github.com/SEAMWARE/coraine/blob/main/docker/README.md).
+Build the image locally with the `Dockerfile` there; published images will land at
+`quay.io/seamware/coraine:<version>` once CI publishes them.
 
 ## Running
 

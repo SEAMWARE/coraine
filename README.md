@@ -8,7 +8,6 @@
 <br/>
 [![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
 ![Status](https://fiware.github.io/catalogue/badges/statuses/status-incubating.svg)
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/PROJECT_ID/badge)](https://bestpractices.coreinfrastructure.org/projects/PROJECT_ID)
 
 A lightweight **NGSI-LD Context Broker** written in C, **fully implementing ETSI GS
 CIM 009 v1.9.1** and passing the official **ETSI NGSI-LD conformance test suite
