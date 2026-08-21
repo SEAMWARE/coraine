@@ -260,8 +260,16 @@ jobs:
           done
           curl -sf http://localhost:1026/admin/version
 
+      #
+      # ETSI_QUIET_IO: the suite echoes every request and response to the terminal
+      # - about 4400 pairs, 175,000 lines - which buries the one line per test that
+      # says what happened. Everything is still in log.html and output.xml, which
+      # is where a failure gets read anyway.
+      #
       - name: Run the TP suite
         working-directory: etsi-suite
+        env:
+          ETSI_QUIET_IO: '1'
         run: |
           .venv/bin/robot --outputdir /tmp/etsi-out \
             --variable url:"http://localhost:1026/ngsi-ld/v1" \
@@ -269,6 +277,13 @@ jobs:
             --variable notification_server_port:8085 \
             --variable context_server_port:8087 \
             TP/NGSI-LD/
+
+      - name: Summarise
+        if: always()
+        working-directory: etsi-suite
+        run: |
+          python3 "$GITHUB_WORKSPACE/stack/coraine/test/etsi/etsiSummary.py" /tmp/etsi-out/output.xml \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Broker log and results
         if: always()
