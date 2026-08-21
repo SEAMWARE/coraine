@@ -178,6 +178,35 @@ is worth adding only when its numbers are steady enough to mean something.
   daemonizing default that does not exist. Either implement `--daemonize` and
   keep foreground the default, or drop the flag.
 - PostGIS as a geo backend.
+- **`--wip` — a gate for what is implemented ahead of the spec.** Not built yet, and
+  deliberately: the option has nothing to gate today, and its shape is easier to get
+  right with a real feature in hand than invented in advance. Add it with the first
+  draft-ahead feature, not before.
+
+  Orion-LD has it — `-wip entityMaps,distSubs,dds,ws`, hidden, comma-separated — and
+  two things there are worth NOT copying, because they share one cause: the valid set
+  is written down three times.
+    - The error text says `allowed: 'entityMaps', 'distSubs', 'ws'` while the code also
+      accepts `dds`. The help lies about one of its own values and nothing can catch it.
+    - `char* wipV[4]` with `kStringSplit(..., 4)` caps the list at four. There are
+      exactly four features, so it works — and the fifth one silently disappears from
+      the middle of a comma list, with no error.
+
+  So drive all three from one table:
+
+      typedef struct { const char* name; bool* flag; const char* what; } WipFeature;
+
+  the parser walks it, the error message is generated from it, and the split is sized
+  by it. Adding a feature is one line and cannot desynchronise the help.
+
+  kargs supplies the rest: `KaString` with sort `KaHid` — hidden, always optional,
+  the equivalent of Orion-LD's `PaHid`. Give it `--wip` and `-wip` both, as every
+  other option in coraine's table has.
+
+  Why gate at all: the aim is to be current with the SPEC rather than its last
+  release (see docker/QUAY.md), so features land while the draft can still move. A
+  flag is what keeps "we implement the draft early" from meaning "the default build
+  changes under you".
 
 **Libs**
 
