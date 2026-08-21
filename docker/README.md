@@ -46,6 +46,12 @@ The port is not fixed in the image: pass `--port` and publish what you chose.
 
 ## Tags
 
-Published images will be `quay.io/seamware/coraine:<version>`, versioned with SemVer;
-publishing runs from CI, which is not enabled yet. Until then, build locally as above.
-See [QUAY.md](QUAY.md) for the procedure.
+Published images are `quay.io/coraine/coraine:<version>-<date>-<sha>` - one
+immutable tag per merge to main, never `latest`. The `coraine` namespace is
+temporary: the image moves to `seamware` once the org grants create rights.
+Versioned with SemVer.
+
+Publishing runs from CI on merge to main - `.github/workflows/deploy.yml`, which
+tests the merged tree before it builds anything, and then runs the image it just
+pushed and requires `/admin/version` to answer before it goes green. To build one
+locally instead, see above; [QUAY.md](QUAY.md) is the image's own description.

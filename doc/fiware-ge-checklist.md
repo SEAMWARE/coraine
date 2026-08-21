@@ -40,7 +40,7 @@ FIWARE Foundation.
 | Docs — analytics configured | ⛔ | needs a Google Analytics property shared with `fiware.eu@gmail.com` |
 | Docker — Dockerfile present | ✅ | `docker/Dockerfile` |
 | Docker — README present | ✅ | `docker/README.md` |
-| Docker — image available, SemVer tag | ⏳ | `quay.io/seamware/coraine`, publishing needs CI |
+| Docker — image available, SemVer tag | ⏳ | `quay.io/coraine/coraine`, published by deploy.yml on merge to main (moving to `seamware` when the org allows) |
 | Docker — no fixed ports | ✅ | `--port`, nothing hard-wired in the image |
 | Releases on GitHub, SemVer | ⏳ | version string is SemVer; **no release tagged yet** |
 | No stale PRs older than 90 days | ✅ | |
