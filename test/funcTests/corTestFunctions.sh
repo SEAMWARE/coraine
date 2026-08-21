@@ -428,9 +428,20 @@ ftClientStart() {
   esac
   echo "$scheme" > /tmp/ftClient.$port.scheme
 
-  $FT_CLIENT --port $port ${extraParams[*]} > /dev/null 2>&1 &
+  #
+  # Keep what it says. When an ftClient cannot start - no TLS in the HTTP library,
+  # a port already taken, a missing certificate - the only symptom used to be
+  # "corAwaitPort: port N not ready", because its stderr went to /dev/null. The
+  # reason was always one line long and always discarded.
+  #
+  $FT_CLIENT --port $port ${extraParams[*]} > /tmp/ftClient.$port.log 2>&1 &
   echo $! > "$pidFile"
-  corAwaitPort $port 5
+
+  if ! corAwaitPort $port 5; then
+    echo "ftClientStart: nothing listening on $port; ftClient said:" >&2
+    head -5 /tmp/ftClient.$port.log >&2
+    return 1
+  fi
 }
 
 
