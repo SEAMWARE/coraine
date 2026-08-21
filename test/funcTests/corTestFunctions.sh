@@ -202,10 +202,10 @@ coraineStop() {
   # process to actually exit before returning.
   if [ "$COR_VALGRIND" == "1" ] && [ "$role" == "CB" ] && [ -f "$COR_ROLE_PID_FILE" ]; then
     local pid; pid=$(cat "$COR_ROLE_PID_FILE")
-    if kill -0 "$pid" 2>/dev/null; then
+    if corPidAlive "$pid"; then
       kill -TERM "$pid" 2>/dev/null
       local n=0
-      while kill -0 "$pid" 2>/dev/null && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
+      while corPidAlive "$pid" && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
       kill -9 "$pid" 2>/dev/null   # backstop only if the wait timed out
     fi
     \rm -f "$COR_ROLE_PID_FILE"
@@ -496,6 +496,36 @@ ftClientStop() {
 #
 # -----------------------------------------------------------------------------
 #
+# corPidAlive <pid> - is this process still RUNNING, as opposed to merely listed?
+#
+# `kill -0` cannot answer that, and believing it cost the nightly twenty hours.
+#
+# A zombie has exited. It stays in the process table only because nobody has reaped
+# it, and `kill -0` on one SUCCEEDS - it is a valid pid that the signal check
+# accepts. In a GitHub Actions job container nothing ever will reap it: the runner
+# starts the container with `--entrypoint tail -f /dev/null`, so PID 1 is `tail`,
+# which never calls wait(). Every orphan that exits there is a zombie forever.
+#
+# And the broker IS an orphan: the harness runs each test section in its own bash,
+# so the shell that launched it has exited by the time the teardown runs. Locally
+# this never showed, because PID 1 is systemd and reaps immediately.
+#
+# The symptom was the shape of a timeout, because it was one: the graceful-exit wait
+# below ran its full 1200 x 0.1s on every single test - 120 seconds of watching a
+# corpse - while a probe in the same image measured the real shutdown at 0.5-2.7s.
+#
+# So: read the state out of /proc instead. Field 3 of /proc/<pid>/stat is the state
+# character, and Z means the work is done whatever the pid table says.
+corPidAlive() {
+  local pid=$1
+  [ -n "$pid" ] || return 1
+  [ -r "/proc/$pid/stat" ] || return 1
+  local state
+  state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null)
+  [ "$state" != "Z" ]
+}
+
+
 # corValgrindSleep <seconds> - sleep ONLY when running under valgrind (--vt)
 #
 # Under valgrind the broker runs ~4-5x slower, so an async result (notably a
