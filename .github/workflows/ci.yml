@@ -21,9 +21,15 @@ on:
       - main
   workflow_dispatch:
 
+#
+# Cancel superseded PULL REQUEST runs - a new push to a branch under review makes
+# the previous one moot. Do NOT cancel runs on main: those are the record of what
+# main did, and killing them means a series of pushes leaves no complete result
+# anywhere. Four runs died that way before this line existed.
+#
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 #
 # A container job defaults to `sh -e {0}` - bash is in the image, GitHub just does
