@@ -55,8 +55,9 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
+    # pinned - see the note in ci.yml
     container:
-      image: quay.io/coraine/ci-nightly:latest
+      image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
     services:
       mongo:
         image: mongo:8.0
@@ -130,7 +131,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     container:
-      image: quay.io/coraine/ci-nightly:latest
+      image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
     services:
       mongo:
         image: mongo:8.0
@@ -193,7 +194,7 @@ jobs:
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     container:
-      image: quay.io/coraine/ci-nightly:latest
+      image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
     services:
       mongo:
         image: mongo:8.0
@@ -291,7 +292,7 @@ jobs:
     permissions:
       contents: write
     container:
-      image: quay.io/coraine/ci-nightly:latest
+      image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
     services:
       mongo:
         image: mongo:8.0

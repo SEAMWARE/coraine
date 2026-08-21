@@ -94,8 +94,15 @@ jobs:
     # only the workflow that publishes it does. That is the difference between a
     # pipeline that can be broken by someone else's secret and one that cannot.
     #
+    #
+    # PINNED, and there is no "latest" to follow even if you wanted to. An image
+    # that changes under a build turns a red run into a mystery: same commit,
+    # different result, no diff to explain it. Adopting a new one is a one-line
+    # change here - reviewable, and bisectable, because the run that first used it
+    # is a commit. corLibs prints the tag to paste when it publishes.
+    #
     container:
-      image: quay.io/coraine/ci:latest
+      image: quay.io/coraine/ci:2026-08-21-a81a418
 
     services:
       mongo:
