@@ -91,14 +91,6 @@ jobs:
       # part of the k-libs; it is simply not on PATH here.
       #
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
-      #
-      # A shared runner is slower than a workstation, and a forward that answers
-      # in 5s there can exceed it here - which surfaces as an NGSILD-Warning 199
-      # in the response and a failed comparison. Every option has an environment
-      # variable; a test that is ABOUT timeouts passes its own -dtmo, and the
-      # command line wins over the environment.
-      #
-      CORAINE_DISTOPTIMEOUT: '15000'
 
     steps:
       #

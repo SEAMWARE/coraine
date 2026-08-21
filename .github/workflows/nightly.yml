@@ -76,7 +76,6 @@ jobs:
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
-      CORAINE_DISTOPTIMEOUT: '15000'
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
@@ -151,7 +150,6 @@ jobs:
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
-      CORAINE_DISTOPTIMEOUT: '15000'
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
@@ -215,7 +213,6 @@ jobs:
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
-      CORAINE_DISTOPTIMEOUT: '15000'
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
