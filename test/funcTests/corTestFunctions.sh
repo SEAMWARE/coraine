@@ -611,6 +611,16 @@ corHttpsCertGen() {
   openssl genrsa -out "$keyFile" 2048 > /dev/null 2>&1
   openssl req -days 365 -new -x509 -key "$keyFile" -out "$certFile" \
           -subj "/C=ES/ST=Madrid/L=Madrid/O=Seamware/OU=test/CN=localhost/" > /dev/null 2>&1
+
+  #
+  # Readable by whoever ends up serving with them. mosquitto 2.x drops privileges
+  # to the 'mosquitto' user when it is started as root - as it is in a container -
+  # and openssl writes the key 0600 to the creating user, so the daemon cannot
+  # read the key it was just handed and refuses to start. The symptom is an mqtts
+  # test that delivers no notification, with nothing wrong anywhere near the
+  # broker. Throwaway test material in /tmp, regenerated every run.
+  #
+  chmod 644 "$keyFile" "$certFile"
 }
 
 
