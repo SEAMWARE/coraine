@@ -132,10 +132,31 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "valgrind"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
+    #
+    # The job's NAME carries its range, so a red square in the checks list says which
+    # part of the suite went red without opening it - Orion-LD's convention
+    # (functional_0_501, functional_502_876, ...), in this repo's punctuation.
+    #
+    # The boundaries are BALANCED BY TIME, not by count, and measured rather than
+    # guessed: run 32485620075 timed all 612 cases, and equal counts of 153 came out
+    # at 17.3 / 16.4 / 16.3 / 20.0 minutes. The stage finishes when its slowest shard
+    # does, so those uneven ends cost two and a half minutes of wall clock for
+    # nothing. These four are within ten seconds of each other.
+    #
+    # The last shard has NO upper bound (corTest treats --toIx 0 as "to the end"), and
+    # that is not tidiness: hardcode 612 there and test 613 is never run by anybody,
+    # silently, the day somebody adds it. Re-measure and re-cut when the suite has
+    # grown enough for shard 4 to drift - it is the one that absorbs every new test.
+    #
+    name: valgrind ${{ matrix.shard.name }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard:
+          - { name: '1-156',   from: 1,   to: 156 }
+          - { name: '157-319', from: 157, to: 319 }
+          - { name: '320-476', from: 320, to: 476 }
+          - { name: '477-end', from: 477, to: 0 }
     container:
       image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
     services:
@@ -176,23 +197,18 @@ jobs:
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
           make di
-      - name: Suite under valgrind - shard ${{ matrix.shard }} of 4
+      - name: Suite under valgrind - tests ${{ matrix.shard.name }}
         working-directory: stack/coraine
         run: |
-          # `corTest --dryrun` prints "Found 613 test(s)" - a summary line, not a
-          # list. Counting LINES gave 1, so each shard ran exactly one test and
-          # the suite looked like it had passed. Take the number out of the line.
-          total=$(../corLibs/bin/corTest --dryrun 2>/dev/null | grep -oE '[0-9]+' | head -1)
-          total=${total:-613}
-          per=$(( (total + 3) / 4 ))
-          from=$(( (${{ matrix.shard }} - 1) * per + 1 ))
-          to=$(( ${{ matrix.shard }} * per ))
-          echo "tests $from..$to of $total"
-          ../corLibs/bin/corTest -db mongoc --noColor -vt --fromIx "$from" --toIx "$to"
+          # An empty --toIx is corTest's "to the end" (toIx=0), which is what the
+          # last shard wants and every other shard must not have.
+          to=""
+          [ "${{ matrix.shard.to }}" != "0" ] && to="--toIx ${{ matrix.shard.to }}"
+          ../corLibs/bin/corTest -db mongoc --noColor -vt --fromIx ${{ matrix.shard.from }} $to
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: valgrind-shard-${{ matrix.shard }}
+          name: valgrind-${{ matrix.shard.name }}
           path: stack/coraine/test/funcTests/cases/*.out
           retention-days: 7
 
