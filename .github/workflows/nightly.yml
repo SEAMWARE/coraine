@@ -273,3 +273,99 @@ jobs:
             /tmp/etsi-out
             /tmp/etsi-broker.log
           retention-days: 14
+
+  #
+  # Performance. RELEASE build - a debug broker measures the debug broker - and
+  # the numbers are kept, because a number with nothing to compare against says
+  # nothing. History lives on the perf-history branch: one JSON line per run,
+  # durable, greppable, and `git log` is the trend.
+  #
+  # The comparison is against the MEDIAN of the last few runs rather than against
+  # yesterday, and the thresholds are wide: a shared runner moves 20-30% on its
+  # own, and a perf gate that cries wolf is a perf gate nobody reads.
+  #
+  performance:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    container:
+      image: quay.io/coraine/ci-nightly:latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ['27017:27017']
+    env:
+      COR_MONGO_HOST: mongo
+      SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: stack/coraine }
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+
+      - name: Build and install coraine - RELEASE
+        working-directory: stack/coraine
+        run: |
+          mkdir -p /opt/seamware/plugins /opt/seamware/etc
+          make i
+
+      - name: Fetch the recorded history
+        run: |
+          git config --global --add safe.directory '*'
+          git clone --branch perf-history --single-branch --depth 50 \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" history 2>/dev/null \
+            || { mkdir -p history && cd history && git init -q && git checkout -qb perf-history; }
+          touch history/perf.jsonl
+          echo "recorded runs so far: $(wc -l < history/perf.jsonl)"
+
+      - name: Measure
+        working-directory: stack/coraine
+        run: |
+          for db in corDB mongoc; do
+            out=$(test/perf/perfRun.sh $db)
+            echo "$db: $out"
+            echo "$out" > /tmp/perf-$db.json
+          done
+
+      - name: Compare with history
+        id: compare
+        working-directory: stack/coraine
+        run: |
+          status=0
+          for db in corDB mongoc; do
+            python3 test/perf/perfCompare.py "$GITHUB_WORKSPACE/history/perf.jsonl" "$(cat /tmp/perf-$db.json)" \
+              >> "$GITHUB_STEP_SUMMARY" || status=1
+            echo >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit $status
+
+      - name: Record this run
+        if: always()
+        run: |
+          cd history
+          for db in corDB mongoc; do
+            [ -f /tmp/perf-$db.json ] || continue
+            python3 - "$db" >> perf.jsonl <<'PYEOF'
+          import json, os, sys
+          db = sys.argv[1]
+          rec = json.load(open(f"/tmp/perf-{db}.json"))
+          rec["sha"]  = os.environ["GITHUB_SHA"][:8]
+          rec["run"]  = os.environ["GITHUB_RUN_ID"]
+          rec["date"] = os.environ["RUN_DATE"]
+          print(json.dumps(rec, sort_keys=True))
+          PYEOF
+          done
+          git config user.name  "coraine CI"
+          git config user.email "ci@seamware.invalid"
+          git add perf.jsonl
+          git commit -qm "perf: ${{ github.sha }}" || exit 0
+          git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" perf-history
+        env:
+          RUN_DATE: ${{ github.event.repository.updated_at }}
