@@ -15,7 +15,14 @@ distops registration
 corDbDrop
 corDbDrop -role CP1
 corDbDrop -role CP2
-coraineStart -dist
+
+# -dtmo: this test is about merging redirect and auxiliary sources, not about
+# timeouts. Three brokers and a database on a shared CI runner can take longer
+# than the 5s default to answer a forward, and when they do the response carries
+# an extra NGSILD-Warning 199 and the comparison fails on a line that has nothing
+# to do with what is being verified. Saying so here beats making every broker in
+# the suite slower to accommodate one test.
+coraineStart -dist -dtmo 15000
 coraineStart -role CP1 -dist
 coraineStart -role CP2 -dist
 
