@@ -18,6 +18,11 @@ on:
         description: 'Run even if nothing merged in the last 24 hours'
         type: boolean
         default: false
+      only:
+        description: 'Run just one of the four - for trying a fix without paying for the other three'
+        type: choice
+        default: all
+        options: [all, coverage, valgrind, etsi, performance]
 
 defaults:
   run:
@@ -28,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.check.outputs.run }}
+      only: ${{ inputs.only || 'all' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +59,7 @@ jobs:
   #
   coverage:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "coverage"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
     # pinned - see the note in ci.yml
     container:
@@ -124,7 +130,7 @@ jobs:
   #
   valgrind:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "valgrind"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -196,7 +202,7 @@ jobs:
   #
   etsi:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "etsi"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
     container:
       image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
@@ -307,7 +313,7 @@ jobs:
   #
   performance:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "performance"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
     permissions:
       contents: write
