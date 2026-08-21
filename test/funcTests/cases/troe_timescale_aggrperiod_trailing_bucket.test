@@ -38,6 +38,15 @@ echo "======================================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T12:07:00Z"}}' >/dev/null
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T13:07:00Z"}' >/dev/null
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T14:07:00Z"}' >/dev/null
+
+# TRoE is written asynchronously, and this test had no wait at all - the queries
+# below simply assumed the rows had landed. On a loaded CI runner they had not,
+# and the first one answered 404 "no temporal data for entity 'urn:V1'".
+#
+# Waiting for the LAST sample rather than for any data: a query that arrives
+# after the first row but before the third gets a 200 with the wrong aggregates,
+# which is the same bug wearing a passing status code.
+corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=after&timeAt=2026-04-28T12:03:00Z' '2026-04-28T14:07:00Z'
 echo done
 echo
 echo
