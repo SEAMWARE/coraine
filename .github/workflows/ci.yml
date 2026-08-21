@@ -14,18 +14,22 @@
 #
 name: CI
 
+#
+# PULL REQUESTS and manual dispatch only - never on a push.
+#
+# A push is not a request to test: a branch gets pushed to sync it to another
+# machine, to park work, to back it up. Running the suite on every one of those is
+# twenty minutes of runners spent on a question nobody asked, and it trains people
+# to ignore the result. CI runs when a change is PROPOSED - or when you ask for it
+# by hand from the Actions tab.
+#
 on:
   pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 #
-# Cancel superseded PULL REQUEST runs - a new push to a branch under review makes
-# the previous one moot. Do NOT cancel runs on main: those are the record of what
-# main did, and killing them means a series of pushes leaves no complete result
-# anywhere. Four runs died that way before this line existed.
+# Cancel superseded PULL REQUEST runs - a new commit on a branch under review makes
+# the previous one moot. A manual dispatch is never cancelled: you asked for it.
 #
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
