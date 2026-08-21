@@ -66,6 +66,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      #
+      # GitHub does not complain about a workflow it cannot parse - it just stops
+      # running it. The nightly sat broken and silent for a day that way, after an
+      # env var was spliced into the middle of a `steps:` list. So: parse them all,
+      # every time, and fail loudly here instead.
+      #
+      - name: The workflow files must parse
+        run: |
+          for f in .github/workflows/*.yml; do
+            python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$f" \
+              || { echo "::error file=$f::not valid YAML - GitHub would silently ignore this workflow"; exit 1; }
+            echo "  ok  $f"
+          done
+
       - id: check
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then

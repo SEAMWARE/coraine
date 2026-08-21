@@ -153,6 +153,9 @@ jobs:
           MEMORY_ENABLED: 'true'
         ports: ['7080:8080']
     env:
+      # --track-origins doubles the runtime, and CI only needs to know THAT a
+      # value is uninitialised. Where it came from is a question for a local run.
+      COR_VALGRIND_ORIGINS: 'no'
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
@@ -164,7 +167,6 @@ jobs:
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
-      COR_VALGRIND_ORIGINS: 'no'
 
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
