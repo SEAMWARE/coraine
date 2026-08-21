@@ -26,6 +26,13 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+  #
+  # Callable, so the deploy workflow can run THIS suite against the merged tree
+  # rather than keeping a second copy of it. Nothing tested main before: a pull
+  # request is checked against a merge preview, and once several land, main is a
+  # combination no run has ever seen.
+  #
+  workflow_call:
 
 #
 # Cancel superseded PULL REQUEST runs - a new commit on a branch under review makes
@@ -82,8 +89,16 @@ jobs:
 
       - id: check
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "manual dispatch - running"
+          #
+          # Anything that is not a pull request runs the lot. The path filter below
+          # needs `github.base_ref` to diff against, and only a pull request has
+          # one - so on a manual dispatch, or a call from the deploy workflow, there
+          # is nothing to compare with and nothing to be clever about. A merge to
+          # main should run the whole suite regardless: it is the tree that is about
+          # to be published.
+          #
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "${{ github.event_name }} - running everything"
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

@@ -1,0 +1,148 @@
+#
+# Publish the coraine image, on merge to main.
+#
+# The trigger is `push: main`, which is what a merged pull request is. There is no
+# separate "PR merged" event worth using: `pull_request: closed` fires for a PR that
+# was merged AND for one that was abandoned, and telling them apart means reading
+# `github.event.pull_request.merged` in an `if`. A push to main is the same fact
+# without the branch.
+#
+# It VERIFIES FIRST, and that is the part worth defending. Until now nothing tested
+# main at all - ci.yml runs on pull_request, which checks a merge PREVIEW, and once
+# several PRs land the tree on main is a combination no run has ever seen. Publishing
+# on merge without running the suite against the merged tree ships exactly that.
+#
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  #
+  # NOT cancel-in-progress. Everywhere else in this repo a superseded run is moot
+  # and gets cancelled; a publish is the one thing that is not, because it has a
+  # side effect outside the runner. Killing one mid-push can leave a tag half
+  # written, and the next run would then be comparing against a lie.
+  #
+  cancel-in-progress: false
+
+jobs:
+  #
+  # The whole functional suite, against the merged tree, by CALLING ci.yml rather
+  # than keeping a second copy of it here. A copy would drift, and the copy that
+  # drifts is always the one guarding the thing that ships.
+  #
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'SEAMWARE/coraine' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+          fetch-depth: 0          # the tag carries a short SHA
+
+      - uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+
+      #
+      # docker/Dockerfile builds the k-libs from source (they are public) but cannot
+      # reach the Cor-Libs, which are private - so docker/vendor-libs.sh exports each
+      # one's committed HEAD from a local clone into the build context. That needs
+      # the clones to exist, which is what bootstrap.sh is for. Same path the nightly
+      # takes, for the same reason.
+      #
+      - name: Clone the private lib stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+
+      - name: Stage the private libs into the build context
+        working-directory: stack/coraine
+        run: |
+          ./docker/vendor-libs.sh
+          echo "--- vendored:"
+          cat docker/vendor/MANIFEST.txt
+
+      #
+      # ONE immutable tag: <version>-<yyyy-mm-dd>-<sha>.
+      #
+      # The version comes out of the header the broker itself compiles in, so the
+      # tag cannot disagree with what /admin/version answers - CMakeLists reads the
+      # same file, after a build once announced 0.3 in its User-Agent while
+      # /admin/version said 0.2.0.
+      #
+      # There is deliberately no "latest", which is corLibs' rule for the CI images
+      # and is worth more here: an image that moves under a deployment is an outage
+      # nobody can bisect. Note that quay.io/coraine/ci still HAS a stale `latest`
+      # from before that rule; it should go, and this repo should not add another.
+      #
+      # Not github.run_number either, which Orion-LD's deploy uses: it resets if the
+      # workflow is ever recreated, and it says how many times CI has run rather than
+      # what was built.
+      #
+      - name: Compute the tag
+        id: tag
+        working-directory: stack/coraine
+        run: |
+          version=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
+                    src/app/coraine/coraineVersion.h)
+          [ -n "$version" ] || { echo "::error::no CORAINE_VERSION in coraineVersion.h"; exit 1; }
+          echo "value=${version}-$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: stack/coraine
+          file: stack/coraine/docker/Dockerfile
+          push: true
+          build-args: |
+            GIT_SHA=${{ steps.tag.outputs.sha }}
+            BUILD_AT=${{ github.event.head_commit.timestamp }}
+          tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      #
+      # The image has to actually run. A push that succeeds and an image that cannot
+      # start is the worst of both - it is published, it is immutable, and nobody
+      # finds out until somebody pulls it.
+      #
+      - name: The published image must start and answer
+        run: |
+          img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}
+          docker run --rm -d --name coraine-smoke -p 1026:1026 "$img" --database corDB
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break
+            [ "$i" = 20 ] && { echo "::error::published image never answered"; docker logs coraine-smoke; exit 1; }
+            sleep 1
+          done
+          curl -sf http://localhost:1026/admin/version
+          docker rm -f coraine-smoke
+
+      - name: Say what was published
+        run: |
+          echo "### Published" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
