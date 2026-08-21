@@ -623,6 +623,17 @@ ftClientProbeCount() {
 # ftClientReset [--port P] - clear accumulated notifications
 #
 ftClientReset() {
+  #
+  # The same settle as ftClientDump and ftClientCount, and this is the one that
+  # needs it most: a notification still in flight survives the reset, lands in
+  # ftClient afterwards, and is counted by the NEXT step. The failure surfaces
+  # far from its cause - one notification too many, carrying the subscription id
+  # of the step before - which is exactly how it read in the valgrind nightly.
+  #
+  # Valgrind path only; a no-op otherwise.
+  #
+  corValgrindSleep "${COR_VALGRIND_DUMP_SETTLE:-1.5}"
+
   local port=$FT_CLIENT_PORT
   while [ $# -gt 0 ]; do
     if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then

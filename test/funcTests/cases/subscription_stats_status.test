@@ -43,6 +43,10 @@ echo
 
 echo "03. GET S1 → notification.status = \"ok\""
 echo "========================================"
+# The notification is sent asynchronously: this GET can otherwise read the
+# statistics before the broker has written them. Silent - waits for the fact
+# rather than guessing at a sleep, and costs nothing when it is already true.
+corAwaitBody 10 /ngsi-ld/v1/subscriptions/urn:S1 '"timesSent": 1'
 corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
 echo
 echo
@@ -66,6 +70,10 @@ echo
 
 echo "06. GET S1 → notification.status = \"failed\" (lastFailure now newer than lastSuccess)"
 echo "======================================================================================"
+# The notification is sent asynchronously: this GET can otherwise read the
+# statistics before the broker has written them. Silent - waits for the fact
+# rather than guessing at a sleep, and costs nothing when it is already true.
+corAwaitBody 10 /ngsi-ld/v1/subscriptions/urn:S1 '"status": "failed"'
 corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
 echo
 echo
@@ -82,6 +90,10 @@ echo
 
 echo "08. GET S1 → notification.status = \"ok\" again"
 echo "=============================================="
+# The notification is sent asynchronously: this GET can otherwise read the
+# statistics before the broker has written them. Silent - waits for the fact
+# rather than guessing at a sleep, and costs nothing when it is already true.
+corAwaitBody 10 /ngsi-ld/v1/subscriptions/urn:S1 '"timesSent": 3'
 corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed|status|lastSuccess|lastFailure)"'
 echo
 echo

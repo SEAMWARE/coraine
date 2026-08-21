@@ -52,6 +52,10 @@ echo
 
 echo "02. Retrieve CSR-sub S1"
 echo "======================="
+# The on-create notification attempt is asynchronous, and this assertion reads
+# the statistics it writes. Waiting for the fact rather than racing it - the
+# CI runner is loaded enough to lose this race even though a workstation is not.
+corAwaitBody 10 /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1 '"status": "failed"'
 corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 echo
 echo
@@ -73,6 +77,9 @@ echo
 
 echo "04. List all CSR-subs - two"
 echo "==========================="
+# Both subscriptions' statistics appear in this listing, so both attempts have
+# to have been made before it is read - CSR1 was waited for above, CSR2 here.
+corAwaitBody 10 /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR2 '"status": "failed"'
 corCurl --url /ngsi-ld/v1/csourceSubscriptions
 echo
 echo
@@ -100,6 +107,10 @@ echo
 
 echo "07. Retrieve after patch"
 echo "========================"
+# The on-create notification attempt is asynchronous, and this assertion reads
+# the statistics it writes. Waiting for the fact rather than racing it - the
+# CI runner is loaded enough to lose this race even though a workstation is not.
+corAwaitBody 10 /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1 '"status": "failed"'
 corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSR1
 echo
 echo

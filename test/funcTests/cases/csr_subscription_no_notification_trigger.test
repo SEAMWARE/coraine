@@ -45,6 +45,10 @@ echo
 
 echo "02. GET urn:CSRsub:1 — body must NOT carry notificationTrigger"
 echo "=============================================================="
+# The on-create notification attempt is asynchronous, and this assertion reads
+# the statistics it writes. Waiting for the fact rather than racing it - the
+# CI runner is loaded enough to lose this race even though a workstation is not.
+corAwaitBody 10 /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:1 '"status": "failed"'
 corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:1
 echo
 echo
