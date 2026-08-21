@@ -158,6 +158,7 @@ jobs:
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
+      COR_VALGRIND_ORIGINS: 'no'
 
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
@@ -170,7 +171,11 @@ jobs:
       - name: Suite under valgrind - shard ${{ matrix.shard }} of 4
         working-directory: stack/coraine
         run: |
-          total=$(../corLibs/bin/corTest --dryrun 2>/dev/null | grep -c . || echo 613)
+          # `corTest --dryrun` prints "Found 613 test(s)" - a summary line, not a
+          # list. Counting LINES gave 1, so each shard ran exactly one test and
+          # the suite looked like it had passed. Take the number out of the line.
+          total=$(../corLibs/bin/corTest --dryrun 2>/dev/null | grep -oE '[0-9]+' | head -1)
+          total=${total:-613}
           per=$(( (total + 3) / 4 ))
           from=$(( (${{ matrix.shard }} - 1) * per + 1 ))
           to=$(( ${{ matrix.shard }} * per ))
@@ -317,12 +322,19 @@ jobs:
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
           make i
 
+      #
+      # The branch does not exist on the first run, so the clone fails and an empty
+      # one is created. `git init -b <branch>` and not `git checkout -b`: a
+      # repository with no commits has no HEAD to branch from, which is how the
+      # first attempt died. No `cd` here either - it would leak into the rest of
+      # the step and put the file one directory too deep.
+      #
       - name: Fetch the recorded history
         run: |
           git config --global --add safe.directory '*'
           git clone --branch perf-history --single-branch --depth 50 \
             "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" history 2>/dev/null \
-            || { mkdir -p history && cd history && git init -q && git checkout -qb perf-history; }
+            || git init -q -b perf-history history
           touch history/perf.jsonl
           echo "recorded runs so far: $(wc -l < history/perf.jsonl)"
 
@@ -353,15 +365,7 @@ jobs:
           cd history
           for db in corDB mongoc; do
             [ -f /tmp/perf-$db.json ] || continue
-            python3 - "$db" >> perf.jsonl <<'PYEOF'
-          import json, os, sys
-          db = sys.argv[1]
-          rec = json.load(open(f"/tmp/perf-{db}.json"))
-          rec["sha"]  = os.environ["GITHUB_SHA"][:8]
-          rec["run"]  = os.environ["GITHUB_RUN_ID"]
-          rec["date"] = os.environ["RUN_DATE"]
-          print(json.dumps(rec, sort_keys=True))
-          PYEOF
+            python3 "$GITHUB_WORKSPACE/stack/coraine/test/perf/perfRecord.py" "$db" >> perf.jsonl
           done
           git config user.name  "coraine CI"
           git config user.email "ci@seamware.invalid"

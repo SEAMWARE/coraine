@@ -143,7 +143,15 @@ coraineStart() {
     # The engine fails on leaks by reading the LEAK SUMMARY lost-byte counts
     # directly, so leaks don't need to count as "errors" to be caught — and this
     # keeps the engine's E (errors) and L (leaks) tallies cleanly separated.
-    local vg="valgrind --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=none --track-origins=yes --num-callers=40 --child-silent-after-fork=yes"
+    #
+    # --track-origins is the expensive one - it roughly doubles memcheck's cost,
+    # and on a shared CI runner that turns a graceful shutdown into a two-minute
+    # wait. It stays ON here, where the origins are actually read while chasing a
+    # leak, and CI sets COR_VALGRIND_ORIGINS=no: there, valgrind is an indicator,
+    # not the investigation.
+    #
+    local vgOrigins=${COR_VALGRIND_ORIGINS:-yes}
+    local vg="valgrind --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=none --track-origins=$vgOrigins --num-callers=40 --child-silent-after-fork=yes"
     if [ -f "test/funcTests/valgrind.supp" ]; then
       vg="$vg --suppressions=test/funcTests/valgrind.supp"
     fi
