@@ -144,6 +144,28 @@ That drops the hard link, the mapping and the init, and makes libmosquitto an
 
 ---
 
+## 10. Grow the performance suite
+
+`test/perf/perfRun.sh` measures one shape today: an entity query over 100 entities
+at c50 and c200, plus retrieve-by-id. The nightly records the numbers on the
+`perf-history` branch and warns when they drop. What it does not measure yet is
+most of what makes a broker slow in production.
+
+Planned, in order - each one ADDED rather than editing an existing scenario,
+because a changed scenario silently invalidates every number recorded against it:
+
+1. ✅ **Entity query over 100 entities** - what is measured today.
+2. **The same, with NON-matching subscriptions loaded.** Every write walks the
+   subscription cache whether or not anything matches; this is what that costs.
+3. **The same, with MATCHING subscriptions, notified over HTTP.** Brings the
+   notification path, the renderer and the HTTP client into the measurement.
+4. Then: MQTT notifications, distributed operations against a second broker,
+   temporal writes with TRoE enabled, geo-queries, and batch operations.
+
+The thresholds are wide on purpose - warn at -20%, fail at -50% against the median
+of the last five runs - because a shared runner moves 20-30% by itself. A scenario
+is worth adding only when its numbers are steady enough to mean something.
+
 ## Smaller, still open
 
 **Broker**
