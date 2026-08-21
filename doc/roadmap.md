@@ -1,40 +1,78 @@
-# coraine roadmap
+# coraine Roadmap
 
-This is the public roadmap. It is deliberately short: the detailed, current backlog —
-including what is deferred *by design* and why — lives in
-[`ToDo.md`](../ToDo.md) at the root of the repository, and is kept up to date as work
-lands rather than at release boundaries.
+This product is an Incubated FIWARE Generic Enabler. If you would like to learn
+about the overall Roadmap of FIWARE, please check the section "Roadmap" on the
+[FIWARE Catalogue](https://www.fiware.org/developers/catalogue/).
 
-## Where coraine is today
+## Introduction
 
-- **NGSI-LD ETSI GS CIM 009 v1.9.1 fully implemented**, passing the official ETSI
-  conformance test suite.
-- Plugin-driven: current-state DB, temporal (TRoE) and extra API surfaces are shared
-  libraries chosen at startup.
-- Two DB backends (`mongoc`, `corDB`), three temporal backends (`none`, `ramdb`,
-  `timescale`), one API plugin (`admin`).
+This section elaborates on proposed new features or tasks which are expected to be
+added to the product in the foreseeable future. There should be no assumption of a
+commitment to deliver these features on specific dates or in the order given. The
+development team will be doing their best to follow the proposed dates and
+priorities, but please bear in mind that plans to work on a given feature or task
+may be revised. All information is provided as general guidelines only, and this
+section may be revised to provide newer information at any time.
+
+The detailed, day-to-day backlog — including what is deferred *by design* and why —
+is [`ToDo.md`](../ToDo.md) in the root of this repository. It is kept current as
+work lands rather than at release boundaries.
 
 ## Short term
 
-- **Service Execution** — actuation as a first-class API citizen, beyond the
-  suggested workflows of TS 104 175 Annex G.
-- **Communication protocols as plugins** — lift REST/HTTP behind the same plugin seam
-  as the DB and TRoE drivers, then add a binary IPC protocol beside it.
-- **Finish conditional compilation** — per-feature `#ifdef`s so a deployment compiles
-  only the NGSI-LD it uses.
+The following features are planned to be addressed in the short term and
+incorporated in the next release of the product:
+
+-   **Service Execution.** Actuation as a first-class citizen of the API, beyond
+    the suggested workflows of TS 104 175 Annex G.
+
+-   **Communication protocols as plugins.** Lift REST/HTTP behind the same plugin
+    seam as the DB and TRoE drivers, so a transport can be replaced.
+
+-   **Binary IPC protocol.** A TLV-framed transport beside REST, with no JSON
+    parse on the hot path.
+
+-   **Finish conditional compilation.** Per-feature `#ifdef`s, so a deployment
+    compiles only the NGSI-LD it uses.
+
+-   **Subordinate subscriptions on registration change.** § 10.5.2.4 currently
+    handles creation and deletion but not `PATCH`.
 
 ## Medium term
 
-- **DDS** and **OPC UA** as transports, addressed as `local://<name>` endpoints, for
-  the robotics and industrial-automation side.
-- **WebSockets** — notification delivery to consumers that cannot be HTTP servers.
-- **corDB** — an NGSI-LD-aware store with entities cached in RAM.
-- **haaux** — high-availability cache synchronisation without a shared database.
+The following specific features are proposed to be addressed in the medium term,
+typically within the subsequent release(s) generated in the next **9 months**:
 
-## Continuous
+-   **DDS transport.** Speak DDS natively for robotics and industrial deployments,
+    addressed as `local://dds` endpoints.
 
-- ETSI conformance: keeping the suite at 100% as the specification evolves, and
-  feeding test-side corrections back upstream.
-- Growing functional-test coverage — the gap list is
-  [`doc/spec-coverage-gaps.md`](spec-coverage-gaps.md), the measured numbers are in
-  [`doc/coverage.md`](coverage.md).
+-   **OPC UA transport.** The same for industrial automation: variables as
+    attributes, monitored items as subscriptions, methods as Service Execution.
+
+-   **WebSockets.** Notification delivery to consumers that cannot themselves be
+    HTTP servers — anything behind NAT, a firewall or a browser.
+
+-   **corDB.** An NGSI-LD-aware store with entities cached in RAM and persistence
+    behind it, replacing translation with representation.
+
+-   **haaux.** High-availability cache synchronisation without a shared database,
+    single-digit milliseconds, interrupt driven.
+
+## Long term
+
+The following are proposals regarding the longer-term evolution of the product.
+Take into account that there is no commitment to deliver them in a specific
+timeframe; they are provided so that potential contributors can see where the
+product is heading and may wish to get involved.
+
+-   **Array reduction in `corJsonld`.** A single JSON-LD normalisation applied once
+    at the input boundary rather than at each call site.
+
+-   **Embedded deployment.** The broker is under 1 MiB and starts in 10 ms; running
+    it on constrained hardware is a question of build configuration, not redesign.
+
+-   **Continuous ETSI conformance.** Keeping the official test suite at 100% as the
+    specification evolves, and feeding test-side corrections upstream.
+
+-   **Broader performance regression coverage.** Measured nightly and recorded, so
+    a regression is noticed by CI rather than by a user.
