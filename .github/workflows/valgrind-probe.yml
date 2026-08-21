@@ -53,7 +53,9 @@ jobs:
                       --child-silent-after-fork=yes --log-file=/tmp/probe.vg"
 
             echo "=============== $label (origins=$origins, pool=$pool)"
-            local t0=$(date +%s.%N)
+            # No `bc` in the image - and the first run of this probe spent its whole
+            # life reporting "0.0s" because of it. Nanoseconds and integer arithmetic.
+            local t0=$(date +%s%N)
             $vg coraine --port 1029 $dbArgs --troe none --connectionPoolSize "$pool" \
                 > /tmp/probe.log 2>&1 &
             local pid=$!
@@ -62,16 +64,16 @@ jobs:
               kill -0 $pid 2>/dev/null || { echo "  broker died during startup"; cat /tmp/probe.log; return 1; }
               sleep 0.2
             done
-            local t1=$(date +%s.%N)
-            printf "  startup: %.1fs\n" "$(echo "$t1 - $t0" | bc)"
+            local t1=$(date +%s%N)
+            printf "  startup: %d ms\n" $(( (t1 - t0) / 1000000 ))
 
             curl -sf "http://localhost:1029/ngsi-ld/v1/types" > /dev/null && echo "  answers requests"
 
             kill -TERM $pid
             local n=0
             while kill -0 $pid 2>/dev/null && [ $n -lt 1800 ]; do sleep 0.1; n=$((n + 1)); done
-            local t2=$(date +%s.%N)
-            printf "  shutdown after SIGTERM: %.1fs%s\n" "$(echo "$t2 - $t1" | bc)" \
+            local t2=$(date +%s%N)
+            printf "  shutdown after SIGTERM: %d ms%s\n" $(( (t2 - t1) / 1000000 )) \
                    "$([ $n -ge 1800 ] && echo '  (STILL RUNNING - gave up)')"
             kill -9 $pid 2>/dev/null || true
             echo "  valgrind said:"; tail -4 /tmp/probe.vg 2>/dev/null | sed 's/^/    /'
