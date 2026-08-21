@@ -239,6 +239,20 @@ static void onSignal(int sigNo)
 {
   (void) sigNo;
 
+  //
+  // Stop the periodic loop FIRST. Its dispatch thread calls into the DB plugin
+  // (pernot re-queries the entities a periodic subscription watches), so tearing
+  // the plugin down underneath it leaves whatever that thread had checked out
+  // unreturned - a mongoc client and its guts, ~8.8 KB, which is what the
+  // nightly valgrind run reported against subscription_pernot. Worse than the
+  // leak: a thread still inside entityQuery would be reading a pool that
+  // dbClose has already destroyed.
+  //
+  // ldPeriodicLoopStop clears the run flag and joins, so on return no other
+  // thread can be inside the plugin.
+  //
+  ldPeriodicLoopStop();
+
   // Graceful stop: free DB-plugin resources before exit so an in-memory store
   // (corDB) is released rather than leaked — exit(0) then lets valgrind (--vt)
   // and any leak gate see a clean shutdown.

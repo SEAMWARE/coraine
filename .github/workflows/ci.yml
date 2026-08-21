@@ -104,6 +104,40 @@ jobs:
     runs-on: ubuntu-latest
 
     #
+    # Four jobs, named for what they run - `functest mongoc 1-324` and so on, the
+    # same convention as the nightly's valgrind shards and as Orion-LD's
+    # functional_0_501. A red square says which half of which backend went red
+    # without opening it.
+    #
+    # It was ONE job running both suites back to back: 21.3 minutes of mongoc then
+    # 10.7 of corDB, 33.5 with the setup. They are independent measurements and had
+    # no reason to be sequential.
+    #
+    # The cuts are measured, from run 32471125462, and by TIME rather than by count
+    # because the suites are back-loaded: splitting mongoc down the middle by count
+    # gives 9.8 and 11.1 minutes, and a stage ends when its slowest job does.
+    #
+    # corDB is cut at its OWN index. It runs 563 tests where mongoc runs 612 - a
+    # test that pins a backend-specific answer declares REQUIRE_DB and belongs to
+    # one of them only - and corTest filters before it numbers, so index 314 is a
+    # different test in each. The two ranges are not comparable and are not meant
+    # to be.
+    #
+    # Neither second shard has an upper bound (corTest reads --toIx 0 as "to the
+    # end"). Hardcode the last index and the day somebody adds a test it is run by
+    # nobody, silently.
+    #
+    name: functest ${{ matrix.shard.db }} ${{ matrix.shard.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { db: mongoc, name: '1-324',   from: 1,   to: 324 }
+          - { db: mongoc, name: '325-end', from: 325, to: 0 }
+          - { db: corDB,  name: '1-314',   from: 1,   to: 314 }
+          - { db: corDB,  name: '315-end', from: 315, to: 0 }
+
+    #
     # The base image is PUBLIC, so the job needs no registry credential at all -
     # only the workflow that publishes it does. That is the difference between a
     # pipeline that can be broken by someone else's secret and one that cannot.
@@ -243,29 +277,24 @@ jobs:
           pkill -x coraine || true
 
       #
-      # Two runs, because they are two different measurements: a test that pins a
-      # backend-specific answer declares REQUIRE_DB and belongs to one of them only.
+      # One step now, parameterised. The two backends used to be two steps in one
+      # job, with the second guarded so a red mongoc run could not hide a red corDB
+      # one; they are separate JOBS now, so that guard is what `fail-fast: false`
+      # says instead - and it covers all four rather than just the pair.
       #
-      - name: Functional tests - mongoc
+      - name: Functional tests - ${{ matrix.shard.db }} ${{ matrix.shard.name }}
         working-directory: stack/coraine
-        run: ../corLibs/bin/corTest -db mongoc --noColor
-
-      #
-      # Runs even when the mongoc suite failed - the two are separate measurements
-      # and a red mongoc run should not hide a red corDB one. But only if there is
-      # a broker to run: `always()` would have run it after a failed build, which
-      # it did, producing a second confusing failure on the first CI run.
-      #
-      - name: Functional tests - corDB
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        working-directory: stack/coraine
-        run: ../corLibs/bin/corTest -db corDB --noColor
+        run: |
+          to=""
+          [ "${{ matrix.shard.to }}" != "0" ] && to="--toIx ${{ matrix.shard.to }}"
+          ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor \
+              --fromIx ${{ matrix.shard.from }} $to
 
       - name: Keep the output of anything that failed
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failed-test-output
+          name: failed-${{ matrix.shard.db }}-${{ matrix.shard.name }}
           path: |
             stack/coraine/test/funcTests/cases/*.out
             stack/coraine/test/funcTests/cases/*.diff
