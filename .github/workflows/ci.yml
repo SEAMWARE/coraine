@@ -44,7 +44,49 @@ defaults:
     shell: bash
 
 jobs:
+  #
+  # Does this change need the suite at all? A README edit does not, and running
+  # twenty minutes of tests over it teaches everyone to ignore the result.
+  #
+  # An ALLOW-list, not a deny-list: only changes that can affect behaviour count -
+  # the sources, the tests, the build, this workflow. Anything else (doc/, *.md,
+  # the backlog) skips. A manual dispatch always runs; if you asked for it, you get
+  # it.
+  #
+  # Gated as a JOB rather than with paths-ignore, deliberately: a workflow skipped
+  # by paths-ignore reports NO status, which a required check reads as "still
+  # waiting". A skipped job reports success.
+  #
+  relevant:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "manual dispatch - running"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          echo "changed files:"; echo "$changed"
+
+          if echo "$changed" | grep -qE '^(src/|test/|CMakeLists\.txt|makefile|\.github/workflows/ci\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No source, test or build changes - skipping the functional suite"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: relevant
+    if: needs.relevant.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     #
