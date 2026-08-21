@@ -97,8 +97,8 @@ jobs:
       #
       # There is deliberately no "latest", which is corLibs' rule for the CI images
       # and is worth more here: an image that moves under a deployment is an outage
-      # nobody can bisect. Note that quay.io/coraine/ci still HAS a stale `latest`
-      # from before that rule; it should go, and this repo should not add another.
+      # nobody can bisect. The CI images carried a `latest` from before that rule;
+      # both have been deleted, and nothing here creates another.
       #
       # Not github.run_number either, which Orion-LD's deploy uses: it resets if the
       # workflow is ever recreated, and it says how many times CI has run rather than
