@@ -62,9 +62,16 @@ jobs:
       # the clones to exist, which is what bootstrap.sh is for. Same path the nightly
       # takes, for the same reason.
       #
+      #
+      # NOBUILD=1 - clone, do not build. This job runs on a bare runner, not in the
+      # CI image, so it has no libmicrohttpd-dev and the build died on
+      # microhttpd.h. It never needed to build: the next step vendors the libs by
+      # `git archive HEAD` from these clones, and the Dockerfile compiles them
+      # inside the image. Building here produced artifacts nothing would ever use.
+      #
       - name: Clone the private lib stack
         working-directory: stack/corLibs
-        run: ./bootstrap.sh
+        run: NOBUILD=1 ./bootstrap.sh
 
       - name: Stage the private libs into the build context
         working-directory: stack/coraine
