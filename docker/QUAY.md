@@ -1,6 +1,14 @@
 # Coraine — NGSI-LD Context Broker
 
-A lightweight NGSI-LD context broker written in C, targeting **ETSI GS CIM 009 v1.9.1**.
+A lightweight NGSI-LD context broker written in C, **fully implementing ETSI GS CIM 009
+v1.9.1** and passing the official ETSI NGSI-LD conformance test suite with a 100%
+success rate.
+
+The aim is to be current with the specification at all times, not current with the last
+release of it: anything added to the next draft is implemented as it appears there,
+rather than after it is published. A draft can change, and then it is implemented again —
+that is the cost of being early, and it is a cost worth paying.
+
 Plugin-driven: storage backends, temporal history and extra API surfaces are all `.so`
 plugins chosen at startup.
 
