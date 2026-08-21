@@ -73,8 +73,15 @@ jobs:
         working-directory: stack/corLibs
         run: NOBUILD=1 ./bootstrap.sh
 
+      #
+      # BASE: the script defaults to ~/git, which is where these clones live on a
+      # workstation. On the runner they are siblings of the corLibs checkout, so
+      # it looked in an empty ~/git and stopped at the first lib.
+      #
       - name: Stage the private libs into the build context
         working-directory: stack/coraine
+        env:
+          BASE: ${{ github.workspace }}/stack
         run: |
           ./docker/vendor-libs.sh
           echo "--- vendored:"
@@ -138,7 +145,15 @@ jobs:
       - name: The published image must start and answer
         run: |
           img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}
-          docker run --rm -d --name coraine-smoke -p 1026:1026 "$img" --database corDB
+          #
+          # --apiPlugins admin, because these arguments REPLACE the image's CMD,
+          # and the CMD is where the admin plugin was selected. Without it the
+          # broker starts and serves NGSI-LD perfectly well, /admin/version
+          # answers 404, and the check below fails - after the push, at the last
+          # hurdle. corDB so the check needs no database container.
+          #
+          docker run --rm -d --name coraine-smoke -p 1026:1026 "$img" \
+                     --database corDB --apiPlugins admin
           for i in $(seq 1 20); do
             curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break
             [ "$i" = 20 ] && { echo "::error::published image never answered"; docker logs coraine-smoke; exit 1; }
