@@ -22,6 +22,13 @@ That evolved logic is what belongs here: structured building blocks for
 actuation — commands, feedback, conditional and chained execution — implemented
 in the broker rather than re-invented in every application.
 
+**Starting soon — and it is the feature that brings `--wip` with it.** The annex is
+mature enough in the spec/draft to build against, which is exactly the case the
+gate under *Smaller, still open* was described for: implemented while the draft can
+still move, so it must not change the default build under anybody. Build the flag
+alongside the first piece of this, not before it and not after — its shape is
+easier to get right with a real feature in hand, and this is that feature.
+
 ## 2. DDS
 
 Speak DDS as a first-class transport, for the robotics and industrial side where
