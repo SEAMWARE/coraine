@@ -188,7 +188,7 @@ is worth adding only when its numbers are steady enough to mean something.
 - **`--wip` — a gate for what is implemented ahead of the spec.** Not built yet, and
   deliberately: the option has nothing to gate today, and its shape is easier to get
   right with a real feature in hand than invented in advance. Add it with the first
-  draft-ahead feature, not before.
+  draft-ahead feature, not before — which is **Service Execution** (§ 1), starting soon.
 
   Orion-LD has it — `-wip entityMaps,distSubs,dds,ws`, hidden, comma-separated — and
   two things there are worth NOT copying, because they share one cause: the valid set
