@@ -87,7 +87,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 364
+Content-Length: 431
 
 {
   "entities": [
@@ -96,6 +96,7 @@ Content-Length: 364
     }
   ],
   "id": "urn:ngsi-ld:Sub:QR",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxTemp",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
@@ -118,7 +119,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <http://localhost:7080/jsonldContexts/ctxTemp>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 322
+Content-Length: 389
 
 {
   "entities": [
@@ -127,6 +128,7 @@ Content-Length: 322
     }
   ],
   "id": "urn:ngsi-ld:Sub:QR",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxTemp",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
@@ -149,7 +151,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <http://localhost:7080/jsonldContexts/ctxCelsius>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 325
+Content-Length: 392
 
 {
   "entities": [
@@ -158,6 +160,7 @@ Content-Length: 325
     }
   ],
   "id": "urn:ngsi-ld:Sub:QR",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ctxTemp",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"

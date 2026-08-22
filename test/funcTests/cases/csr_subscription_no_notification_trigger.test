@@ -258,6 +258,7 @@ Content-Length: REGEX(\d+)
     }
   ],
   "id": "urn:Sub:E1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost/notifyE"

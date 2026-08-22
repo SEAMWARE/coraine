@@ -118,7 +118,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 370
+Content-Length: 459
 
 [
   {
@@ -128,6 +128,7 @@ Content-Length: 370
       }
     ],
     "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "notification": {
       "endpoint": {
         "uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"

@@ -218,7 +218,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 344
+Content-Length: 431
 
 {
   "entities": [
@@ -228,6 +228,7 @@ Content-Length: 344
   ],
   "id": "urn:ngsi-ld:Subscription:Toggle",
   "isActive": false,
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
@@ -271,7 +272,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 343
+Content-Length: 430
 
 {
   "entities": [
@@ -281,6 +282,7 @@ Content-Length: 343
   ],
   "id": "urn:ngsi-ld:Subscription:Toggle",
   "isActive": true,
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:7701/notify"
