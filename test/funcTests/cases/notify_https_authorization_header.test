@@ -81,7 +81,7 @@ Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: captn
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 312
+Content-Length: 399
 
 {
   "entities": [
@@ -90,6 +90,7 @@ Content-Length: 312
     }
   ],
   "id": "urn:ngsi-ld:Subscription:S1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "https://127.0.0.1:9999/post"

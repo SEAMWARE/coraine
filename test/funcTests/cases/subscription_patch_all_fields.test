@@ -48,7 +48,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 502
+Content-Length: 589
 
 {
   "description": "d",
@@ -59,6 +59,7 @@ Content-Length: 502
   ],
   "expiresAt": "2030-01-01T00:00:00Z",
   "id": "urn:ngsi-ld:S:1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "attributes": [
       "a"

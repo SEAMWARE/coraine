@@ -3,7 +3,7 @@
 [![FIWARE Core Context Management](https://fiware.github.io/catalogue/badges/chapters/core.svg)](https://www.fiware.org/developers/catalogue/)
 [![License badge](https://img.shields.io/github/license/SEAMWARE/coraine.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Container badge](https://img.shields.io/badge/quay.io-seamware%2Fcoraine-grey?logo=red%20hat&labelColor=EE0000)](https://quay.io/repository/seamware/coraine)
-[![Support badge](https://img.shields.io/badge/tag-fiware+coraine-orange.svg?logo=stackoverflow)](https://stackoverflow.com/questions/tagged/fiware+coraine)
+[![Support badge](https://img.shields.io/badge/support-github%20issues-orange.svg?logo=github)](https://github.com/SEAMWARE/coraine/issues)
 [![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/committee/cim)
 <br/>
 [![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
@@ -33,10 +33,11 @@ This project is part of [FIWARE](https://www.fiware.org/). For more information 
 the FIWARE Catalogue entry for
 [Core Context Management](https://github.com/FIWARE/catalogue/tree/master/core).
 
-Questions are answered on
-[Stack Overflow](https://stackoverflow.com/questions/tagged/fiware+coraine) using the
-tags `fiware` and `coraine`; bugs and feature requests belong in
-[GitHub issues](https://github.com/SEAMWARE/coraine/issues).
+Questions, bugs and feature requests all belong in
+[GitHub issues](https://github.com/SEAMWARE/coraine/issues) — that is where the
+maintainers are. General FIWARE questions also reach people under the
+[`fiware`](https://stackoverflow.com/questions/tagged/fiware) tag on Stack
+Overflow.
 
 > <sup>\*</sup> **On that 100%:** the conformance runs use a *corrected fork* of
 > the ETSI test suite. The changes are test-side fixes — the suite has bugs of its
@@ -66,7 +67,7 @@ tags `fiware` and `coraine`; bugs and feature requests belong in
 
 coraine is a **1 MB broker**. Not a 1 MB container image with a runtime inside —
 a 967 KiB stripped ELF binary that starts in 10 milliseconds and answers NGSI-LD
-on the next one.
+requests on the 11th.
 
 ### Size
 
@@ -121,8 +122,10 @@ At 20 entities per response that is **~490 000 entities/s** against MongoDB and
 
 > Numbers are from one machine and one shape of request — reproduce them on yours
 > before quoting them. What travels is the shape: sub-millisecond work per
-> request, and throughput that barely moves (−6%) when concurrency quadruples
-> from 50 to 200.
+> request, and a broker that saturates cleanly. Quadrupling concurrency from 50
+> to 200 costs 5% of throughput and multiplies p99 by 3.8 — which is what the
+> extra queue alone accounts for. The additional clients wait; they do not make
+> the broker slower at serving the ones already there.
 
 ### Compiling out what you don't need
 

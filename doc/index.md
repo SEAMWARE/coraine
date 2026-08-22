@@ -26,10 +26,11 @@ published — never relaxations of what the broker must do. They are filed upstr
 
 ## Support
 
-Questions are answered on
-[Stack Overflow](https://stackoverflow.com/questions/tagged/fiware-coraine) under the
-`fiware-coraine` tag. Bugs and feature requests belong in
-[GitHub issues](https://github.com/SEAMWARE/coraine/issues).
+Questions, bugs and feature requests all belong in
+[GitHub issues](https://github.com/SEAMWARE/coraine/issues) — that is where the
+maintainers are. General FIWARE questions also reach people under the
+[`fiware`](https://stackoverflow.com/questions/tagged/fiware) tag on Stack
+Overflow.
 
 ## License
 

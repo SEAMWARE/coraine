@@ -145,6 +145,7 @@ Content-Length: REGEX(\d+)
   ],
   "expiresAt": "2099-01-01T00:00:00Z",
   "id": "urn:ngsi-ld:Subscription:DM1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:1234/notify"
@@ -185,6 +186,7 @@ Content-Length: REGEX(\d+)
     }
   ],
   "id": "urn:ngsi-ld:Subscription:DM1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:1234/notify"

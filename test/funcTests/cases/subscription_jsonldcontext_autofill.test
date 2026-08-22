@@ -1,0 +1,153 @@
+#
+# FILE            subscription_jsonldcontext_autofill.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 10.5.2.4 — "The @context to be used for sending Notifications ... shall be
+# the one specified in the jsonldContext field. If not present, the
+# jsonldContext field SHALL BE INITIALIZED with the @context applicable for
+# the Subscription."
+#
+# Not "may", and not only when the broker had to mint one: a client reading a
+# subscription back is entitled to see which @context its notifications will
+# carry. Issue #1 - the broker resolved the URL correctly all along and then
+# stored it under a broker-internal name that every retrieve path stripped, so
+# the value was right and simply invisible.
+#
+# The four shapes an applicable @context can take, and what each must produce:
+#
+#   1. no @context at all          -> the core context URL
+#   2. a single URL                -> that URL, unchanged
+#   3. a ONE-ELEMENT ARRAY of one  -> that same URL, NOT a minted one. JSON-LD
+#      compaction treats ["url"] and "url" as the same document, and ETSI
+#      046_10/046_11 assert a notification's Link header is the user's own URL,
+#      so minting here would be both wrong and a conformance failure.
+#   4. an inline object            -> a minted, hosted /jsonldContexts/{id} URL,
+#      because the inline body has no URL a receiver could dereference.
+#
+--NAME--
+Subscription jsonldContext is initialized from the applicable @context (§ 10.5.2.4)
+
+--TAGS--
+subscription jsonldContext context
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. No @context at all — jsonldContext initialized to the core context"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:9999/n" } }
+}' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep jsonldContext
+echo
+echo
+
+
+echo "02. A single @context URL — passed through unchanged"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'Content-Type: application/ld+json' --payload '{
+  "id": "urn:S2",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:9999/n" } },
+  "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld"
+}' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S2 | grep jsonldContext
+echo
+echo
+
+
+echo "03. A ONE-ELEMENT array — the same URL, not a minted one"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/subscriptions -H 'Content-Type: application/ld+json' --payload '{
+  "id": "urn:S3",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:9999/n" } },
+  "@context": [ "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld" ]
+}' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S3 | grep jsonldContext
+echo
+echo
+
+
+echo "04. An inline @context — a minted, dereferenceable URL"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/subscriptions -H 'Content-Type: application/ld+json' --payload '{
+  "id": "urn:S4",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:9999/n" } },
+  "@context": { "Vehicle": "https://example.org/Vehicle" }
+}' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S4 | grep jsonldContext
+echo
+echo
+
+
+echo "05. The minted URL is dereferenceable — GET it and read the @context back"
+echo "========================================================================="
+mintedUrl=$(corCurl --url /ngsi-ld/v1/subscriptions/urn:S4 | sed -n 's/.*"jsonldContext": "\(.*\)".*/\1/p')
+corCurl --url "${mintedUrl#http://localhost:1026}" | grep -E '"Vehicle"|HTTP/'
+echo
+echo
+
+
+echo "06. A user-supplied jsonldContext is kept as-is, never overwritten"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'Content-Type: application/ld+json' --payload '{
+  "id": "urn:S6",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:9999/n" } },
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld",
+  "@context": { "Vehicle": "https://example.org/Vehicle" }
+}' >/dev/null
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S6 | grep jsonldContext
+echo
+echo
+
+--EXPECT--
+01. No @context at all — jsonldContext initialized to the core context
+======================================================================
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+
+
+02. A single @context URL — passed through unchanged
+====================================================
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld",
+
+
+03. A ONE-ELEMENT array — the same URL, not a minted one
+========================================================
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld",
+
+
+04. An inline @context — a minted, dereferenceable URL
+======================================================
+  "jsonldContext": "http://localhost:1026/ngsi-ld/v1/jsonldContexts/REGEX(.*)",
+
+
+05. The minted URL is dereferenceable — GET it and read the @context back
+=========================================================================
+HTTP/1.1 200 OK
+    "Vehicle": "https://example.org/Vehicle"
+
+
+06. A user-supplied jsonldContext is kept as-is, never overwritten
+==================================================================
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld",
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
