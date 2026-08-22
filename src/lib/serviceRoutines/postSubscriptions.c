@@ -241,8 +241,7 @@ bool postSubscriptions(void)
 
   if (kjLookup(subP, "jsonldContext") == NULL)
   {
-    const char* jcUrl     = NULL;
-    bool        isImplicit = false;   // true when the URL points to a broker-minted Implicit @context
+    const char* jcUrl = NULL;
 
     CorLdContext* reqCtxP = corNgsild.contextP;
     if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
@@ -314,7 +313,6 @@ bool postSubscriptions(void)
         memcpy(urlBuf + baseLen + prefixLen, implicitId, idLen);
         urlBuf[baseLen + prefixLen + idLen] = 0;
         jcUrl = urlBuf;
-        isImplicit = true;
       }
     }
     else
@@ -326,17 +324,23 @@ bool postSubscriptions(void)
         jcUrl = coreP->url;
     }
 
-    // For Implicit-minted contexts the URL is spec-visible (§ 5.13) — the
-    // client needs `jsonldContext` to dereference the broker-stored entry.
-    // For passed-through URL or core-default fallbacks the URL is internal
-    // (`_jcResolved`): the sub-cache loader picks it up when `jsonldContext`
-    // is absent, retrieve render skips it, so the response shape matches
-    // what the user provided.
+    //
+    // The URL is spec-visible in EVERY branch, under its spec name.
+    //
+    // § 10.5.2.4: "If not present, the jsonldContext field shall be
+    // initialized with the @context applicable for the Subscription." Not
+    // "may", and not "if the broker had to mint one" - a client that reads a
+    // subscription back is entitled to see which @context its notifications
+    // will carry.
+    //
+    // Only the minted-Implicit branch used to write the spec name; the
+    // passed-through and core-default branches wrote the broker-internal
+    // `_jcResolved`, which every retrieve path then stripped. The value was
+    // right and simply invisible, which is why this reads as a missing
+    // feature and was in fact a naming bug.
+    //
     if (jcUrl != NULL)
-    {
-      const char* fieldName = isImplicit ? "jsonldContext" : "_jcResolved";
-      kjChildAdd(subP, kjString(corRest.kjsonP, fieldName, (char*) jcUrl));
-    }
+      kjChildAdd(subP, kjString(corRest.kjsonP, "jsonldContext", (char*) jcUrl));
   }
 
   //

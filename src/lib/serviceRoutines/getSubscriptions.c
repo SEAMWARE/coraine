@@ -35,7 +35,7 @@
 //
 // subPostProcess - mirror of getSubscription's response-shaping steps:
 //   · default-emit notificationTrigger (§ 5.2.12)
-//   · strip broker-internal `_jcResolved`
+//   · `jsonldContext` is spec-visible and passes through untouched
 //
 static void subPostProcess(KjNode* subP)
 {
@@ -47,9 +47,10 @@ static void subPostProcess(KjNode* subP)
     kjChildAdd(subP, trigArr);
   }
 
-  KjNode* jcP = kjLookup(subP, "_jcResolved");
-  if (jcP != NULL)
-    kjChildRemove(subP, jcP);
+  //
+  // `jsonldContext` is spec-visible on a Subscription (§ 10.5.2.4) and is no
+  // longer hidden behind a broker-internal name - nothing to strip.
+  //
 
   // § 6.4.5 — createdAt/modifiedAt (stored as nanosecond integers) are rendered
   // as ISO 8601 only when the client asks for system attributes; stripped otherwise.

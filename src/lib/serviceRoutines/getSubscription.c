@@ -72,12 +72,12 @@ bool getSubscription(void)
     kjChildAdd(subP, trigArr);
   }
 
-  // `_jcResolved` is the broker-filled @context URL used internally for
-  // notification compaction when the user didn't supply `jsonldContext`.
-  // Strip it from the response so we only emit the spec-visible field.
-  KjNode* jcP = kjLookup(subP, "_jcResolved");
-  if (jcP != NULL)
-    kjChildRemove(subP, jcP);
+  //
+  // No `_jcResolved` to strip any more: § 10.5.2.4 says the field SHALL be
+  // initialized, so the create path writes the resolved URL under its spec
+  // name and it belongs in the response. (The CSR side still uses the
+  // internal name - the spec has no such clause there, spec-doubts #16.)
+  //
 
   if (cacheItem != NULL) ldSubscriptionCountersInject(subP, cacheItem);
   else                   ldPernotCountersInject(subP, pernotItem);
