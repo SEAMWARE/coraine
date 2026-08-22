@@ -128,9 +128,20 @@ jobs:
     # 10.7 of corDB, 33.5 with the setup. They are independent measurements and had
     # no reason to be sequential.
     #
-    # The cuts are measured, from run 32471125462, and by TIME rather than by count
-    # because the suites are back-loaded: splitting mongoc down the middle by count
-    # gives 9.8 and 11.1 minutes, and a stage ends when its slowest job does.
+    # The cuts are measured, and by TIME rather than by count, because a stage ends
+    # when its slowest job does. mongoc is 1783 test-seconds (run 32556519802); in
+    # thirds by time that is 9.9 / 9.9 / 9.9 minutes, where by count it would be
+    # 10.3 / 9.4 / 10.1 - the same total, forty seconds slower to finish.
+    #
+    # mongoc gets three shards and corDB two: corDB runs the same suite in about
+    # half the time (862 test-seconds against 1783 - Mongo round-trips, plainly
+    # visible), so a third shard there would only add a job that finishes early.
+    # Splitting further is cheap in minutes and not free in noise: every shard
+    # pays its own container start, bootstrap and build, about 90 seconds.
+    #
+    # ⚠️ The build is NOT what these jobs spend their time on - it was under a
+    # minute of a seventeen-minute job. Sharing one build between them, which is
+    # the obvious optimisation, would buy almost nothing. Measure before doing it.
     #
     # corDB is cut at its OWN index. It runs 563 tests where mongoc runs 612 - a
     # test that pins a backend-specific answer declares REQUIRE_DB and belongs to
@@ -147,8 +158,9 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          - { db: mongoc, name: '1-324',   from: 1,   to: 324 }
-          - { db: mongoc, name: '325-end', from: 325, to: 0 }
+          - { db: mongoc, name: '1-198',   from: 1,   to: 198 }
+          - { db: mongoc, name: '199-412', from: 199, to: 412 }
+          - { db: mongoc, name: '413-end', from: 413, to: 0 }
           - { db: corDB,  name: '1-314',   from: 1,   to: 314 }
           - { db: corDB,  name: '315-end', from: 315, to: 0 }
 
