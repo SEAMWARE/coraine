@@ -127,6 +127,46 @@ At 20 entities per response that is **~490 000 entities/s** against MongoDB and
 > extra queue alone accounts for. The additional clients wait; they do not make
 > the broker slower at serving the ones already there.
 
+### Does it use the cores you give it?
+
+Saturating cleanly says what happens when clients pile onto fixed hardware. The
+other question is whether more hardware buys more throughput.
+
+The measurement uses **`--database corDB`**, the in-memory backend, and that
+choice is the point rather than a convenience. With `mongoc`, `mongod` runs on
+the same machine and takes cores of its own: give the broker four and MongoDB
+takes what it needs beside it, so the curve would describe *a broker and a
+database sharing one host*, and would bend where MongoDB stopped scaling rather
+than where the broker did. Both are real questions. This one is "does the broker
+use the cores it is given", so the storage engine has to be taken out of the
+answer — an in-memory backend does that, and leaves request parsing, matching,
+rendering and the HTTP layer as the only things being measured.
+
+Same query and fixture as above, broker pinned to *n* physical cores, load
+generator kept off those cores entirely:
+
+| Cores | req/s | vs 1 core | Efficiency |
+|------:|------:|----------:|-----------:|
+| 1 | 5 930 | — | — |
+| 2 | 11 609 | 1.96× | 98% |
+| 4 | 22 642 | 3.82× | 95% |
+| 8 | 42 560 | 7.18× | **90%** |
+
+Close to linear: eight cores do 7.2 times the work of one. That is the useful
+property — a bigger box is worth buying, and a smaller one costs you only what
+you took away. Repeat runs vary by a few percent; the ratios do not.
+
+> ⚠️ Two limits on that table, both from running `wrk` on the same machine. It
+> competes for cache and memory bandwidth, so the broker is if anything
+> understated. And it caps the sweep at half the cores: something has to drive
+> the load. A first attempt that ignored SMT — load generator on the *siblings*
+> of the broker's own cores — produced a neat regression at 16 cores that was
+> pure measurement artefact. Anything beyond that needs a second machine, and a
+> link faster than the ~4 Gbit/s these responses already push.
+
+Reproduce it with [`test/perf/coreScale.sh`](test/perf/coreScale.sh), which
+reads the topology rather than assuming it.
+
 ### Compiling out what you don't need
 
 `CMakeLists.txt` exposes `COR_FEATURE_*` options — subscriptions, registrations,
