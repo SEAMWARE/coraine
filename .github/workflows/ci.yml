@@ -106,7 +106,13 @@ jobs:
           changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           echo "changed files:"; echo "$changed"
 
-          if echo "$changed" | grep -qE '^(src/|test/|CMakeLists\.txt|makefile|\.github/workflows/ci\.yml)'; then
+          #
+          # test/funcTests/ - NOT test/. The suite this job runs lives there;
+          # test/perf/ and test/etsi/ are the nightly's, and running the
+          # functional suite because a performance script changed proves
+          # nothing about the script and costs four jobs.
+          #
+          if echo "$changed" | grep -qE '^(src/|test/funcTests/|test/CMakeLists\.txt|CMakeLists\.txt|makefile|\.github/workflows/ci\.yml)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::No source, test or build changes - skipping the functional suite"
