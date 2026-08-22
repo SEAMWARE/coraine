@@ -57,7 +57,7 @@ FIWARE Foundation.
 | Standard-README structure | ✅ | |
 | GitHub repository description not blank | ⏳ | set when the repository goes public |
 | GitHub mandatory topics | ⏳ | same |
-| Stack Overflow tag set up | ⛔ | the `coraine` tag has to be created by asking a question with it |
+| Stack Overflow tag set up | ⛔ | creating a tag needs reputation the maintainers do not have, and Stack Overflow has been quiet for years — Orion-LD support runs on GitHub issues too. Support is documented as GitHub issues plus the existing `fiware` tag |
 | CI running on pull requests, with unit tests | ⛔ | **blocked**: organisation secrets do not reach private repositories on the Free plan, so CI cannot run until the repositories are public |
 | Release aligned with the FIWARE release schedule | ⛔ | once in the Catalogue |
 | Configurable through environment variables | ✅ | every option has a `CORAINE_<OPTION>` variable |
