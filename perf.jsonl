@@ -1,2 +1,3 @@
 {"date": "2026-08-21T11:29:03Z", "db": "corDB", "query_c200": 10691, "query_c50": 10957, "retrieve_c50": 69811, "run": "32482747810", "sha": "6b1d5f6e"}
 {"date": "2026-08-21T11:29:03Z", "db": "mongoc", "query_c200": 5472, "query_c50": 5592, "retrieve_c50": 20374, "run": "32482747810", "sha": "6b1d5f6e"}
+{"date": "2026-08-21T21:58:25Z", "db": "corDB", "query_c200": 8161, "query_c50": 8120, "retrieve_c50": 41011, "run": "32547648568", "sha": "4a17ff01"}
