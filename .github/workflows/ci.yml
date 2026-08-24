@@ -165,7 +165,7 @@ jobs:
     # is a commit. corLibs prints the tag to paste when it publishes.
     #
     container:
-      image: quay.io/coraine/ci:2026-08-21-a81a418
+      image: quay.io/seamware/coraine-ci:2026-08-24-814ad08
 
     services:
       mongo:

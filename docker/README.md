@@ -46,7 +46,7 @@ The port is not fixed in the image: pass `--port` and publish what you chose.
 
 ## Tags
 
-Published images are `quay.io/coraine/coraine:<version>-<date>-<sha>` - one
+Published images are `quay.io/seamware/coraine:<version>-<date>-<sha>` - one
 immutable tag per merge to main, never `latest`. The `coraine` namespace is
 temporary: the image moves to `seamware` once the org grants create rights.
 Versioned with SemVer.
