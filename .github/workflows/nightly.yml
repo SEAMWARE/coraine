@@ -205,11 +205,29 @@ jobs:
           to=""
           [ "${{ matrix.shard.to }}" != "0" ] && to="--toIx ${{ matrix.shard.to }}"
           ../corLibs/bin/corTest -db mongoc --noColor -vt --fromIx ${{ matrix.shard.from }} $to
+      #
+      # The .out alone is not enough for a valgrind failure: it is the output of a
+      # test that PASSED functionally, and says nothing about the memory. The
+      # per-test .vg is the evidence, and the broker log says why the report ends
+      # where it does - a run that scored "report INCOMPLETE" left neither behind,
+      # on a runner that is gone by the time anybody reads the red square.
+      #
+      # corTest keeps a failing test's .vg in /tmp and deletes a passing one's, so
+      # whatever is left here belongs to the tests that went red. Collected into
+      # the workspace rather than uploaded from /tmp: an absolute path would make
+      # the artifact's root the filesystem root.
+      - name: Collect the valgrind evidence
+        if: failure()
+        run: cp /tmp/corValgrind.*.vg stack/coraine/test/funcTests/cases/ 2>/dev/null || true
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: valgrind-${{ matrix.shard.name }}
-          path: stack/coraine/test/funcTests/cases/*.out
+          path: |
+            stack/coraine/test/funcTests/cases/*.out
+            stack/coraine/test/funcTests/cases/*.log
+            stack/coraine/test/funcTests/cases/*.vg
           retention-days: 7
 
   #
