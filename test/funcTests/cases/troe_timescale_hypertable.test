@@ -1,0 +1,95 @@
+#
+# FILE            troe_timescale_hypertable.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# troe_attrs was never a hypertable. TimescaleDB requires the partitioning
+# column in EVERY unique index, the primary key was instance_id alone, and so
+# every boot against a real TimescaleDB logged
+#
+#   create_hypertable failed: cannot create a unique index without the column
+#   "modified_at" (used in partitioning)
+#
+# and carried on with a plain table - losing the time partitioning, compression
+# and retention that are the whole reason for storing history in TimescaleDB.
+#
+# It went unnoticed because no development machine here HAD the extension: every
+# local troe_timescale_* run was against plain postgres, exercising the fallback,
+# so the error only ever appeared in CI - one line at startup, in a log nobody
+# reads when the tests are green.
+#
+--NAME--
+TRoE schema: troe_attrs can become a hypertable (migration 3)
+
+--TAGS--
+troe
+timescale
+schema
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. The primary key includes the partitioning column"
+echo "===================================================="
+#
+# The prerequisite, and true whether or not TimescaleDB is installed - so this
+# line is deterministic everywhere. instance_id stays LEADING, which is what
+# keeps the three instance_id lookups on an index.
+#
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -d "$(corTroeDbName CB)" -tAc \
+  "SELECT indexdef FROM pg_indexes WHERE tablename = 'troe_attrs' AND indexname = 'troe_attrs_pkey'" \
+  | sed 's/.*USING //'
+echo
+echo
+
+
+echo "02. And the conversion is not refused"
+echo "====================================="
+#
+# Three outcomes, two of them correct, and the expect below accepts exactly
+# those two:
+#
+#   no TimescaleDB   - a plain table is right, nothing to convert
+#   hypertable       - the extension is here and the conversion took
+#   PLAIN TABLE ...  - the extension is here and it did NOT. That is the bug,
+#                      and it is the one answer the expect will not match.
+#
+#
+# The extension test has to happen in the SHELL, not in a CASE: postgres parses
+# the whole statement before evaluating any branch, so naming
+# timescaledb_information.hypertables errors out on a server without the
+# extension even when that branch can never be taken.
+#
+troeDb=$(corTroeDbName CB)
+if psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -d "$troeDb" -tAc \
+     "SELECT 1 FROM pg_extension WHERE extname = 'timescaledb'" | grep -q 1; then
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -d "$troeDb" -tAc \
+    "SELECT CASE WHEN EXISTS (SELECT 1 FROM timescaledb_information.hypertables
+                               WHERE hypertable_name = 'troe_attrs')
+                 THEN 'hypertable'
+                 ELSE 'PLAIN TABLE DESPITE TIMESCALEDB - conversion refused'
+            END"
+else
+  echo "no TimescaleDB - plain table is correct"
+fi
+
+
+--EXPECT--
+01. The primary key includes the partitioning column
+====================================================
+btree (instance_id, modified_at)
+
+
+02. And the conversion is not refused
+=====================================
+REGEX((hypertable|no TimescaleDB - plain table is correct))
+--TEARDOWN--
+coraineStop
+corDbDrop
