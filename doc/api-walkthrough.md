@@ -118,3 +118,10 @@ curl -X DELETE http://localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:A10
   specification is the reference, and the
   [plugin architecture](plugin-architecture.md) explains how to extend the broker
   itself.
+
+  Temporal writes are DEFERRED until after the response: a temporal write is
+  history, not state the caller is waiting on, so the request pays nothing for
+  it. The consequence is that a `201` does not mean the temporal row is
+  queryable yet - create an entity and read its temporal representation in the
+  same breath and it may not be there. Start the broker with `--troeSync` when
+  you want read-your-writes instead; writes then pay the storage latency inline.

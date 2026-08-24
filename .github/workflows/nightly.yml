@@ -293,8 +293,19 @@ jobs:
 
       - name: Start the broker
         run: |
+          #
+          # --troeSync: the suite writes through the Core API and reads the
+          # temporal representation on the next line, with no pause - TP 021_23
+          # does exactly that. The broker's DEFAULT defers the temporal write
+          # until after the response, which is a deliberate design choice (a
+          # temporal write is history, not state the caller waits on) but is not
+          # what a conformance run wants. Conformance is measured with the broker
+          # in read-your-writes mode rather than with sleeps sprinkled through
+          # somebody else's test suite.
+          #
           coraine --port 1026 --database mongoc --dbHost mongo --dbName etsi \
                   --troe timescale --troeHost timescale --troeName etsi_troe \
+                  --troeSync \
                   --distributed --apiPlugins admin > /tmp/etsi-broker.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break

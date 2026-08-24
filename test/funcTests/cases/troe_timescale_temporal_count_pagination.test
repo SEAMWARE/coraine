@@ -20,7 +20,7 @@ troe timescale postgres temporal pagination count
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 

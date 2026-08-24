@@ -83,6 +83,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--port` / `-p` | 1026 | TCP listen port |
 | `--database` / `-db` | `mongoc` | current-state plugin (short name or path) |
 | `--troe` / `-troe` | `none` | temporal plugin (`none` disables history) |
+| `--troeSync` / `-troeSync` | off | record temporal writes before the response, so a temporal read sees them at once |
 | `--apiPlugins` / `-api` | — | comma-separated API plugins (e.g. `admin`) |
 | `--pretty-print` / `-pp` | 0 | JSON indentation (0 = compact) |
 | `--connectionPoolSize` / `-cps` | 32 | HTTP server thread-pool size |

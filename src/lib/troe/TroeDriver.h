@@ -344,4 +344,22 @@ typedef void (*TroeRegisterFunc)(TroeDriver* driverP);
 //
 extern TroeDriver troe;
 
+
+//
+// troeSync - record TRoE writes BEFORE the response instead of after it.
+//
+// Off by default, and the default is a deliberate design choice: a temporal
+// write is history, not state the caller is waiting on, so it is deferred to
+// brokerPostResponseHook and the request pays nothing for it. The cost is that
+// a 201 does NOT mean the temporal row is queryable yet - read your own write
+// too soon and it is not there.
+//
+// That is fine for a broker and awkward for a conformance suite, which writes
+// through the Core API and reads the temporal representation on the next line.
+// With this on, the event is dispatched where the service routine produces it,
+// so temporal reads are read-your-writes. Writes pay the storage latency inline;
+// that is the trade, and it is opt-in.
+//
+extern bool troeSync;
+
 #endif  // TROE_TROEDRIVER_H_

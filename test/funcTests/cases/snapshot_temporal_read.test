@@ -24,7 +24,7 @@ snapshot troe timescale postgres
 corDbDrop
 corSnapDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 

@@ -30,7 +30,7 @@ troe timescale postgres temporal q sub-attributes query
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 

@@ -72,6 +72,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--port/-p <TCP port to listen on>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <none|ramdb|timescale>]
+                [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
@@ -108,6 +109,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--port/-p <TCP port to listen on>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <none|ramdb|timescale>]
+                [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
@@ -155,6 +157,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--port/-p <TCP port to listen on>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <none|ramdb|timescale>]
+                [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
@@ -191,6 +194,7 @@ Usage: coraine  [--usage/-u (usage)]
   --port                  (-p)               CORAINE_PORT                  Optional   UShort   Default Value  
   --database              (-db)              CORAINE_DATABASE              Optional   String   Short Option   
   --troe                  (-troe)            CORAINE_TROE                  Optional   String   Default Value  
+  --troeSync              (-troeSync)        CORAINE_TROESYNC              Optional   Bool     Default Value  
   --apiPlugins            (-api)             CORAINE_APIPLUGINS            Optional   String   Default Value  
   --pretty-print          (-pp)              CORAINE_PRETTY_PRINT          Optional   UInt     Default Value  
   --connectionPoolSize    (-cps)             CORAINE_CONNECTIONPOOLSIZE    Optional   Int      Default Value  

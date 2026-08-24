@@ -33,7 +33,7 @@ troe timescale postgres temporal geo geoQ georel
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 
