@@ -20,7 +20,7 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     container:
-      image: quay.io/coraine/ci-nightly:2026-08-21-a81a418
+      image: quay.io/seamware/coraine-ci-nightly:2026-08-24-814ad08
     services:
       mongo:
         image: mongo:8.0

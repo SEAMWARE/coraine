@@ -24,11 +24,11 @@
 #include <stdbool.h>                                      // bool
 #include <stdint.h>                                       // uint64_t
 #include <stdio.h>                                        // snprintf
-#include <stdlib.h>                                       // strtoll
+#include <stdlib.h>                                       // strtoll, atoi
 #include <string.h>                                       // strcmp, memset
 #include <libpq-fe.h>                                     // PG*
 
-#include "ktrace/kTrace.h"                                // KT_E
+#include "ktrace/kTrace.h"                                // KT_E, KT_W
 #include "kjson/KjNode.h"                                 // KjNode
 #include "kjson/kjLookup.h"                               // kjLookup
 #include "kjson/kjBuilder.h"                              // kjObject, kjChildAdd
@@ -45,6 +45,33 @@
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease, timescalePoolDrop
 #include "temporal/timescale/timescaleEvent.h"            // timescaleExec*Locked
 #include "temporal/timescale/timescaleHistoryWrite.h"     // Own interface
+
+
+
+// -----------------------------------------------------------------------------
+//
+// rowCount - how many rows one table holds for an entity. Diagnostics only:
+// the caller has already decided, and this says what it decided against.
+// -1 when the query itself failed, so "none" and "could not tell" stay apart.
+//
+static int rowCount(const char* table, const char* entityId)
+{
+  char sql[128];
+  snprintf(sql, sizeof(sql), "SELECT count(*) FROM %s WHERE entity_id = $1", table);
+
+  const char* paramV[1] = { entityId };
+  PGresult*   res       = PQexecParams(timescaleConn, sql, 1, NULL, paramV, NULL, NULL, 0);
+
+  if ((PQresultStatus(res) != PGRES_TUPLES_OK) || (PQntuples(res) == 0))
+  {
+    PQclear(res);
+    return -1;
+  }
+
+  int n = atoi(PQgetvalue(res, 0, 0));
+  PQclear(res);
+  return n;
+}
 
 
 
@@ -133,6 +160,24 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
 
   if (!entityHasRows(entityId))
   {
+    //
+    // A 404 here is usually honest - the entity never had a temporal
+    // representation - and roughly forty-five of them are normal in a full ETSI
+    // run. But ONE of them is not honest, and it is the one behind the nightly's
+    // 021_23/021_25 failures: the purge answers "nothing to delete" and the rows
+    // are in the store afterwards anyway, so the entity stays in every temporal
+    // query for good.
+    //
+    // The two counts are what tells the honest 404 from the other kind, and they
+    // are asked for SEPARATELY on purpose: this check looks at troe_entities,
+    // while the temporal-query selector keys its EXISTS off troe_attrs. Rows in
+    // one and not the other is a state that cannot be reasoned about from the
+    // outside - it has to be measured at the moment the decision is made, which
+    // is here.
+    //
+    KT_W("timescale: temporal delete found nothing for '%s' - troe_entities rows: %d, troe_attrs rows: %d",
+         entityId, rowCount("troe_entities", entityId), rowCount("troe_attrs", entityId));
+
     timescaleConn = NULL;
     timescaleConnRelease(cP);
     return TROE_NOT_FOUND;

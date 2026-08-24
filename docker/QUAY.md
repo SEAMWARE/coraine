@@ -22,7 +22,7 @@ The broker ships with an in-memory storage backend, so a single container is a c
 working NGSI-LD endpoint. Nothing to install, nothing to connect:
 
 ```sh
-docker run --rm -p 1026:1026 quay.io/coraine/coraine --database corDB
+docker run --rm -p 1026:1026 quay.io/seamware/coraine --database corDB
 ```
 
 ```sh
@@ -48,7 +48,7 @@ container means the container itself, so it has to be pointed at the database:
 docker network create ngsild
 docker run -d --name mongo --network ngsild mongo:8
 docker run -d --name broker --network ngsild -p 1026:1026 \
-    quay.io/coraine/coraine --database mongoc --dbHost mongo --dbName cor
+    quay.io/seamware/coraine --database mongoc --dbHost mongo --dbName cor
 ```
 
 ## Common options
@@ -56,7 +56,7 @@ docker run -d --name broker --network ngsild -p 1026:1026 \
 `--usage` lists everything, including the arguments of whichever plugins are loaded:
 
 ```sh
-docker run --rm quay.io/coraine/coraine --database mongoc --apiPlugins admin --usage
+docker run --rm quay.io/seamware/coraine --database mongoc --apiPlugins admin --usage
 ```
 
 - `--port` / `-p` — TCP listen port (default 1026)
@@ -80,7 +80,7 @@ switch it on with `--distributed`:
 
 ```sh
 docker run -d --name b1 --network ngsild -p 1026:1026 \
-    quay.io/coraine/coraine --database corDB --distributed
+    quay.io/seamware/coraine --database corDB --distributed
 ```
 
 Without it, registrations are still stored and discoverable, but nothing is ever

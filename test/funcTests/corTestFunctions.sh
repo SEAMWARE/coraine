@@ -168,6 +168,30 @@ coraineStart() {
 
 # -----------------------------------------------------------------------------
 #
+# corValgrindReportComplete - has valgrind finished writing THIS test's report?
+#
+# The .vg is what the verdict is read from, so it is what a graceful stop has to
+# wait for. Every log of this test must carry both summaries; no log at all is
+# "not yet", so a caller that polls this gives up on its own bound rather than on
+# the first look.
+#
+corValgrindReportComplete() {
+  local base="${COR_VALGRIND_LOG:-/tmp/corValgrind}"
+  local f found=0
+
+  for f in "$base".*.vg; do
+    [ -e "$f" ] || continue
+    found=1
+    grep -q "HEAP SUMMARY"  "$f" || return 1
+    grep -q "ERROR SUMMARY" "$f" || return 1
+  done
+
+  [ $found == 1 ]
+}
+
+
+# -----------------------------------------------------------------------------
+#
 # coraineStop [-role <role>] [-all]
 #
 # No argument stops the CB, as it always has. -all stops every role in COR_ROLES,
@@ -200,13 +224,41 @@ coraineStop() {
   # onSignal()->exit(0) run, which is what makes valgrind write its leak
   # report. A quick SIGKILL would truncate it. Wait (bounded) for the valgrind
   # process to actually exit before returning.
+  #
+  # Two things about that wait, both learned from a nightly that scored
+  # "valgrind: report INCOMPLETE - broker killed before finish" on a test that
+  # had otherwise passed:
+  #
+  #   - corPidAlive reads /proc/<pid>/stat, and that is the state of the THREAD
+  #     GROUP LEADER. A leader that has exited while sibling threads keep running
+  #     reports Z - which is exactly the shape of valgrind's shutdown, where the
+  #     guest's exit is taken on whichever thread handled the signal and the
+  #     final leak check runs on after it. "Z" there means the report is being
+  #     written, not that it has been.
+  #   - the SIGKILL below was never conditional, whatever its comment said. It
+  #     fired on every stop, and in that window it is not a backstop against a
+  #     hung broker: it is the thing that truncates the report.
+  #
+  # So: wait for the pid, then wait for the REPORT - the observable state the
+  # verdict is actually read from - and only reach for SIGKILL if the graceful
+  # wait genuinely ran out. The report wait is bounded and never fatal: a broker
+  # that CRASHED leaves a report that will never gain an ERROR SUMMARY, and that
+  # is a result to report rather than a reason to stand here. When all is well
+  # the file is already complete, and this costs one grep.
+  #
   if [ "$COR_VALGRIND" == "1" ] && [ "$role" == "CB" ] && [ -f "$COR_ROLE_PID_FILE" ]; then
     local pid; pid=$(cat "$COR_ROLE_PID_FILE")
     if corPidAlive "$pid"; then
       kill -TERM "$pid" 2>/dev/null
       local n=0
       while corPidAlive "$pid" && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
-      kill -9 "$pid" 2>/dev/null   # backstop only if the wait timed out
+
+      local m=0
+      while ! corValgrindReportComplete && [ $m -lt 100 ]; do sleep 0.1; m=$((m + 1)); done
+
+      if [ $n -ge 1200 ]; then
+        kill -9 "$pid" 2>/dev/null   # the graceful wait ran out - now it is a backstop
+      fi
     fi
     \rm -f "$COR_ROLE_PID_FILE"
     return

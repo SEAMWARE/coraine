@@ -53,6 +53,19 @@ payload='{
   "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[13.4050, 52.5200]},"observedAt":"2026-04-28T09:00:00Z"}
 }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+#
+# The Core API's TRoE write is DEFERRED to brokerPostResponseHook - it happens
+# AFTER the response this test just read. Querying the temporal representation
+# on the next line is therefore a race, and on the corDB shard (in-memory, so
+# the response comes back sooner) CI lost it. Wait for the fact, not a guess at
+# how long it takes; corAwaitBody is silent on success and returns the moment it
+# is true, so a fast run pays nothing.
+#
+# Each seeded entity separately: the three creates are three connections, so
+# their deferred writes are not ordered against one another.
+corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:M' '"speed"'
+corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:P' '"speed"'
+corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:B' '"speed"'
 echo done
 echo
 echo

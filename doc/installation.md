@@ -51,7 +51,7 @@ Other targets: `make debug` / `make di` (debug + install), `make clean`, `make t
 
 See [the docker README](https://github.com/SEAMWARE/coraine/blob/main/docker/README.md).
 Build the image locally with the `Dockerfile` there; published images will land at
-`quay.io/coraine/coraine:<version>-<date>-<sha>` - one immutable tag per merge, never `latest`.
+`quay.io/seamware/coraine:<version>-<date>-<sha>` - one immutable tag per merge, never `latest`.
 
 ## Running
 
