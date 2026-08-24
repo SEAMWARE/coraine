@@ -22,7 +22,7 @@ troe timescale postgres temporal query q lastN pagination
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 

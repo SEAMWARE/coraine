@@ -17,7 +17,7 @@ troe patch delete
 
 --INIT--
 corDbDrop
-coraineStart --troe ramdb --apiPlugins admin
+coraineStart --troe ramdb --apiPlugins admin --troeSync
 
 --RUN--
 

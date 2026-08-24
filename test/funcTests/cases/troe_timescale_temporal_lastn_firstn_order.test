@@ -22,7 +22,7 @@ troe timescale postgres temporal lastN firstN order
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 

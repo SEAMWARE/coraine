@@ -29,7 +29,7 @@ troe timescale postgres temporal type validation
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 
@@ -74,15 +74,6 @@ echo "========================================================================"
 # This used to come back as "type": "" — the service routine only reads a
 # string type, so the array left the TRoE event with no type at all.
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:M1","type":["Building","House"],"height":{"type":"Property","value":3}}' | head -1
-#
-# The Core API's TRoE write is DEFERRED to brokerPostResponseHook - it happens
-# AFTER the response this test just read. Querying the temporal representation
-# on the next line is therefore a race, and on the corDB shard (in-memory, so
-# the response comes back sooner) CI lost it. Wait for the fact, not a guess at
-# how long it takes; corAwaitBody is silent on success and returns the moment it
-# is true, so a fast run pays nothing.
-#
-corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:M1' '"House"'
 corCurl --url '/ngsi-ld/v1/temporal/entities/urn:M1' | grep -A4 '"type": \['
 echo
 echo

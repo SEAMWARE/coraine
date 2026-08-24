@@ -26,7 +26,7 @@ troe timescale postgres temporal partial-content pagination
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale --troeInstanceCap 5
+coraineStart --troe timescale --troeInstanceCap 5 --troeSync
 
 --RUN--
 
@@ -58,19 +58,6 @@ corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"valu
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":70,"observedAt":"2026-04-28T15:00:00Z"}' >/dev/null
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":80,"observedAt":"2026-04-28T16:00:00Z"}' >/dev/null
-#
-# The Core API's TRoE write is DEFERRED to brokerPostResponseHook - it happens
-# AFTER the response this test just read. Querying the temporal representation
-# on the next line is therefore a race, and on the corDB shard (in-memory, so
-# the response comes back sooner) CI lost it. Wait for the fact, not a guess at
-# how long it takes; corAwaitBody is silent on success and returns the moment it
-# is true, so a fast run pays nothing.
-#
-# The LAST sample: its arrival implies the seven before it on this connection.
-# ?lastN=1 on purpose - the bare GET pages to the FIRST five instances, so the
-# eighth is not in it and the wait would time out on a page that cannot contain
-# the thing it is waiting for.
-corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=1' '2026-04-28T16:00:00'
 echo done
 echo
 echo

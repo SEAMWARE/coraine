@@ -44,6 +44,36 @@ static void queueAppend(const TroeEvent* evP)
 
 
 
+bool troeSync = false;   // --troeSync: write through instead of deferring
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dispatchOne - hand a single event straight to the plugin (--troeSync).
+//
+// Deliberately NOT "queue it and drain now": draining would also flush events
+// queued earlier in the same request, which is harmless but would make the
+// order of storage writes depend on the flag. One event in, one event out.
+//
+static void dispatchOne(const TroeEvent* evP)
+{
+  TroeEvent* mut = (TroeEvent*) evP;
+  mut->next = NULL;
+
+  if (troe.eventList != NULL)
+    troe.eventList(mut, 1);
+  else if (evP->op >= TroeOpAttrCreated)
+  {
+    if (troe.attrEvent != NULL)
+      troe.attrEvent(evP);
+  }
+  else if (troe.entityEvent != NULL)
+    troe.entityEvent(evP);
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // troeDeferEntityEvent -
@@ -52,6 +82,13 @@ void troeDeferEntityEvent(const TroeEvent* evP)
 {
   if (evP == NULL)
     return;
+
+  if (troeSync)
+  {
+    dispatchOne(evP);
+    return;
+  }
+
   queueAppend(evP);
 }
 
@@ -65,6 +102,13 @@ void troeDeferAttrEvent(const TroeEvent* evP)
 {
   if (evP == NULL)
     return;
+
+  if (troeSync)
+  {
+    dispatchOne(evP);
+    return;
+  }
+
   queueAppend(evP);
 }
 

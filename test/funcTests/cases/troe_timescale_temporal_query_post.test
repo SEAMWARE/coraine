@@ -19,7 +19,7 @@ troe timescale postgres temporal query post
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --troe timescale
+coraineStart --troe timescale --troeSync
 
 --RUN--
 
