@@ -122,7 +122,7 @@ FROM ubuntu:26.04
 LABEL org.opencontainers.image.title="coraine" \
       org.opencontainers.image.description="NGSI-LD Context Broker — ETSI GS CIM 009 v1.9.1" \
       org.opencontainers.image.vendor="Seamware" \
-      org.opencontainers.image.licenses="Proprietary"
+      org.opencontainers.image.licenses="Apache-2.0"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
