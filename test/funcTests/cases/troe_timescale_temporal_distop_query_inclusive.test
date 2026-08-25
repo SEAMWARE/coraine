@@ -28,7 +28,7 @@ corDbDrop -role CP1
 corTroeInit
 corTroeInit -role CP1
 coraineStart        --troe timescale -dist --troeSync
-coraineStart -role CP1 --troe timescale -dist
+coraineStart -role CP1 --troe timescale -dist --troeSync
 
 --RUN--
 
