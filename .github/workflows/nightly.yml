@@ -94,12 +94,20 @@ jobs:
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
+      #
+      # gcovr --print-summary already prints lines/functions/branches; the makefile
+      # has been doing it all along and this job used to throw it away and write
+      # "report generated" instead. Tee it, so the numbers reach both the log and
+      # the run summary - which is what the comment above this job always claimed.
+      #
       - name: Coverage - mongoc
         working-directory: stack/coraine
-        run: make coverage DB=mongoc GCOVR=gcovr CORTEST=../corLibs/bin/corTest
+        run: |
+          make coverage DB=mongoc GCOVR=gcovr CORTEST=../corLibs/bin/corTest 2>&1 | tee /tmp/cov-mongoc.txt
       - name: Coverage - corDB
         working-directory: stack/coraine
-        run: make coverage GCOVR=gcovr CORTEST=../corLibs/bin/corTest
+        run: |
+          make coverage GCOVR=gcovr CORTEST=../corLibs/bin/corTest 2>&1 | tee /tmp/cov-corDB.txt
       - name: Summarise
         if: always()
         working-directory: stack/coraine
@@ -108,17 +116,91 @@ jobs:
             echo "### Coverage"
             for db in mongoc corDB; do
               [ -f "coverage-$db/index.html" ] || continue
-              echo "- **$db**: report generated"
+              echo "<details><summary><b>$db</b></summary>"
+              echo
+              echo '```'
+              # The three summary lines gcovr prints last; verbatim, not parsed -
+              # a regex over someone else's output format is a future silent zero.
+              grep -aE '^(lines|functions|branches):' "/tmp/cov-$db.txt" || echo "(no summary captured)"
+              echo '```'
+              echo "</details>"
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+      #
+      # The publishable tree. Built here because this is where the reports are;
+      # the deploy happens in a separate job that is NOT in a container (the Pages
+      # actions want the runner's own toolchain).
+      #
+      - name: Assemble the coverage site
+        if: always()
+        working-directory: stack/coraine
+        run: |
+          mkdir -p site
+          for db in mongoc corDB; do
+            [ -d "coverage-$db" ] && cp -r "coverage-$db" "site/$db"
+          done
+          {
+            echo '<!doctype html><meta charset="utf-8"><title>coraine coverage</title>'
+            echo '<style>body{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem}'
+            echo 'pre{background:#f4f4f5;padding:1rem;overflow-x:auto}a{color:#0969da}</style>'
+            echo '<h1>coraine — test coverage</h1>'
+            echo "<p>Generated from <code>main</code> at <code>${GITHUB_SHA:0:7}</code> on $(date -u '+%Y-%m-%d %H:%M UTC').</p>"
+            echo '<p>Coverage is measured <b>per database plugin</b> — they are two different'
+            echo 'measurements, not two runs of one.</p>'
+            for db in mongoc corDB; do
+              [ -d "site/$db" ] || continue
+              echo "<h2><a href=\"$db/index.html\">$db</a></h2><pre>"
+              grep -aE '^(lines|functions|branches):' "/tmp/cov-$db.txt" || echo "(no summary captured)"
+              echo '</pre>'
+            done
+          } > site/index.html
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-reports
-          path: |
-            stack/coraine/coverage-mongoc
-            stack/coraine/coverage-corDB
+          name: coverage-site
+          path: stack/coraine/site
           retention-days: 14
+
+  #
+  # Publish the coverage report to GitHub Pages.
+  #
+  # ONLY from main. A branch dispatch (`gh workflow run nightly.yml --ref <branch>`)
+  # is how a fix gets tried before it is merged, and those numbers must never
+  # overwrite the ones that describe main - a coverage page that silently shows a
+  # feature branch is worse than no page.
+  #
+  # This is effectively "on merge to main" without paying for it: the gate above
+  # only lets the scheduled run proceed when main moved in the last 24 hours, so a
+  # publish happens after merges and not otherwise. Coverage takes ~47 minutes; a
+  # job per merge would spend that on every one.
+  #
+  # Not in a container, unlike the coverage job - the Pages actions want the
+  # runner's own toolchain.
+  #
+  publish-coverage:
+    needs: [gate, coverage]
+    if: needs.gate.outputs.run == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-site
+          path: site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Say where it went
+        run: echo "Coverage published to ${{ steps.deploy.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"
 
   #
   # Valgrind: the same suite, with the broker under valgrind, failing on definite
