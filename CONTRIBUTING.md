@@ -37,6 +37,16 @@ raised the same idea.
 Pull requests go against `main`. Keep a pull request to one subject; a commit
 message says *why*, not only *what*.
 
+## Code style
+
+C style for the whole stack — the k-libs, the Cor-Libs and the broker — is one
+document: [`STYLE_GUIDE.md`](https://github.com/SEAMWARE/corLibs/blob/main/STYLE_GUIDE.md)
+in the `corLibs` umbrella. It covers includes, layout, naming, the kalloc arenas,
+the kjson tree rules and the concurrency invariants.
+
+Read at least the first section before a first pull request. Every rule in it is
+there because something went wrong without it, and most of them say what.
+
 ## Building and testing
 
 Building the broker and running the suite is described in the

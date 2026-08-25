@@ -479,6 +479,10 @@ including the Individual Contributor License Agreement that every pull request m
 carry — how to build and test, and what a good bug report contains. Participation is
 governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+C style for the whole stack is one document:
+[`STYLE_GUIDE.md`](https://github.com/SEAMWARE/corLibs/blob/main/STYLE_GUIDE.md) in
+the `corLibs` umbrella.
+
 The backlog is [`ToDo.md`](ToDo.md): what is not built yet, and what is deferred by
 design.
 
