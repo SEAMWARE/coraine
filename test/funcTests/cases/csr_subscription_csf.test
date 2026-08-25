@@ -38,6 +38,12 @@ echo
 echo
 
 
+# S1's and S2's initial notifications are sent post-response on separate request
+# threads; the dump in step 04 reads them in ARRIVAL order. Without this barrier
+# /s1 and /s2 swap places whenever S1's notification loses the race - which is
+# what took this test red in the valgrind nightly.
+ftClientWait 1
+
 echo "02. CSR-sub S2 on Vehicle with no csf — matches every Vehicle CSR"
 echo "================================================================="
 corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
@@ -49,6 +55,8 @@ corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{
 echo
 echo
 
+
+ftClientWait 2
 
 echo "03. Register CSR-Beta (organization=Beta) — only S2 matches"
 echo "==========================================================="
@@ -63,6 +71,8 @@ corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
 echo
 echo
 
+
+ftClientWait 3
 
 echo "04. S1 + S2 initial (empty) notifs, then CSR:Beta to /s2 alone"
 echo "=============================================================="
@@ -84,6 +94,8 @@ corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
 echo
 echo
 
+
+ftClientWait 5
 
 echo "06. CSR:Acme reaches BOTH /s1 and /s2 — S1's csf matches it"
 echo "==========================================================="
@@ -116,7 +128,7 @@ echo
 echo "09. ... and it still notifies on a matching Entity"
 echo "=================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bike:1","type":"Bike","gears":{"type":"Property","value":21}}' | head -1
-sleep 0.3
+ftClientWait 6
 ftClientDump | grep -E '"url"|"id"'
 echo
 echo

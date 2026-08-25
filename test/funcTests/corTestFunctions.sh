@@ -649,6 +649,59 @@ ftClientCount() {
 }
 
 
+# ftClientWait <n> [--port P] - block until ftClient has captured at least <n>
+# requests, or until the (generous) deadline passes.
+#
+# Notifications are asynchronous, so the ORDER in which two of them land in the
+# dump is the order the broker's notification threads happened to finish - not
+# the order the triggering requests were sent. A test that triggers two of them
+# back to back and then dumps is asserting on a coin flip; it comes up heads on
+# a fast machine and tails under valgrind, which is how three of them went red
+# in the nightly (subscription_type_star, json_property, csr_subscription_csf)
+# while passing everywhere else.
+#
+# The fix is to make the order real: wait for notification 1 to have LANDED
+# before sending the request that triggers notification 2. This polls /count
+# (a bare integer, no JSON parser involved) rather than sleeping, so a normal
+# run pays only the real latency - typically one 20 ms poll.
+#
+# Prints nothing: it is a barrier, not a step, and must not disturb the expect.
+# Returns 0 if the count was reached, 1 on timeout (the caller's own assert then
+# reports the real problem, rather than this hiding it).
+#
+ftClientWait() {
+  local want=$1
+  shift
+
+  local port=$FT_CLIENT_PORT
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "--port" ] || [ "$1" == "-p" ]; then
+      port="$2"
+      shift
+    fi
+    shift
+  done
+
+  # Under valgrind everything is ~5x slower, so the deadline is too. Both are
+  # ceilings that a healthy run never approaches.
+  local deadline=100                      # 100 x 0.02s = 2s
+  [ "$COR_VALGRIND" == "1" ] && deadline=500   # 500 x 0.02s = 10s
+
+  # An `if` rather than an `&&` chain on purpose: a chain whose last link fails
+  # is a failing command, and this function is called as a plain statement.
+  local n
+  for ((i = 0; i < deadline; i++)); do
+    n=$(curl -sk "$(ftClientUrl $port /count)")
+    if [ -n "$n" ] && [ "$n" -eq "$n" ] 2>/dev/null && [ "$n" -ge "$want" ]; then
+      return 0
+    fi
+    sleep 0.02
+  done
+
+  return 1
+}
+
+
 # ftClientProbeCount [--port P] - number of sourceIdentity discovery probes seen.
 #
 # Probes (GET .../info/sourceIdentity, § 5.15 alias discovery) are infrastructure
