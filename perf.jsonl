@@ -4,3 +4,5 @@
 {"date": "2026-08-22T09:40:53Z", "db": "corDB", "query_c200": 8345, "query_c50": 8459, "retrieve_c50": 57782, "run": "32614511428", "sha": "59755e2c"}
 {"date": "2026-08-24T22:50:28Z", "db": "corDB", "query_c200": 10793, "query_c50": 10952, "retrieve_c50": 70857, "run": "32803642728", "sha": "79bfaa6d"}
 {"date": "2026-08-24T22:50:28Z", "db": "mongoc", "query_c200": 5406, "query_c50": 5493, "retrieve_c50": 20551, "run": "32803642728", "sha": "79bfaa6d"}
+{"date": "2026-08-25T10:53:36Z", "db": "corDB", "query_c200": 14028, "query_c50": 14131, "retrieve_c50": 82198, "run": "32859127078", "sha": "9b192148"}
+{"date": "2026-08-25T10:53:36Z", "db": "mongoc", "query_c200": 6542, "query_c50": 6924, "retrieve_c50": 21450, "run": "32859127078", "sha": "9b192148"}
