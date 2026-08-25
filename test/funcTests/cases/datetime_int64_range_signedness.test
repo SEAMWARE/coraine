@@ -135,15 +135,15 @@ Content-Length: REGEX(\d+)
 
 {
   "a": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "observedAt": "1968-12-31T23:50:59Z",
     "type": "Property",
     "value": 1
   },
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "id": "urn:ngsi-ld:T:3",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "T"
 }
 

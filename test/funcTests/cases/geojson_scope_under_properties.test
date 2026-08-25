@@ -130,11 +130,11 @@ Content-Length: REGEX(\d+)
   },
   "id": "urn:V1",
   "properties": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "expiresAt": "2099-12-31T23:59:59Z",
     "location": {
-      "createdAt": "REGEX(.*)",
-      "modifiedAt": "REGEX(.*)",
+      "createdAt": "REGEX(20[23]\d-.*Z)",
+      "modifiedAt": "REGEX(20[23]\d-.*Z)",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -144,11 +144,11 @@ Content-Length: REGEX(\d+)
         "type": "Point"
       }
     },
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "scope": "/Madrid/Gardens",
     "speed": {
-      "createdAt": "REGEX(.*)",
-      "modifiedAt": "REGEX(.*)",
+      "createdAt": "REGEX(20[23]\d-.*Z)",
+      "modifiedAt": "REGEX(20[23]\d-.*Z)",
       "type": "Property",
       "value": 50
     },

@@ -119,7 +119,7 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "entities": [
     {
       "type": "Vehicle"
@@ -127,7 +127,7 @@ Content-Length: REGEX(\d+)
   ],
   "id": "urn:ngsi-ld:Subscription:S1",
   "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "notification": {
     "endpoint": {
       "uri": "http://localhost:9000/n"

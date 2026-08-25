@@ -138,13 +138,13 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
-  "modifiedAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "Property",
   "value": 12,
   "xtra": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 1
   }
@@ -206,13 +206,13 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
-  "modifiedAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "object": "urn:E2",
   "type": "Relationship",
   "xtra": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 1
   }
@@ -274,13 +274,13 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
-  "modifiedAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "VocabProperty",
   "vocab": "sensor",
   "xtra": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 1
   }
@@ -348,16 +348,16 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "languageMap": {
     "en": "one",
     "es": "uno"
   },
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "LanguageProperty",
   "xtra": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 1
   }
@@ -431,16 +431,16 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "json": {
     "a": 1,
     "b": 2
   },
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "JsonProperty",
   "xtra": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 1
   }
@@ -508,9 +508,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "expiresAt": "2099-12-31T23:59:59Z",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "Property",
   "value": 7
 }
