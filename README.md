@@ -19,7 +19,7 @@ startup as shared libraries:
 - **storage backends** — where the current state lives
 - **temporal history** — the temporal evolution of entities (TRoE)
 - **extra API surfaces** — ops/admin endpoints beyond NGSI-LD
-- **the wire protocol itself** — REST/HTTP today, pluggable transports next
+- **outbound transports** — REST/HTTP always, other protocols next (the *bridge* seam)
 
 The core broker speaks NGSI-LD; the plugins decide *where data lives*, *what extra
 endpoints exist* and *how the broker talks to the world*.
@@ -205,7 +205,7 @@ feature you can use yet.
 | **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` |
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `ramdb`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
-| **Communication protocol** | — | REST/HTTP, built in | *planned* |
+| **Bridge** (outbound transport) | endpoint scheme | per scheme | HTTP/HTTPS built in; others *planned* |
 
 **Why that matters, beyond tidiness.** The broker never talks to a database. It talks
 to a *driver interface* — `DbDriver.h` for current state, `TroeDriver.h` for history —
@@ -478,6 +478,10 @@ Contributions are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) describes the te
 including the Individual Contributor License Agreement that every pull request must
 carry — how to build and test, and what a good bug report contains. Participation is
 governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+C style for the whole stack is one document:
+[`STYLE_GUIDE.md`](https://github.com/SEAMWARE/corLibs/blob/main/STYLE_GUIDE.md) in
+the `corLibs` umbrella.
 
 The backlog is [`ToDo.md`](ToDo.md): what is not built yet, and what is deferred by
 design.

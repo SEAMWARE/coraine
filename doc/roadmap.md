@@ -26,8 +26,11 @@ incorporated in the next release of the product:
 -   **Service Execution.** Actuation as a first-class citizen of the API, beyond
     the suggested workflows of TS 104 175 Annex G.
 
--   **Communication protocols as plugins.** Lift REST/HTTP behind the same plugin
-    seam as the DB and TRoE drivers, so a transport can be replaced.
+-   **The endpoint decides the transport.** HTTP is built in and always present -
+    it is also the NGSI-LD REST API, so the broker can never ship without it. What
+    the *bridge* seam adds is the ability to use a different transport INSTEAD, when
+    a subscription or a registration asks for one by the scheme of its endpoint. The
+    protocol names the endpoint; `bridge` names the seam.
 
 -   **Binary IPC protocol.** A TLV-framed transport beside REST, with no JSON
     parse on the hot path.
@@ -44,7 +47,7 @@ The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
 -   **DDS transport.** Speak DDS natively for robotics and industrial deployments,
-    addressed as `local://dds` endpoints.
+    addressed as `dds://` endpoints.
 
 -   **OPC UA transport.** The same for industrial automation: variables as
     attributes, monitored items as subscriptions, methods as Service Execution.

@@ -34,14 +34,16 @@ easier to get right with a real feature in hand, and this is that feature.
 Speak DDS as a first-class transport, for the robotics and industrial side where
 DDS is the bus and HTTP is the foreign body.
 
-- **`local://<$NAME>` endpoints.** A subscription's `endpoint.uri` (and the
-  registration equivalent) is an HTTP URL today, so every notification is an
-  HTTP POST. `local://<name>` says: *do not go out over the network — hand this
-  to the locally loaded transport called `<name>`*, e.g. `local://dds`. The
-  notification never gets serialised into an HTTP request; it goes straight to
-  the plugin, which publishes it on its own bus.
-- Depends on the protocol-plugin seam (item 6): `local://` is only meaningful
-  once transports are pluggable.
+- **The endpoint's SCHEME picks the transport.** A subscription's `endpoint.uri`
+  (and the registration equivalent) is an HTTP URL today, so every notification is
+  an HTTP POST. `dds://<...>` says: *do not go out over HTTP — hand this to the
+  loaded bridge for that protocol*. The notification never gets serialised into an
+  HTTP request; it goes straight to the plugin, which publishes it on its own bus.
+  The protocol names the endpoint (`dds://`, `opcua://`, `ws://`, `ngsild-bin://`);
+  **`bridge` is the name of the seam, not of a scheme** — `local://` is not used,
+  `local` already means "this broker only, do not forward" (`--localOnly`, `local=true`).
+- Depends on the bridge seam (item 6): a non-HTTP scheme is only meaningful once
+  transports are pluggable.
 - The DDS side (client for DDS Services and Actions) exists from the ARISE work
   — this is about wiring it into the broker as a transport rather than a
   separate bridge process.
@@ -49,7 +51,7 @@ DDS is the bus and HTTP is the foreign body.
 ## 3. OPC UA
 
 The same shape as DDS, for the other half of the factory floor. An OPC UA
-transport plugin, addressed the same way (`local://opcua`), so an NGSI-LD entity
+transport plugin, addressed the same way (`opcua://`), so an NGSI-LD entity
 and an OPC UA node are two views of one thing:
 
 - OPC UA **variables** ↔ entity attributes, read and written through the broker;
@@ -68,7 +70,7 @@ receive one. A WebSocket binding turns that around — the consumer connects, th
 broker pushes over the standing connection.
 
 - Subscription delivery over an established WebSocket (`ws://` / `wss://`
-  endpoints, or a `local://` handoff for a connection the broker already holds).
+  endpoints, including a handoff for a connection the broker already holds).
 - Worth deciding at the same time whether the *API itself* is served over
   WebSockets, not only notifications — that is the interesting question for a UI
   that wants live state without polling.
@@ -111,7 +113,7 @@ built. REST/HTTP is compiled into the broker.
   `apiRegister`. Nothing else can move until the seam exists.
 - **Add a binary IPC plugin.** The ad-hoc binary wire protocol — TLV framing,
   no JSON parse on the hot path — running alongside or instead of REST.
-- **Unblocks haaux** (item 5) and every `local://` transport — DDS, OPC UA,
+- **Unblocks haaux** (item 5) and every bridged transport — DDS, OPC UA,
   WebSockets (items 2-4). None of them can start before this seam exists.
 
 ## 7. corDB — an NGSI-LD-aware database
