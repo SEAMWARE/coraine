@@ -62,6 +62,12 @@ echo
 echo
 
 
+# The two notifications are sent post-response, each on its own request thread,
+# so their ARRIVAL order at ftClient is a race - and step 05 dumps them in
+# arrival order. Wait for A's to land before triggering B's, or the dump is a
+# coin flip that comes up tails under valgrind.
+ftClientWait 1
+
 echo "04. Create entity of type B — notification expected"
 echo "==================================================="
 payload='{"id": "urn:ngsi-ld:B:1", "type": "B", "q": {"type": "Property", "value": 2}}'

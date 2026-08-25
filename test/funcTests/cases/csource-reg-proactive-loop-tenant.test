@@ -55,6 +55,21 @@ echo
 echo
 
 
+#
+# The § 5.15 sourceIdentity probe that teaches this CSR its alias is DEFERRED: it
+# runs post-response, on the thread that answered step 01, while the shell has
+# already moved on to step 02. Until it lands, csr->csourceAlias is NULL, the
+# proactive skip cannot fire, and the broker forwards to itself - caught by the
+# reactive Via check, so the client still sees the 404 of step 03, but the
+# counter in step 04 reads 2 instead of 1. That counter is the whole point of
+# this test, so the probe has to be given time to land first.
+#
+# The probe is a self-request: ~7 ms under valgrind on an idle workstation, and
+# the settle is two orders of magnitude more than that. It costs nothing on a
+# normal run - corValgrindSleep is a no-op unless corTest was given --vt.
+#
+corValgrindSleep "${COR_VALGRIND_PROBE_SETTLE:-1.5}"
+
 echo "02. Baseline retrieve counter"
 echo "============================="
 corCurl --url /admin/metrics --out raw | grep -aE "^ngsild_entity_retrieve_total"

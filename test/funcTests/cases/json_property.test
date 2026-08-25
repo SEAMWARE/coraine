@@ -77,6 +77,10 @@ echo
 echo
 
 
+# E1's notification is sent after E1's response, on that request's thread, so it
+# races E2's. Step 06 dumps in arrival order - wait for the first to land.
+ftClientWait 1
+
 echo "03. Create urn:E2, type T, JsonProperty V2 = [ json, id ] + concise V3 = { json: [ json ] }"
 echo "==========================================================================================="
 payload='{
@@ -111,7 +115,7 @@ echo
 
 echo "06. Dump ftClient - notifications for E1 and E2"
 echo "==============================================="
-sleep .2
+ftClientWait 2
 ftClientDump
 echo
 echo
