@@ -24,6 +24,7 @@
 #include "kjson/KjNode.h"                                 // KjNode
 #include "kjson/kjLookup.h"                               // kjLookup
 #include "kjson/kjBuilder.h"                              // kjObject, kjChildAdd
+#include "kjson/kjClone.h"                                // kjClone
 #include "kjson/kjRender.h"                               // kjFastRender
 #include "kjson/kjRenderSize.h"                           // kjFastRenderSize
 #include "kalloc/kaAlloc.h"                               // kaAlloc
@@ -176,9 +177,10 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
   KjNode* observP  = NULL;
   KjNode* subAttrs = kjObject(corRest.kjsonP, NULL);
 
-  // IMPORTANT: kjChildAdd re-points the added node's ->next, which would
-  // break this for-loop's iteration if the loop variable is the same node.
-  // Capture nextP before the body and use it after.
+  // Read-only walk: nothing below re-homes a node out of instP (see the
+  // sub-attribute branch), so the list stays whole. nextP is still captured up
+  // front - it costs nothing and it is what keeps this loop correct if anyone
+  // ever adds a step that does touch the list.
   KjNode* fP = instP->value.firstChildP;
   while (fP != NULL)
   {
@@ -200,9 +202,37 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
         strcmp(fP->name, "objectList") == 0 ||
         strcmp(fP->name, "json")       == 0)   { valueP  = fP;       fP = nextP; continue; }
 
-    // Sub-attribute. kjChildAdd re-homes the node into subAttrs (stomping
-    // its ->next) — that's fine because we already saved nextP.
-    kjChildAdd(subAttrs, fP);
+    //
+    // Sub-attribute. It belongs to the CALLER's entity tree, so it is CLONED
+    // in - neither moved nor, as it was, spliced.
+    //
+    // kjChildAdd re-points the added node's ->next, and there being no
+    // kjChildMove it left the two lists SHARING their tails: the first
+    // sub-attribute's ->next was nulled, then the second sub-attribute relinked
+    // it, so {type,value,unitCode,observedAt,accuracy} came back out of here as
+    // {type,value,unitCode,accuracy} - whatever sat between two sub-attributes
+    // spliced out of the attribute we were handed. observedAt is what sits
+    // between them in the most ordinary attribute there is.
+    //
+    // kjChildRemove-then-kjChildAdd is the correct idiom for a MOVE and does
+    // repair the lists, but a move is not what this wants: the sub-attributes
+    // would then be gone from the caller's attribute instead, and the entity
+    // would persist without its unitCode. extractCols READS an attribute into
+    // columns. It owns none of what it is shown.
+    //
+    // Cloning the sub-attributes rather than instP as a whole is deliberate:
+    // the value may be an arbitrarily large compound and is only read.
+    //
+    // Under the default deferred dispatch nobody could see it: the event is
+    // handed to the plugin from brokerPostResponseHook, long after the entity
+    // has been stored and rendered. --troeSync runs the plugin where the
+    // service routine produces the event - BEFORE the current-state write - and
+    // the truncation reached the database. Eleven ETSI batch TPs went red the
+    // first night the conformance broker took the flag.
+    //
+    // A temporal write READS the entity. It must not consume it.
+    //
+    kjChildAdd(subAttrs, kjClone(corRest.kjsonP, fP));
     fP = nextP;
   }
 

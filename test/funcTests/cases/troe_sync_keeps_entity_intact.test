@@ -1,0 +1,242 @@
+#
+# FILE            troe_sync_keeps_entity_intact.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A TRoE write reads the entity; it must not CONSUME it.
+#
+# The timescale plugin turns an attribute instance into columns, and it built its
+# sub_attrs column by moving the sub-attribute nodes into a container of its own
+# with kjChildAdd - which re-points the moved node's ->next and so TRUNCATES the
+# list it was taken from. Everything after the first sub-attribute disappeared
+# from the caller's tree.
+#
+# Deferred (the default) that is invisible: the temporal event is dispatched from
+# brokerPostResponseHook, long after the entity has been stored and rendered. With
+# --troeSync the plugin runs where the service routine produces the event, i.e.
+# BEFORE the current-state write - so the truncation reaches the database and the
+# entity comes back missing whatever followed its first sub-attribute.
+#
+# observedAt is the field that follows unitCode in the most ordinary attribute
+# there is, which is how this surfaced: eleven ETSI batch TPs (004_01..004_04,
+# 005_01, 005_03) went red the first night the conformance broker took --troeSync.
+#
+# Requires postgres on localhost:5432 with a passwordless 'postgres' user.
+#
+--NAME--
+TRoE --troeSync - a temporal write must not consume the entity it is given
+
+--TAGS--
+troe timescale postgres observedAt sysAttrs batch
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# 01. POST urn:B1 - airQualityLevel carries a sub-attribute (unitCode) and, AFTER
+#     it, observedAt. That order is what makes the truncation reachable.
+# 02. GET urn:B1 - unitCode AND observedAt must both still be there
+# 03. Batch upsert urn:B2 with the same shape - the ETSI path
+# 04. GET urn:B2 - same assertion
+# 05. Two sub-attributes with observedAt between them - nothing after the FIRST
+#     sub-attribute may be lost
+# 06. PATCH - troeFromMerge hands the plugin a live pointer into the MERGED
+#     entity, the same tree the current-state write reads
+#
+
+echo "01. POST urn:B1 - sub-attribute first, observedAt after it"
+echo "=========================================================="
+payload='{
+  "id": "urn:B1",
+  "type": "Building",
+  "airQualityLevel": {
+    "type": "Property",
+    "value": 4,
+    "unitCode": "C62",
+    "observedAt": "2020-09-09T16:40:00.000Z"
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET urn:B1 - unitCode and observedAt both survive the temporal write"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:B1
+echo
+echo
+
+
+echo "03. Batch upsert urn:B2 - the shape the ETSI batch TPs use"
+echo "=========================================================="
+payload='[
+  {
+    "id": "urn:B2",
+    "type": "Building",
+    "airQualityLevel": {
+      "type": "Property",
+      "value": 4,
+      "unitCode": "C62",
+      "observedAt": "2020-09-09T16:40:00.000Z"
+    }
+  }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload" | head -1
+echo
+echo
+
+
+echo "04. GET urn:B2 - unitCode and observedAt both survive"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:B2
+echo
+echo
+
+
+echo "05. GET urn:B3 - two sub-attributes with observedAt between them"
+echo "================================================================"
+payload='{
+  "id": "urn:B3",
+  "type": "Building",
+  "airQualityLevel": {
+    "type": "Property",
+    "value": 4,
+    "unitCode": "C62",
+    "observedAt": "2020-09-09T16:40:00.000Z",
+    "accuracy": {"type": "Property", "value": 0.9}
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:B3
+echo
+echo
+
+
+echo "06. PATCH urn:B1 - the merge path hands the LIVE merged tree to the plugin"
+echo "=========================================================================="
+payload='{
+  "airQualityLevel": {
+    "type": "Property",
+    "value": 7,
+    "unitCode": "C62",
+    "observedAt": "2021-01-01T00:00:00.000Z"
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs -X PATCH --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:B1
+echo
+echo
+
+
+--EXPECT--
+01. POST urn:B1 - sub-attribute first, observedAt after it
+==========================================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:B1 - unitCode and observedAt both survive the temporal write
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "airQualityLevel": {
+    "observedAt": "2020-09-09T16:40:00Z",
+    "type": "Property",
+    "unitCode": "C62",
+    "value": 4
+  },
+  "id": "urn:B1",
+  "type": "Building"
+}
+
+
+
+03. Batch upsert urn:B2 - the shape the ETSI batch TPs use
+==========================================================
+HTTP/1.1 201 Created
+
+
+04. GET urn:B2 - unitCode and observedAt both survive
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "airQualityLevel": {
+    "observedAt": "2020-09-09T16:40:00Z",
+    "type": "Property",
+    "unitCode": "C62",
+    "value": 4
+  },
+  "id": "urn:B2",
+  "type": "Building"
+}
+
+
+
+05. GET urn:B3 - two sub-attributes with observedAt between them
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "airQualityLevel": {
+    "accuracy": {
+      "type": "Property",
+      "value": 0.9
+    },
+    "observedAt": "2020-09-09T16:40:00Z",
+    "type": "Property",
+    "unitCode": "C62",
+    "value": 4
+  },
+  "id": "urn:B3",
+  "type": "Building"
+}
+
+
+
+06. PATCH urn:B1 - the merge path hands the LIVE merged tree to the plugin
+==========================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "airQualityLevel": {
+    "observedAt": "2021-01-01T00:00:00Z",
+    "type": "Property",
+    "unitCode": "C62",
+    "value": 7
+  },
+  "id": "urn:B1",
+  "type": "Building"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop
