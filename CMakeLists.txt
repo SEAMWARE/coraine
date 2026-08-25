@@ -89,7 +89,6 @@ set(COR_STATIC_LIBS
   ${COR_LIBS_DIR}/ktrace/libktrace.a
   ${COR_LIBS_DIR}/kprom/libkprom.a
   ${COR_LIBS_DIR}/khash/libkhash.a
-  ${COR_LIBS_DIR}/klog/libklog.a
   ${COR_LIBS_DIR}/kalloc/libkalloc.a
   ${COR_LIBS_DIR}/kjson/libkjson.a
   ${COR_LIBS_DIR}/kbase/libkbase.a
