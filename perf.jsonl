@@ -2,3 +2,5 @@
 {"date": "2026-08-21T11:29:03Z", "db": "mongoc", "query_c200": 5472, "query_c50": 5592, "retrieve_c50": 20374, "run": "32482747810", "sha": "6b1d5f6e"}
 {"date": "2026-08-21T21:58:25Z", "db": "corDB", "query_c200": 8161, "query_c50": 8120, "retrieve_c50": 41011, "run": "32547648568", "sha": "4a17ff01"}
 {"date": "2026-08-22T09:40:53Z", "db": "corDB", "query_c200": 8345, "query_c50": 8459, "retrieve_c50": 57782, "run": "32614511428", "sha": "59755e2c"}
+{"date": "2026-08-24T22:50:28Z", "db": "corDB", "query_c200": 10793, "query_c50": 10952, "retrieve_c50": 70857, "run": "32803642728", "sha": "79bfaa6d"}
+{"date": "2026-08-24T22:50:28Z", "db": "mongoc", "query_c200": 5406, "query_c50": 5493, "retrieve_c50": 20551, "run": "32803642728", "sha": "79bfaa6d"}
