@@ -1,0 +1,112 @@
+#
+# FILE            troe_temporal_timestamp_precision.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The temporal representation must not render createdAt/modifiedAt coarser than
+# the core API does for the same Entity.
+#
+# It did. The core path renders microseconds - "…T13:35:57.951209Z" - while the
+# timescale plugin's to_char used 'MS' and rendered "…T13:35:57.951Z", throwing
+# away three digits. Harmless-looking, until § 5.7.4 orderBy=createdAt: three
+# Entities created inside one millisecond all carry the SAME key, ldOrderSort has
+# nothing to order them by, and the result is whatever order the rows arrived in.
+#
+# That is ETSI TP 021_23_03 (orderBy=createdAt) and 021_23_04
+# (orderBy=name.createdAt), the last two red TPs of the 2026-08-25 nightly - and
+# only those two, because they are the only ones in that suite whose sort key can
+# tie. Their non-temporal twin 019_19 passes on the same fixtures and the same
+# expectation, because the core path keeps the digits.
+#
+# ⚠️ Not reproducible on a workstation: three creates land 5-6 ms apart here and
+# never tie. Forcing the ties - rendering at whole-second resolution - reproduced
+# the nightly's failure byte for byte, 021_23_03 and 021_23_04 red and the other
+# seven green.
+#
+# observedAt is deliberately NOT part of this: it is user-supplied data, not a
+# broker timestamp, and its rendering is a separate question.
+#
+# Requires postgres on localhost:5432 with a passwordless 'postgres' user.
+#
+--NAME--
+TRoE temporal - createdAt/modifiedAt keep the precision the core API keeps
+
+--TAGS--
+troe timescale postgres temporal sysAttrs createdAt orderBy
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# 01. Create three Entities, in the order B2, B1, B3
+# 02. Core API - createdAt carries MICROSECONDS (6 fractional digits)
+# 03. Temporal API - the same, not milliseconds
+# 04. orderBy=createdAt returns them in CREATION order, not id order
+#
+
+echo "01. Create urn:B2, urn:B1, urn:B3 - in that order"
+echo "================================================="
+for n in 2 1 3; do
+  payload='{"id": "urn:B'$n'", "type": "Building", "name": {"type": "Property", "value": "B'$n'"}}'
+  corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+done
+echo
+echo
+
+
+echo "02. Core API - createdAt has six fractional digits"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:B1?options=sysAttrs' --out raw | grep -oE '"createdAt": "[^"]+"' | head -1
+echo
+echo
+
+
+echo "03. Temporal API - the same precision, not milliseconds"
+echo "======================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:B1?timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=createdAt&options=sysAttrs' --out raw | grep -oE '"createdAt": "[^"]+"' | head -1
+echo
+echo
+
+
+echo "04. orderBy=createdAt - creation order B2, B1, B3 (NOT id order)"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Building&orderBy=createdAt&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=createdAt' --out raw | grep -oE '"id": "urn:B[0-9]"'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:B2, urn:B1, urn:B3 - in that order
+=================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Core API - createdAt has six fractional digits
+==================================================
+"createdAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)"
+
+
+03. Temporal API - the same precision, not milliseconds
+=======================================================
+"createdAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)"
+
+
+04. orderBy=createdAt - creation order B2, B1, B3 (NOT id order)
+================================================================
+"id": "urn:B2"
+"id": "urn:B1"
+"id": "urn:B3"
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop
