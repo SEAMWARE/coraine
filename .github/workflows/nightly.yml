@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     # pinned - see the note in ci.yml
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-08-24-814ad08
+      image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
       mongo:
         image: mongo:8.0
@@ -94,6 +94,31 @@ jobs:
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
+      #
+      # This job measures an INSTRUMENTED tree that it never installs - the plugins
+      # are staged into BUILD_COVERAGE and found through COR_PLUGIN_DIR. Two tests
+      # need the DEFAULT location populated anyway, and both failed here, in both DB
+      # runs, from the day the job was written: `usage.test` clears
+      # SEAMWARE_PLUGIN_DIR on purpose - it pins the default plugin directory, which
+      # was empty, so the broker printed "plugin 'corDB': not found" and the generic
+      # option help instead of the list it was asserting - and
+      # csource-reg-proactive-loop lost its whole contextSourceExtras block, which
+      # comes from a file only `install` puts in /opt/seamware/etc.
+      #
+      # Nobody saw it: the coverage target ends the suite with `|| true`, so that a
+      # red test still yields a report. So the same two tests went red every night,
+      # in silence, in a job whose numbers are the point.
+      #
+      # The valgrind job below has always done this. The measurement is unaffected -
+      # COR_BROKER still names the instrumented binary, and the only thing resolved
+      # out of /opt/seamware is the plugin set that usage.test deliberately looks
+      # for there.
+      #
+      - name: Build and install coraine
+        working-directory: stack/coraine
+        run: |
+          mkdir -p /opt/seamware/plugins /opt/seamware/etc
+          make di
       #
       # gcovr --print-summary already prints lines/functions/branches; the makefile
       # has been doing it all along and this job used to throw it away and write
@@ -240,7 +265,7 @@ jobs:
           - { name: '320-476', from: 320, to: 476 }
           - { name: '477-end', from: 477, to: 0 }
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-08-24-814ad08
+      image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
       mongo:
         image: mongo:8.0
@@ -323,7 +348,7 @@ jobs:
     if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "etsi"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-08-24-814ad08
+      image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
       mongo:
         image: mongo:8.0
@@ -447,7 +472,7 @@ jobs:
     permissions:
       contents: write
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-08-24-814ad08
+      image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
       mongo:
         image: mongo:8.0

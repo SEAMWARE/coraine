@@ -53,7 +53,25 @@ endforeach()
 set(CMAKE_C_FLAGS         "-Wall -Werror -fPIC -DLOG_ON -Wno-unused-function")
 set(CMAKE_C_FLAGS_RELEASE  "-O2 -g")
 set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG")
-set(CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage")
+#
+# -fprofile-update=atomic, because this broker is thread-per-connection.
+#
+# gcov's counters are ordinary non-atomic increments by default. Two connections
+# executing the same line at the same time then race on one counter: increments are
+# LOST, and a counter can end up NEGATIVE, which is not a curiosity - gcovr treats a
+# negative count as fatal, and the nightly of 2026-08-25 spent fifty minutes and
+# produced no report because of one negative BRANCH count.
+#
+# The pinned gcovr (>= 8.3, see corLibs/docker/Dockerfile.ci-nightly) survives that
+# with --gcov-ignore-parse-errors, but surviving is not the same as being right: the
+# lost increments are silent, and they only ever bias coverage DOWNWARDS. Atomic
+# updates make the numbers correct, which is the point of measuring them.
+#
+# It is not free - an atomic add costs more than an add - but it is confined to this
+# build type. Release and Debug never see it, and the nightly's performance job
+# measures a release build, so no recorded figure can move.
+#
+set(CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage -fprofile-update=atomic")
 
 #
 # Cor-Libs / k-libs live in sibling repos (one .a per repo), linked statically.
