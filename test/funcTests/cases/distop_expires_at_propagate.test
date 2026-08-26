@@ -111,35 +111,35 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "earlier": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "expiresAt": "2050-01-01T00:00:00Z",
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 7
   },
   "expiresAt": "2099-01-01T00:00:00Z",
   "id": "urn:V1",
   "later": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "expiresAt": "2099-01-01T00:00:00Z",
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 99
   },
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "prehistoric": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "expiresAt": "1968-01-01T00:00:00Z",
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 5
   },
   "speed": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "expiresAt": "2099-01-01T00:00:00Z",
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": 42
   },

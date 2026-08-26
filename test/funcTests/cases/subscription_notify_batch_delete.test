@@ -118,12 +118,12 @@ Content-Length: 301
     "body": {
       "data": [
         {
-          "deletedAt": "REGEX(.*)",
+          "deletedAt": "REGEX(20[23]\d-.*Z)",
           "id": "urn:V1",
           "type": "Vehicle"
         },
         {
-          "deletedAt": "REGEX(.*)",
+          "deletedAt": "REGEX(20[23]\d-.*Z)",
           "id": "urn:V2",
           "type": "Vehicle"
         }

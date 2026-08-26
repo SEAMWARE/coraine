@@ -86,10 +86,10 @@ Date: REGEX(.*)
     "body": {
       "data": [
         {
-          "createdAt": "REGEX(.*)",
-          "deletedAt": "REGEX(.*)",
+          "createdAt": "REGEX(20[23]\d-.*Z)",
+          "deletedAt": "REGEX(20[23]\d-.*Z)",
           "id": "urn:V1",
-          "modifiedAt": "REGEX(.*)",
+          "modifiedAt": "REGEX(20[23]\d-.*Z)",
           "type": "Vehicle"
         }
       ],

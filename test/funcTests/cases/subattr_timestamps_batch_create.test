@@ -79,37 +79,37 @@ Content-Length: REGEX(\d+)
   {
     "A1": {
       "MD1": {
-        "createdAt": "REGEX(.*)",
-        "modifiedAt": "REGEX(.*)",
+        "createdAt": "REGEX(20[23]\d-.*Z)",
+        "modifiedAt": "REGEX(20[23]\d-.*Z)",
         "type": "Property",
         "value": "E1:A1:MD1"
       },
-      "createdAt": "REGEX(.*)",
-      "modifiedAt": "REGEX(.*)",
+      "createdAt": "REGEX(20[23]\d-.*Z)",
+      "modifiedAt": "REGEX(20[23]\d-.*Z)",
       "type": "Property",
       "value": "E1:A1"
     },
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "id": "urn:ngsi-ld:entities:E1",
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "T"
   },
   {
     "A1": {
       "MD1": {
-        "createdAt": "REGEX(.*)",
-        "modifiedAt": "REGEX(.*)",
+        "createdAt": "REGEX(20[23]\d-.*Z)",
+        "modifiedAt": "REGEX(20[23]\d-.*Z)",
         "type": "Property",
         "value": "E2:A1:MD1"
       },
-      "createdAt": "REGEX(.*)",
-      "modifiedAt": "REGEX(.*)",
+      "createdAt": "REGEX(20[23]\d-.*Z)",
+      "modifiedAt": "REGEX(20[23]\d-.*Z)",
       "type": "Property",
       "value": "E2:A1"
     },
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "id": "urn:ngsi-ld:entities:E2",
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "T"
   }
 ]

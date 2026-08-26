@@ -1,0 +1,87 @@
+#
+# FILE            troe_temporal_orderby_createdat.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.7.4 orderBy=createdAt on the temporal API returns Entities in creation
+# order.
+#
+# ⚠️ WHAT THIS TEST DOES NOT CATCH, so that nobody later believes it does.
+#
+# The bug that made ETSI 021_23_03 and 021_23_04 red was the temporal API
+# rendering createdAt one thousand times coarser than the core API - milliseconds
+# against microseconds - so Entities created inside one millisecond carried an
+# identical sort key and came back in arbitrary order.
+#
+# No functest can catch that. Catching it means asserting the RENDERING of a
+# builtin timestamp, and a builtin timestamp is not ours to pin: trailing zeros in
+# the fraction are trimmed, so the digit count varies with the value - CI rendered
+# ".6994Z" where this workstation rendered ".532982Z" for the same code - and the
+# representation is not even guaranteed to be a string. An assertion on the digit
+# count is a coin flip that fails roughly once in a thousand runs AND looks exactly
+# like the bug when it does.
+#
+# The regression net for the precision itself is ETSI 021_23_03 / 021_23_04, run
+# nightly. Those DO fail before the fix and pass after - verified in CI.
+#
+# What is left here is worth keeping on its own: that orderBy=createdAt is honoured
+# at all, on the temporal API, with no timestamp asserted anywhere.
+#
+# Requires postgres on localhost:5432 with a passwordless 'postgres' user.
+#
+--NAME--
+TRoE temporal - orderBy=createdAt returns Entities in creation order
+
+--TAGS--
+troe timescale postgres temporal sysAttrs createdAt orderBy
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# 01. Create three Entities, in the order B2, B1, B3
+# 02. orderBy=createdAt returns them in CREATION order, not id order
+#
+
+echo "01. Create urn:B2, urn:B1, urn:B3 - in that order"
+echo "================================================="
+for n in 2 1 3; do
+  payload='{"id": "urn:B'$n'", "type": "Building", "name": {"type": "Property", "value": "B'$n'"}}'
+  corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+done
+echo
+echo
+
+
+echo "02. orderBy=createdAt - creation order B2, B1, B3 (NOT id order)"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Building&orderBy=createdAt&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=createdAt' --out raw | grep -oE '"id": "urn:B[0-9]"'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:B2, urn:B1, urn:B3 - in that order
+=================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=createdAt - creation order B2, B1, B3 (NOT id order)
+================================================================
+"id": "urn:B2"
+"id": "urn:B1"
+"id": "urn:B3"
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

@@ -264,28 +264,28 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "id": "urn:e1",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "name": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "languageMap": {
       "en": "Hello",
       "es": "Hola",
       "fr": "Bonjour"
     },
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "LanguageProperty"
   },
   "owner": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "object": "urn:bob",
     "type": "Relationship"
   },
   "temp": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "observedAt": "2026-06-01T12:00:00Z",
     "type": "Property",
     "value": 25
@@ -312,28 +312,28 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "id": "urn:e1",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "name": {
-    "createdAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
     "languageMap": {
       "en": "Hello",
       "es": "Hola",
       "fr": "Bonjour"
     },
-    "modifiedAt": "REGEX(.*)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "LanguageProperty"
   },
   "owner": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "object": "urn:bob",
     "type": "Relationship"
   },
   "temp": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "observedAt": "2026-06-01T12:00:00Z",
     "type": "Property",
     "value": 30

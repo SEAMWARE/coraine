@@ -138,22 +138,32 @@ static KjNode* makeValueNode(Kjson* kjsonP, const char* vfn,
 
 // -----------------------------------------------------------------------------
 //
-// stripZeroMs - trim trailing ".000Z" → "Z" so a clean second renders
-// without the artificial sub-second padding (matches the canonical
-// fixtures used by ETSI's temporal tests). The buffer is in-place
-// rewritable: postgres' to_char output lives in PQgetvalue's libpq-
-// owned storage, so we kaStrdup first, then trim. Caller passes in the
-// strdup'd copy.
+// stripZeroMs - trim an all-zero fractional part so a clean second renders
+// without the artificial sub-second padding (matches the canonical fixtures used
+// by ETSI's temporal tests). The buffer is in-place rewritable: postgres'
+// to_char output lives in PQgetvalue's libpq-owned storage, so we kaStrdup
+// first, then trim. Caller passes in the strdup'd copy.
+//
+// Both widths are handled: created_at/modified_at render with microseconds (.US)
+// to match what the core API returns for the same entity, observed_at still with
+// milliseconds (.MS), so ".000000Z" and ".000Z" both reach here.
 //
 static char* stripZeroMs(char* s)
 {
   if (s == NULL) return NULL;
   size_t n = strlen(s);
-  if (n >= 5 && memcmp(s + n - 5, ".000Z", 5) == 0)
+
+  if (n >= 8 && memcmp(s + n - 8, ".000000Z", 8) == 0)
+  {
+    s[n - 8] = 'Z';
+    s[n - 7] = '\0';
+  }
+  else if (n >= 5 && memcmp(s + n - 5, ".000Z", 5) == 0)
   {
     s[n - 5] = 'Z';
     s[n - 4] = '\0';
   }
+
   return s;
 }
 
@@ -439,11 +449,11 @@ static int buildEntityTemporalDocLocked(const char* entityId,
 
   const char* selectCols =
     "attr_name, attr_kind, dataset_id, "
-    "to_char(modified_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS modified_at_iso, "
+    "to_char(modified_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS modified_at_iso, "
     "to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS observed_at_iso, "
     "op, v_text, v_number, v_bool, v_compound, sub_attrs, "
     "modified_at, observed_at, instance_id, "
-    "to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS created_at_iso";
+    "to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS created_at_iso";
 
   // § 6.4.7.3 temporal pagination: the per-attribute page limit N is
   // lastN (descending order) or firstN (ascending) or the configured
@@ -543,8 +553,8 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     const char* idParam[1] = { entityId };
     PGresult* tRes = PQexecParams(timescaleConn,
       "SELECT to_char(MIN(modified_at) FILTER (WHERE op = 'created') "
-      "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), "
-      "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') "
+      "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
+      "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') "
       "FROM troe_entities WHERE entity_id = $1",
       1, NULL, idParam, NULL, NULL, 0);
     if (PQresultStatus(tRes) == PGRES_TUPLES_OK && PQntuples(tRes) > 0)

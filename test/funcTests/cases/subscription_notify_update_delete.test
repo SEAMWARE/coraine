@@ -228,7 +228,7 @@ Date: REGEX(.*)
     "body": {
       "data": [
         {
-          "deletedAt": "REGEX(.*)",
+          "deletedAt": "REGEX(20[23]\d-.*Z)",
           "id": "urn:ngsi-ld:Vehicle:V1",
           "type": "Vehicle"
         }

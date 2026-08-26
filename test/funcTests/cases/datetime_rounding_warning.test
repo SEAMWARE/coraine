@@ -152,12 +152,12 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "id": "urn:D4",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "p": {
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "observedAt": "2026-01-01T00:00:00.123456Z",
     "type": "Property",
     "value": 1

@@ -249,7 +249,7 @@ Date: REGEX(.*)
     "body": {
       "data": [
         {
-          "deletedAt": "REGEX(.*)",
+          "deletedAt": "REGEX(20[23]\d-.*Z)",
           "id": "urn:V2",
           "parent": {
             "object": "urn:ngsi-ld:null",

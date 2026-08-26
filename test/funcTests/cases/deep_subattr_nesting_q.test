@@ -172,36 +172,36 @@ Content-Length: REGEX(\d+)
   "a": {
     "b": {
       "c": {
-        "createdAt": "REGEX(.*)",
+        "createdAt": "REGEX(20[23]\d-.*Z)",
         "d": {
-          "createdAt": "REGEX(.*)",
+          "createdAt": "REGEX(20[23]\d-.*Z)",
           "e": {
-            "createdAt": "REGEX(.*)",
-            "modifiedAt": "REGEX(.*)",
+            "createdAt": "REGEX(20[23]\d-.*Z)",
+            "modifiedAt": "REGEX(20[23]\d-.*Z)",
             "type": "Property",
             "value": 4
           },
-          "modifiedAt": "REGEX(.*)",
+          "modifiedAt": "REGEX(20[23]\d-.*Z)",
           "type": "Property",
           "value": "D"
         },
-        "modifiedAt": "REGEX(.*)",
+        "modifiedAt": "REGEX(20[23]\d-.*Z)",
         "type": "Property",
         "value": "C"
       },
-      "createdAt": "REGEX(.*)",
-      "modifiedAt": "REGEX(.*)",
+      "createdAt": "REGEX(20[23]\d-.*Z)",
+      "modifiedAt": "REGEX(20[23]\d-.*Z)",
       "type": "Property",
       "value": "B"
     },
-    "createdAt": "REGEX(.*)",
-    "modifiedAt": "REGEX(.*)",
+    "createdAt": "REGEX(20[23]\d-.*Z)",
+    "modifiedAt": "REGEX(20[23]\d-.*Z)",
     "type": "Property",
     "value": "A"
   },
-  "createdAt": "REGEX(.*)",
+  "createdAt": "REGEX(20[23]\d-.*Z)",
   "id": "urn:ngsi-ld:Deep:1",
-  "modifiedAt": "REGEX(.*)",
+  "modifiedAt": "REGEX(20[23]\d-.*Z)",
   "type": "T"
 }
 
@@ -217,36 +217,36 @@ Content-Length: REGEX(\d+)
           "a": {
             "b": {
               "c": {
-                "createdAt": "REGEX(.*)",
+                "createdAt": "REGEX(20[23]\d-.*Z)",
                 "d": {
-                  "createdAt": "REGEX(.*)",
+                  "createdAt": "REGEX(20[23]\d-.*Z)",
                   "e": {
-                    "createdAt": "REGEX(.*)",
-                    "modifiedAt": "REGEX(.*)",
+                    "createdAt": "REGEX(20[23]\d-.*Z)",
+                    "modifiedAt": "REGEX(20[23]\d-.*Z)",
                     "type": "Property",
                     "value": 4
                   },
-                  "modifiedAt": "REGEX(.*)",
+                  "modifiedAt": "REGEX(20[23]\d-.*Z)",
                   "type": "Property",
                   "value": "D"
                 },
-                "modifiedAt": "REGEX(.*)",
+                "modifiedAt": "REGEX(20[23]\d-.*Z)",
                 "type": "Property",
                 "value": "C"
               },
-              "createdAt": "REGEX(.*)",
-              "modifiedAt": "REGEX(.*)",
+              "createdAt": "REGEX(20[23]\d-.*Z)",
+              "modifiedAt": "REGEX(20[23]\d-.*Z)",
               "type": "Property",
               "value": "B"
             },
-            "createdAt": "REGEX(.*)",
-            "modifiedAt": "REGEX(.*)",
+            "createdAt": "REGEX(20[23]\d-.*Z)",
+            "modifiedAt": "REGEX(20[23]\d-.*Z)",
             "type": "Property",
             "value": "A"
           },
-          "createdAt": "REGEX(.*)",
+          "createdAt": "REGEX(20[23]\d-.*Z)",
           "id": "urn:ngsi-ld:Deep:1",
-          "modifiedAt": "REGEX(.*)",
+          "modifiedAt": "REGEX(20[23]\d-.*Z)",
           "type": "T"
         }
       ],
