@@ -23,6 +23,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | understand how it is put together, or write a plugin | [Plugin architecture](plugin-architecture.md) |
 | judge how well it is tested | [Test coverage](coverage.md) |
 | know what is not built yet | [Roadmap](roadmap.md) |
+| see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
 
 ## Support
 

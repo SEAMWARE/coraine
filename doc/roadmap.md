@@ -61,6 +61,20 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **haaux.** High-availability cache synchronisation without a shared database,
     single-digit milliseconds, interrupt driven.
 
+-   **Speaking to devices directly.** A **south bridge**: the broker itself able
+    to talk to devices — MQTT, CoAP/LWM2M, OPC-UA, LoRaWAN, Sigfox, UltraLight,
+    JSON, ISOXML, CSV, Kafka — as plugins on the same contract the DDS bridge
+    introduces. The two-tier split of agent-then-broker becomes a deployment
+    choice rather than a requirement: a small edge build (**cor-agent**) beside a
+    central broker, or a single binary doing both, which is what a FIWARE@Home
+    installation on a Raspberry Pi actually wants. Same codebase either way,
+    selected by the conditional compilation above.
+
+    See [Speaking to devices directly](device-protocols.md) for the deployment
+    shapes, the transport × payload split that keeps the plugin count down, and
+    what parity with the existing FIWARE IoT Agents requires. Lands after the
+    binary IPC protocol and corDB.
+
 ## Long term
 
 The following are proposals regarding the longer-term evolution of the product.
