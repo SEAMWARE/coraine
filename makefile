@@ -22,6 +22,7 @@ BUILD_COVERAGE = BUILD_COVERAGE
 COV_DB        ?= $(if $(DB),$(DB),corDB)
 COV_DIR        = coverage-$(COV_DB)
 COV_REPORT     = $(COV_DIR)/index.html
+COV_STATUS     = $(COV_DIR)/suite-status
 COV_OTHER_DB   = $(if $(filter mongoc,$(COV_DB)),corDB,mongoc)
 COV_PLUGIN_DIR = $(BUILD_COVERAGE)/plugins
 COV_ETSI_DIR   = coverage-etsi
@@ -131,6 +132,13 @@ coverage:
 # couple of minutes against a twenty-minute suite.
 #
 	rm -rf $(BUILD_COVERAGE)
+#
+# Drop any previous verdict FIRST, before anything that can fail. A stale
+# suite-status from an earlier run would otherwise outlive a build that never
+# reached the suite, and the published page would report last week's verdict
+# as this run's.
+#
+	@rm -f $(COV_STATUS)
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
@@ -151,11 +159,26 @@ coverage:
 # loads the installed admin.so, which carries no counters, and the whole admin
 # plugin reads as 0% in a run whose tests exercise it.
 #
+#
+# The suite's exit status is RECORDED, not discarded.
+#
+# It used to end in `|| true`, for a good reason - the report is this target's
+# output, and a red test must not cost you the report. But swallowing the status
+# outright meant a red suite was indistinguishable from a green one, and that is
+# not theoretical: `usage.test` and `csource-reg-proactive-loop` failed in EVERY
+# coverage run from 82775bc until 2026-08-26 and the job reported success each
+# time. Nobody looks at a green job.
+#
+# So the status goes to a file, the report is built regardless, and the target
+# fails at the END - after the report exists. The workflow's later steps run with
+# `if: always()`, so the artifact and the Pages publish still happen; what changes
+# is that the job goes red and the site says why.
+#
+	@mkdir -p $(COV_DIR)
 	COR_BROKER=$(CURDIR)/$(BUILD_COVERAGE)/src/app/coraine/coraine \
 	COR_PLUGIN_DIR=$(CURDIR)/$(COV_PLUGIN_DIR) \
 	SEAMWARE_PLUGIN_DIR=$(CURDIR)/$(COV_PLUGIN_DIR) \
-	$(CORTEST) -db $(COV_DB) || true
-	@mkdir -p $(COV_DIR)
+	$(CORTEST) -db $(COV_DB); echo $$? > $(COV_STATUS)
 #
 # The DB plugin that is NOT under test is excluded from the report. A corDB run
 # cannot execute a line of mongoc.so and vice versa, so counting the other one
@@ -167,6 +190,18 @@ coverage:
 # a ten-minute run then ends with no report at all. coverage-etsi already passes
 # this for the same reason.
 #
+# It needs gcovr >= 8.3 to do anything at all. In 8.2 the option is read only by
+# the TEXT .gcov parser, while gcovr asks gcov for JSON by default - so the flag
+# sat here inert until the nightly of 2026-08-25 died with it on the command line.
+# The floor is pinned in corLibs/docker/Dockerfile.ci-nightly, which explains it.
+#
+# Do not remove the flag on the grounds that CMAKE_C_FLAGS_COVERAGE now carries
+# -fprofile-update=atomic, and do not remove that on the grounds of this flag.
+# They cover different halves: atomic counters stop the negative counts being
+# PRODUCED, and on gcovr >= 8.3 a negative count without this flag does not fail -
+# it drops the whole file from the report and exits 0, which is a silently short
+# coverage figure.
+#
 	$(GCOVR) --root $(CURDIR)/src --object-directory $(BUILD_COVERAGE) \
 	      --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
 	      -e '.*/plugins/currentState/$(COV_OTHER_DB)/.*' \
@@ -174,6 +209,16 @@ coverage:
 	      --print-summary
 	@echo ""
 	@echo "Coverage report ($(COV_DB)): file://$(CURDIR)/$(COV_REPORT)"
+#
+# Now, and only now, the suite's verdict. The report exists either way.
+#
+	@status=$$(cat $(COV_STATUS)); \
+	 if [ "$$status" != "0" ]; then \
+	   echo ""; \
+	   echo "*** The $(COV_DB) suite FAILED (corTest exited $$status)."; \
+	   echo "*** The report above is real, but it measures a suite that is not passing."; \
+	   exit $$status; \
+	 fi
 
 # Full ETSI-suite coverage: instrument the broker + NGSI-LD libs (corRest
 # corNgsild corJsonld) + mongoc/timescale plugins, run the ETSI TP suite via
