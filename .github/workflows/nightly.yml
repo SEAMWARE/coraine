@@ -175,7 +175,19 @@ jobs:
             echo 'measurements, not two runs of one.</p>'
             for db in mongoc corDB; do
               [ -d "site/$db" ] || continue
-              echo "<h2><a href=\"$db/index.html\">$db</a></h2><pre>"
+              echo "<h2><a href=\"$db/index.html\">$db</a></h2>"
+              #
+              # A percentage from a suite that was not passing is a number people
+              # will quote. `make coverage` leaves its verdict in suite-status
+              # precisely so the page can say so instead of looking confident.
+              #
+              st=$(cat "coverage-$db/suite-status" 2>/dev/null || echo "?")
+              if [ "$st" != "0" ]; then
+                echo "<p style=\"background:#fff4f4;border-left:4px solid #d1242f;padding:.75rem 1rem\">"
+                echo "<b>The $db suite was not passing when this was measured</b>"
+                echo "(corTest exited $st). These figures describe a broken suite.</p>"
+              fi
+              echo '<pre>'
               grep -aE '^(lines|functions|branches):' "/tmp/cov-$db.txt" || echo "(no summary captured)"
               echo '</pre>'
             done
@@ -205,7 +217,16 @@ jobs:
   #
   publish-coverage:
     needs: [gate, coverage]
-    if: needs.gate.outputs.run == 'true' && github.ref == 'refs/heads/main'
+    #
+    # `!cancelled()` rather than plain success: `make coverage` now FAILS when the
+    # suite it measured did not pass, and the report is most worth reading exactly
+    # then. The site marks that run as untrustworthy in place, so publishing it is
+    # not the same as pretending it is fine. Cancelled runs still publish nothing.
+    #
+    if: |
+      !cancelled() && needs.gate.outputs.run == 'true'
+      && github.ref == 'refs/heads/main'
+      && needs.coverage.result != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       pages: write
