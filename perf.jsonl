@@ -8,3 +8,5 @@
 {"date": "2026-08-25T10:53:36Z", "db": "mongoc", "query_c200": 6542, "query_c50": 6924, "retrieve_c50": 21450, "run": "32859127078", "sha": "9b192148"}
 {"date": "2026-08-25T19:25:03Z", "db": "corDB", "query_c200": 8491, "query_c50": 8383, "retrieve_c50": 43969, "run": "32925407911", "sha": "eb6d3214"}
 {"date": "2026-08-25T19:25:03Z", "db": "mongoc", "query_c200": 4417, "query_c50": 4491, "retrieve_c50": 12015, "run": "32925407911", "sha": "eb6d3214"}
+{"date": "2026-08-27T09:01:18Z", "db": "corDB", "query_c200": 8781, "query_c50": 8894, "retrieve_c50": 60232, "run": "33072767494", "sha": "aa6b1b58"}
+{"date": "2026-08-27T09:01:18Z", "db": "mongoc", "query_c200": 4575, "query_c50": 4626, "retrieve_c50": 14990, "run": "33072767494", "sha": "aa6b1b58"}
