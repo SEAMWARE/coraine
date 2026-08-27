@@ -4,7 +4,7 @@
 [![License badge](https://img.shields.io/github/license/SEAMWARE/coraine.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Container badge](https://img.shields.io/badge/quay.io-seamware%2Fcoraine-grey?logo=red%20hat&labelColor=EE0000)](https://quay.io/repository/seamware/coraine)
 [![Support badge](https://img.shields.io/badge/support-github%20issues-orange.svg?logo=github)](https://github.com/SEAMWARE/coraine/issues)
-[![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/committee/cim)
+[![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/technical-groups/data/)
 <br/>
 [![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
 ![Status](https://fiware.github.io/catalogue/badges/statuses/status-incubating.svg)
