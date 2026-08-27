@@ -59,7 +59,7 @@ echo
 
 echo "03. Wait briefly, then verify ftClient received one MQTT entry"
 echo "=============================================================="
-sleep 0.5
+ftClientWait 1
 ftClientDump | grep -cE '"verb": "MQTT"'
 ftClientDump | grep -cE '"url": "ngsild/notif"'
 ftClientDump | grep -cE 'subscriptionId.*mqtt-S1'

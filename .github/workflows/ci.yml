@@ -323,6 +323,13 @@ jobs:
           ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor \
               --fromIx ${{ matrix.shard.from }} $to
 
+      #
+      # ftClient's own stderr goes to /tmp/ftClient.<port>.log and is the only
+      # record of why it could not do its job - no TLS in the HTTP library, a
+      # port already taken, an MQTT subscription that never came up. A test that
+      # asserts on ftClient's dump reports "0" for all of those, identically, so
+      # without this log a failure is indistinguishable from a broker bug.
+      #
       - name: Keep the output of anything that failed
         if: failure()
         uses: actions/upload-artifact@v4
@@ -334,4 +341,5 @@ jobs:
             stack/coraine/test/funcTests/cases/*.log
             /tmp/coraine*.log
             /tmp/smoke.log
+            /tmp/ftClient.*.log
           retention-days: 7

@@ -87,7 +87,7 @@ echo
 
 echo "05. Verify both notifications landed via MQTT"
 echo "============================================="
-sleep 0.6
+ftClientWait 2
 ftClientDump | grep -cE '"verb": "MQTT"'
 ftClientDump | grep -cE 'subscriptionId.*mqtt-S1'
 ftClientDump | grep -cE 'subscriptionId.*mqtt-S2'
