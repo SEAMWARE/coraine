@@ -400,11 +400,17 @@ subscriptions and notifications are walked through in
 
 ## Documentation
 
+**Rendered and searchable at [coraine.readthedocs.io](https://coraine.readthedocs.io)**,
+rebuilt from `main` on every merge. The same pages live under `doc/` in this
+repository, which is where to read them offline or alongside a checkout:
+
 | Document | What it covers |
 |----------|----------------|
 | [Installation & Administration](doc/installation.md) | dependencies, build, install, every option, the admin API, tenants |
 | [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
+| [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
+| [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | [Test coverage](doc/coverage.md) | what the suite covers, per DB, and what is left |
 | [Functest coverage of the spec](doc/spec-coverage-gaps.md) | every spec statement, and whether a test asserts it |
 | [Roadmap](doc/roadmap.md) | where coraine is going |
