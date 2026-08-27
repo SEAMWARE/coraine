@@ -51,12 +51,9 @@ Overflow.
 - [Quick start](#quick-start) ← **start here**
 - [Footprint and speed](#footprint-and-speed)
 - [Plugin architecture](#plugin-architecture)
-- [Building](#building)
 - [Running](#running)
 - [API walkthrough](#api-walkthrough)
 - [Documentation](#documentation)
-- [Project layout](#project-layout)
-- [Testing](#testing)
 - [Quality assurance](#quality-assurance)
 - [Training](#training)
 - [Contributing](#contributing)
@@ -94,6 +91,9 @@ curl localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:1
 That is the whole broker — `corDB` keeps entities in RAM, so nothing else has to
 be installed or configured. Swap in `--database mongoc --dbHost <host>` when the
 data should outlive the process; see [Running](#running).
+
+Building it yourself instead — the dependency stack, the system packages, the make
+targets — is [Building from source](doc/building.md).
 
 **Images are at [quay.io/seamware/coraine](https://quay.io/repository/seamware/coraine)**,
 tagged `<version>-<date>-<commit>` — one immutable tag per merge to `main`, never
@@ -209,26 +209,17 @@ reads the topology rather than assuming it.
 
 ### Compiling out what you don't need
 
-`CMakeLists.txt` exposes `COR_FEATURE_*` options — subscriptions, registrations,
-geoq, scopes, datasetId, multi-type, context download/hosting, tenants, mongoc,
-admin API, metrics, ICU collation, geo-dispatch on
-location/observationSpace/operationSpace. All default ON except the
-observation/operation-space dispatch; toggle with `cmake -DCOR_FEATURE_X=OFF`.
+In principle the broker shrinks to exactly the NGSI-LD you deploy: no subscription
+engine on a read-only edge node, no registrations, no `datasetId`, no geo, no
+tenants, no Mongo. The switches are `COR_FEATURE_*` at build time, which means
+**building it yourself** — a published image is compiled with everything on.
 
-The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
-no subscription engine on a read-only edge node, no geo, no tenants, no Mongo.
-
-Where it stands today, honestly: **the flags are declared, the work behind them
-has barely started.** What works is selection at the build-tree level —
-`-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
-build host, run `--database corDB`). Everything else is still a promise: the
-per-feature `#ifdef`s inside the C are next to nonexistent, so switching off a
-core feature leaves its symbols referenced from code that still compiles, and
-the link fails. The same holds for the optional runtime deps — MQTT
-notifications, for instance, are ~2 KB of broker code against a `libmosquitto`
-that every build links and every process maps, whether or not a single MQTT
-notification is ever sent. Shrink-to-fit is a goal with a flag table, not a
-feature you can use yet.
+⚠ Be warned before planning around it: **the flags are declared, the work behind
+them has barely started.** Only `-DCOR_FEATURE_MONGOC=OFF` genuinely works today.
+Turn off anything else and the link fails, because the per-feature `#ifdef`s inside
+the C are next to nonexistent. It is a goal with a flag table, not a feature you can
+use yet. [Building from source](doc/building.md#compiling-out-what-you-dont-need)
+has the full list and the honest state of each.
 
 ---
 
@@ -267,78 +258,6 @@ because `--database` takes a path as readily as a name.
 The full story — where plugins are resolved from, how the loader works, the driver
 interfaces, plugin-contributed CLI args, and how to write your own — is in
 [`doc/plugin-architecture.md`](doc/plugin-architecture.md).
-
----
-
-## Building
-
-coraine links a constellation of sibling repos (k-libs + Cor-Libs) plus several
-system libraries. The repos must sit as **siblings** under one parent (default
-`~/git`), because the build references `../<lib>/lib<lib>.a`.
-
-### Fastest path — bootstrap script
-
-If you're starting from scratch, clone the `corLibs` umbrella and run its
-`bootstrap.sh`: it clones every dependency as a sibling at its pinned version and
-builds the whole lib stack. It works wherever you put it - the layout is derived
-from the umbrella's own location, not from a fixed path.
-
-```sh
-git clone git@github.com:SEAMWARE/corLibs.git
-./corLibs/bootstrap.sh
-```
-
-Then:
-
-```sh
-cd ~/git/coraine
-make di            # debug build + install (binary + plugins → /opt/seamware, /usr/local/bin)
-```
-
-### Dependency stack
-
-- **k-libs** (gitlab.com/kzangeli): `kbase kalloc klog khash kjson kargs ktrace kprom`
-- **Cor-Libs** (github.com/SEAMWARE): `corRest corNgsild corJsonld corPlugin`
-- **umbrella / test runner**: `corLibs`, `corTest`
-
-`make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);
-the k-libs and `corPlugin` must already be built (the umbrella or bootstrap handles
-that).
-
-### System packages (Debian/Ubuntu)
-
-| Need | Package |
-|------|---------|
-| HTTP server | `libmicrohttpd-dev` |
-| TLS | `libssl-dev` |
-| MQTT (notifications) | `libmosquitto-dev` |
-| Geo queries | `libgeos-dev` |
-| MongoDB driver (mongoc plugin) | mongo-c **v2** (`mongoc2.pc` via pkg-config) |
-| TimescaleDB plugin | `libpq-dev` |
-| Toolchain | `cmake build-essential` |
-
-> Don't need Mongo? Build without it: `cmake -DCOR_FEATURE_MONGOC=OFF` and run with
-> `--database corDB`. The mongo-c v2 driver is the most common build snag.
-
-### Make targets
-
-| Target | Effect |
-|--------|--------|
-| `make` / `make release` | Release build (`BUILD_RELEASE/`) |
-| `make debug` | Debug build (`BUILD_DEBUG/`) |
-| `make i` / `make di` | release/debug **+ install** |
-| `make ci` / `make cdi` | clean + the above |
-| `make install` | copy broker + plugins → `/usr/local/bin`, `/opt/seamware/plugins`, `/opt/seamware/etc` |
-| `make clean` | remove build trees |
-| `make test` | run the functional test suite (`corTest`) |
-| `make coverage` | coverage report per DB (`coverage-<db>/index.html`) |
-| `make coverage-etsi` | full ETSI TP suite coverage (`coverage-etsi/index.html`) |
-
-Install writes to `/opt/seamware/...` and `/usr/local/bin` — run with appropriate
-permissions or pre-create the dirs.
-
-Build-time feature selection lives in
-[Compiling out what you don't need](#compiling-out-what-you-dont-need).
 
 ---
 
@@ -409,6 +328,8 @@ repository, which is where to read them offline or alongside a checkout:
 | [Installation & Administration](doc/installation.md) | dependencies, build, install, every option, the admin API, tenants |
 | [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
+| [Building from source](doc/building.md) | the source layout, the dependency stack, system packages, make targets, compiling features out |
+| [Testing](doc/testing.md) | running the suite, and measuring coverage |
 | [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
 | [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | [Test coverage](doc/coverage.md) | what the suite covers, per DB, and what is left |
@@ -421,81 +342,14 @@ coraine implements in full. Every command-line option is listed by
 
 ---
 
-## Project layout
-
-```
-coraine/
-├── src/
-│   ├── app/coraine/        # main(), arg table, plugin wiring, NGSI-LD service map
-│   ├── lib/
-│   │   ├── plugin/          # pluginLoader.c + ApiPlugin.h  (the loader)
-│   │   ├── db/              # DbDriver.h  (current-state plugin contract) + tenant
-│   │   ├── troe/            # TroeDriver.h (temporal plugin contract) + dispatch
-│   │   ├── serviceRoutines/ # NGSI-LD endpoint handlers
-│   │   ├── linkedEntities/  # join / linked-entity support
-│   │   ├── forwarding/      # distributed-ops (CSR) forwarding
-│   │   └── metrics/         # Prometheus via kprom
-│   └── plugins/
-│       ├── currentState/    # mongoc, corDB   (DB plugins)
-│       ├── temporal/        # none, ramdb, timescale  (TRoE plugins)
-│       ├── api/admin/       # admin API plugin
-│       └── shared/          # geoMatch.c etc. shared across plugins
-├── test/funcTests/          # corTest functional tests
-├── doc/                     # plugin architecture, functest coverage audit
-├── CMakeLists.txt           # real build (feature flags, lib wiring)
-└── makefile                 # convenience wrapper (release/debug/install/test/coverage)
-```
-
----
-
-## Testing
-
-Functional tests run through `corTest` (installed by the `corLibs` umbrella into
-`~/git/corLibs/bin/corTest`):
-
-```sh
-make test                    # whole suite (mongoc; use corTest -db corDB for in-memory)
-```
-
-Tests live under `test/funcTests/`.
-
-### Coverage
-
-```sh
-make coverage                # corDB   → coverage-corDB/index.html
-make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
-make coverage-etsi           # ETSI TP suite → coverage-etsi/index.html
-```
-
-Measured **2026-08-27** on `227042c`:
-
-| Run | Tests | Lines | Functions | Branches |
-|-----|-------|-------|-----------|----------|
-| `DB=mongoc` | 620 / 620 pass | 81.8% | 95.2% | **60.8%** |
-| `DB=corDB` | 571 / 571 pass | 76.7% | 89.5% | **56.3%** |
-
-Branch coverage is the honest number of the three, and the one to move. Of the
-uncovered lines, some is a failure path no test can reach without fault injection —
-a database that fails on demand, a socket that dies mid-write — and **12.3% sits in
-35 functions the suite never enters at all**. Nearly half of those, 158 lines, are
-the high-availability cache-sync paths, which need a MongoDB **replica set** rather
-than a test nobody has written. [`doc/coverage.md`](doc/coverage.md) has the full
-breakdown, the method behind it, and why the two runs are separate measurements
-rather than two views of one.
-
-The ETSI target instruments the broker **and** the NGSI-LD libs (whole-archived,
-so they flush through the broker's gcov runtime) **and** the mongoc/timescale
-plugin `.so`s.
-
----
-
 ## Quality assurance
 
 - **Conformance:** 100% of the official ETSI NGSI-LD conformance test suite
   (see the note at the top of this file).
 - **Functional tests:** 620 tests against MongoDB, 571 against the in-memory store,
   run through `corTest`. A change in behaviour is not finished until a test pins it.
-- **Coverage:** measured per DB and published in [`doc/coverage.md`](doc/coverage.md),
+- **Coverage:** measured per DB, run as described in [`doc/testing.md`](doc/testing.md)
+  and published in [`doc/coverage.md`](doc/coverage.md),
   along with an estimate of how much of what is left can only be reached by making
   the environment fail.
 - **Memory safety:** the harness can run the whole suite with the broker under

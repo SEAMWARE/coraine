@@ -35,6 +35,12 @@ incorporated in the next release of the product:
 -   **Binary IPC protocol.** A TLV-framed transport beside REST, with no JSON
     parse on the hot path.
 
+-   **Packages, so nobody has to build it.** A Debian repository and
+    `apt-get install coraine`, with a `coraine-dev` that pulls the whole dependency
+    stack in one command. Building from source is currently the only route to a
+    machine that is not running the container image, and
+    [Building from source](building.md) is a long page for what should be one line.
+
 -   **Finish conditional compilation.** Per-feature `#ifdef`s, so a deployment
     compiles only the NGSI-LD it uses.
 
