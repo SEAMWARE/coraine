@@ -13,6 +13,8 @@ nav:
   - Installation & Administration: installation.md
   - API walkthrough: api-walkthrough.md
   - Plugin architecture: plugin-architecture.md
+  - Building from source: building.md
+  - Testing: testing.md
   - Speaking to devices directly: device-protocols.md
   - FIWARE IoT Agents: iot-agents.md
   - Test coverage: coverage.md

@@ -44,8 +44,9 @@ make i          # release build + install
 
 Run with sufficient privileges, or pre-create those directories.
 
-Other targets: `make debug` / `make di` (debug + install), `make clean`, `make test`
-(the functional-test suite), `make coverage` and `make coverage DB=mongoc`.
+[Building from source](building.md) is the full account — the source layout, every
+system package, all the make targets, and how to compile features out. This page
+covers the common case only.
 
 ## Install with Docker
 
