@@ -48,7 +48,8 @@ Overflow.
 
 ## Table of contents
 
-- [Footprint and speed](#footprint-and-speed) ← **start here**
+- [Quick start](#quick-start) ← **start here**
+- [Footprint and speed](#footprint-and-speed)
 - [Plugin architecture](#plugin-architecture)
 - [Building](#building)
 - [Running](#running)
@@ -60,6 +61,45 @@ Overflow.
 - [Training](#training)
 - [Contributing](#contributing)
 - [License](#license)
+
+---
+
+## Quick start
+
+A published image, an in-memory store, no external services. One command, and the
+broker answers NGSI-LD on port 1026:
+
+```sh
+docker run --rm -p 1026:1026 \
+    quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 --database corDB
+```
+
+Then, from another terminal — create an entity and read it back:
+
+```sh
+curl -X POST localhost:1026/ngsi-ld/v1/entities \
+     -H 'Content-Type: application/json' \
+     -d '{
+           "id":   "urn:ngsi-ld:Sensor:1",
+           "type": "Sensor",
+           "temperature": { "type": "Property", "value": 21.5 }
+         }'
+# 201 Created
+
+curl localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:1
+# {"id":"urn:ngsi-ld:Sensor:1","type":"Sensor",
+#  "temperature":{"type":"Property","value":21.5}}
+```
+
+That is the whole broker — `corDB` keeps entities in RAM, so nothing else has to
+be installed or configured. Swap in `--database mongoc --dbHost <host>` when the
+data should outlive the process; see [Running](#running).
+
+**Images are at [quay.io/seamware/coraine](https://quay.io/repository/seamware/coraine)**,
+tagged `<version>-<date>-<commit>` — one immutable tag per merge to `main`, never
+expiring. There is deliberately **no `latest`**: a tag that moves under a running
+deployment is a version nobody can name afterwards. Pick the newest from the tag
+list, or pin the one you tested.
 
 ---
 
