@@ -83,6 +83,16 @@ unsigned short ftPort       = 7701;
 bool           ftFg         = true;
 unsigned short ftPostStatus = 200;     // status returned for accumulate POSTs; override with --status
 unsigned int   ftDelayMs    = 0;       // sleep before responding — for timeout tests
+//
+// ftMqttSubscribed - set when the MQTT SUBACK arrives, read by GET /mqttReady.
+//
+// Not "the thread started" and not "subscribe was called": a publish that
+// reaches the broker before the SUBACK is delivered to nobody and is DISCARDED,
+// not queued. So the only readiness that means anything to a test is the
+// acknowledgement, which is why this is set in the on-subscribe callback.
+//
+static volatile bool ftMqttSubscribed = false;
+
 unsigned short ftMqttPort   = 0;       // 0 = no MQTT subscription
 char*          ftMqttTopic  = (char*) "#"; // default: catch every topic
 char*          ftMqttUser   = NULL;    // MQTT username (for an auth-required broker)
@@ -250,6 +260,27 @@ static bool getCount(void)
   char* buf = (char*) kaAlloc(&corRest.kalloc, 16);
 
   snprintf(buf, 16, "%d", dumpCount);
+  corRest.out.payload     = buf;
+  corRest.out.payloadSize = strlen(buf);
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// getMqttReady - GET /mqttReady — 1 once the MQTT SUBACK has arrived, else 0.
+//
+// A bare integer, like /count: the harness polls this from bash and a JSON
+// parser has no business in a readiness barrier. Answers 1 when no MQTT was
+// asked for, so a caller need not special-case that.
+//
+static bool getMqttReady(void)
+{
+  char* buf = (char*) kaAlloc(&corRest.kalloc, 4);
+
+  snprintf(buf, 4, "%d", ((ftMqttPort == 0) || (ftMqttSubscribed == true))? 1 : 0);
   corRest.out.payload     = buf;
   corRest.out.payloadSize = strlen(buf);
 
@@ -538,6 +569,18 @@ static void mqttOnConnect(struct mosquitto* m, void* ud, int rc)
   mosquitto_subscribe(m, NULL, ftMqttTopic, 0);
 }
 
+
+
+// -----------------------------------------------------------------------------
+//
+// mqttOnSubscribe - the SUBACK. From here on, a publish on the topic arrives.
+//
+static void mqttOnSubscribe(struct mosquitto* m, void* ud, int mid, int qosCount, const int* grantedQos)
+{
+  (void) m; (void) ud; (void) mid; (void) qosCount; (void) grantedQos;
+  ftMqttSubscribed = true;
+}
+
 static void mqttOnMessage(struct mosquitto* m, void* ud, const struct mosquitto_message* msg)
 {
   (void) m; (void) ud;
@@ -587,6 +630,7 @@ static void* mqttListenerThread(void* arg)
   }
 
   mosquitto_connect_callback_set(mosq, mqttOnConnect);
+  mosquitto_subscribe_callback_set(mosq, mqttOnSubscribe);
   mosquitto_message_callback_set(mosq, mqttOnMessage);
 
   // Reconnect-loop friendly: try forever (the broker may not be up yet).
@@ -612,6 +656,7 @@ static CorRestServiceSimplified ftServices[] =
   { CorVerbDelete, "/dump",  deleteDump,      0,                       0 },
   { CorVerbGet,    "/count", getCount,        0,                       0 },
   { CorVerbGet,    "/probeCount", getProbeCount, 0,                    0 },
+  { CorVerbGet,    "/mqttReady",  getMqttReady,  0,                    0 },
   { CorVerbGet,    "/die",   getDie,          0,                       0 },
   // Programmable response stubs (mock-reply API).
   { CorVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },

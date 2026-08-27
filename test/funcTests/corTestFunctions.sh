@@ -502,6 +502,40 @@ ftClientStart() {
     head -5 /tmp/ftClient.$port.log >&2
     return 1
   fi
+
+  #
+  # The HTTP port being up says nothing about the MQTT subscription, which is a
+  # separate thread: it retries the connect, and subscribes from the on-connect
+  # callback. Return here and a test proceeds to trigger a notification that the
+  # broker publishes to a topic with NO SUBSCRIBER YET - and an MQTT publish with
+  # no subscriber is DISCARDED, not queued. The notification is not late, it is
+  # gone, and every count in the test reads zero.
+  #
+  # That is a real nightly failure (subscription_notify_mqtt_qos_version,
+  # 2026-08-26), and no amount of sleeping at the ASSERT end can recover it,
+  # because the loss already happened at the start.
+  #
+  # So: wait for the SUBACK. ftClient answers 1 on /mqttReady when it has one,
+  # and 1 immediately when no --mqttPort was given, so this costs a single poll
+  # in the common case.
+  #
+  case " ${extraParams[*]} " in
+    *" --mqttPort "*)
+      local deadline=100                             # 100 x 0.02s = 2s
+      [ "$COR_VALGRIND" == "1" ] && deadline=500     # 10s under valgrind
+      local i ready
+      for ((i = 0; i < deadline; i++)); do
+        ready=$(curl -sk "$(ftClientUrl $port /mqttReady)" 2>/dev/null)
+        [ "$ready" == "1" ] && break
+        sleep 0.02
+      done
+      if [ "$ready" != "1" ]; then
+        echo "ftClientStart: MQTT subscription not ready on port $port; ftClient said:" >&2
+        head -5 /tmp/ftClient.$port.log >&2
+        return 1
+      fi
+      ;;
+  esac
 }
 
 
