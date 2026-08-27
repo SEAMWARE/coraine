@@ -15,7 +15,7 @@ may be revised. All information is provided as general guidelines only, and this
 section may be revised to provide newer information at any time.
 
 The detailed, day-to-day backlog — including what is deferred *by design* and why —
-is [`ToDo.md`](../ToDo.md) in the root of this repository. It is kept current as
+is [`ToDo.md`](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md) in the root of this repository. It is kept current as
 work lands rather than at release boundaries.
 
 ## Short term

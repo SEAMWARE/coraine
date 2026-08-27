@@ -166,24 +166,6 @@ static char* renderFragmentWithContext(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
-// forwardMergeEntity - PATCH entity fragment to a CSR endpoint
-//
-static int forwardMergeEntity(LdRegCacheItem* csr,
-                              KjNode*         fragP,
-                              const char*     entityId,
-                              const char*     ownAlias,
-                              const char**    errorDetailPP)
-{
-  char* body = renderFragmentWithContext(fragP);
-  return ldDistOpSend(csr, CorVerbPatch,
-                      mergeUrl(csr->endpoint, entityId),
-                      body, strlen(body), ownAlias, errorDetailPP);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // patchEntity -
 //
 bool patchEntity(void)

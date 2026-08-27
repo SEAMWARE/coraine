@@ -136,44 +136,6 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
 
 
 
-static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
-                              const char* ownAlias, KjNode** respTreePP)
-{
-  *respTreePP = NULL;
-
-  const char* path    = "/ngsi-ld/v1/entityOperations/merge";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-
-  char* body    = renderBatchBody(csr, batchArr);
-  int   bodyLen = strlen(body);
-
-  char*       respBody    = NULL;
-  int         respBodyLen = 0;
-  const char* upErr       = NULL;
-
-  int status = ldDistOpSendReceive(csr, CorVerbPost, url, body, bodyLen,
-                                    ownAlias, &upErr,
-                                    &respBody, &respBodyLen);
-
-  if (respBody != NULL && respBodyLen > 0)
-  {
-    KjNode* treeP = kjParse(corRest.kjsonP, respBody);
-    if (treeP != NULL)
-    {
-      ldStripAtContext(treeP);
-      *respTreePP = treeP;
-    }
-  }
-
-  return status;
-}
-
-
-
 static void applyRemoteBatchResult(int status, KjNode* respTreeP,
                                     const char* csrRegId,
                                     KjNode* errorsP,

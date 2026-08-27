@@ -156,24 +156,6 @@ static char* renderFragmentWithContext(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
-// forwardReplaceEntity - PUT entity fragment to a CSR endpoint
-//
-static int forwardReplaceEntity(LdRegCacheItem* csr,
-                                KjNode*         fragP,
-                                const char*     entityId,
-                                const char*     ownAlias,
-                                const char**    errorDetailPP)
-{
-  char* body = renderFragmentWithContext(fragP);
-  return ldDistOpSend(csr, CorVerbPut,
-                      replaceUrl(csr->endpoint, entityId),
-                      body, strlen(body), ownAlias, errorDetailPP);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // replaceEntity -
 //
 bool replaceEntity(void)

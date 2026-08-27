@@ -22,7 +22,7 @@ The broker ships with an in-memory storage backend, so a single container is a c
 working NGSI-LD endpoint. Nothing to install, nothing to connect:
 
 ```sh
-docker run --rm -p 1026:1026 quay.io/seamware/coraine --database corDB
+docker run --rm -p 1026:1026 quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 --database corDB
 ```
 
 ```sh
@@ -48,7 +48,8 @@ container means the container itself, so it has to be pointed at the database:
 docker network create ngsild
 docker run -d --name mongo --network ngsild mongo:8
 docker run -d --name broker --network ngsild -p 1026:1026 \
-    quay.io/seamware/coraine --database mongoc --dbHost mongo --dbName cor
+    quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 \
+        --database mongoc --dbHost mongo --dbName cor
 ```
 
 ## Common options
@@ -56,7 +57,8 @@ docker run -d --name broker --network ngsild -p 1026:1026 \
 `--usage` lists everything, including the arguments of whichever plugins are loaded:
 
 ```sh
-docker run --rm quay.io/seamware/coraine --database mongoc --apiPlugins admin --usage
+docker run --rm quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 \
+    --database mongoc --apiPlugins admin --usage
 ```
 
 - `--port` / `-p` — TCP listen port (default 1026)
@@ -80,7 +82,7 @@ switch it on with `--distributed`:
 
 ```sh
 docker run -d --name b1 --network ngsild -p 1026:1026 \
-    quay.io/seamware/coraine --database corDB --distributed
+    quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 --database corDB --distributed
 ```
 
 Without it, registrations are still stored and discoverable, but nothing is ever
@@ -135,5 +137,11 @@ correctly reports unhealthy when its MongoDB is unreachable.
 
 ## Tags
 
-- `latest` — most recent build
-- `<gitSha>` — the exact commit the image was built from
+One tag per merge to `main`, in the form `<version>-<date>-<commit>` — for
+example `0.3.0-2026-08-27-aa6b1b5`. It is immutable and does not expire.
+
+There is deliberately **no `latest`** and no bare-commit tag. A tag that moves
+under a running deployment is a version nobody can name afterwards, and a tag
+that expires turns a working `docker run` in someone's notes into a
+`manifest unknown` months later. Pick the newest tag from the repository's tag
+list, or pin the one you tested against.

@@ -38,25 +38,6 @@
 
 
 
-static int forwardDeleteTemporal(LdRegCacheItem* csr,
-                                 const char*     entityId,
-                                 const char*     ownAlias,
-                                 const char**    errorDetailPP)
-{
-  const char* path    = "/ngsi-ld/v1/temporal/entities/";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  int         idLen   = strlen(entityId);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-  strcpy(url + baseLen + pathLen, entityId);
-
-  return ldDistOpSend(csr, CorVerbDelete, url, NULL, 0, ownAlias, errorDetailPP);
-}
-
-
-
 bool deleteEntityTemporal(void)
 {
   const char* entityId = corRest.in.wildcard[0];

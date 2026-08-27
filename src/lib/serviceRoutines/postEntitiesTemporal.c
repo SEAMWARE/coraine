@@ -121,28 +121,6 @@ static char* renderTemporalFragment(KjNode* fragP)
 
 
 
-// -----------------------------------------------------------------------------
-//
-// forwardUpsertTemporal - POST /temporal/entities to a CSR.
-//
-static int forwardUpsertTemporal(LdRegCacheItem* csr,
-                                 KjNode*         fragP,
-                                 const char*     ownAlias,
-                                 const char**    errorDetailPP)
-{
-  const char* path    = "/ngsi-ld/v1/temporal/entities";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-
-  char* body = renderTemporalFragment(fragP);
-  return ldDistOpSend(csr, CorVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
-}
-
-
-
 bool postEntitiesTemporal(void)
 {
   KjNode* bodyP = corRest.in.requestTree;

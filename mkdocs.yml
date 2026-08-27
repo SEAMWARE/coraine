@@ -4,7 +4,7 @@ repo_url: https://github.com/SEAMWARE/coraine
 site_description: coraine - a lightweight NGSI-LD Context Broker in C
 docs_dir: doc
 site_dir: html
-markdown_extensions: [toc, fenced_code, tables, admonition]
+markdown_extensions: [toc, fenced_code, tables, admonition, footnotes]
 use_directory_urls: false
 theme: readthedocs
 extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
@@ -13,6 +13,8 @@ nav:
   - Installation & Administration: installation.md
   - API walkthrough: api-walkthrough.md
   - Plugin architecture: plugin-architecture.md
+  - Speaking to devices directly: device-protocols.md
+  - FIWARE IoT Agents: iot-agents.md
   - Test coverage: coverage.md
   - Functest coverage of the spec: spec-coverage-gaps.md
   - Roadmap: roadmap.md

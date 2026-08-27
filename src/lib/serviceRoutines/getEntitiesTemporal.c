@@ -248,59 +248,6 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
 
 // -----------------------------------------------------------------------------
 //
-// forwardTemporalQueryToCSR - GET /temporal/entities?<qs> from a CSR.
-//
-// Returns the parsed KjArray of EntityTemporal trees on success (already
-// JSON-LD expanded with @context stripped). Returns NULL on transport or
-// parse failure or non-2xx status.
-//
-static KjNode* forwardTemporalQueryToCSR(LdRegCacheItem* csr,
-                                         const char*     queryString,
-                                         const char*     ownAlias)
-{
-  if (csr == NULL || csr->endpoint == NULL)
-    return NULL;
-
-  const char* base = csr->endpoint;
-  const char* path = "/ngsi-ld/v1/temporal/entities";
-  int baseLen = strlen(base);
-  int pathLen = strlen(path);
-  int qsLen   = (queryString != NULL && queryString[0] != 0) ? (int) strlen(queryString) : 0;
-
-  // base + path + (?qs) + NUL
-  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
-  strcpy(url, base);
-  strcpy(url + baseLen, path);
-  if (qsLen > 0)
-  {
-    url[baseLen + pathLen] = '?';
-    strcpy(url + baseLen + pathLen + 1, queryString);
-  }
-  else
-    url[baseLen + pathLen] = 0;
-
-  char*       respBody    = NULL;
-  int         respBodyLen = 0;
-  const char* errDetail   = NULL;
-
-  int status = ldDistOpSendReceive(csr, CorVerbGet, url, NULL, 0, ownAlias,
-                                   &errDetail, &respBody, &respBodyLen);
-  if (status < 200 || status >= 300 || respBody == NULL || respBodyLen == 0)
-    return NULL;
-
-  KjNode* treeP = kjParse(corRest.kjsonP, respBody);
-  if (treeP == NULL || treeP->type != KjArray)
-    return NULL;
-
-  corLdExpandTree(treeP, corNgsild.contextP, &corRest.kalloc);
-  ldStripAtContext(treeP);
-  return treeP;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // findEntityById - find a child entity by string-id within an array.
 //
 static KjNode* findEntityById(KjNode* arrayP, const char* id)

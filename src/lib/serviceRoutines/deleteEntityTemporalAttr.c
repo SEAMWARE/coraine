@@ -57,41 +57,6 @@ static bool csrCoversAttr(LdRegCacheItem* csr, const char* attrIri)
 
 
 
-static int forwardDeleteAttr(LdRegCacheItem* csr,
-                             const char*     entityId,
-                             const char*     attrName,
-                             const char*     queryString,
-                             const char*     ownAlias,
-                             const char**    errorDetailPP)
-{
-  const char* prefix = "/ngsi-ld/v1/temporal/entities/";
-  const char* mid    = "/attrs/";
-  int   baseLen = strlen(csr->endpoint);
-  int   prefLen = strlen(prefix);
-  int   idLen   = strlen(entityId);
-  int   midLen  = strlen(mid);
-  int   atLen   = strlen(attrName);
-  int   qsLen   = (queryString != NULL && queryString[0] != 0) ? (int) strlen(queryString) : 0;
-
-  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + qsLen + 1);
-  int   pos = 0;
-  memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
-  memcpy(url + pos, prefix, prefLen);        pos += prefLen;
-  memcpy(url + pos, entityId, idLen);        pos += idLen;
-  memcpy(url + pos, mid, midLen);            pos += midLen;
-  memcpy(url + pos, attrName, atLen);        pos += atLen;
-  if (qsLen > 0)
-  {
-    url[pos++] = '?';
-    memcpy(url + pos, queryString, qsLen); pos += qsLen;
-  }
-  url[pos] = 0;
-
-  return ldDistOpSend(csr, CorVerbDelete, url, NULL, 0, ownAlias, errorDetailPP);
-}
-
-
-
 bool deleteEntityTemporalAttr(void)
 {
   const char* entityId = corRest.in.wildcard[0];

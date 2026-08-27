@@ -147,49 +147,6 @@ static char* renderBatchBody(LdRegCacheItem* csr, KjNode* batchArr)
 
 
 
-static int forwardBatchToCSR(LdRegCacheItem* csr, KjNode* batchArr,
-                              const char* ownAlias, KjNode** respTreePP,
-                              const char* queryString /* or NULL */)
-{
-  *respTreePP = NULL;
-
-  const char* path = "/ngsi-ld/v1/entityOperations/upsert";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  int         qsLen   = (queryString != NULL) ? strlen(queryString) : 0;
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-  if (qsLen > 0) strcpy(url + baseLen + pathLen, queryString);
-
-  char* body    = renderBatchBody(csr, batchArr);
-  int   bodyLen = strlen(body);
-
-  char*       respBody    = NULL;
-  int         respBodyLen = 0;
-  const char* upErr       = NULL;
-
-  KT_T(KtDistOpRequest, "forward: POST %s", url);
-
-  int status = ldDistOpSendReceive(csr, CorVerbPost, url, body, bodyLen,
-                                    ownAlias, &upErr,
-                                    &respBody, &respBodyLen);
-
-  if (respBody != NULL && respBodyLen > 0)
-  {
-    KjNode* treeP = kjParse(corRest.kjsonP, respBody);
-    if (treeP != NULL)
-    {
-      ldStripAtContext(treeP);
-      *respTreePP = treeP;
-    }
-  }
-
-  return status;
-}
-
-
-
 static void applyRemoteBatchResult(int status, KjNode* respTreeP,
                                     const char* csrRegId,
                                     KjNode* errorsP,
@@ -464,27 +421,6 @@ static bool hasAnyNonKeywordAttr(KjNode* fragP)
     return true;
   }
   return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// buildReplaceBase - produce the starting point for a "replace"-mode first
-// fragment against an existing entity.
-//
-// The first fragment IS the entity's new state under replace semantics,
-// so we don't merge into existing — we just take a clone of the fragment
-// and call that the starting point. The id/type from the fragment are
-// present; @context is dropped. Subsequent fragments will merge into it.
-//
-static KjNode* buildReplaceBase(KjNode* fragP)
-{
-  KjNode* baseP = kjClone(corRest.kjsonP, fragP);
-  KjNode* atCtx = kjLookup(baseP, "@context");
-  if (atCtx != NULL)
-    kjChildRemove(baseP, atCtx);
-  return baseP;
 }
 
 

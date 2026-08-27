@@ -317,34 +317,6 @@ static const char* forwardFailureReason(int upCode, const char* upErr)
 
 // -----------------------------------------------------------------------------
 //
-// forwardCreateEntity - compose URL + body and delegate to ldDistOpSend
-//
-// Endpoint is host+port only per § 5.2.9 C.3; broker appends
-// /ngsi-ld/v1/entities. Body = fragment rendered as compact JSON with
-// @context. All header composition and counter updates happen inside
-// ldDistOpSend.
-//
-static int forwardCreateEntity(LdRegCacheItem* csr,
-                               KjNode*         fragP,
-                               const char*     ownAlias,
-                               const char**    errorDetailPP)
-{
-  const char* path    = "/ngsi-ld/v1/entities";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-
-  char* body = renderFragmentWithContext(fragP);
-
-  return ldDistOpSend(csr, CorVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // postEntities -
 //
 bool postEntities(void)
