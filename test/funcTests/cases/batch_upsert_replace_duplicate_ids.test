@@ -1,0 +1,98 @@
+#
+# FILE            batch_upsert_replace_duplicate_ids.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch upsert in REPLACE mode, with the same entity id twice in one payload.
+#
+# § 10.3.3: "In the case of multiple instances of the same entity, these
+# replace or update operations are processed in chronological order."
+#
+# So in replace mode each fragment replaces the WHOLE entity in turn, and the
+# last occurrence is what survives - not a merge of the fragments, and not the
+# first one winning. An attribute contributed by an earlier fragment of the
+# same batch is gone, exactly as an attribute of the stored entity is gone.
+#
+# The suite covered replace mode, and covered duplicate ids, but never the two
+# together - so nothing pinned which of the plausible readings the broker
+# implements.
+#
+--NAME--
+Batch upsert, replace mode, the same entity id twice in one payload
+
+--TAGS--
+batch upsert entityOperations replace
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed E1 with two attributes"
+echo "==============================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":{"type":"Property","value":1},"b":{"type":"Property","value":2}}'
+echo
+echo
+
+
+echo "02. Upsert in replace mode, E1 twice: first fragment 'c', then fragment 'd'"
+echo "==========================================================================="
+payload='[
+  { "id": "urn:E1", "type": "T", "c": { "type": "Property", "value": 3 } },
+  { "id": "urn:E1", "type": "T", "d": { "type": "Property", "value": 4 } }
+]'
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=replace' --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 - only 'd' survives: the LAST fragment replaced everything"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+--EXPECT--
+01. Seed E1 with two attributes
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. Upsert in replace mode, E1 twice: first fragment 'c', then fragment 'd'
+===========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET E1 - only 'd' survives: the LAST fragment replaced everything
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "d": {
+    "type": "Property",
+    "value": 4
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop

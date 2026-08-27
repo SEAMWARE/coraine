@@ -1,0 +1,87 @@
+#
+# FILE            version_endpoint.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /version - the broker's own version endpoint, outside the NGSI-LD API.
+#
+# It is deliberately NOT an NGSI-LD resource: the response bypasses @context
+# expansion and compaction entirely (rawResponse), so no member is expanded.
+# That is the point of the endpoint - a health probe, or an operator with
+# curl, can ask what is running without speaking JSON-LD.
+#
+# Note what the capture below pins: the core-@context Link header IS still
+# sent, exactly as it is on /admin/*. The members carried here are not core
+# terms, so a JSON-LD consumer that followed that Link would @vocab-expand
+# `product` and `version` into default-context IRIs that mean nothing. That
+# is broker-wide behaviour for the non-NGSI-LD endpoints rather than anything
+# about /version, so it is recorded here and not changed here.
+#
+# Nothing exercised this route before. A broken or renamed member here would
+# have reached a release unnoticed.
+#
+--NAME--
+GET /version reports product and library versions
+
+--TAGS--
+version admin
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. GET /version"
+echo "================"
+corCurl --url /version
+echo
+echo
+
+
+echo "02. GET /version again - the endpoint is stateless, same answer"
+echo "=============================================================="
+corCurl --url /version
+echo
+echo
+
+
+--EXPECT--
+01. GET /version
+================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 116
+
+{
+  "corJsonldVersion": "0.1.0",
+  "corNgsildVersion": "post-0.2.0",
+  "product": "coraine",
+  "version": "0.3.0"
+}
+
+
+
+02. GET /version again - the endpoint is stateless, same answer
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 116
+
+{
+  "corJsonldVersion": "0.1.0",
+  "corNgsildVersion": "post-0.2.0",
+  "product": "coraine",
+  "version": "0.3.0"
+}
+
+
+
+--TEARDOWN--
+coraineStop

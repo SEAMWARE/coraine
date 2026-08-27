@@ -1,0 +1,161 @@
+#
+# FILE            entitymap_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# DELETE /ngsi-ld/v1/entityMaps/{id} - the end of an EntityMap's life.
+#
+# An EntityMap is created by a query carrying `entityMap=true` and lives in the
+# tenant's map store so that later pages of the same query answer from a fixed
+# set. A client that has finished paginating should be able to release it, and
+# a second delete of the same map must not pretend to succeed.
+#
+# The suite created and read EntityMaps but never deleted one, so neither the
+# 204 nor the 404 had ever been executed.
+#
+--NAME--
+EntityMap deletion, and a second delete answering 404
+
+--TAGS--
+entityMap pagination
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create two entities to have something to map"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","color":{"type":"Property","value":"blue"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "02. Query with entityMap=true - the map id comes back in NGSILD-EntityMap"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id'
+echo
+echo
+
+
+echo "03. Capture the map id from an identical request"
+echo "================================================"
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+if [ -n "$MAP_ID" ]; then echo "map id captured"; else echo "NO MAP ID - the rest of this test is meaningless"; fi
+echo
+echo
+
+
+echo "04. GET the map - it exists and holds both entities"
+echo "==================================================="
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E '^HTTP|"type"|urn:V' 
+echo
+echo
+
+
+echo "05. DELETE the map - 204, no body"
+echo "================================="
+corCurl -X DELETE --url "/ngsi-ld/v1/entityMaps/$MAP_ID"
+echo
+echo
+
+
+echo "06. GET the deleted map - 404"
+echo "============================="
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E "^HTTP" | head -1
+echo
+echo
+
+
+echo "07. DELETE it again - still 404, deletion is not idempotent-silent"
+echo "=================================================================="
+corCurl -X DELETE --url "/ngsi-ld/v1/entityMaps/$MAP_ID" | grep -E "^HTTP|title" | head -2
+echo
+echo
+
+
+--EXPECT--
+01. Create two entities to have something to map
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+
+02. Query with entityMap=true - the map id comes back in NGSILD-EntityMap
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 244
+
+[
+  {
+    "color": {
+      "type": "Property",
+      "value": "blue"
+    },
+    "id": "urn:V1",
+    "type": "Vehicle"
+  },
+  {
+    "color": {
+      "type": "Property",
+      "value": "red"
+    },
+    "id": "urn:V2",
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. Capture the map id from an identical request
+================================================
+map id captured
+
+
+04. GET the map - it exists and holds both entities
+===================================================
+HTTP/1.1 200 OK
+    "urn:V1": [
+    "urn:V2": [
+  "type": "EntityMap"
+
+
+05. DELETE the map - 204, no body
+=================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. GET the deleted map - 404
+=============================
+HTTP/1.1 404 Not Found
+
+
+07. DELETE it again - still 404, deletion is not idempotent-silent
+==================================================================
+HTTP/1.1 404 Not Found
+  "title": "Not Found",
+
+
+--TEARDOWN--
+coraineStop

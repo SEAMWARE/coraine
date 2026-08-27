@@ -1,0 +1,83 @@
+#
+# FILE            csource_subscription_generated_id.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A CSourceSubscription created without an `id` gets one from the broker.
+#
+# § 5.10.2: the id is optional on creation, and when it is absent the broker
+# assigns one. Every CSourceSubscription in the suite supplied its own id, so
+# the generator had never run - and an id-less create is the ordinary case for
+# a client that has no naming scheme of its own.
+#
+# The generated id is time-based, so it is REGEXed here rather than pinned: it
+# is the broker's to choose. What is pinned is that it IS a URI, that it comes
+# back in the Location header, and that the resource is retrievable under it.
+#
+--NAME--
+CSourceSubscription without an id gets one from the broker
+
+--TAGS--
+csource csr-sub subscription
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. POST a CSourceSubscription with NO id"
+echo "========================================="
+payload='{
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": {
+    "endpoint": { "uri": "http://localhost:9997/notify" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. The subscription is listed, under the generated id"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions | grep -cE '"id": *"urn:ngsi-ld:Subscription:'
+echo
+echo
+
+
+echo "03. A second id-less create gets a DIFFERENT id"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload" | grep -E "^HTTP" | head -1
+corCurl --url /ngsi-ld/v1/csourceSubscriptions | grep -cE '"id": *"urn:ngsi-ld:Subscription:'
+echo
+echo
+
+
+--EXPECT--
+01. POST a CSourceSubscription with NO id
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceSubscriptions/REGEX(urn:ngsi-ld:Subscription:[0-9a-f]+:[0-9a-f]{4})
+Content-Length: 0
+
+
+
+
+02. The subscription is listed, under the generated id
+======================================================
+1
+
+
+03. A second id-less create gets a DIFFERENT id
+===============================================
+HTTP/1.1 201 Created
+2
+
+
+--TEARDOWN--
+coraineStop
