@@ -646,52 +646,6 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
 
 
 
-// shapeUpstreamBody - shape a 2xx upstream body (parsed at reception) into our storage form
-//
-// Takes the response tree already parsed by the distop layer (ldDistOpResultTree).
-// Returns NULL on an empty/malformed body (errorDetail set), otherwise the shaped
-// tree ready for merging. Caller has already ruled out non-2xx codes.
-//
-static KjNode* shapeUpstreamBody(KjNode* treeP, const char* respCtxUrl, const char** errorDetailPP)
-{
-  if (treeP == NULL)
-  {
-    *errorDetailPP = "empty or malformed body in upstream 2xx response";
-    return NULL;
-  }
-
-  // Query-form forwards (queryEntity / queryBatch — § 9.2 ops-aware
-  // conversion of a retrieve) answer with an entity ARRAY; the retrieve
-  // targeted one id, so unwrap the single element ([] → no entity).
-  if (treeP->type == KjArray)
-  {
-    treeP = treeP->value.firstChildP;
-    if (treeP == NULL)
-    {
-      *errorDetailPP = "upstream query-form response carried no entity";
-      return NULL;
-    }
-    treeP->next = NULL;
-  }
-
-  // Expand via the context that travels WITH the response — the URL in its
-  // json-ld#context Link header (application/json), else core. corLdExpandTree
-  // additionally applies any embedded @context (application/ld+json) on top.
-  // NOT corNgsild.contextP: the response speaks the CP's vocabulary, which may
-  // differ from the client's request context.
-  CorLdContext* respCtxP = (respCtxUrl != NULL) ? corLdContextFromUrl(respCtxUrl, &corRest.kalloc) : NULL;
-  if (respCtxP == NULL)
-    respCtxP = corLdCoreContext();
-
-  corLdExpandTree(treeP, respCtxP, &corRest.kalloc);
-  ldStripAtContext(treeP);
-  apiAttrToStorageWrap(treeP, corRest.kjsonP);
-  ldExpiresAtPropagate(treeP, corRest.kjsonP);
-  return treeP;
-}
-
-
-
 // ensureEntityId - inject id into the upstream tree if pick stripped it.
 //
 // For retrieveEntity the broker knows the id (it's literally the URL it

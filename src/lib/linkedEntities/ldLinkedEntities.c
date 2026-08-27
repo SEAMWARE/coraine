@@ -124,65 +124,6 @@ static const char* entityIdOf(KjNode* entityP)
 
 // -----------------------------------------------------------------------------
 //
-// collectRelationshipTargets - append target ids of every Relationship in entityP
-//
-// Storage layout (post-DB fetch, after ldApiEntityToDbModel):
-//   entityP ─ <attr-iri> ─ <datasetId>  ─ type:  "Relationship"
-//                                         value: "<uri>"
-//
-// Note: HAS_OBJECT is renamed to "value" by ldApiEntityToDbModel's
-// normalizeValueKey at write time, so we read "value" here. The
-// instance's type field disambiguates Relationship from Property
-// (which also stores a value).
-//
-// Top-level entity-level keys (id, type, createdAt, modifiedAt, scope)
-// are skipped. attribute containers are KjObjects; their children are
-// instance objects keyed by datasetId (or "@none" for the default).
-//
-static void collectRelationshipTargets(KjNode* entityP, const char*** outIdsP, int* outCountP, int* outCapP)
-{
-  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
-  {
-    if (attrP->name == NULL)
-      continue;
-    if (attrP->name[0] == '@')                                    continue;
-    if (attrP->type != KjObject)                                  continue;
-    if (strcmp(attrP->name, "id")         == 0)                   continue;
-    if (strcmp(attrP->name, "type")       == 0)                   continue;
-    if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
-    if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
-    if (strcmp(attrP->name, "scope")      == 0)                   continue;
-
-    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
-    {
-      if (instP->type != KjObject)
-        continue;
-
-      KjNode* typeP = kjLookup(instP, "type");
-      if (typeP == NULL || typeP->type != KjString)               continue;
-      if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
-
-      KjNode* valP = kjLookup(instP, "value");
-      if (valP == NULL || valP->type != KjString || valP->value.s == NULL)
-        continue;
-
-      // Append (grow array if needed)
-      if (*outCountP >= *outCapP)
-      {
-        int newCap = (*outCapP == 0) ? 8 : (*outCapP) * 2;
-        const char** newArr = (const char**) realloc((void*) *outIdsP, newCap * sizeof(char*));
-        *outIdsP = newArr;
-        *outCapP = newCap;
-      }
-      (*outIdsP)[(*outCountP)++] = valP->value.s;
-    }
-  }
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // linkedFetchOne - § 4.5.23 entity lookup, local DB first, then dist-op
 //
 // Tries db.entityRetrieve in storage shape first. On miss, walks the

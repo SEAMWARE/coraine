@@ -176,57 +176,6 @@ static void matchCsrForMode(Tenant* tenantP, const char* entityId, LdRegMode mod
 
 
 
-// -----------------------------------------------------------------------------
-//
-// forwardBatchToCSR - POST a JSON array of ids to the CSR's
-// /entityOperations/delete endpoint.
-//
-static int forwardBatchToCSR(LdRegCacheItem* csr, const char** idV, int N,
-                             const char* ownAlias, KjNode** respTreePP)
-{
-  *respTreePP = NULL;
-
-  const char* path    = "/ngsi-ld/v1/entityOperations/delete";
-  int         baseLen = strlen(csr->endpoint);
-  int         pathLen = strlen(path);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
-  strcpy(url, csr->endpoint);
-  strcpy(url + baseLen, path);
-
-  // Body = JSON array of id strings. Build via kjson so rendering
-  // handles quoting / escaping consistently.
-  KjNode* arr = kjArray(corRest.kjsonP, NULL);
-  for (int i = 0; i < N; i++)
-    kjChildAdd(arr, kjString(corRest.kjsonP, NULL, (char*) idV[i]));
-
-  int   bufSize = kjFastRenderSize(arr) + 1;
-  char* body    = (char*) kaAlloc(&corRest.kalloc, bufSize);
-  kjFastRender(arr, body);
-  int bodyLen = strlen(body);
-
-  char*       respBody    = NULL;
-  int         respBodyLen = 0;
-  const char* upErr       = NULL;
-
-  int status = ldDistOpSendReceive(csr, CorVerbPost, url, body, bodyLen,
-                                    ownAlias, &upErr,
-                                    &respBody, &respBodyLen);
-
-  if (respBody != NULL && respBodyLen > 0)
-  {
-    KjNode* treeP = kjParse(corRest.kjsonP, respBody);
-    if (treeP != NULL)
-    {
-      ldStripAtContext(treeP);
-      *respTreePP = treeP;
-    }
-  }
-
-  return status;
-}
-
-
-
 static void applyRemoteBatchResult(int status, KjNode* respTreeP,
                                     const char* csrRegId,
                                     KjNode* errorsP,

@@ -97,33 +97,6 @@ static char* renderFragmentWithContext(KjNode* fragP)
 
 
 
-static int forwardAppendAttrs(LdRegCacheItem* csr,
-                              const char*     entityId,
-                              KjNode*         fragP,
-                              const char*     ownAlias,
-                              const char**    errorDetailPP)
-{
-  const char* prefix = "/ngsi-ld/v1/temporal/entities/";
-  const char* suffix = "/attrs/";   // trailing slash per spec URI template
-  int   baseLen = strlen(csr->endpoint);
-  int   prefLen = strlen(prefix);
-  int   idLen   = strlen(entityId);
-  int   sufLen  = strlen(suffix);
-
-  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + sufLen + 1);
-  int   pos = 0;
-  memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
-  memcpy(url + pos, prefix, prefLen);        pos += prefLen;
-  memcpy(url + pos, entityId, idLen);        pos += idLen;
-  memcpy(url + pos, suffix, sufLen);         pos += sufLen;
-  url[pos] = 0;
-
-  char* body = renderFragmentWithContext(fragP);
-  return ldDistOpSend(csr, CorVerbPost, url, body, strlen(body), ownAlias, errorDetailPP);
-}
-
-
-
 bool postEntityTemporalAttrs(void)
 {
   const char* entityId = corRest.in.wildcard[0];

@@ -50,7 +50,7 @@ endforeach()
 #
 # Compiler flags
 #
-set(CMAKE_C_FLAGS         "-Wall -Werror -fPIC -DLOG_ON -Wno-unused-function")
+set(CMAKE_C_FLAGS         "-Wall -Werror -fPIC -DLOG_ON")
 set(CMAKE_C_FLAGS_RELEASE  "-O2 -g")
 set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG")
 #
