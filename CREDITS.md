@@ -26,10 +26,25 @@ The **k-libs** (`kbase`, `kalloc`, `klog`, `khash`, `kjson`, `kargs`, `ktrace`,
 
 ## The specification
 
-coraine implements **ETSI GS CIM 009 / TS 104 175 — NGSI-LD**, written by the
-[ETSI Industry Specification Group on cross-cutting Context Information Management
-(ISG CIM)](https://www.etsi.org/committee/cim). Conformance is measured against the
-official [ETSI NGSI-LD test suite](https://forge.etsi.org/rep/cim/ngsi-ld-test-suite).
+coraine implements **NGSI-LD**, and two bodies deserve the credit for it.
+
+The version implemented here, **ETSI GS CIM 009 v1.9.1**, was written by the ETSI
+Industry Specification Group on cross-cutting Context Information Management
+(**ISG CIM**) — the group that created NGSI-LD and carried it through every version
+up to that one. It is named without a link on purpose: its committee page,
+`etsi.org/committee/cim`, now returns 404.
+
+NGSI-LD is now developed in
+**[ETSI Technical Committee Data Solutions (TC DATA)](https://www.etsi.org/technical-groups/data/)**,
+which is where the specification continues and where its current numbering comes
+from: **TS 104 175** (core API), TS 104 176 (HTTP binding) and TS 104 243 (MQTT
+notification binding). Their foreword says it plainly — *"This Technical
+Specification (TS) has been produced by ETSI Technical Committee Data Solutions
+(TC DATA)"*. ISG CIM still formally exists, but it is winding down; new NGSI-LD work
+happens in TC DATA.
+
+Conformance is measured against the official
+[ETSI NGSI-LD test suite](https://forge.etsi.org/rep/cim/ngsi-ld-test-suite).
 
 ## FIWARE
 
