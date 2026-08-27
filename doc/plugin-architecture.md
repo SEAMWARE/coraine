@@ -163,4 +163,4 @@ deps (`mongoc2`, `geos_c`, …). API and TRoE plugins follow the same pattern wi
 
 ---
 
-Back to the [README](../README.md).
+Back to the [README](https://github.com/SEAMWARE/coraine#readme).
