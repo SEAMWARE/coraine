@@ -20,6 +20,9 @@ the entry describes a surface rather than a diff.
 - **NGSI-LD, in full.** ETSI GS CIM 009 v1.9.1 — entities, subscriptions,
   registrations, batch operations, the temporal API, distributed operations across
   context sources, and JSON-LD `@context` handling.
+- **Notifications over HTTP, HTTPS, MQTT and MQTTS.** MQTT QoS and protocol
+  version are selectable per subscription through `endpoint.notifierInfo`
+  (§ 7.2), and the MQTT broker may require TLS, a username and a password.
 - **Written in C**, built with CMake. One process, no runtime, no JVM.
 
 ### Plugins, loaded at startup as shared libraries
@@ -54,9 +57,6 @@ run-time one.
 
 ### Known limitations
 
-- **HTTP is the only transport.** The *bridge* seam that lets a subscription or a
-  registration name a different one by the scheme of its endpoint is designed and
-  not built, and so is the binary IPC protocol beside REST.
 - **Actuation is workflow, not API.** Service Execution — actuation as a
   first-class citizen rather than the suggested workflows of TS 104 175 Annex G —
   is short-term work, not present here.
