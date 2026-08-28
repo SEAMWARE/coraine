@@ -20,11 +20,11 @@ subscription notification mqtt
 
 --INIT--
 corDbDrop
-echo "listener 11883
+echo "listener 11886
 allow_anonymous true" > /tmp/mqtt-qosver-mosquitto.conf
 mosquitto -d -c /tmp/mqtt-qosver-mosquitto.conf
-sleep 0.3
-ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
+mosquittoWait 11886
+ftClientStart --mqttPort 11886 --mqttTopic ngsild/notif
 coraineStart
 
 --RUN--
@@ -37,7 +37,7 @@ payload='{
   "entities":[{"type":"Vehicle"}],
   "notification":{
     "endpoint":{
-      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "uri":"mqtt://localhost:11886/ngsild/notif",
       "notifierInfo":[
         {"key":"MQTT-QoS","value":"1"},
         {"key":"MQTT-Version","value":"mqtt3.1.1"}
@@ -58,7 +58,7 @@ payload='{
   "entities":[{"type":"Drone"}],
   "notification":{
     "endpoint":{
-      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "uri":"mqtt://localhost:11886/ngsild/notif",
       "notifierInfo":[
         {"key":"MQTT-QoS","value":"2"},
         {"key":"MQTT-Version","value":"mqtt5.0"}

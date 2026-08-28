@@ -521,21 +521,104 @@ ftClientStart() {
   #
   case " ${extraParams[*]} " in
     *" --mqttPort "*)
-      local deadline=100                             # 100 x 0.02s = 2s
-      [ "$COR_VALGRIND" == "1" ] && deadline=500     # 10s under valgrind
+      #
+      # 8s, which is longer than it looks: the common case returns on the FIRST
+      # poll, and this bound only applies when something is wrong. It has to
+      # exceed ftClient's own 5s connect deadline, or the barrier would give up
+      # first and report a timeout over the top of the specific reason ftClient
+      # was about to publish.
+      #
+      local deadline=400                             # 400 x 0.02s = 8s
+      [ "$COR_VALGRIND" == "1" ] && deadline=2000    # 40s under valgrind
       local i ready
       for ((i = 0; i < deadline; i++)); do
         ready=$(curl -sk "$(ftClientUrl $port /mqttReady)" 2>/dev/null)
         [ "$ready" == "1" ] && break
+        [ "$ready" == "-1" ] && break                # given up on - waiting cannot help
         sleep 0.02
       done
       if [ "$ready" != "1" ]; then
-        echo "ftClientStart: MQTT subscription not ready on port $port; ftClient said:" >&2
-        head -5 /tmp/ftClient.$port.log >&2
+        #
+        # Say WHICH port and WHAT was answered. The first version of this message
+        # named $port - the ftClient's HTTP port - while the thing that had failed
+        # was the MQTT broker on a different one, and then printed an ftClient log
+        # that was empty, so the report carried no information at all.
+        #
+        local mqttPort=""
+        local n
+        for ((n = 1; n <= ${#extraParams[@]}; n++)); do
+          [ "${extraParams[n-1]}" == "--mqttPort" ] && mqttPort="${extraParams[n]}"
+        done
+
+        if [ "$ready" == "-1" ]; then
+          echo "ftClientStart: ftClient gave up on the MQTT broker" >&2
+        else
+          echo "ftClientStart: no MQTT SUBACK within $((deadline / 50))s" >&2
+        fi
+        echo "  ftClient HTTP port : $port" >&2
+        echo "  MQTT broker port   : ${mqttPort:-unknown}" >&2
+        echo "  /mqttReady said    : '${ready}'" >&2
+        if [ -n "$mqttPort" ] && ! corPortOpen "$mqttPort"; then
+          echo "  -> NOTHING is listening on $mqttPort - the MQTT broker never came up," >&2
+          echo "     so no deadline here could have helped. Check for a port collision." >&2
+        fi
+        if [ -s /tmp/ftClient.$port.log ]; then
+          echo "  ftClient log:" >&2
+          head -5 /tmp/ftClient.$port.log >&2
+        else
+          echo "  ftClient log /tmp/ftClient.$port.log is empty or absent" >&2
+        fi
         return 1
       fi
       ;;
   esac
+}
+
+
+# corPortOpen <port> - true when something accepts a TCP connection on <port>
+#
+# The probe runs in a CHILD BASH, deliberately. Written inline as
+# `(exec 3<>/dev/tcp/127.0.0.1/$port)` it behaves differently depending on how it
+# is embedded: on its own in an `if` it is fine, but under `cond && ! (...)` bash
+# skips the subshell fork and the successful redirection takes the CALLING shell
+# down with it - silently, mid-function, on the SUCCESS path only. That is how it
+# hides: the failure path forks normally and behaves. One fork per poll costs
+# nothing here, and does the same thing in every position.
+#
+corPortOpen() {
+  bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" >/dev/null 2>&1
+}
+
+
+# mosquittoWait <port> [seconds] - block until a mosquitto is listening on <port>
+#
+# `mosquitto -d` DAEMONISES, so its parent exits 0 before the listener is bound -
+# a failed bind is reported by nothing at all: exit code 0, no stderr, no pid file.
+# The tests used to follow it with `sleep 0.3`, which is not a check and cannot be
+# one; when the bind actually failed the suite continued against a dead port, and
+# the failure surfaced much later as an ftClientStart barrier timeout with an empty
+# diagnostic (subscription_notify_mqtt_qos_version, Deploy, 2026-08-28).
+#
+# This is also why ftClient's own connect loop cannot cover it: it retries forever,
+# which is right when the broker is merely slow and useless when it is never coming.
+#
+# It proves SOMETHING accepts TCP on that port, not that it is this test's own
+# mosquitto - a squatter would satisfy it. That gap is closed by giving every MQTT
+# test its own port, which is the actual fix; this is the loud failure for when
+# one is not there at all.
+#
+mosquittoWait() {
+  local port=$1
+  local secs=${2:-5}
+  local i
+
+  for ((i = 0; i < secs * 50; i++)); do
+    corPortOpen "$port" && return 0
+    sleep 0.02
+  done
+
+  echo "mosquittoWait: nothing listening on port $port after ${secs}s" >&2
+  return 1
 }
 
 
