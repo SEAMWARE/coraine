@@ -30,33 +30,12 @@ the entry describes a surface rather than a diff.
 - **Current state** — `mongoc` (MongoDB) and `corDB` (in-memory).
 - **Temporal history** — `timescale` (TimescaleDB), `ramdb` (in-memory) and `none`.
 - **API surfaces** — `admin`, for the endpoints that are not NGSI-LD: ops and
-  administration, and **55 Prometheus metrics** on `/metrics` and
+  administration, and **56 Prometheus metrics** on `/metrics` and
   `/admin/metrics` covering entity, batch, subscription, registration, context
   source and distributed-operation activity.
 
 Which ones a build contains is a compile-time choice, and which ones it loads is a
 run-time one.
 
-### What a release now pins
-
-- `GET /version` reports the resolved commit of **every library linked into the
-  broker** — the seven k-libs and the four Cor-Libs — not only coraine's own
-  version. Most of the binary is library code, and the repositories it comes from
-  track `main`.
-- Cutting this tag stamps every Cor-Lib with `v0.4.0` at the exact commit this
-  release was built from, so the stack behind a release stays recoverable after
-  those repositories move on.
-
-### Fixed
-
-- **`/metrics` was not valid Prometheus exposition format.** The render buffer was
-  allocated at exactly `kpromRenderSize()`, which reports the payload length
-  *excluding* the terminating NUL — so the final byte, the newline ending the last
-  metric, was overwritten with a NUL that `Content-Length` then counted. The
-  payload was binary rather than text, and a scraper would have rejected it.
-
-### Next
-
-Service Execution, the *bridge* seam and the transports beyond it, a binary IPC
-protocol, and OS packages — the
-[roadmap](https://coraine.readthedocs.io/en/latest/roadmap/) has the detail.
+Where coraine goes from here is on the
+[roadmap](https://coraine.readthedocs.io/en/latest/roadmap/).
