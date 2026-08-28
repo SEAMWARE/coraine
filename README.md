@@ -6,6 +6,7 @@
 [![Support badge](https://img.shields.io/badge/support-github%20issues-orange.svg?logo=github)](https://github.com/SEAMWARE/coraine/issues)
 [![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/technical-groups/data/)
 <br/>
+[![Release badge](https://img.shields.io/github/v/release/SEAMWARE/coraine?label=release)](https://github.com/SEAMWARE/coraine/releases)
 [![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
 ![Status](https://fiware.github.io/catalogue/badges/statuses/status-incubating.svg)
 
@@ -24,7 +25,8 @@ startup as shared libraries:
 The core broker speaks NGSI-LD; the plugins decide *where data lives*, *what extra
 endpoints exist* and *how the broker talks to the world*.
 
-- **Product version:** 0.4
+- **Product version:** 0.4 — see the [release notes](https://github.com/SEAMWARE/coraine/releases)
+  and the [changelog](CHANGELOG.md)
 - **Spec:** ETSI GS CIM 009 v1.9.1 (NGSI-LD) — fully implemented
 - **Language / build:** C, CMake (wrapped by a convenience `makefile`)
 - **License:** [Apache License 2.0](LICENSE) — Copyright 2026 Seamware
@@ -68,7 +70,7 @@ broker answers NGSI-LD on port 1026:
 
 ```sh
 docker run --rm -p 1026:1026 \
-    quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 --database corDB
+    quay.io/seamware/coraine:0.4.0 --database corDB
 ```
 
 Then, from another terminal — create an entity and read it back:

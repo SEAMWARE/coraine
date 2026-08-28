@@ -22,7 +22,7 @@ The broker ships with an in-memory storage backend, so a single container is a c
 working NGSI-LD endpoint. Nothing to install, nothing to connect:
 
 ```sh
-docker run --rm -p 1026:1026 quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 --database corDB
+docker run --rm -p 1026:1026 quay.io/seamware/coraine:0.4.0 --database corDB
 ```
 
 ```sh
@@ -48,7 +48,7 @@ container means the container itself, so it has to be pointed at the database:
 docker network create ngsild
 docker run -d --name mongo --network ngsild mongo:8
 docker run -d --name broker --network ngsild -p 1026:1026 \
-    quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 \
+    quay.io/seamware/coraine:0.4.0 \
         --database mongoc --dbHost mongo --dbName cor
 ```
 
@@ -57,7 +57,7 @@ docker run -d --name broker --network ngsild -p 1026:1026 \
 `--usage` lists everything, including the arguments of whichever plugins are loaded:
 
 ```sh
-docker run --rm quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 \
+docker run --rm quay.io/seamware/coraine:0.4.0 \
     --database mongoc --apiPlugins admin --usage
 ```
 
@@ -82,7 +82,7 @@ switch it on with `--distributed`:
 
 ```sh
 docker run -d --name b1 --network ngsild -p 1026:1026 \
-    quay.io/seamware/coraine:0.3.0-2026-08-27-aa6b1b5 --database corDB --distributed
+    quay.io/seamware/coraine:0.4.0 --database corDB --distributed
 ```
 
 Without it, registrations are still stored and discoverable, but nothing is ever
@@ -137,11 +137,23 @@ correctly reports unhealthy when its MongoDB is unreachable.
 
 ## Tags
 
-One tag per merge to `main`, in the form `<version>-<date>-<commit>` — for
-example `0.3.0-2026-08-27-aa6b1b5`. It is immutable and does not expire.
+Two kinds, and which you want depends on why you are pinning.
+
+| Tag | Example | Published by |
+|---|---|---|
+| **Release** — the bare version | `0.4.0` | cutting a release, once per version |
+| **Per-merge** — `<version>-<date>-<commit>` | `0.4.0-2026-08-28-f81859a` | every merge to `main` |
+
+**Use the release tag** unless you have a reason not to: it is the version the
+[release notes](https://github.com/SEAMWARE/coraine/releases) describe, and it is
+written once and never moved. The per-merge tags are for pinning something newer
+than the last release, or for identifying exactly which build you ran.
 
 There is deliberately **no `latest`** and no bare-commit tag. A tag that moves
 under a running deployment is a version nobody can name afterwards, and a tag
 that expires turns a working `docker run` in someone's notes into a
-`manifest unknown` months later. Pick the newest tag from the repository's tag
-list, or pin the one you tested against.
+`manifest unknown` months later.
+
+Whichever you pick, the broker can tell you what it is: `GET /version` reports
+its own version *and* the resolved commit of every library linked into it, which
+is most of the binary by volume.
