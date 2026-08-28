@@ -55,16 +55,8 @@ run-time one.
   metric, was overwritten with a NUL that `Content-Length` then counted. The
   payload was binary rather than text, and a scraper would have rejected it.
 
-### Known limitations
+### Next
 
-- **Actuation is workflow, not API.** Service Execution — actuation as a
-  first-class citizen rather than the suggested workflows of TS 104 175 Annex G —
-  is short-term work, not present here.
-- **No packages.** The container image or a build from source; there is no
-  `apt-get install coraine` yet.
-- **On the 100%.** Conformance is measured against a corrected fork of the ETSI
-  suite. The corrections are test-side — bugs in the suite as published, parts of
-  which do not run — and are filed upstream with ETSI. They never relax what the
-  broker must do.
-
-The [roadmap](https://coraine.readthedocs.io/en/latest/roadmap/) has the rest.
+Service Execution, the *bridge* seam and the transports beyond it, a binary IPC
+protocol, and OS packages — the
+[roadmap](https://coraine.readthedocs.io/en/latest/roadmap/) has the detail.
