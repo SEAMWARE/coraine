@@ -19,6 +19,13 @@
 # is broker-wide behaviour for the non-NGSI-LD endpoints rather than anything
 # about /version, so it is recorded here and not changed here.
 #
+# It also reports the resolved commit of every library linked into the broker.
+# Those are most of the binary, none of them is released, and the cor* repos
+# track main - so coraine's own version answers only part of "what am I talking
+# to". The shas are REGEXed here: they are the whole point of the field and they
+# change with every library commit, so pinning them would make this test a
+# tripwire for other people's merges.
+#
 # Nothing exercised this route before. A broken or renamed member here would
 # have reached a release unnoticed.
 #
@@ -55,12 +62,24 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 116
+Content-Length: REGEX([0-9]+)
 
 {
-  "corJsonldVersion": "0.1.0",
-  "corNgsildVersion": "post-0.2.0",
   "product": "coraine",
+  "stack": {
+    "corJsonld": "REGEX([0-9a-f]{40})",
+    "corNgsild": "REGEX([0-9a-f]{40})",
+    "corPlugin": "REGEX([0-9a-f]{40})",
+    "corRest": "REGEX([0-9a-f]{40})",
+    "kalloc": "REGEX([0-9a-f]{40})",
+    "kargs": "REGEX([0-9a-f]{40})",
+    "kbase": "REGEX([0-9a-f]{40})",
+    "khash": "REGEX([0-9a-f]{40})",
+    "kjson": "REGEX([0-9a-f]{40})",
+    "klog": "REGEX([0-9a-f]{40})",
+    "kprom": "REGEX([0-9a-f]{40})",
+    "ktrace": "REGEX([0-9a-f]{40})"
+  },
   "version": "0.3.0"
 }
 
@@ -72,12 +91,24 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 116
+Content-Length: REGEX([0-9]+)
 
 {
-  "corJsonldVersion": "0.1.0",
-  "corNgsildVersion": "post-0.2.0",
   "product": "coraine",
+  "stack": {
+    "corJsonld": "REGEX([0-9a-f]{40})",
+    "corNgsild": "REGEX([0-9a-f]{40})",
+    "corPlugin": "REGEX([0-9a-f]{40})",
+    "corRest": "REGEX([0-9a-f]{40})",
+    "kalloc": "REGEX([0-9a-f]{40})",
+    "kargs": "REGEX([0-9a-f]{40})",
+    "kbase": "REGEX([0-9a-f]{40})",
+    "khash": "REGEX([0-9a-f]{40})",
+    "kjson": "REGEX([0-9a-f]{40})",
+    "klog": "REGEX([0-9a-f]{40})",
+    "kprom": "REGEX([0-9a-f]{40})",
+    "ktrace": "REGEX([0-9a-f]{40})"
+  },
   "version": "0.3.0"
 }
 

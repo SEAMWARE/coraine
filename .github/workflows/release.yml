@@ -1,0 +1,222 @@
+#
+# Cutting a release.
+#
+# Triggered by pushing an annotated tag: `git tag -a v0.4.0 -m ... && git push origin v0.4.0`.
+#
+# A TAG rather than a `release/**` branch, which is the other common shape: a
+# branch can move under a published image, so "what was in v0.4.0" would stop
+# having one answer. A tag cannot. There is no backporting story here that would
+# justify a long-lived branch per release.
+#
+# What it does that a normal merge does not:
+#
+#   1. publishes the image under the release version, beside the usual
+#      <version>-<date>-<commit> tag, so `:0.4.0` means something;
+#   2. tags every Cor-Lib at the EXACT commit this release was built from.
+#
+# (2) is the point of the whole thing. The cor* repos have no releases and track
+# main by design, so most of the broker has no version at all - and once a release
+# is out, "which corNgsild was in 0.4.0" needs an answer that survives those repos
+# moving on. The shas come from the same stackManifest.sh that GET /version
+# reports, so the tags and the running broker cannot disagree.
+#
+# The k-libs are deliberately NOT tagged: they carry their own release branches
+# and version numbers, have consumers other than this broker, and are not ours to
+# stamp with a coraine version.
+#
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+          fetch-depth: 0
+
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+
+      #
+      # The version comes from the tag, and must agree with the source. A tag
+      # that says v0.4.0 on a tree whose coraineVersion.h says 0.3.0 produces an
+      # image whose name and whose /version disagree - findable only by someone
+      # holding both, months later.
+      #
+      - name: Version, from the tag, checked against the source
+        id: v
+        working-directory: stack/coraine
+        run: |
+          tagVersion="${GITHUB_REF_NAME#v}"
+          srcVersion=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
+                       src/app/coraine/coraineVersion.h)
+          echo "tag=$tagVersion  source=$srcVersion"
+          if [ "$tagVersion" != "$srcVersion" ]; then
+            echo "::error::tag $GITHUB_REF_NAME says $tagVersion, coraineVersion.h says $srcVersion"
+            exit 1
+          fi
+          echo "version=$tagVersion" >> "$GITHUB_OUTPUT"
+          #
+          # BUILD_AT from the commit itself. deploy.yml reads
+          # github.event.head_commit.timestamp, which a BRANCH push carries; a tag
+          # push does not, and the image would have been stamped "unknown".
+          #
+          echo "buildAt=$(git log -1 --format=%cI)"       >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)"                >> "$GITHUB_OUTPUT"
+          echo "shortSha=$(git rev-parse --short HEAD)"   >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%d)"                >> "$GITHUB_OUTPUT"
+
+      #
+      # The stack the release is built from. bootstrap.sh clones every dependency
+      # as a sibling, at the ref the build uses; stackManifest.sh then reports
+      # what those refs resolved to - the same script the broker compiles into
+      # GET /version, so the tags below and the running image cannot disagree.
+      #
+      # NOBUILD=1 and then vendor-libs.sh, the two steps deploy.yml takes, for
+      # the same reasons: this runner is bare rather than the CI image, so the
+      # build dies on a missing microhttpd.h - and it never needed to build,
+      # because the image compiles the libs itself. What the image cannot do is
+      # FETCH them, so vendor-libs.sh exports each one's committed HEAD from
+      # these clones into the build context.
+      #
+      - name: Clone the lib stack
+        working-directory: stack/corLibs
+        run: NOBUILD=1 ./bootstrap.sh
+
+      - name: Vendor the Cor-Libs into the build context
+        working-directory: stack/coraine
+        env:
+          BASE: ${{ github.workspace }}/stack
+        run: ./docker/vendor-libs.sh
+
+      - name: Resolve the stack
+        working-directory: stack/coraine
+        run: |
+          ./stackManifest.sh | tee /tmp/stack.txt
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      #
+      # Two tags: the bare version, which is what a release is for, and the same
+      # immutable <version>-<date>-<commit> every merge publishes, so a release
+      # is also findable by the scheme everything else uses.
+      #
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: stack/coraine
+          file: stack/coraine/docker/Dockerfile
+          push: true
+          build-args: |
+            GIT_SHA=${{ steps.v.outputs.sha }}
+            BUILD_AT=${{ steps.v.outputs.buildAt }}
+          tags: |
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      #
+      # A token from the seamware-ci GitHub App rather than a personal access
+      # token: it is short-lived, scoped to the repositories the app is installed
+      # on, and belongs to nobody's account. GITHUB_TOKEN cannot be used here at
+      # all - it is scoped to this repository and these tags go on five others.
+      #
+      # ⚠ The app must have `contents: write` on the Cor-Lib repositories, or
+      # this step 404s. That is an installation setting, not something the
+      # workflow can grant itself.
+      #
+      - name: Mint a cross-repository token
+        id: apptoken
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          owner: SEAMWARE
+          repositories: corRest,corNgsild,corJsonld,corPlugin,corTest,corLibs
+
+      #
+      # Tag each Cor-Lib at the commit this release was actually built from.
+      #
+      # Not `main` at the time this job runs: those repos may have moved on in the
+      # minutes since the build, and a release tag pointing at a commit the
+      # release does not contain is worse than no tag.
+      #
+      # corTest and corLibs are not linked into the broker, so they are not in the
+      # manifest - they are tagged at the commit bootstrap.sh checked out, which is
+      # what a reproduction of this build would need.
+      #
+      - name: Tag the Cor-Libs at the released commits
+        env:
+          GH_TOKEN: ${{ steps.apptoken.outputs.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -u
+          fail=0
+
+          tagRepo() {
+            local repo=$1 sha=$2
+            if [ -z "$sha" ] || [ "$sha" = "unknown" ]; then
+              echo "::error::no commit resolved for $repo - not tagging a guess"
+              fail=1
+              return
+            fi
+            if gh api "repos/SEAMWARE/$repo/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
+              echo "  $repo: v$VERSION already exists, leaving it alone"
+              return
+            fi
+            if gh api -X POST "repos/SEAMWARE/$repo/git/refs" \
+                 -f ref="refs/tags/v$VERSION" -f sha="$sha" >/dev/null; then
+              echo "  $repo: v$VERSION -> $sha"
+            else
+              echo "::error::failed to tag $repo at $sha"
+              fail=1
+            fi
+          }
+
+          # the four libraries linked into the broker, from the manifest
+          while read -r lib sha; do
+            case "$lib" in corRest|corNgsild|corJsonld|corPlugin) tagRepo "$lib" "$sha" ;; esac
+          done < /tmp/stack.txt
+
+          # and the two that are not linked but are part of reproducing the build
+          for lib in corTest corLibs; do
+            tagRepo "$lib" "$(git -C "$GITHUB_WORKSPACE/stack/$lib" rev-parse HEAD 2>/dev/null)"
+          done
+
+          exit $fail
+
+      - name: Say what was released
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          {
+            echo "### coraine $VERSION"
+            echo '```'
+            echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:$VERSION"
+            echo '```'
+            echo "Cor-Libs tagged \`v$VERSION\` at:"
+            echo '```'
+            cat /tmp/stack.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
