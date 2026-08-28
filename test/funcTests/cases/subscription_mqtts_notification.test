@@ -28,7 +28,7 @@ certfile /tmp/mqtts-test.crt
 keyfile /tmp/mqtts-test.key
 require_certificate false" > /tmp/mqtts-test.conf
 mosquitto -d -c /tmp/mqtts-test.conf
-sleep 0.4
+mosquittoWait 11887
 ftClientStart --mqttPort 11887 --mqttTopic ngsild/notif --mqttTls
 coraineStart --insecureNotif
 

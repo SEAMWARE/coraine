@@ -24,7 +24,7 @@ corDbDrop
 echo "listener 11883
 allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
 mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
-sleep 0.3
+mosquittoWait 11883
 ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
 coraineStart
 
