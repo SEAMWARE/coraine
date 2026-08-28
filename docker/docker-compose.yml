@@ -26,7 +26,7 @@ services:
     # Published image; swap for coraine:local to use a locally built one.
     # No `latest` is ever published - the deploy pushes ONE immutable tag per
     # merge, `<version>-<date>-<sha>`. Name the one you want:
-    #   CORAINE_TAG=0.3.0-2026-08-21-abc1234 docker compose up
+    #   CORAINE_TAG=0.4.0 docker compose up
     image: quay.io/seamware/coraine:${CORAINE_TAG:?set CORAINE_TAG to a published tag}
     depends_on:
       mongo:
