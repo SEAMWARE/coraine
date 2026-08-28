@@ -24,7 +24,7 @@ startup as shared libraries:
 The core broker speaks NGSI-LD; the plugins decide *where data lives*, *what extra
 endpoints exist* and *how the broker talks to the world*.
 
-- **Product version:** 0.3
+- **Product version:** 0.4
 - **Spec:** ETSI GS CIM 009 v1.9.1 (NGSI-LD) — fully implemented
 - **Language / build:** C, CMake (wrapped by a convenience `makefile`)
 - **License:** [Apache License 2.0](LICENSE) — Copyright 2026 Seamware

@@ -80,7 +80,7 @@ Content-Length: REGEX([0-9]+)
     "kprom": "REGEX([0-9a-f]{40})",
     "ktrace": "REGEX([0-9a-f]{40})"
   },
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
 
 
@@ -109,7 +109,7 @@ Content-Length: REGEX([0-9]+)
     "kprom": "REGEX([0-9a-f]{40})",
     "ktrace": "REGEX([0-9a-f]{40})"
   },
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
 
 

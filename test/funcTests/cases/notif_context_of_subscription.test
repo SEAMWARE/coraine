@@ -118,7 +118,7 @@ HTTP/1.1 201 Created
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "Coraine/0.3.0"
+      "User-Agent": "Coraine/0.4.0"
     },
     "url": "/notify",
     "verb": "POST"
