@@ -93,6 +93,18 @@ unsigned int   ftDelayMs    = 0;       // sleep before responding — for timeou
 //
 static volatile bool ftMqttSubscribed = false;
 
+//
+// ftMqttFailed - set when the MQTT connection is given up on for good.
+//
+// The connect loop used to be unbounded ("try forever, the broker may not be up
+// yet"), which is right for a broker that is merely slow and wrong for one that
+// is never coming: ftClient span silently, printed nothing, and the only symptom
+// was a readiness barrier timing out with an EMPTY log to show for it. A bounded
+// retry that says why is strictly better - the failure is reported by the process
+// that actually observed it.
+//
+static volatile bool ftMqttFailed = false;
+
 unsigned short ftMqttPort   = 0;       // 0 = no MQTT subscription
 char*          ftMqttTopic  = (char*) "#"; // default: catch every topic
 char*          ftMqttUser   = NULL;    // MQTT username (for an auth-required broker)
@@ -270,17 +282,27 @@ static bool getCount(void)
 
 // -----------------------------------------------------------------------------
 //
-// getMqttReady - GET /mqttReady — 1 once the MQTT SUBACK has arrived, else 0.
+// getMqttReady - GET /mqttReady — 1 once the MQTT SUBACK has arrived.
 //
 // A bare integer, like /count: the harness polls this from bash and a JSON
 // parser has no business in a readiness barrier. Answers 1 when no MQTT was
 // asked for, so a caller need not special-case that.
 //
+// Three answers, not two:
+//   1  subscribed, or none was asked for
+//   0  not yet - keep polling
+//  -1  given up on; polling longer cannot help, and the log says why
+//
+// -1 is what turns a barrier timeout into an immediate, explained failure.
+//
 static bool getMqttReady(void)
 {
   char* buf = (char*) kaAlloc(&corRest.kalloc, 4);
 
-  snprintf(buf, 4, "%d", ((ftMqttPort == 0) || (ftMqttSubscribed == true))? 1 : 0);
+  int state = ((ftMqttPort == 0) || (ftMqttSubscribed == true))?  1 :
+              (ftMqttFailed == true)?                            -1 : 0;
+
+  snprintf(buf, 4, "%d", state);
   corRest.out.payload     = buf;
   corRest.out.payloadSize = strlen(buf);
 
@@ -565,7 +587,22 @@ static pthread_mutex_t mqttDumpMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void mqttOnConnect(struct mosquitto* m, void* ud, int rc)
 {
-  (void) ud; (void) rc;
+  (void) ud;
+
+  //
+  // rc is the CONNACK return code, and it was being ignored. A refused CONNECT -
+  // bad credentials, most usefully - completes the TCP connection and then fails
+  // at the MQTT level, so subscribing anyway produced no SUBACK and no reason.
+  //
+  if (rc != 0)
+  {
+    fprintf(stderr, "ftClient: MQTT broker on port %d refused the connection: %s\n",
+            ftMqttPort, mosquitto_connack_string(rc));
+    fflush(stderr);
+    ftMqttFailed = true;
+    return;
+  }
+
   mosquitto_subscribe(m, NULL, ftMqttTopic, 0);
 }
 
@@ -633,9 +670,35 @@ static void* mqttListenerThread(void* arg)
   mosquitto_subscribe_callback_set(mosq, mqttOnSubscribe);
   mosquitto_message_callback_set(mosq, mqttOnMessage);
 
-  // Reconnect-loop friendly: try forever (the broker may not be up yet).
-  while (mosquitto_connect(mosq, "localhost", ftMqttPort, 60) != MOSQ_ERR_SUCCESS)
+  //
+  // Retry, but not forever. The broker may legitimately not be up yet, so this
+  // keeps trying - and if it never appears, it says so and stops, rather than
+  // spinning in silence and leaving the reader of the log nothing to go on.
+  //
+  // 5 seconds: far longer than a local mosquitto needs even on a loaded runner,
+  // and comfortably inside the readiness barrier that is waiting on this, so the
+  // barrier hears the verdict instead of timing out over the top of it.
+  //
+  int rc = MOSQ_ERR_SUCCESS;
+
+  for (int attempt = 0; attempt < 25; attempt++)          // 25 x 200ms = 5s
+  {
+    rc = mosquitto_connect(mosq, "localhost", ftMqttPort, 60);
+    if (rc == MOSQ_ERR_SUCCESS)
+      break;
     usleep(200000);
+  }
+
+  if (rc != MOSQ_ERR_SUCCESS)
+  {
+    fprintf(stderr, "ftClient: no MQTT broker on port %d after 5s: %s\n",
+            ftMqttPort, mosquitto_strerror(rc));
+    fflush(stderr);
+    ftMqttFailed = true;
+    mosquitto_destroy(mosq);
+    mosquitto_lib_cleanup();
+    return NULL;
+  }
 
   mosquitto_loop_forever(mosq, -1, 1);
 
