@@ -373,8 +373,16 @@ bool metricsRender(void)
 {
   tenantCounts();
 
+  //
+  // +1 for the terminating NUL. kpromRenderSize() reports the payload EXCLUDING
+  // it, and kpromRender is built on snprintf, which always writes one - so a
+  // buffer of exactly bufSize loses its final byte, and that byte is the newline
+  // ending the last metric. The result parses as binary rather than as the
+  // Prometheus text format, and kpromRender cannot report it: on an exact fit it
+  // returns the same length it would have returned had everything fitted.
+  //
   int   bufSize = kpromRenderSize();
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize + 1);
 
   if (buf == NULL)
   {
@@ -382,7 +390,11 @@ bool metricsRender(void)
     return true;
   }
 
-  int rendered = kpromRender(buf, bufSize);
+  //
+  // bufSize + 1 here too - this is the buffer LENGTH, which is what snprintf
+  // sizes against. Widening the allocation without widening this changes nothing.
+  //
+  int rendered = kpromRender(buf, bufSize + 1);
   if (rendered < 0)
   {
     corRest.out.httpStatusCode = 500;

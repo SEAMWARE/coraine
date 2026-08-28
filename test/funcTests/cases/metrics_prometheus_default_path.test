@@ -37,8 +37,8 @@ echo
 
 echo "03. /metrics and /admin/metrics expose the same metric set"
 echo "=========================================================="
-a=$(corCurl --url /metrics --out raw       | grep -aoE "^ngsild_[a-z_]+" | sort -u)
-b=$(corCurl --url /admin/metrics --out raw | grep -aoE "^ngsild_[a-z_]+" | sort -u)
+a=$(corCurl --url /metrics --out raw       | grep -oE "^ngsild_[a-z_]+" | sort -u)
+b=$(corCurl --url /admin/metrics --out raw | grep -oE "^ngsild_[a-z_]+" | sort -u)
 [ "$a" = "$b" ] && echo "same metric set" || echo "DIFFERENT metric set"
 echo
 echo
@@ -46,7 +46,45 @@ echo
 
 echo "04. A known counter line is present at /metrics"
 echo "==============================================="
-corCurl --url /metrics --out raw | grep -aE "^ngsild_entity_create_total "
+corCurl --url /metrics --out raw | grep -E "^ngsild_entity_create_total "
+echo
+echo
+
+
+#
+# 05-07 exist because this payload was, for a while, not text at all. The render
+# buffer was allocated at exactly kpromRenderSize(), which reports the length
+# WITHOUT the terminating NUL, so snprintf overwrote the final byte - the newline
+# ending the last metric - with a NUL, and Content-Length counted it.
+#
+# 01-04 all passed straight through that: none of them looks at the last line, and
+# the greps carried a `-a` telling grep to treat the binary payload as text. A
+# Prometheus scraper would not have been so forgiving. Bare curl here, because the
+# assertion is about bytes and corCurl formats.
+#
+echo "05. The payload is text - no NUL bytes anywhere"
+echo "==============================================="
+curl -s "http://$COR_HOST:$COR_PORT/metrics" -o /tmp/metricsBody.$$
+echo "NUL bytes: $(tr -dc '\0' < /tmp/metricsBody.$$ | wc -c)"
+echo
+echo
+
+
+echo "06. The payload ends with a newline, as the exposition format requires"
+echo "======================================================================"
+if [ "$(tail -c 1 /tmp/metricsBody.$$)" = "" ] && [ "$(tail -c 1 /tmp/metricsBody.$$ | od -An -tx1 | tr -d ' ')" = "0a" ]; then
+  echo "ends with a newline"
+else
+  echo "DOES NOT end with a newline: $(tail -c 1 /tmp/metricsBody.$$ | od -An -tx1 | tr -d ' ')"
+fi
+echo
+echo
+
+
+echo "07. The LAST metric line is complete - the one the truncation ate"
+echo "================================================================="
+tail -1 /tmp/metricsBody.$$
+\rm -f /tmp/metricsBody.$$
 echo
 echo
 
@@ -72,6 +110,21 @@ same metric set
 04. A known counter line is present at /metrics
 ===============================================
 ngsild_entity_create_total 0
+
+
+05. The payload is text - no NUL bytes anywhere
+===============================================
+NUL bytes: 0
+
+
+06. The payload ends with a newline, as the exposition format requires
+======================================================================
+ends with a newline
+
+
+07. The LAST metric line is complete - the one the truncation ate
+=================================================================
+ngsild_batch_item_count_count 0
 
 
 --TEARDOWN--
