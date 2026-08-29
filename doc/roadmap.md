@@ -32,6 +32,10 @@ incorporated in the next release of the product:
     a subscription or a registration asks for one by the scheme of its endpoint. The
     protocol names the endpoint; `bridge` names the seam.
 
+    See [Bridges and Channels](bridge-channels.md) for the design notes: what a
+    **Bridge** and a **Channel** are, why the pair is a concept of its own rather
+    than a registration, and how the two relate to the plugin that carries them.
+
 -   **Binary IPC protocol.** A TLV-framed transport beside REST, with no JSON
     parse on the hot path.
 
