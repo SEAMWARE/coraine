@@ -49,7 +49,7 @@ So this reuses the bridge model rather than inventing another:
 
 - A **Bridge** is a transport instance — the MQTT connection, the CoAP server,
   the DDS participant. Few, fixed at startup.
-- A **Binding** ties one foreign endpoint to one entity attribute, with a
+- A **Channel** ties one foreign endpoint to one entity attribute, with a
   direction and a retention policy.
 
 "North" and "south" describe where a deployment puts things, not two mechanisms.
@@ -63,7 +63,7 @@ not a matter of taste:
 
 | The value… | Modelled as | The spec's workflow |
 |---|---|---|
-| flows through the broker — pushed by the device, or pushed to it | a **Binding** | subscription/notification (§G.4.2, §G.5) |
+| flows through the broker — pushed by the device, or pushed to it | a **Channel** | subscription/notification (§G.4.2, §G.5) |
 | lives at the device or its adapter, fetched when read | a **registration** whose endpoint names a bridge scheme | forwarding (§G.4.3, §G.6) |
 
 TS 104 175 Annex G, *Suggested actuation workflows*, describes both for
@@ -94,7 +94,7 @@ flow versus delegation is a fact about where a value lives.
 One piece genuinely is new: **device provisioning**. FIWARE's agents expose an
 API for registering a device and mapping its readings to entity attributes, in
 bulk and from templates, with service groups and keys. In this model that is a
-layer over Bindings — provisioning a device creates them — but whether it is a
+layer over Channels — provisioning a device creates them — but whether it is a
 thin convenience or its own concept is not yet decided, and the same question
 about not overloading an existing mechanism applies.
 
@@ -177,7 +177,7 @@ Two things from the agent world are not protocols and still have to be answered:
 **device provisioning** (above) and **commands** — an agent registers itself as
 the context provider for a command attribute so that writing it reaches the
 device. When the broker owns the south bridge there is no second component to
-register with, and a command becomes an outbound Binding. Which is the same
+register with, and a command becomes an outbound Channel. Which is the same
 mechanism as everything else here, but the API a device integrator sees for it
 is not yet designed.
 
