@@ -55,7 +55,9 @@ from being re-argued. Draft 2026-05-22, revised 2026-05-25, 2026-08-26,
 > conflating (§3), a **`status`** on both objects so the degraded states are
 > observable rather than silent (§3.3a), **no runtime plugin loading** (§3.5c),
 > and the apparent contradiction between §4c's "fail loudly" and §3.5b's "boot
-> anyway", which are different cases (§4c).
+> anyway", which are different cases (§4c). Source layout answered too: **one
+> library per bridge**, sibling to the other Cor-Libs, with the contract headers
+> in a small `corBridge` of their own (§4a).
 
 ## 1. Goal
 
@@ -849,34 +851,45 @@ layout decisions that follow from this.
 ### 4a. Source-tree layout
 
 Bridge plugins do **not** live in the broker repo (unlike mongoc /
-corDB today). Split by external-dependency weight:
+corDB today). One library each:
 
 | Plugin | External lib | Location |
 |---|---|---|
 | (`http`) | — | *inline in the broker — not a plugin* |
-| `tlv` | none (custom codec) | thin — see below |
-| `ws` | none (WS frame parser in-tree) | thin — see below |
-| `mqtt` | mosquitto (already a broker dep for notifications) | thin — see below |
+| `tlv` | none (custom codec) | `~/git/corTlvBridge/` |
+| `ws` | none (WS frame parser in-tree) | `~/git/corWsBridge/` |
+| `mqtt` | mosquitto (already a broker dep for notifications) | `~/git/corMqttBridge/` |
 | `dds` | Fast-DDS + FIWARE-DDS-Enabler (heavy) | `~/git/corDdsBridge/` |
 | `opcua` | open62541 or similar (heavy) | `~/git/corOpcuaBridge/` |
 | `modbus` | libmodbus or custom | `~/git/corModbusBridge/` |
 
-**Heuristic**: *if it pulls in a major external library, it gets its own
-repo*. Somebody building the stack shouldn't need Fast-DDS installed just to
-get a broker; heavy deps stay opt-in via separate repos.
+External-dependency weight no longer decides *where* a plugin lives, only what
+it drags in. Somebody building the stack should not need Fast-DDS installed
+just to get a broker, and with one repo each that falls out for free: a heavy
+plugin is opt-in because nobody clones it.
 
-⚠ **Where the thin plugins live is open.** The rule used to be "sub-libs in
-the umbrella", which worked when the umbrella vendored code. corLibs does
-not — it drives sibling repos and holds no library of its own — so there is
-no sub-lib home to put them in. Two candidates, and this should be settled
-before the first thin plugin is written rather than discovered by writing
-one:
+**Every bridge is its own library, sibling to the other Cor-Libs.**
+`~/git/corTlvBridge/`, `~/git/corDdsBridge/` and so on, beside `corRest`,
+`corJsonld`, `corPlugin` and `corNgsild`. `corLibs` is the umbrella — it drives
+the siblings and holds no library of its own — so it is not a home for them,
+and the old "thin ones stay as sub-libs in the umbrella" rule has nothing left
+to attach to. Dependency weight stops deciding *where* a plugin lives and goes
+back to deciding only what it drags in: uniform layout, and a heavy plugin is
+opt-in because nobody clones it, not because it sits somewhere different.
 
-- **inside `corBridge`**, beside the headers, as `corBridge/tlv/` etc. —
-  one repo for the contract and everything that needs no external library.
-  Cheapest, and it keeps the count of repos down.
-- **a sibling repo each**, `~/git/corTlvBridge/` and so on — uniform with
-  the heavy plugins, at the cost of three near-empty repos.
+The **contract** needs a home of its own too — `BridgeDriver.h`,
+`BridgeBroker.h` and `BridgeRequest.h` are what every bridge library links
+against. A small `corBridge` sibling holding only those headers is the obvious
+shape.
+
+⚠ **Not `corPlugin`.** It is a generic `dlopen`/`dlsym` loader that resolves a
+short name to a `.so` and tracks handles, and it is deliberately ignorant of
+every plugin category it loads — the database and TRoE families do not put
+their contracts there either. A bridge contract in `corPlugin` would be the
+first thing to make the loader know what it is loading.
+
+> Current inclination rather than a settled decision — it wants confirming
+> against the first bridge actually written, not before.
 
 **Naming**: `cor<Protocol>Bridge` for source (repo / dir), short protocol
 name for the runtime artifact:
