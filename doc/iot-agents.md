@@ -129,7 +129,7 @@ Status values, verbatim from the library's own documentation:
 the device to call in. A sleeping, battery-powered or NAT'd device polls; the
 command is stored until it asks, and expires if it never does. That asymmetry has
 no equivalent in a broker today and is worth remembering when designing outbound
-Bindings.
+Channels.
 
 With `cmdMode: notification`, the entity is created at provisioning time with the
 command attributes set to `null`, meaning "not yet triggered".
@@ -175,17 +175,17 @@ between a long protocol list and a long plugin list.
 ## 8. How it maps onto coraine's model
 
 The south bridge models a foreign endpoint tied to an entity attribute as a
-**Binding** on a **Bridge** (a transport instance), and a value that lives at the
+**Channel** on a **Bridge** (a transport instance), and a value that lives at the
 peer and is fetched on read as an ordinary **registration** whose endpoint names
 a bridge scheme. See [Speaking to devices directly](device-protocols.md).
 
 | Agent concept | Our model |
 |---|---|
-| Active attribute | **Binding**, `direction: in`, `retention: mirror` |
-| Command | **Binding**, `direction: out` |
+| Active attribute | **Channel**, `direction: in`, `retention: mirror` |
+| Command | **Channel**, `direction: out` |
 | Lazy attribute | **registration** with a bridge-scheme endpoint — the broker holds nothing and fetches on read |
 | Static attribute | an ordinary attribute; nothing to model |
-| Config group + device | **device provisioning** — a layer over Bindings, not yet designed |
+| Config group + device | **device provisioning** — a layer over Channels, not yet designed |
 | `<cmd>_status` / `<cmd>_info` | no equivalent yet; closest is the provisional convention planned for bridge services and actions, and Service Execution should settle both together |
 
 The last two rows are the open work. Everything above them already has a home.

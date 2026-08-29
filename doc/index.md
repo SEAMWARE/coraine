@@ -24,6 +24,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | judge how well it is tested | [Test coverage](coverage.md) |
 | know what is not built yet | [Roadmap](roadmap.md) |
 | see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
+| follow the Bridge / Channel design as it is worked out | [Bridges and Channels](bridge-channels.md) |
 
 ## Support
 
