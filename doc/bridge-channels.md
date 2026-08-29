@@ -877,19 +877,38 @@ to attach to. Dependency weight stops deciding *where* a plugin lives and goes
 back to deciding only what it drags in: uniform layout, and a heavy plugin is
 opt-in because nobody clones it, not because it sits somewhere different.
 
-The **contract** needs a home of its own too — `BridgeDriver.h`,
-`BridgeBroker.h` and `BridgeRequest.h` are what every bridge library links
-against. A small `corBridge` sibling holding only those headers is the obvious
-shape.
+**The contract is a Cor-Lib of its own — `corBridge`.** `BridgeDriver.h`,
+`BridgeBroker.h` and `BridgeRequest.h` are what every bridge library compiles
+against, and **`corPlugin` is the precedent for exactly this shape**: a small,
+dependency-light library that exists only to serve the plugin system, sitting
+in the libs tier beside the rest. `corBridge` is the same kind of thing. One
+holds the mechanism for loading a `.so`, the other the contract a bridge `.so`
+must satisfy.
 
-⚠ **Not `corPlugin`.** It is a generic `dlopen`/`dlsym` loader that resolves a
-short name to a `.so` and tracks handles, and it is deliberately ignorant of
-every plugin category it loads — the database and TRoE families do not put
-their contracts there either. A bridge contract in `corPlugin` would be the
-first thing to make the loader know what it is loading.
+The alternative — putting the headers in the broker repo, since the broker is
+the sole implementor of `BridgeBroker.h` — costs two concrete things. The build
+order is k-libs, then the Cor-Libs, then the broker last; contract headers in
+the broker put six plugin repos in a tier *after* it, and point a library at an
+application. And the broker publishes no headers today — `install` copies the
+binary and its plugins to `/opt/seamware` — so it would grow a header-install
+target and become a build-time dependency of six external repos.
 
-> Current inclination rather than a settled decision — it wants confirming
-> against the first bridge actually written, not before.
+The ownership argument for the broker repo — that a separate header can drift
+from the code implementing it — is already answered by §4b: additive evolution,
+same major number means it loads and works. That policy exists because the
+plugins are external, and it covers the header for the same reason.
+
+⚠ **`corBridge` is not part of `corPlugin`, however similar the two look.**
+`corPlugin` is a generic `dlopen`/`dlsym` loader — name to path, symbol lookup,
+handle tracking — and its README is explicit that it "knows nothing about" the
+categories it loads. The database and TRoE families keep their contracts out of
+it too. A bridge contract inside it would be the first thing to make the loader
+know what it is loading. Same tier and same shape; different kind.
+
+> Layout confirmed 2026-08-29. The one thing still hedged is **cor-agent**,
+> which is expected to be a conditionally-compiled build of the broker in this
+> repo rather than a repo of its own — but nothing here depends on that, because
+> the contract's consumers are the plugin libraries, not a second broker.
 
 **Naming**: `cor<Protocol>Bridge` for source (repo / dir), short protocol
 name for the runtime artifact:
