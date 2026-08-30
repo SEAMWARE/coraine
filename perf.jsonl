@@ -14,3 +14,5 @@
 {"date": "2026-08-28T13:06:53Z", "db": "mongoc", "query_c200": 5599, "query_c50": 5632, "retrieve_c50": 19386, "run": "33178847096", "sha": "900bd744"}
 {"date": "2026-08-28T21:09:49Z", "db": "corDB", "query_c200": 8578, "query_c50": 8699, "retrieve_c50": 45100, "run": "33243979265", "sha": "ea18e479"}
 {"date": "2026-08-28T21:09:49Z", "db": "mongoc", "query_c200": 4499, "query_c50": 4562, "retrieve_c50": 12281, "run": "33243979265", "sha": "ea18e479"}
+{"date": "2026-08-29T16:43:09Z", "db": "corDB", "query_c200": 7982, "query_c50": 8030, "retrieve_c50": 41424, "run": "33300747681", "sha": "ae1235ed"}
+{"date": "2026-08-29T16:43:09Z", "db": "mongoc", "query_c200": 4222, "query_c50": 4298, "retrieve_c50": 11603, "run": "33300747681", "sha": "ae1235ed"}
