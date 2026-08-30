@@ -49,6 +49,21 @@ static KjNode* dumpArray     = NULL;     // accumulates requests (malloc allocat
 static int     dumpCount     = 0;
 static int     probeCount    = 0;        // sourceIdentity discovery probes seen (kept OUT of dumpArray)
 
+//
+// dumpMutex - guards dumpArray + dumpCount, on every path that touches them.
+//
+// ftClient is thread-per-connection, so two notifications in flight at once run
+// dumpAccumulate on two threads and spliced into the same tail unguarded: the
+// order of the two entries flipped, and one of them could be lost outright.
+// GET /dump rendered the list while it was being appended to, and DELETE /dump
+// kjFree'd it out from under a writer.
+//
+// The mutex existed already - as mqttDumpMutex, taken only by the MQTT
+// listener, which shares this very array with the HTTP path. It was never
+// MQTT's mutex; it guards the accumulator, and it is named for that now.
+//
+static pthread_mutex_t dumpMutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 
 // -----------------------------------------------------------------------------
@@ -204,8 +219,10 @@ static void dumpAccumulate(void)
   else if (corRest.in.payload != NULL && corRest.in.payloadSize > 0)
     kjChildAdd(entry, kjString(NULL, "body", corRest.in.payload));
 
+  pthread_mutex_lock(&dumpMutex);
   kjChildAdd(dumpArray, entry);
   dumpCount++;
+  pthread_mutex_unlock(&dumpMutex);
 }
 
 
@@ -216,11 +233,14 @@ static void dumpAccumulate(void)
 //
 static bool getDump(void)
 {
+  pthread_mutex_lock(&dumpMutex);
+
   if (dumpArray == NULL || dumpCount == 0)
   {
     // Return empty array
     corRest.out.payload     = (char*) "[]";
     corRest.out.payloadSize = 2;
+    pthread_mutex_unlock(&dumpMutex);
     return true;
   }
 
@@ -236,6 +256,8 @@ static bool getDump(void)
 
   kjFastRender(dumpArray, buf);
 
+  pthread_mutex_unlock(&dumpMutex);
+
   corRest.out.payload     = buf;
   corRest.out.payloadSize = strlen(buf);
 
@@ -250,7 +272,10 @@ static bool getDump(void)
 //
 static bool deleteDump(void)
 {
+  pthread_mutex_lock(&dumpMutex);
   dumpClear();
+  pthread_mutex_unlock(&dumpMutex);
+
   corRest.out.httpStatusCode = 204;
   return true;
 }
@@ -271,7 +296,10 @@ static bool getCount(void)
 {
   char* buf = (char*) kaAlloc(&corRest.kalloc, 16);
 
+  pthread_mutex_lock(&dumpMutex);
   snprintf(buf, 16, "%d", dumpCount);
+  pthread_mutex_unlock(&dumpMutex);
+
   corRest.out.payload     = buf;
   corRest.out.payloadSize = strlen(buf);
 
@@ -583,8 +611,6 @@ static bool getAccumulate(void)
 // MQTT subscriber — runs in its own thread, accumulates received messages
 // into the same dumpArray under verb="MQTT", url=<topic>, body=<payload>.
 //
-static pthread_mutex_t mqttDumpMutex = PTHREAD_MUTEX_INITIALIZER;
-
 static void mqttOnConnect(struct mosquitto* m, void* ud, int rc)
 {
   (void) ud;
@@ -638,10 +664,10 @@ static void mqttOnMessage(struct mosquitto* m, void* ud, const struct mosquitto_
   kjChildAdd(entry, kjString(NULL, "body", payloadStr));
   free(payloadStr);
 
-  pthread_mutex_lock(&mqttDumpMutex);
+  pthread_mutex_lock(&dumpMutex);
   kjChildAdd(dumpArray, entry);
   dumpCount++;
-  pthread_mutex_unlock(&mqttDumpMutex);
+  pthread_mutex_unlock(&dumpMutex);
 }
 
 static void* mqttListenerThread(void* arg)
