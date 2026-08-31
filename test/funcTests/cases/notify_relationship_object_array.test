@@ -66,6 +66,11 @@ echo
 echo
 
 
+# The notification is sent after the create response, so the dump below races it.
+# ftClientDump's only settle is the valgrind one - a no-op in a plain run, which
+# is why this went red in the functest job and never in a valgrind shard.
+ftClientWait 1
+
 echo "03. Dump ftClient — the notification renders R1.object as the array"
 echo "==================================================================="
 ftClientDump
