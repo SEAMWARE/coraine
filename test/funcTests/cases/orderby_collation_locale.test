@@ -1,0 +1,235 @@
+#
+# FILE            orderby_collation_locale.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2.1 — the default string order is ICU "root" collation, and
+# `collation` selects another locale.
+#
+# orderby_string_collation.test uses pure ASCII, and ASCII is exactly where root
+# collation and a case-insensitive byte compare agree - so it passes on a build
+# with no ICU at all. This one is the discriminator. Two of its inputs order
+# differently under the two:
+#
+#   '_under' vs '1one'  - root puts punctuation before digits; byte order does not
+#   'äpple'             - root gives it a's primary weight (apple, Apple, äpple,
+#                         banana); by bytes 0xC3 0xA4 sorts after every ASCII letter
+#
+# And the locale really is consulted: in Swedish, 'ä' is a letter of its own,
+# after 'z' - so collation=sv moves äpple to the very end. An unknown language tag
+# is not an error; ICU falls back to root.
+#
+# ⚠ This test fails on a `COR_WITH_ICU=0` build, and that is the intent. That build
+# is a deliberate opt-out of the libicu dependency and its approximation does not
+# implement § 7.6.2.1 - the suite should say so rather than stay green about it.
+#
+--NAME--
+orderBy uses ICU root collation, and `collation` selects a locale (§ 7.6.2.1)
+
+--TAGS--
+orderBy collation query
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed 7 entities: apple, Apple, äpple, banana, zebra, _under, 1one"
+echo "====================================================================="
+for v in \
+  '{"id":"urn:ngsi-ld:C1","type":"T","name":{"type":"Property","value":"apple"}}' \
+  '{"id":"urn:ngsi-ld:C2","type":"T","name":{"type":"Property","value":"Apple"}}' \
+  '{"id":"urn:ngsi-ld:C3","type":"T","name":{"type":"Property","value":"äpple"}}' \
+  '{"id":"urn:ngsi-ld:C4","type":"T","name":{"type":"Property","value":"banana"}}' \
+  '{"id":"urn:ngsi-ld:C5","type":"T","name":{"type":"Property","value":"zebra"}}' \
+  '{"id":"urn:ngsi-ld:C6","type":"T","name":{"type":"Property","value":"_under"}}' \
+  '{"id":"urn:ngsi-ld:C7","type":"T","name":{"type":"Property","value":"1one"}}' ; do
+  corCurl --url /ngsi-ld/v1/entities --payload "$v" | head -1
+done
+echo
+echo
+
+
+echo "02. orderBy=name — root collation: _under, 1one, apple, Apple, äpple, banana, zebra"
+echo "==================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues'
+echo
+echo
+
+
+echo "03. collation=sv — Swedish sorts ä after z, so äpple goes last"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&collation=sv&options=keyValues'
+echo
+echo
+
+
+echo "04. collation=xx-nonsense — an unknown tag is no error, it falls back to root"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&collation=xx-nonsense&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 7 entities: apple, Apple, äpple, banana, zebra, _under, 1one
+=====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=name — root collation: _under, 1one, apple, Apple, äpple, banana, zebra
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 523
+
+[
+  {
+    "id": "urn:ngsi-ld:C6",
+    "name": "_under",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C7",
+    "name": "1one",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C1",
+    "name": "apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C2",
+    "name": "Apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C3",
+    "name": "äpple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C4",
+    "name": "banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C5",
+    "name": "zebra",
+    "type": "T"
+  }
+]
+
+
+
+03. collation=sv — Swedish sorts ä after z, so äpple goes last
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 523
+
+[
+  {
+    "id": "urn:ngsi-ld:C6",
+    "name": "_under",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C7",
+    "name": "1one",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C1",
+    "name": "apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C2",
+    "name": "Apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C4",
+    "name": "banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C5",
+    "name": "zebra",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C3",
+    "name": "äpple",
+    "type": "T"
+  }
+]
+
+
+
+04. collation=xx-nonsense — an unknown tag is no error, it falls back to root
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 523
+
+[
+  {
+    "id": "urn:ngsi-ld:C6",
+    "name": "_under",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C7",
+    "name": "1one",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C1",
+    "name": "apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C2",
+    "name": "Apple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C3",
+    "name": "äpple",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C4",
+    "name": "banana",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C5",
+    "name": "zebra",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
