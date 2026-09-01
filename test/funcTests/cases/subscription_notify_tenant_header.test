@@ -45,7 +45,6 @@ corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: captn' --payload '{
 echo
 sleep 0.4
 ftClientDump
-ftClientReset
 echo
 echo
 

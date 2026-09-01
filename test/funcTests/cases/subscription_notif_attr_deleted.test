@@ -56,7 +56,6 @@ echo
 
 echo "05. Reset + verify ATTR_MODIFIED-only sub does NOT fire on pure delete"
 echo "======================================================================"
-ftClientReset
 echo "done"
 echo
 echo

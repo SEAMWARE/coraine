@@ -234,22 +234,6 @@ Content-Length: REGEX(\d+)
 ==================================================================
 [
   {
-    "headers": {
-      "Accept": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "params": {
-      "id": "urn:R1",
-      "pick": "speed,id,type,scope",
-      "type": "Vehicle"
-    },
-    "url": "/ngsi-ld/v1/entities",
-    "verb": "GET"
-  },
-  {
     "body": {
       "attrs": [
         "speed"
@@ -300,50 +284,7 @@ Content-Length: REGEX(\d+)
 []
 
 
-[
-  {
-    "headers": {
-      "Accept": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "params": {
-      "id": "urn:R1",
-      "pick": "speed,id,type,scope",
-      "type": "Vehicle"
-    },
-    "url": "/ngsi-ld/v1/entities",
-    "verb": "GET"
-  },
-  {
-    "body": {
-      "attrs": [
-        "speed"
-      ],
-      "entities": [
-        {
-          "id": "urn:R1",
-          "type": "Vehicle"
-        }
-      ],
-      "type": "Query"
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "80",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entityOperations/query",
-    "verb": "POST"
-  }
-]
-
+[]
 
 07. queryEntity CSR pinned to urn:R1 again — fan-out narrowing setup
 =====================================================================
@@ -363,25 +304,25 @@ Content-Length: 0
 08. GET ?id=urn:OTHER — the pinned-id CSR cannot provide it: NO forward
 =========================================================================
 HTTP/1.1 200 OK
-1
+0
 
 
 09. GET ?id=urn:R1 — pinned id provided: forward happens
 ==========================================================
 HTTP/1.1 200 OK
-2
+1
 
 
 10. GET ?idPattern=^urn:R.* — pattern matches the pinned id: forward
 ======================================================================
 HTTP/1.1 200 OK
-3
+1
 
 
 11. GET ?idPattern=^urn:X.* — pattern cannot match the pinned id: NO forward
 ===============================================================================
 HTTP/1.1 200 OK
-3
+0
 
 
 12. retrieveEntity via queryEntity-only CSR — forwarded as GET ?id=

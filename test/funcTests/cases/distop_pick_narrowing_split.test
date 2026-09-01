@@ -68,7 +68,6 @@ for e in d:
     unsafe = [k for k in ('q','geometry','georel','coordinates','geoproperty','scopeQ') if k in p]
     print('  forwarded pick:', pick, ' type:', type_fwd, ' unsafe filters (should be []):', unsafe)
 "
-ftClientReset --port 7711
 echo
 echo
 
@@ -85,7 +84,6 @@ for e in d:
     pick = sorted(p['pick'].split(',')) if 'pick' in p else None
     print('  forwarded pick:', pick)
 "
-ftClientReset --port 7711
 echo
 echo
 
@@ -99,7 +97,6 @@ import sys, json
 d = json.load(sys.stdin)
 print('  forwarded request count (expect 0):', len(d))
 "
-ftClientReset --port 7711
 echo
 echo
 

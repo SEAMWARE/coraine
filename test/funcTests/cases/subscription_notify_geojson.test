@@ -60,7 +60,6 @@ echo "03. ftClient dump — geo+json notification, raw"
 echo "=============================================="
 sleep 0.4
 ftClientDump
-ftClientReset
 echo
 echo
 

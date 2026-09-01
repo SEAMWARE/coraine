@@ -9,8 +9,8 @@
 // Test notification receiver for functional tests.
 // Accumulates all incoming requests (e.g. POST /notify) in a global array.
 // Provides:
-//   GET    /dump   - return all accumulated requests as text
-//   DELETE /dump   - clear the accumulator
+//   GET    /dump   - return the requests received SINCE THE LAST DUMP, and
+//                    consume them. A dump reads; read notifications are gone.
 //   GET    /die    - exit the process
 //   POST   /**     - accumulate the request (catch-all)
 //
@@ -161,14 +161,21 @@ static void dumpInit(void)
 
 // -----------------------------------------------------------------------------
 //
-// dumpClear - free all accumulated entries and reset
+// dumpDrain - free the accumulated entries and start a fresh, empty array
 //
-static void dumpClear(void)
+// Not dumpClear: probeCount counts sourceIdentity probes, which are deliberately
+// kept OUT of dumpArray and are not "read" by a dump. Draining the one must not
+// reset the other.
+//
+// Caller holds dumpMutex.
+//
+static void dumpDrain(void)
 {
   if (dumpArray != NULL)
     kjFree(dumpArray);
 
-  dumpInit();
+  dumpArray = kjArray(NULL, NULL);
+  dumpCount = 0;
 }
 
 
@@ -229,7 +236,7 @@ static void dumpAccumulate(void)
 
 // -----------------------------------------------------------------------------
 //
-// getDump - GET /dump — return all accumulated requests as a JSON array
+// getDump - GET /dump — the requests received since the last dump, and consume
 //
 static bool getDump(void)
 {
@@ -256,27 +263,26 @@ static bool getDump(void)
 
   kjFastRender(dumpArray, buf);
 
+  //
+  // A dump READS the notifications, and read notifications are gone. What the
+  // accumulator holds from here on is what arrived SINCE - so the next dump in
+  // the test answers "what did this step produce", not "everything so far".
+  //
+  // That is what makes an unexpected notification visible. While a dump was
+  // cumulative, an extra one silently padded every later expectation, and the
+  // test that would have caught it was the one that had already passed. It also
+  // retires DELETE /dump: a test no longer has to throw the accumulator away to
+  // get a clean read, which was the same error with an explicit verb on it.
+  //
+  // buf already holds the rendered text, so freeing the tree here is safe.
+  //
+  dumpDrain();
+
   pthread_mutex_unlock(&dumpMutex);
 
   corRest.out.payload     = buf;
   corRest.out.payloadSize = strlen(buf);
 
-  return true;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// deleteDump - DELETE /dump — clear the accumulator, return 204
-//
-static bool deleteDump(void)
-{
-  pthread_mutex_lock(&dumpMutex);
-  dumpClear();
-  pthread_mutex_unlock(&dumpMutex);
-
-  corRest.out.httpStatusCode = 204;
   return true;
 }
 
@@ -742,7 +748,6 @@ static void* mqttListenerThread(void* arg)
 static CorRestServiceSimplified ftServices[] =
 {
   { CorVerbGet,    "/dump",  getDump,         0,                       0 },
-  { CorVerbDelete, "/dump",  deleteDump,      0,                       0 },
   { CorVerbGet,    "/count", getCount,        0,                       0 },
   { CorVerbGet,    "/probeCount", getProbeCount, 0,                    0 },
   { CorVerbGet,    "/mqttReady",  getMqttReady,  0,                    0 },

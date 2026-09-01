@@ -256,6 +256,7 @@ ftClientDump --port 7711 | grep -E '"speed"|"source"|"Link"' | tail -3
 echo
 echo
 
+
 --EXPECT--
 01. Exclusive CSR on urn:V1 claiming speed (no csi.jsonldContext)
 ==================================================================
@@ -317,29 +318,6 @@ Date: REGEX(.*)
 [
   {
     "body": {
-      "speed": {
-        "source": {
-          "type": "Property",
-          "value": "Speedometer"
-        },
-        "type": "Property",
-        "value": 99
-      }
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "91",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
-    "verb": "PATCH"
-  },
-  {
-    "body": {
       "source": {
         "type": "Property",
         "value": "Radar"
@@ -381,50 +359,6 @@ Date: REGEX(.*)
 [
   {
     "body": {
-      "speed": {
-        "source": {
-          "type": "Property",
-          "value": "Speedometer"
-        },
-        "type": "Property",
-        "value": 99
-      }
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "91",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
-    "verb": "PATCH"
-  },
-  {
-    "body": {
-      "source": {
-        "type": "Property",
-        "value": "Radar"
-      },
-      "type": "Property",
-      "value": 77
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "75",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
-    "verb": "PUT"
-  },
-  {
-    "body": {
       "velocidad": {
         "fuente": {
           "type": "Property",
@@ -461,88 +395,6 @@ HTTP/1.1 404 Not Found
 HTTP/1.1 204 No Content
 [
   {
-    "body": {
-      "speed": {
-        "source": {
-          "type": "Property",
-          "value": "Speedometer"
-        },
-        "type": "Property",
-        "value": 99
-      }
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "91",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
-    "verb": "PATCH"
-  },
-  {
-    "body": {
-      "source": {
-        "type": "Property",
-        "value": "Radar"
-      },
-      "type": "Property",
-      "value": 77
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "75",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/speed",
-    "verb": "PUT"
-  },
-  {
-    "body": {
-      "velocidad": {
-        "fuente": {
-          "type": "Property",
-          "value": "Lidar"
-        },
-        "type": "Property",
-        "value": 42
-      }
-    },
-    "headers": {
-      "Accept": "application/json",
-      "Content-Length": "89",
-      "Content-Type": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1/attrs/velocidad",
-    "verb": "PATCH"
-  },
-  {
-    "headers": {
-      "Accept": "application/json",
-      "Host": "localhost:7711",
-      "Link": "<http://localhost:7080/jsonldContexts/csi>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)",
-      "Via": "1.1 localhost:1026"
-    },
-    "params": {
-      "pick": "type,scope,velocidad",
-      "sysAttrs": "true"
-    },
-    "url": "/ngsi-ld/v1/entities/urn:V1",
-    "verb": "GET"
-  },
-  {
     "body": [
       {
         "id": "urn:V1",
@@ -575,7 +427,6 @@ HTTP/1.1 204 No Content
 11. Query ?attrs=speed&q=speed>5 (veh ctx) — attrs never forwarded: q=(velocidad>5);(velocidad)
 =================================================================================================
 HTTP/1.1 200 OK
-    "url": "/ngsi-ld/v1/entityOperations/upsert",
       "pick": "velocidad,id,type,scope",
       "q": "(velocidad>5);(velocidad)",
     "url": "/ngsi-ld/v1/entities",

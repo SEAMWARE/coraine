@@ -81,7 +81,6 @@ echo "==========================================================================
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 } }' >/dev/null
 sleep 0.4
 ftClientDump
-ftClientReset >/dev/null
 echo
 echo
 
@@ -94,6 +93,7 @@ echo
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Car1", "type": "Car", "speed": { "type": "Property", "value": 9 } }' >/dev/null
 sleep 0.4
 ftClientDump
+
 
 --EXPECT--
 01. receiverInfo Content-Length -> 400

@@ -34,7 +34,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M1","type":"T1"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N1","type":"T1","P1":{"type":"Property","value":6}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 
@@ -46,7 +45,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M2","type":"T2"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N2","type":"T2","S":{"type":"Property","value":"xyz"}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 
@@ -58,7 +56,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M3","type":"T3"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N3","type":"T3","A":{"type":"Property","value":9},"B":{"type":"Property","value":9}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 
@@ -70,7 +67,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M4","type":"T4"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N4","type":"T4","A":{"type":"Property","value":1},"B":{"type":"Property","value":9}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 
@@ -82,7 +78,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M5","type":"T5"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N5","type":"T5","Other":{"type":"Property","value":1}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 
@@ -94,7 +89,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:M6","type":"T6"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N6","type":"T6","P":{"type":"Property","value":1}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 

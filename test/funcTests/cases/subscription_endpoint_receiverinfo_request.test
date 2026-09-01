@@ -69,8 +69,11 @@ echo
 
 echo "05. ftClient dump - X-Auth missing on the 2nd, X-Static still there"
 echo "==================================================================="
-ftClientDump --port 7711 | grep -cE '"X-Auth"'
-ftClientDump --port 7711 | grep -cE '"X-Static"'
+# One read, several checks. A dump consumes what it returns, so asking
+# ftClient five times would answer once and then four empty arrays.
+notifs=$(ftClientDump --port 7711)
+echo "$notifs" | grep -cE '"X-Auth"'
+echo "$notifs" | grep -cE '"X-Static"'
 echo
 echo
 
@@ -99,8 +102,8 @@ HTTP/1.1 204 No Content
 
 05. ftClient dump - X-Auth missing on the 2nd, X-Static still there
 ===================================================================
+0
 1
-2
 
 
 --TEARDOWN--

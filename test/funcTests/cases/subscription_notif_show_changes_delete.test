@@ -81,9 +81,8 @@ echo
 echo
 
 
-echo "05. ftClientReset + delete S1 (only S2 should fire on the entity-delete)"
-echo "========================================================================"
-ftClientReset
+echo "05. Delete S1 — only S2 should fire on the entity-delete"
+echo "========================================================"
 corCurl -X DELETE --url /ngsi-ld/v1/subscriptions/urn:S1
 echo
 echo
@@ -206,8 +205,8 @@ Date: REGEX(.*)
 ]
 
 
-05. ftClientReset + delete S1 (only S2 should fire on the entity-delete)
-========================================================================
+05. Delete S1 — only S2 should fire on the entity-delete
+========================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
 

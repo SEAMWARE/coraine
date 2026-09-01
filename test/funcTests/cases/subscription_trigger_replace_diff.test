@@ -29,6 +29,16 @@ coraineStart
 
 --RUN--
 
+dump() {
+  ftClientDump | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(len(d), 'notifications')
+for s in sorted(e['body']['subscriptionId'] for e in d):
+    print(' ', s)
+"
+}
+
 createSub() {
   payload='{
     "id": "'$1'",
@@ -52,11 +62,15 @@ echo
 echo
 
 
-echo "02. Create V1 {speed:100, color:red}, then reset (consume create notifs)"
+echo "02. Create V1 {speed:100, color:red} — S_DEF and S_AC fire on the create"
 echo "========================================================================"
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 100 }, "color": { "type": "Property", "value": "red" } }' >/dev/null
-ftClientReset
-echo "done"
+#
+# The create's notifications used to be thrown away by ftClientReset. They say
+# something worth saying - attributeCreated fires on a create, the three other
+# explicit triggers do not - so read them instead of discarding them.
+#
+dump
 echo
 echo
 
@@ -70,13 +84,8 @@ echo
 
 echo "04. Which subs fired? Expect S_DEF, S_AD, S_AU, S_AC, S_EU (all five)"
 echo "===================================================================="
-ftClientDump | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(len(d), 'notifications')
-for s in sorted(e['body']['subscriptionId'] for e in d):
-    print(' ', s)
-"
+dump
+
 
 --EXPECT--
 01. Create subs: S_DEF(default) S_AD(attributeDeleted) S_AU(attributeUpdated) S_AC(attributeCreated) S_EU(entityUpdated)
@@ -84,9 +93,11 @@ for s in sorted(e['body']['subscriptionId'] for e in d):
 done
 
 
-02. Create V1 {speed:100, color:red}, then reset (consume create notifs)
+02. Create V1 {speed:100, color:red} — S_DEF and S_AC fire on the create
 ========================================================================
-done
+2 notifications
+  urn:S_AC
+  urn:S_DEF
 
 
 03. PUT /entities/urn:V1 {speed:200, size:L} — drops color, updates speed, adds size

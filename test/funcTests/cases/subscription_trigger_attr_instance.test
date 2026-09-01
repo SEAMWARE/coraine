@@ -48,7 +48,6 @@ print(len(d), 'notifications')
 for s in sorted(e['body']['subscriptionId'] for e in d):
     print(' ', s)
 "
-  ftClientReset >/dev/null
 }
 
 echo "01. Subs: S_DEF(default) S_AU(attributeUpdated) S_AD(attributeDeleted) S_EU(entityUpdated)"
@@ -62,11 +61,15 @@ echo
 echo
 
 
-echo "02. Create V1 speed = [ default 100, datasetId:radar 98 ], then reset"
-echo "====================================================================="
+echo "02. Create V1 speed = [ default 100, datasetId:radar 98 ] — only the default-trigger sub fires"
+echo "=============================================================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:V1", "type": "Vehicle", "speed": [ { "type": "Property", "value": 100 }, { "type": "Property", "value": 98, "datasetId": "urn:ngsi-ld:dataset:radar" } ] }' >/dev/null
-ftClientReset >/dev/null
-echo "done"
+#
+# This create used to be followed by ftClientReset, throwing its notification
+# away unseen. It is an assertion worth keeping: an entityCreated reaches the
+# default-trigger subscription and none of the three explicit-trigger ones.
+#
+dump
 echo
 echo
 
@@ -92,15 +95,17 @@ echo "==================================================================="
 corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed >/dev/null
 dump
 
+
 --EXPECT--
 01. Subs: S_DEF(default) S_AU(attributeUpdated) S_AD(attributeDeleted) S_EU(entityUpdated)
 =========================================================================================
 done
 
 
-02. Create V1 speed = [ default 100, datasetId:radar 98 ], then reset
-=====================================================================
-done
+02. Create V1 speed = [ default 100, datasetId:radar 98 ] — only the default-trigger sub fires
+==============================================================================================
+1 notifications
+  urn:S_DEF
 
 
 03. PUT /attrs/speed {value:200} → replaces default instance → attributeUpdated

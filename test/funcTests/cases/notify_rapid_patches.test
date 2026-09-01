@@ -65,7 +65,6 @@ echo "03. One notification fired (create), then reset"
 echo "==============================================="
 sleep 1
 echo "notifications: $(ftClientDump | grep -c '\"verb\"')"
-ftClientReset
 echo
 echo
 
