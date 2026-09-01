@@ -22,6 +22,7 @@
 #include <string.h>                                  // strcmp, strlen, strcpy
 
 #include "corRest/CorRestState.h"                      // corRest
+#include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "kjson/KjNode.h"                            // KjNode
@@ -92,15 +93,20 @@ bool deleteEntityTemporalAttr(void)
 
   // Forwarded query string mirrors the request's datasetId / deleteAll.
   // Build directly from the parsed corNgsild fields rather than echoing
-  // raw URL params (which may have been URL-decoded already).
-  char* fwdQs = (char*) kaAlloc(&corRest.kalloc, 256);
+  // raw URL params - which have been URL-DECODED by the time we see them,
+  // so the datasetId (a URI, and free to carry any of them) is encoded again
+  // on the way out.
+  const char* datasetIdEnc = (datasetId != NULL) ? corRestUrlValueEncode(datasetId, &corRest.kalloc) : NULL;
+  int         fwdQsSize    = ((datasetIdEnc != NULL) ? strlen(datasetIdEnc) : 0) + 64;
+
+  char* fwdQs = (char*) kaAlloc(&corRest.kalloc, fwdQsSize);
   int   qpos  = 0;
-  if (datasetId != NULL)
-    qpos += snprintf(fwdQs + qpos, 256 - qpos, "datasetId=%s", datasetId);
+  if (datasetIdEnc != NULL)
+    qpos += snprintf(fwdQs + qpos, fwdQsSize - qpos, "datasetId=%s", datasetIdEnc);
   if (corNgsild.deleteAll)
   {
     if (qpos > 0) fwdQs[qpos++] = '&';
-    qpos += snprintf(fwdQs + qpos, 256 - qpos, "deleteAll=true");
+    qpos += snprintf(fwdQs + qpos, fwdQsSize - qpos, "deleteAll=true");
   }
   fwdQs[qpos] = 0;
 

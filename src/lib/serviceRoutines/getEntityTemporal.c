@@ -30,6 +30,7 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
+#include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 #include "corNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
 #include "corNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
 #include "kjson/KjNode.h"                            // KjNode
@@ -184,8 +185,9 @@ static const char* buildTemporalForwardQuery(KAlloc* kaP)
       if (strcmp(key, forwardKeys[k]) == 0) { wanted = true; break; }
     if (!wanted) continue;
 
+    // 3x the value: a percent-encoded byte becomes three
     const char* val = corRest.in.uriParamV[i].value;
-    len += strlen(key) + 1 + (val ? strlen(val) : 0) + 1;  // key=val&
+    len += strlen(key) + 1 + (val ? 3 * strlen(val) : 0) + 1;  // key=val&
   }
 
   char* buf = (char*) kaAlloc(kaP, len);
@@ -200,7 +202,12 @@ static const char* buildTemporalForwardQuery(KAlloc* kaP)
       if (strcmp(key, forwardKeys[k]) == 0) { wanted = true; break; }
     if (!wanted) continue;
 
-    const char* val = corRest.in.uriParamV[i].value;
+    //
+    // Encoded, not verbatim: the value arrived percent-DECODED. timeAt is the
+    // one that bites here — an ISO 8601 offset is spelled `+01:00`, and a raw
+    // '+' reaches the source as a space, which is not a DateTime at all.
+    //
+    const char* val = corRestUrlValueEncode(corRest.in.uriParamV[i].value, kaP);
     if (pos > 0) buf[pos++] = '&';
     int kl = strlen(key);
     memcpy(buf + pos, key, kl);

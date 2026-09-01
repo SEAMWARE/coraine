@@ -29,6 +29,7 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbDelete
+#include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
@@ -80,7 +81,7 @@ static char* rebuildQueryString(void)
     const char* v = corRest.in.uriParamV[i].value;
     if (k == NULL) continue;
     total += strlen(k) + 1;                   // key + '='
-    if (v != NULL) total += strlen(v);        // value — already percent-decoded
+    if (v != NULL) total += 3 * strlen(v);    // value — decoded on the way in, re-encoded on the way out
     total += 1;                               // '&'
   }
 
@@ -97,7 +98,11 @@ static char* rebuildQueryString(void)
     if (!first) strcat(buf, "&");
     strcat(buf, k);
     strcat(buf, "=");
-    if (v != NULL) strcat(buf, v);
+    //
+    // Re-encoded: corRest handed us the DECODED value, and a raw '&' in it
+    // would start a new parameter at the receiver.
+    //
+    if (v != NULL) strcat(buf, corRestUrlValueEncode(v, &corRest.kalloc));
     first = false;
   }
 
