@@ -153,6 +153,30 @@ coverage:
 # as this run's.
 #
 	@rm -f $(COV_STATUS)
+#
+# The libs are PART OF THE BROKER, so they belong in its coverage figure.
+#
+# corRest, corNgsild and corJsonld are static .a whole-archived into the binary -
+# corNgsild alone is 31k lines, most of the NGSI-LD rules - and they are built by
+# `make libs` with ordinary flags. Linked like that they carry no counters at all,
+# so they were not reported as UNCOVERED, they were absent: neither numerator nor
+# denominator. The published figure said "coraine/src" while looking like it said
+# "the broker", and roughly half the C was outside it.
+#
+# So instrument them here, exactly as coverage-etsi has always done. They flush
+# through the broker's own gcov runtime (whole-archived, no per-.so coverage link).
+#
+# The .gcno wipe is not redundant with `clean`: the libs' clean target removes
+# objects, deps, .so and .a but NOT .gcno, and gcovr counts a .gcno whose source
+# is gone as an entirely unexecuted file. Stale ones really do survive - a July
+# coverage-etsi run left its .gcno sitting in corNgsild for seven weeks.
+#
+	@echo ">>> Instrumenting the libs ($(COV_LIBS)) - they are linked into the broker"
+	@for d in $(COV_LIBS); do \
+	   find $(SIBLING_DIR)/$$d -name '*.gcno' -delete; \
+	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
+	   $(MAKE) -C $(SIBLING_DIR)/$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
+	 done
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
@@ -165,7 +189,7 @@ coverage:
 	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
-	@find $(BUILD_COVERAGE) -name '*.gcda' -delete
+	@find $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS)) -name '*.gcda' -delete
 #
 # COR_PLUGIN_DIR is how the HARNESS spells a plugin path (--database ...).
 # SEAMWARE_PLUGIN_DIR is how the BROKER resolves a short name a test passes
@@ -216,13 +240,29 @@ coverage:
 # it drops the whole file from the report and exits 0, which is a silently short
 # coverage figure.
 #
-	$(GCOVR) --root $(CURDIR)/src --object-directory $(BUILD_COVERAGE) \
+#
+# The root moves up to the sibling dir so the libs can be in the report at all,
+# and the -f filters then say what "the broker" consists of: this repo's src plus
+# the three libs archived into it. Everything else next door - corTest, corPlugin,
+# the k-libs, other checkouts - stays out.
+#
+# ⚠️ This makes the percentage NOT comparable with anything recorded before
+# 2026-09-01: the denominator roughly doubles. A drop against the old numbers is
+# the measurement widening, not the suite regressing.
+#
+	$(GCOVR) --root $(SIBLING_DIR) \
 	      --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
+	      -f '$(CURDIR)/src/' \
+	      $(foreach d,$(COV_LIBS),-f '$(SIBLING_DIR)/$(d)/') \
 	      -e '.*/plugins/currentState/$(COV_OTHER_DB)/.*' \
 	      --html-details $(COV_REPORT) --html-title "coraine coverage ($(COV_DB))" \
-	      --print-summary
+	      --print-summary \
+	      $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS))
 	@echo ""
 	@echo "Coverage report ($(COV_DB)): file://$(CURDIR)/$(COV_REPORT)"
+	@echo ""
+	@echo "NOTE: $(COV_LIBS) are left INSTRUMENTED (--coverage -O0)."
+	@echo "      Run 'make libs' before an ordinary build or a perf measurement."
 #
 # Now, and only now, the suite's verdict. The report exists either way.
 #
@@ -243,6 +283,7 @@ coverage:
 coverage-etsi:
 	@echo ">>> [1/6] Instrumenting NGSI-LD libs ($(COV_LIBS))..."
 	@for d in $(COV_LIBS); do \
+	   find ../$$d -name '*.gcno' -delete; \
 	   $(MAKE) -C ../$$d clean >/dev/null && \
 	   $(MAKE) -C ../$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a || exit 1; \
 	 done
