@@ -49,13 +49,24 @@ echo
 echo
 
 
-echo "03. Poll /snapshots/Bg until status is terminal (max 5s)"
-echo "========================================================"
-for i in 1 2 3 4 5 6 7 8 9 10; do
+echo "03. Poll /snapshots/Bg until status is terminal"
+echo "==============================================="
+#
+# The poll count is machine speed, not behaviour. This used to print
+# "after iteration $i" and expect iteration 1 - so under valgrind, where the
+# worker thread needs a second poll, a broker that did everything right failed
+# the test. Print the status alone. The deadline is what asserts: a capture
+# that never leaves "preparing" prints nothing and the missing line is the
+# mismatch. The valgrind ceiling follows ftClientWait's - never approached by
+# a healthy run.
+#
+deadline=10
+[ "$COR_VALGRIND" == "1" ] && deadline=50
+for ((i = 0; i < deadline; i++)); do
     status=$(corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg 2>/dev/null \
              | grep -o '"snapshotStatus": *"[^"]*"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
     if [ "$status" != "preparing" ] && [ -n "$status" ]; then
-        echo "  status after iteration $i: $status"
+        echo "  status: $status"
         break
     fi
     sleep 0.5
@@ -113,9 +124,9 @@ Content-Length: 0
 
 
 
-03. Poll /snapshots/Bg until status is terminal (max 5s)
-========================================================
-  status after iteration 1: success
+03. Poll /snapshots/Bg until status is terminal
+===============================================
+  status: success
 
 
 04. GET /snapshots/Bg — final state with snapshotQueriesDetails
