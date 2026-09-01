@@ -457,18 +457,78 @@ jobs:
         env:
           ETSI_QUIET_IO: '1'
         run: |
+          #
+          # The DistOps tests forward to single-threaded HttpCtrl mocks, and the
+          # handler BLOCKS on a request it has no stub for. Under CI contention a
+          # forward occasionally times out with the mock starved, and a
+          # spec-correct 207 lands where 204 was expected - a flake, not a
+          # regression. It cost a whole nightly on 2026-08-30: one test of 1046,
+          # D005_01_red, while four other tests took the same forward timeout and
+          # did not happen to assert on it.
+          #
+          # So: rerun the failures ONCE against the still-running broker and merge.
+          # A flake passes and heals away; a real failure fails again and is still
+          # caught. The suite is ~all-green, so this reruns 0-1 tests and costs
+          # seconds. Healed tests are named in the summary - never hidden.
+          #
+          # This is etsiRun's step 4b, which has done the same locally for a while.
+          #
+          set +e
           .venv/bin/robot --outputdir /tmp/etsi-out \
             --variable url:"http://localhost:1026/ngsi-ld/v1" \
             --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
             --variable notification_server_port:8085 \
             --variable context_server_port:8087 \
             TP/NGSI-LD/
+          set -e
+
+          ETSI="$GITHUB_WORKSPACE/stack/coraine/test/etsi"
+          python3 "$ETSI/etsiFailed.py" /tmp/etsi-out/output.xml > /tmp/etsi-out/first-pass-failures.txt
+
+          nFailed=$(grep -c . /tmp/etsi-out/first-pass-failures.txt || true)
+          if [ "$nFailed" -eq 0 ]; then
+            echo "All test purposes passed on the first run."
+            exit 0
+          fi
+
+          echo "Re-running $nFailed failed test(s) once to separate flakes from regressions ..."
+          set +e
+          .venv/bin/robot --outputdir /tmp/etsi-out --output rerun.xml \
+            --log NONE --report NONE \
+            --variable url:"http://localhost:1026/ngsi-ld/v1" \
+            --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
+            --variable notification_server_port:8085 \
+            --variable context_server_port:8087 \
+            --rerunfailed /tmp/etsi-out/output.xml \
+            TP/NGSI-LD/
+          set -e
+
+          #
+          # Merge: the rerun's verdict supersedes the first pass for the tests it
+          # covers. If the rerun produced nothing (the broker died, say), keep the
+          # first pass rather than reporting a run that never happened.
+          #
+          if [ -f /tmp/etsi-out/rerun.xml ]; then
+            .venv/bin/rebot --merge --outputdir /tmp/etsi-out --output merged.xml \
+              /tmp/etsi-out/output.xml /tmp/etsi-out/rerun.xml > /dev/null 2>&1 || true
+            if [ -f /tmp/etsi-out/merged.xml ]; then
+              mv /tmp/etsi-out/merged.xml /tmp/etsi-out/output.xml
+            fi
+          fi
+
+          nStillFailing=$(python3 "$ETSI/etsiFailed.py" /tmp/etsi-out/output.xml | grep -c . || true)
+          if [ "$nStillFailing" -gt 0 ]; then
+            echo "$nStillFailing test(s) failed twice - not a flake."
+            exit 1
+          fi
+          echo "Every failure healed on the rerun; they are named in the job summary."
 
       - name: Summarise
         if: always()
         working-directory: etsi-suite
         run: |
-          python3 "$GITHUB_WORKSPACE/stack/coraine/test/etsi/etsiSummary.py" /tmp/etsi-out/output.xml \
+          python3 "$GITHUB_WORKSPACE/stack/coraine/test/etsi/etsiSummary.py" \
+            /tmp/etsi-out/output.xml /tmp/etsi-out/first-pass-failures.txt \
             >> "$GITHUB_STEP_SUMMARY"
 
       - name: Broker log and results
