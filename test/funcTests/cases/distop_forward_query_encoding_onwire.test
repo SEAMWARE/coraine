@@ -1,0 +1,182 @@
+#
+# FILE            distop_forward_query_encoding_onwire.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# What the broker SENDS, which is the half a real Context Source cannot show.
+#
+# distop_forward_q_encoding.test proves the answer comes back right, but it
+# proves it against a coraine peer - and a coraine peer percent-decodes a q
+# that arrives in a JSON body, so a wrongly-encoded forward still produced the
+# right answer there. Any other NGSI-LD implementation would search for the
+# literal characters '%', '2', '6'. So this one asserts the bytes.
+#
+# The same value goes out two ways, and the right form is not the same one:
+#
+#   GET  forward   the q rides a URL, so its '&' must be %26 - raw, it ends
+#                  the parameter and the filter is truncated
+#   POST forward   the q rides a § 5.2.23 Query BODY, which is JSON and not a
+#                  URL, so it must be the plain '&' again
+#
+# ftClient rather than a real CP, deliberately: the assertion is about the
+# request the broker emitted, not about what a peer made of it.
+#
+--NAME--
+DistOps - the forwarded q is encoded for a URL and plain in a JSON body
+
+--TAGS--
+distops registration query encoding ftClient
+
+--INIT--
+corDbDrop
+ftClientStart --port 7711 --status 200
+coraineStart -dist --noSplitEntities
+
+--RUN--
+
+echo "01. Register ftClient as a Context Source for type T (GET forward form)"
+echo "======================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{
+  "id": "urn:CSR:GET",
+  "type": "ContextSourceRegistration",
+  "operations": [ "queryEntity" ],
+  "information": [ { "entities": [ { "type": "T" } ] } ],
+  "endpoint": "http://localhost:7711"
+}' | head -1
+echo
+echo
+
+
+echo "02. Query with q=name==\"a%26b\" - the client's ampersand"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%26b"&options=keyValues' | head -1
+echo
+echo
+
+
+echo "03. What went on the wire - a GET, and the '&' is %26 in the URL"
+echo "==============================================================="
+ftClientSettle
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "04. Re-register for the POST form (queryBatch only)"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:GET -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload '{
+  "id": "urn:CSR:POST",
+  "type": "ContextSourceRegistration",
+  "operations": [ "queryBatch" ],
+  "information": [ { "entities": [ { "type": "T" } ] } ],
+  "endpoint": "http://localhost:7711"
+}' | head -1
+echo
+echo
+
+
+echo "05. The same query again"
+echo "========================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%26b"&options=keyValues' | head -1
+echo
+echo
+
+
+echo "06. What went on the wire - a POST, and the body's q is PLAIN (it is JSON)"
+echo "=========================================================================="
+ftClientSettle
+ftClientDump --port 7711
+echo
+echo
+
+
+echo "07. Nothing else arrived"
+echo "========================"
+ftClientSettle
+ftClientDump --port 7711
+echo
+echo
+
+
+--EXPECT--
+01. Register ftClient as a Context Source for type T (GET forward form)
+=======================================================================
+HTTP/1.1 201 Created
+
+
+02. Query with q=name=="a%26b" - the client's ampersand
+=======================================================
+HTTP/1.1 200 OK
+
+
+03. What went on the wire - a GET, and the '&' is %26 in the URL
+===============================================================
+[
+  {
+    "headers": {
+      "Accept": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)",
+      "Via": "1.1 localhost:1026"
+    },
+    "params": {
+      "q": "name==\"a&b\"",
+      "type": "T"
+    },
+    "url": "/ngsi-ld/v1/entities",
+    "verb": "GET"
+  }
+]
+
+
+04. Re-register for the POST form (queryBatch only)
+===================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+
+
+05. The same query again
+========================
+HTTP/1.1 200 OK
+
+
+06. What went on the wire - a POST, and the body's q is PLAIN (it is JSON)
+==========================================================================
+[
+  {
+    "body": {
+      "entities": [
+        {
+          "type": "T"
+        }
+      ],
+      "q": "name==\"a&b\"",
+      "type": "Query"
+    },
+    "headers": {
+      "Accept": "application/json",
+      "Content-Length": "62",
+      "Content-Type": "application/json",
+      "Host": "localhost:7711",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)",
+      "Via": "1.1 localhost:1026"
+    },
+    "url": "/ngsi-ld/v1/entityOperations/query",
+    "verb": "POST"
+  }
+]
+
+
+07. Nothing else arrived
+========================
+[]
+
+--TEARDOWN--
+coraineStop
+ftClientStop --port 7711
+corDbDrop
