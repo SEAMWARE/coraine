@@ -43,7 +43,6 @@ echo
 
 echo "02. GET ?type=T with Authorization (default tenant) — forward carries Authorization, no tenant"
 echo "============================================================================================="
-ftClientReset --port 7711
 corCurl --url '/ngsi-ld/v1/entities?type=T' -H 'Authorization: Bearer tok-xyz' > /dev/null
 sleep 0.8
 ftClientDump --port 7711
@@ -60,7 +59,6 @@ corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: acme' --payloa
   "information": [{"entities": [{"type": "T2"}]}]
 }'
 echo
-ftClientReset --port 7711
 corCurl --url '/ngsi-ld/v1/entities?type=T2' -H 'NGSILD-Tenant: acme' -H 'Authorization: Bearer tok-xyz' > /dev/null
 sleep 0.8
 echo "(forward carries Authorization + NGSILD-Tenant: acme — original tenant)"
@@ -77,7 +75,6 @@ corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Tenant: beta' --payloa
   "information": [{"entities": [{"type": "T3"}]}]
 }'
 echo
-ftClientReset --port 7711
 corCurl --url '/ngsi-ld/v1/entities?type=T3' -H 'NGSILD-Tenant: beta' > /dev/null
 sleep 0.8
 echo "(forward carries NGSILD-Tenant: backend — registration rewrite)"

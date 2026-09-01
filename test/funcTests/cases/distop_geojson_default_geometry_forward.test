@@ -60,7 +60,6 @@ for e in d:
     pick = sorted(p['pick'].split(',')) if 'pick' in p else None
     print('  forwarded pick:', pick)
 "
-ftClientReset --port 7711
 echo
 echo
 
@@ -77,7 +76,7 @@ for e in d:
     pick = sorted(p['pick'].split(',')) if 'pick' in p else None
     print('  forwarded pick:', pick)
 "
-ftClientReset --port 7711
+
 
 --EXPECT--
 01. Register an inclusive CSR (ftClient) exporting speed + location

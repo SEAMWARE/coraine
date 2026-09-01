@@ -53,7 +53,6 @@ echo
 
 echo "04. CONTROL — GET ?type=Vehicle&local=false (no snapshot) DOES forward"
 echo "====================================================================="
-ftClientReset --port 7711
 corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' > /dev/null
 sleep 0.8
 ftClientDump --port 7711 | grep -E '"verb"|"url"'
@@ -63,7 +62,6 @@ echo
 
 echo "05. SNAPSHOT — GET ?type=Vehicle&local=false + NGSILD-Snapshot does NOT forward"
 echo "==============================================================================="
-ftClientReset --port 7711
 corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&local=false' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
 sleep 0.8
 echo "forwards-to-mock=$(ftClientDump --port 7711 | grep -c '\"verb\"')"

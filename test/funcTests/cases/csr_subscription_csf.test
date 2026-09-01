@@ -95,7 +95,7 @@ echo
 echo
 
 
-ftClientWait 5
+ftClientWait 2
 
 echo "06. CSR:Acme reaches BOTH /s1 and /s2 — S1's csf matches it"
 echo "==========================================================="
@@ -128,7 +128,7 @@ echo
 echo "09. ... and it still notifies on a matching Entity"
 echo "=================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bike:1","type":"Bike","gears":{"type":"Property","value":21}}' | head -1
-ftClientWait 6
+ftClientWait 1
 ftClientDump | grep -E '"url"|"id"'
 echo
 echo
@@ -178,13 +178,6 @@ HTTP/1.1 201 Created
 
 06. CSR:Acme reaches BOTH /s1 and /s2 — S1's csf matches it
 ===========================================================
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s1",
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s2",
-          "id": "urn:CSR:Beta",
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s2",
           "id": "urn:CSR:Acme",
       "id": "REGEX(urn:ngsi-ld:Notification:.*)",
     "url": "/s1",
@@ -260,19 +253,6 @@ Content-Length: 415
 09. ... and it still notifies on a matching Entity
 ==================================================
 HTTP/1.1 201 Created
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s1",
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s2",
-          "id": "urn:CSR:Beta",
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s2",
-          "id": "urn:CSR:Acme",
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s1",
-          "id": "urn:CSR:Acme",
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-    "url": "/s2",
           "id": "urn:Bike:1",
       "id": "REGEX(urn:ngsi-ld:Notification:.*)",
     "url": "/s3",

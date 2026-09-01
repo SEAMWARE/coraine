@@ -32,7 +32,6 @@ corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_GEO", "type": 
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:City:1", "type": "City", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [13.4, 52.5] } } }' >/dev/null
 sleep 0.4
 ftClientDump
-ftClientReset >/dev/null
 echo
 echo
 
@@ -43,6 +42,7 @@ corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S_CAR", "type": 
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Car:1", "type": "Car", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [2.3, 48.9] } } }' >/dev/null
 sleep 0.4
 ftClientDump
+
 
 --EXPECT--
 01. default geo+json -> @context a top-level FeatureCollection member, no Link header

@@ -52,7 +52,6 @@ import sys, json
 d = json.load(sys.stdin)
 print('  notifications received:', len(d))
 "
-ftClientReset
 echo
 echo
 
@@ -85,7 +84,6 @@ print('  snapshotId:', b.get('snapshotId'))
 print('  snapshotStatus:', b.get('snapshotStatus'))
 print('  X-Tenant header:', hdrs.get('X-Tenant') or hdrs.get('x-tenant'))
 "
-ftClientReset
 echo
 echo
 
@@ -107,7 +105,6 @@ b = d[0].get('body', {}) if d else {}
 print('  type:', b.get('type'))
 print('  snapshotPriority:', b.get('snapshotPriority'))
 "
-ftClientReset
 echo
 echo
 
@@ -130,7 +127,6 @@ if d:
     print('  type:', b.get('type'))
     print('  expiresAt < notifiedAt:', b.get('expiresAt','') < b.get('notifiedAt',''))
 "
-ftClientReset
 echo
 echo
 

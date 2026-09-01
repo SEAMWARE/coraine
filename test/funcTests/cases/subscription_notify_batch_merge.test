@@ -59,7 +59,6 @@ echo
 
 echo "05. Reset ftClient"
 echo "=================="
-ftClientReset
 echo "done"
 echo
 echo

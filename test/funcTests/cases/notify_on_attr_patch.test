@@ -199,33 +199,6 @@ Date: REGEX(.*)
     },
     "url": "/notify",
     "verb": "POST"
-  },
-  {
-    "body": {
-      "data": [
-        {
-          "P1": {
-            "type": "Property",
-            "value": 3
-          },
-          "id": "urn:ngsi-ld:entity:E1",
-          "type": "T"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:ngsi-ld:subscriptions:S1",
-      "type": "Notification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/notify",
-    "verb": "POST"
   }
 ]
 

@@ -63,7 +63,6 @@ corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs' -X PATCH --pay
 echo
 sleep 0.4
 ftClientDump
-ftClientReset
 echo
 echo
 

@@ -81,6 +81,7 @@ ftClientDump --port 7711
 echo
 echo
 
+
 --EXPECT--
 01. Register exclusive CSR (type T) at ftClient
 ===============================================

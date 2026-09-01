@@ -77,7 +77,6 @@ for e in d:
     has_georel = 'georel' in p
     print('  forwarded pick:', pick, ' georel forwarded (should be False):', has_georel)
 "
-ftClientReset --port 7711
 echo
 echo
 
@@ -95,7 +94,6 @@ for e in d:
     pick = sorted(p['pick'].split(',')) if 'pick' in p else None
     print('  forwarded pick:', pick)
 "
-ftClientReset --port 7711
 echo
 echo
 

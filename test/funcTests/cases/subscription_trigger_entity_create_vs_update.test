@@ -40,7 +40,6 @@ print(len(d), 'notifications')
 for s in sorted(e['body']['subscriptionId'] for e in d):
     print(' ', s)
 "
-  ftClientReset >/dev/null
 }
 
 echo "01. Create S_EC [entityCreated] and S_EU [entityUpdated] (both on type Vehicle)"
@@ -88,6 +87,7 @@ echo "06. DELETE entity → neither fires (entityUpdated != entityDeleted)"
 echo "================================================================="
 corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 >/dev/null
 dump
+
 
 --EXPECT--
 01. Create S_EC [entityCreated] and S_EU [entityUpdated] (both on type Vehicle)

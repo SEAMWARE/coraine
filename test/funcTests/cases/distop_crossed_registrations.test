@@ -27,6 +27,8 @@ echo "source A (7711):"; ftClientDump --port 7711 | python3 -c "import sys,json;
 echo "source B (7712):"; ftClientDump --port 7712 | python3 -c "import sys,json;print('  requests:',len(json.load(sys.stdin)))"
 echo
 echo
+
+
 --EXPECT--
 01. Register A@7711 (E:1 property a) and B@7712 (E:1 property b)
 ===============================================================

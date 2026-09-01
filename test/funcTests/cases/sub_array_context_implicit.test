@@ -99,6 +99,7 @@ ftClientDump | grep -E '"spd"|"Link"'
 echo
 echo
 
+
 --EXPECT--
 01. Subscription with in-body @context array
 =============================================

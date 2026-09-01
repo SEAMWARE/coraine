@@ -66,7 +66,6 @@ echo "03. ftClient dump — scope + expiresAt under properties, no sysAttrs time
 echo "==================================================================================="
 sleep 0.4
 ftClientDump
-ftClientReset
 echo
 echo
 

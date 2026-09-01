@@ -72,7 +72,6 @@ echo
 
 echo "05. Reset the notification receiver"
 echo "==================================="
-ftClientReset
 echo
 echo
 
@@ -96,7 +95,6 @@ echo
 
 echo "08. Reset the notification receiver"
 echo "==================================="
-ftClientReset
 echo
 echo
 

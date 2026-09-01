@@ -63,7 +63,6 @@ echo
 echo "03. Dump + reset ftClient (consume create notification)"
 echo "========================================================"
 ftClientDump
-ftClientReset
 echo
 echo
 
@@ -85,7 +84,6 @@ echo
 
 echo "06. Reset ftClient"
 echo "==================="
-ftClientReset
 echo "done"
 echo
 echo

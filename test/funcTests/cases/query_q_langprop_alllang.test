@@ -88,7 +88,6 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W1","type":"W",
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W2","type":"W","description":{"type":"LanguageProperty","languageMap":{"en":"joy"}}}' | head -1
 sleep 0.3
 ftClientDump
-ftClientReset
 echo
 echo
 

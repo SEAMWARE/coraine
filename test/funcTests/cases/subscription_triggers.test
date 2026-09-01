@@ -165,7 +165,6 @@ echo
 
 echo "07. Reset"
 echo "=========="
-ftClientReset
 echo "done"
 echo
 echo
@@ -197,7 +196,6 @@ echo
 
 echo "10. Reset"
 echo "=========="
-ftClientReset
 echo "done"
 echo
 echo
@@ -230,7 +228,6 @@ echo
 
 echo "13. Reset"
 echo "=========="
-ftClientReset
 echo "done"
 echo
 echo
@@ -259,7 +256,6 @@ echo
 
 echo "16. Reset"
 echo "=========="
-ftClientReset
 echo "done"
 echo
 echo

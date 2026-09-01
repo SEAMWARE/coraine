@@ -200,44 +200,6 @@ Date: REGEX(.*)
       "id": "REGEX(urn:ngsi-ld:Notification:.*)",
       "notifiedAt": "REGEX(.*)",
       "subscriptionId": "urn:S1",
-      "triggerReason": "newlyMatching",
-      "type": "ContextSourceNotification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/s1",
-    "verb": "POST"
-  },
-  {
-    "body": {
-      "data": [
-        {
-          "endpoint": "http://cp1.example",
-          "id": "urn:CSR:A",
-          "information": [
-            {
-              "attributeNames": [
-                "speed"
-              ],
-              "entities": [
-                {
-                  "type": "Vehicle"
-                }
-              ]
-            }
-          ],
-          "mode": "inclusive",
-          "type": "ContextSourceRegistration"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:S1",
       "triggerReason": "noLongerMatching",
       "type": "ContextSourceNotification"
     },
@@ -264,85 +226,7 @@ Date: REGEX(.*)
 
 08. Dump ftClient — still only two notifications
 ================================================
-[
-  {
-    "body": {
-      "data": [
-        {
-          "endpoint": "http://cp1.example",
-          "id": "urn:CSR:A",
-          "information": [
-            {
-              "attributeNames": [
-                "speed"
-              ],
-              "entities": [
-                {
-                  "type": "Vehicle"
-                }
-              ]
-            }
-          ],
-          "mode": "inclusive",
-          "type": "ContextSourceRegistration"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:S1",
-      "triggerReason": "newlyMatching",
-      "type": "ContextSourceNotification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/s1",
-    "verb": "POST"
-  },
-  {
-    "body": {
-      "data": [
-        {
-          "endpoint": "http://cp1.example",
-          "id": "urn:CSR:A",
-          "information": [
-            {
-              "attributeNames": [
-                "speed"
-              ],
-              "entities": [
-                {
-                  "type": "Vehicle"
-                }
-              ]
-            }
-          ],
-          "mode": "inclusive",
-          "type": "ContextSourceRegistration"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:S1",
-      "triggerReason": "noLongerMatching",
-      "type": "ContextSourceNotification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/s1",
-    "verb": "POST"
-  }
-]
-
+[]
 
 --TEARDOWN--
 coraineStop

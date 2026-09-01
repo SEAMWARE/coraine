@@ -95,18 +95,19 @@ echo
 echo
 
 
-echo "06. ftClient 7711 — adds the update forward"
-echo "============================================"
+echo "06. ftClient 7711 — the update forward, and only it"
+echo "==================================================="
 ftClientDump --port 7711 | grep -cE '"url": "/ngsi-ld/v1/entityOperations/(upsert|update)"'
 echo
 echo
 
 
-echo "07. ftClient 7712 — adds the update forward"
-echo "============================================"
+echo "07. ftClient 7712 — the update forward, and only it"
+echo "==================================================="
 ftClientDump --port 7712 | grep -cE '"url": "/ngsi-ld/v1/entityOperations/(upsert|update)"'
 echo
 echo
+
 
 --EXPECT--
 01. Two redirect CSRs, idPattern urn:V.*
@@ -202,14 +203,14 @@ Date: REGEX(.*)
 
 
 
-06. ftClient 7711 — adds the update forward
-============================================
-2
+06. ftClient 7711 — the update forward, and only it
+===================================================
+1
 
 
-07. ftClient 7712 — adds the update forward
-============================================
-2
+07. ftClient 7712 — the update forward, and only it
+===================================================
+1
 
 
 --TEARDOWN--
