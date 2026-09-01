@@ -171,11 +171,21 @@ coverage:
 # is gone as an entirely unexecuted file. Stale ones really do survive - a July
 # coverage-etsi run left its .gcno sitting in corNgsild for seven weeks.
 #
+#
+# EXTRA_CFLAGS, never DFLAGS. DFLAGS is a plain variable in each lib's makefile,
+# so setting it on the command line REPLACES the lib's own defaults rather than
+# adding to them - and a `DFLAGS +=` inside the makefile is then ignored too,
+# because += never appends to a command-line variable. corNgsild's defaults are
+# `-DANSI` plus `-DCOR_WITH_ICU`, so the DFLAGS route compiled it with the
+# ASCII-approximation collation path while the broker went on linking libicu:
+# every coverage run measured a build nobody ships, with the ICU lines absent
+# from the report and the #else branch counted in their place.
+#
 	@echo ">>> Instrumenting the libs ($(COV_LIBS)) - they are linked into the broker"
 	@for d in $(COV_LIBS); do \
 	   find $(SIBLING_DIR)/$$d -name '*.gcno' -delete; \
 	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
-	   $(MAKE) -C $(SIBLING_DIR)/$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
+	   $(MAKE) -C $(SIBLING_DIR)/$$d EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
 	 done
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
@@ -285,7 +295,7 @@ coverage-etsi:
 	@for d in $(COV_LIBS); do \
 	   find ../$$d -name '*.gcno' -delete; \
 	   $(MAKE) -C ../$$d clean >/dev/null && \
-	   $(MAKE) -C ../$$d DFLAGS="--coverage -O0 -Wno-error" lib$$d.a || exit 1; \
+	   $(MAKE) -C ../$$d EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a || exit 1; \
 	 done
 	@echo ">>> [2/6] Building broker + plugins (Coverage)..."
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
