@@ -1,0 +1,182 @@
+#
+# FILE            entitymap_paginate_split_merge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# EntityMap pagination in SPLIT mode, where one entity id is recorded with
+# more than one source and the paged retrieval has to assemble it.
+#
+# Every other multi-broker entityMap test runs --noSplitEntities, so each
+# entity comes from exactly one source and the assembly never happens. Here
+# CB and CP1 both hold urn:E1, so the paged pull hits the § 4.5.5.3 merge:
+#
+#   speed  - both sides have observedAt, CP1's is newer          → CP1 wins
+#   colour - neither has observedAt, CP1 was written later       → CP1 wins
+#            (the modifiedAt rule, which needs sysAttrs on the forward)
+#   origin - only CB has it                                      → kept
+#   remote - only CP1 has it                                     → grafted
+#
+# The oracle is the UNPAGINATED query: an entity assembled from the same two
+# sources must not come out differently just because the client paginated.
+#
+--NAME--
+EntityMap pagination assembles a split entity per § 4.5.5.3
+
+--TAGS--
+entity entitymap pagination distops merge query
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed urn:E1 on CB (written first → older modifiedAt)"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": "Sensor",
+  "speed":  {"type":"Property","value":10,"observedAt":"2026-01-01T00:00:00Z"},
+  "colour": {"type":"Property","value":"blue"},
+  "origin": {"type":"Property","value":"CB"}
+}'
+echo
+echo
+
+
+echo "02. Seed urn:E1 on CP1 (written second → newer modifiedAt)"
+echo "=========================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": "Sensor",
+  "speed":  {"type":"Property","value":99,"observedAt":"2026-01-02T00:00:00Z"},
+  "colour": {"type":"Property","value":"red"},
+  "remote": {"type":"Property","value":"CP1"}
+}'
+echo
+echo
+
+
+echo "03. Register CB→CP1 (inclusive, type=Sensor, query+retrieve)"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Sensor"}]}]}'
+echo
+echo
+
+
+echo "04. Unpaginated query — the reference assembly"
+echo "=============================================="
+echo "    speed=99 (newer observedAt), colour=red (newer modifiedAt),"
+echo "    origin=CB (CB only), remote=CP1 (CP1 only)"
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&options=keyValues'
+echo
+echo
+
+
+echo "05. Create the EntityMap"
+echo "========================"
+MAP_ID=$(corCurl --url "/ngsi-ld/v1/entities?type=Sensor&entityMap=true&options=keyValues" 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+echo "Map captured: ${MAP_ID:0:10}... (truncated)"
+echo
+echo
+
+
+echo "06. Paginated pull through the map — must equal step 04"
+echo "======================================================="
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&options=keyValues&limit=10"
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:E1 on CB (written first → older modifiedAt)
+========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. Seed urn:E1 on CP1 (written second → newer modifiedAt)
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+03. Register CB→CP1 (inclusive, type=Sensor, query+retrieve)
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Content-Length: 0
+
+
+
+
+04. Unpaginated query — the reference assembly
+==============================================
+    speed=99 (newer observedAt), colour=red (newer modifiedAt),
+    origin=CB (CB only), remote=CP1 (CP1 only)
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+[
+  {
+    "colour": "red",
+    "id": "urn:E1",
+    "origin": "CB",
+    "remote": "CP1",
+    "speed": 99,
+    "type": "Sensor"
+  }
+]
+
+
+
+05. Create the EntityMap
+========================
+Map captured: urn:ngsi-l... (truncated)
+
+
+06. Paginated pull through the map — must equal step 04
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+[
+  {
+    "colour": "red",
+    "id": "urn:E1",
+    "origin": "CB",
+    "remote": "CP1",
+    "speed": 99,
+    "type": "Sensor"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

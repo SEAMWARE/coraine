@@ -116,6 +116,7 @@ Content-Length: 0
       "Via": "1.1 localhost:1026"
     },
     "params": {
+      "sysAttrs": "true",
       "type": "T"
     },
     "url": "/ngsi-ld/v1/entities",
@@ -147,6 +148,7 @@ Content-Length: 0
       "Via": "1.1 localhost:1026:acme"
     },
     "params": {
+      "sysAttrs": "true",
       "type": "T2"
     },
     "url": "/ngsi-ld/v1/entities",
@@ -177,6 +179,7 @@ Content-Length: 0
       "Via": "1.1 localhost:1026:beta"
     },
     "params": {
+      "sysAttrs": "true",
       "type": "T3"
     },
     "url": "/ngsi-ld/v1/entities",

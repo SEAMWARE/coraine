@@ -38,7 +38,7 @@
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "corNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
-#include "corNgsild/ldDistMerge.h"                   // ldDistExpiresAtReconcile, ldDistScopeMerge
+#include "corNgsild/ldDistMerge.h"                   // ldDistMergeSourceInto
 #include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
@@ -101,156 +101,6 @@ static int64_t nowNanoseconds(void)
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
   return (int64_t) ts.tv_sec * 1000000000LL + (int64_t) ts.tv_nsec;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// instanceTsNanos - read a temporal field from an attribute instance as nanos
-//
-// Local instances have KjInt nanos (storage format); upstream-parsed instances
-// have KjString ISO 8601 (sysAttrs=true rendering). Returns 0 if absent.
-//
-static int64_t instanceTsNanos(KjNode* instP, const char* fieldName)
-{
-  KjNode* p = kjLookup(instP, fieldName);
-  if (p == NULL)
-    return 0;
-  if (p->type == KjInt)
-    return p->value.i;
-  if (p->type == KjString && p->value.s != NULL)
-    return (int64_t) ldIsoToNanoseconds(p->value.s);
-  return 0;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// instanceExpired - true if expiresAt is set and already in the past
-//
-static bool instanceExpired(KjNode* instP, int64_t nowNs)
-{
-  int64_t expires = instanceTsNanos(instP, LD_VOCAB_EXPIRES_AT);
-  return (expires > 0 && expires <= nowNs);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// candidateBeats - § 4.5.5.3 conflict resolution between two attribute instances
-//
-// Returns true if 'cand' should replace 'cur' as the surviving instance:
-//   - cur == NULL                                          → yes
-//   - any non-expired with observedAt → newest observedAt wins
-//   - else → newest modifiedAt wins
-//
-// Caller has already filtered out expired candidates.
-//
-static bool candidateBeats(KjNode* cand, KjNode* cur)
-{
-  if (cur == NULL)
-    return true;
-
-  int64_t candObs = instanceTsNanos(cand, LD_VOCAB_OBSERVED_AT);
-  int64_t curObs  = instanceTsNanos(cur,  LD_VOCAB_OBSERVED_AT);
-
-  if (candObs > 0 && curObs == 0)  return true;     // any observedAt beats none
-  if (candObs == 0 && curObs > 0)  return false;
-  if (candObs > 0 && curObs > 0)   return candObs > curObs;
-
-  // neither has observedAt → fall back to modifiedAt
-  int64_t candMod = instanceTsNanos(cand, LD_VOCAB_MODIFIED_AT);
-  int64_t curMod  = instanceTsNanos(cur,  LD_VOCAB_MODIFIED_AT);
-  return candMod > curMod;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// mergeOneSourceInto - apply § 4.5.5.3 to graft 'srcP' attrs into 'destP'
-//
-// Both trees are in storage format (each attribute is a wrapper of dataset-
-// keyed instances). For every (attrName, dsKey) tuple present in srcP, we
-// either install srcP's instance into destP (if no current or src wins per
-// candidateBeats), or drop it. id/type/@-keywords are never touched on dest.
-//
-// Expired instances on either side are removed. No allocation: instances
-// move (not clone) from srcP into destP, so srcP is left half-empty after.
-//
-static void mergeOneSourceInto(KjNode* destP, KjNode* srcP, int64_t nowNs)
-{
-  if (destP == NULL || srcP == NULL || srcP->type != KjObject)
-    return;
-
-  // The non-reified entity-level expiresAt is not an Attribute and so takes
-  // its own § 4.5.5.3 route: unanimous across versions or gone.
-  ldDistExpiresAtReconcile(destP, srcP);
-
-  // § 5.2.7 — and the Scopes of this version join those of the versions already assembled.
-  ldDistScopeMerge(destP, srcP, corRest.kjsonP);
-
-  KjNode* srcAttrP = srcP->value.firstChildP;
-  while (srcAttrP != NULL)
-  {
-    KjNode* nextSrcAttr = srcAttrP->next;
-
-    if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
-        strcmp(srcAttrP->name, "id")   == 0 ||
-        strcmp(srcAttrP->name, "type") == 0 ||
-        srcAttrP->type != KjObject)
-    {
-      srcAttrP = nextSrcAttr;
-      continue;
-    }
-
-    KjNode* destAttrP = kjLookup(destP, srcAttrP->name);
-
-    // Walk this src attr's instances (one per dsKey)
-    KjNode* srcInstP = srcAttrP->value.firstChildP;
-    while (srcInstP != NULL)
-    {
-      KjNode* nextSrcInst = srcInstP->next;
-
-      if (instanceExpired(srcInstP, nowNs))
-      {
-        srcInstP = nextSrcInst;
-        continue;
-      }
-
-      KjNode* destInstP = (destAttrP != NULL) ? kjLookup(destAttrP, srcInstP->name) : NULL;
-
-      if (destInstP != NULL && instanceExpired(destInstP, nowNs))
-      {
-        kjChildRemove(destAttrP, destInstP);
-        destInstP = NULL;
-      }
-
-      if (candidateBeats(srcInstP, destInstP))
-      {
-        // Detach srcInstP from src wrapper
-        kjChildRemove(srcAttrP, srcInstP);
-        srcInstP->next = NULL;
-
-        if (destAttrP == NULL)
-        {
-          destAttrP = kjObject(corRest.kjsonP, srcAttrP->name);
-          kjChildAdd(destP, destAttrP);
-        }
-
-        if (destInstP != NULL)
-          kjChildRemove(destAttrP, destInstP);
-        kjChildAdd(destAttrP, srcInstP);
-      }
-
-      srcInstP = nextSrcInst;
-    }
-
-    srcAttrP = nextSrcAttr;
-  }
 }
 
 
@@ -892,7 +742,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
       else if (g == 3)
         mergeAuxiliaryInto(destP, upP);
       else
-        mergeOneSourceInto(destP, upP, nowNs);
+        ldDistMergeSourceInto(destP, upP, nowNs, corRest.kjsonP, false);
     }
 
     // § 6.3.5 — a best-effort source (inclusive, auxiliary, or a redirect among

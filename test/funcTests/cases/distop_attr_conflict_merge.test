@@ -16,6 +16,13 @@
 # Three sources (CP1/CP2/CP3) each contribute the same urn:E1 entity
 # with controlled observedAt/modifiedAt/expiresAt patterns.
 #
+# The rule has TWO implementations, and the same fixture is asked through
+# both: the retrieve-one path (GET /entities/{id}, getEntity.c's
+# candidateBeats + mergeOneSourceInto) and the query path (GET /entities?type,
+# ldDistInstanceShouldReplace in corNgsild/ldDistMerge.c, shared with
+# snapshots). They must return the same merged entity - the query path had no
+# timestamp-conflict coverage at all before step 06 was added.
+#
 --NAME--
 DistOp multi-source attribute conflict resolution (§ 4.5.5.3)
 
@@ -127,6 +134,18 @@ echo
 echo
 
 
+echo "06. Query ?type=Sensor - the same merge, reached by the OTHER implementation"
+echo "==========================================================================="
+echo "    § 4.5.5.3 is implemented twice: the retrieve-one path resolves the"
+echo "    conflict with getEntity.c's candidateBeats/mergeOneSourceInto, the"
+echo "    query path with ldDistInstanceShouldReplace (corNgsild/ldDistMerge.c)."
+echo "    Two implementations of one rule must agree - so step 06 must return"
+echo "    exactly the entity step 05 returned, wrapped in the query's array."
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&options=keyValues'
+echo
+echo
+
+
 --EXPECT--
 01. Seed CP1 (created first → oldest modifiedAt for attr3)
 ===========================================================
@@ -202,6 +221,32 @@ Content-Length: 125
   "id": "urn:E1",
   "type": "Sensor"
 }
+
+
+
+06. Query ?type=Sensor - the same merge, reached by the OTHER implementation
+===========================================================================
+    § 4.5.5.3 is implemented twice: the retrieve-one path resolves the
+    conflict with getEntity.c's candidateBeats/mergeOneSourceInto, the
+    query path with ldDistInstanceShouldReplace (corNgsild/ldDistMerge.c).
+    Two implementations of one rule must agree - so step 06 must return
+    exactly the entity step 05 returned, wrapped in the query's array.
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 145
+
+[
+  {
+    "attr1": "A1-CP3",
+    "attr2": "A2-CP1",
+    "attr3": "A3-CP3",
+    "attr4": "A4-CP2",
+    "id": "urn:E1",
+    "type": "Sensor"
+  }
+]
 
 
 

@@ -37,7 +37,7 @@
 #include "corNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
 #include "corRest/CorRestIn.h"                 // corAcceptParse, CorMimeType
 #include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
-#include "corNgsild/ldDistMerge.h"                    // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistScopeMerge
+#include "corNgsild/ldDistMerge.h"                    // ldDistMergeSourceInto
 #include "corNgsild/ldQAttrs.h"                       // ldQAttrs
 #include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery
@@ -682,60 +682,6 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
 
 
 
-// -----------------------------------------------------------------------------
-//
-// mergeAttrsNonOverriding - graft src's attrs into dest, skipping conflicts.
-//
-// Used by the entity-map pagination path when one entity is built from
-// multiple recorded sources (split mode). First-wins for (attrName, dsKey)
-// collisions — matches the main query's split-mode merge behaviour (full
-// § 4.5.5.3 timestamp comparison is overkill here since both sides were
-// already present in the map's snapshot).
-//
-static void mergeAttrsNonOverriding(KjNode* destP, KjNode* srcP)
-{
-  if (destP == NULL || srcP == NULL || srcP->type != KjObject)
-    return;
-
-  KjNode* srcAttrP = srcP->value.firstChildP;
-  while (srcAttrP != NULL)
-  {
-    KjNode* nextSrcAttr = srcAttrP->next;
-
-    if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
-        strcmp(srcAttrP->name, "id")   == 0 ||
-        strcmp(srcAttrP->name, "type") == 0 ||
-        srcAttrP->type != KjObject)
-    {
-      srcAttrP = nextSrcAttr;
-      continue;
-    }
-
-    KjNode* destAttrP = kjLookup(destP, srcAttrP->name);
-    if (destAttrP == NULL)
-    {
-      srcAttrP->next = NULL;
-      kjChildAdd(destP, srcAttrP);
-    }
-    else
-    {
-      // Merge per dsKey — add dsKeys not already present
-      KjNode* srcInstP = srcAttrP->value.firstChildP;
-      while (srcInstP != NULL)
-      {
-        KjNode* nextInst = srcInstP->next;
-        if (kjLookup(destAttrP, srcInstP->name) == NULL)
-        {
-          srcInstP->next = NULL;
-          kjChildAdd(destAttrP, srcInstP);
-        }
-        srcInstP = nextInst;
-      }
-    }
-
-    srcAttrP = nextSrcAttr;
-  }
-}
 
 
 
@@ -994,6 +940,7 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     // Skip params that are local-only, output-format, per-CSR computed, or
     // handled above with alias-aware emission.
     if (strcmp(key, "options")          == 0) continue;
+    if (strcmp(key, "sysAttrs")         == 0) continue;  // re-emitted below from the parsed flag
     if (strcmp(key, "format")           == 0) continue;
     if (strcmp(key, "local")            == 0) continue;
     if (strcmp(key, "orderBy")          == 0) continue;
@@ -1013,6 +960,22 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     strcpy(qs + pos, key); pos += kLen;
     qs[pos++] = '=';
     strcpy(qs + pos, corRest.in.uriParamV[i].value); pos += vLen;
+  }
+
+  //
+  // sysAttrs. This is the NON-split forward, where nothing is assembled from
+  // several versions and § 4.5.5.3 never runs - so the sources are asked for
+  // System Attributes only when the CLIENT wants them in the response.
+  //
+  // Emitted from the parsed flag rather than passed through raw, because the
+  // client has two spellings for it (`sysAttrs=true` and `options=sysAttrs`)
+  // and `options` is not forwarded - so the raw route honoured one spelling
+  // and silently dropped the other.
+  //
+  if (corNgsild.sysAttrs)
+  {
+    if (pos > 0) qs[pos++] = '&';
+    strcpy(qs + pos, "sysAttrs=true"); pos += 13;
   }
 
   // geometryProperty — alias-bearing but stored raw (client short). Expand
@@ -1109,6 +1072,30 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
     memcpy(qs, fallback, fLen);
     pos = fLen;
   }
+
+  //
+  // sysAttrs=true is what makes § 4.5.5.3 rule 3 work at all.
+  //
+  // When the same (attrName, datasetId) arrives from several sources and NO
+  // candidate carries observedAt, the tiebreaker is the newest modifiedAt.
+  // modifiedAt is a System Attribute: a source only emits it when asked. The
+  // forward used to omit the flag, so every forwarded instance arrived with
+  // modifiedAt absent - read as 0 by ldDistInstanceShouldReplace, which then
+  // kept whichever instance happened to be merged first. Rule 3 was silently
+  // inoperative on this path, and it is the ONLY rule for the (common) case
+  // of attributes without observedAt.
+  //
+  // The retrieve-one path has always sent it (getEntity.c). The flag does not
+  // leak into the response: createdAt/modifiedAt are stripped at render time
+  // unless the CLIENT asked for sysAttrs.
+  //
+  // It is appended AFTER the local=true fallback above, which keys off pos==0
+  // - an unconditional param here would suppress that fallback entirely.
+  //
+  const char* sysAttrs = "&sysAttrs=true";
+  int         saLen    = strlen(sysAttrs);
+  memcpy(qs + pos, sysAttrs, saLen);
+  pos += saLen;
 
   qs[pos] = 0;
   return qs;
@@ -1280,7 +1267,17 @@ static bool entityMapPaginate(void)
       if (mergedEntity == NULL)
         mergedEntity = partialP;
       else
-        mergeAttrsNonOverriding(mergedEntity, partialP);
+      {
+        //
+        // The same § 4.5.5.3 merge the unpaginated query does. It used to be a
+        // local first-wins graft on the grounds that both versions came out of
+        // the map's snapshot anyway - but "which value does this attribute
+        // have" must not depend on whether the client paginated, and the
+        // retrieve this path uses (retrieveEntityFromCSR) already asks for
+        // sysAttrs, so the real rule has everything it needs.
+        //
+        ldDistMergeSourceInto(mergedEntity, partialP, corRest.requestStartTime, corRest.kjsonP, false);
+      }
     }
 
     if (mergedEntity != NULL)
@@ -1879,7 +1876,14 @@ bool getEntities(void)
             // queryBatch form: POST /entityOperations/query with a § 5.2.23
             // Query body carrying the same selectors + projection as the
             // GET form's query string.
-            const char* path    = "/ngsi-ld/v1/entityOperations/query";
+            // sysAttrs=true for the same reason the GET form carries it (see
+            // buildSplitForwardQueryString): without modifiedAt on the
+            // forwarded instances, § 4.5.5.3 rule 3 has nothing to compare.
+            // It rides the URL, not the Query body - buildQueryBodyFromQs
+            // maps only the § 5.2.23 body members and drops everything else.
+            const char* path    = (splitMode || corNgsild.sysAttrs)
+                                    ? "/ngsi-ld/v1/entityOperations/query?sysAttrs=true"
+                                    : "/ngsi-ld/v1/entityOperations/query";
             int   baseLen = strlen(csr->endpoint);
             char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
             strcpy(url, csr->endpoint);
@@ -2066,61 +2070,15 @@ bool getEntities(void)
             {
               srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
 
-              // § 4.5.5.3 — the non-reified entity-level expiresAt is not an
-              // Attribute and so is reconciled separately from the instance
-              // loop below: unanimous across versions or gone.
-              ldDistExpiresAtReconcile(existingP, remoteEntity);
-
-              // § 5.2.7 — the Scopes of every version are merged
-              ldDistScopeMerge(existingP, remoteEntity, corRest.kjsonP);
-
-              for (KjNode* srcAttrP = remoteEntity->value.firstChildP; srcAttrP != NULL; )
-              {
-                KjNode* nextSrcAttr = srcAttrP->next;
-
-                if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
-                    strcmp(srcAttrP->name, "id") == 0 ||
-                    strcmp(srcAttrP->name, "type") == 0 ||
-                    srcAttrP->type != KjObject)
-                {
-                  srcAttrP = nextSrcAttr;
-                  continue;
-                }
-
-                KjNode* destAttrP = kjLookup(existingP, srcAttrP->name);
-
-                if (destAttrP == NULL)
-                {
-                  srcAttrP->next = NULL;
-                  kjChildAdd(existingP, srcAttrP);
-                }
-                else
-                {
-                  for (KjNode* srcInstP = srcAttrP->value.firstChildP; srcInstP != NULL; )
-                  {
-                    KjNode* nextSrcInst = srcInstP->next;
-                    KjNode* destInstP = kjLookup(destAttrP, srcInstP->name);
-
-                    if (destInstP == NULL)
-                    {
-                      if (!ldDistInstanceIsExpired(srcInstP, corRest.requestStartTime))
-                      {
-                        srcInstP->next = NULL;
-                        kjChildAdd(destAttrP, srcInstP);
-                      }
-                    }
-                    else if (ldDistInstanceShouldReplace(destInstP, srcInstP, corRest.requestStartTime))
-                    {
-                      srcInstP->next = NULL;
-                      kjChildReplace(destAttrP, destInstP, srcInstP);
-                    }
-
-                    srcInstP = nextSrcInst;
-                  }
-                }
-
-                srcAttrP = nextSrcAttr;
-              }
+              //
+              // § 4.5.5.3 - one more version of this Entity. Everything the
+              // merge consists of (entity-level expiresAt, § 5.2.7 Scopes,
+              // per-(attr, dsKey) conflict resolution) lives in one shared
+              // function, so the query path and the retrieve-one path cannot
+              // drift apart again. clone=false: remoteEntity is a per-request
+              // tree, its instances move rather than being copied.
+              //
+              ldDistMergeSourceInto(existingP, remoteEntity, corRest.requestStartTime, corRest.kjsonP, false);
             }
 
             remoteEntity = nextRemote;

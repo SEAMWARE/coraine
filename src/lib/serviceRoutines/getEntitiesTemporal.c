@@ -189,8 +189,8 @@ static void mergeTemporalEntity(KjNode* destP, KjNode* upP, bool keepOnlyMissing
 //
 static const char* buildTemporalQueryQs(KAlloc* kaP)
 {
-  // Worst-case length: each (key=value&) plus NUL.
-  int len = 1;
+  // Worst-case length: each (key=value&) plus NUL, plus "&sysAttrs=true".
+  int len = 1 + 15;
   for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
     const char* k = corRest.in.uriParamV[i].key;
@@ -204,6 +204,7 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
     if (strcmp(k, "omit")      == 0) continue;
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
+    if (strcmp(k, "sysAttrs")  == 0) continue;  // re-emitted below from the parsed flag
 
     const char* v = corRest.in.uriParamV[i].value;
     len += strlen(k) + 1 + (v ? strlen(v) : 0) + 1;
@@ -225,6 +226,7 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
     if (strcmp(k, "omit")      == 0) continue;
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
+    if (strcmp(k, "sysAttrs")  == 0) continue;  // re-emitted below from the parsed flag
 
     const char* v = corRest.in.uriParamV[i].value;
     if (pos > 0) buf[pos++] = '&';
@@ -238,6 +240,21 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
       memcpy(buf + pos, v, vl);
       pos += vl;
     }
+  }
+
+  //
+  // sysAttrs. A temporal response assembles per-instance time series rather
+  // than resolving § 4.5.5.3 conflicts, so the sources are asked for System
+  // Attributes only when the CLIENT wants them - but then they must actually
+  // be asked. Emitted from the parsed flag because the client has two
+  // spellings (`sysAttrs=true`, `options=sysAttrs`) and `options` is not
+  // forwarded, so the raw route honoured one and silently dropped the other.
+  //
+  if (corNgsild.sysAttrs)
+  {
+    if (pos > 0) buf[pos++] = '&';
+    memcpy(buf + pos, "sysAttrs=true", 13);
+    pos += 13;
   }
 
   buf[pos] = 0;
