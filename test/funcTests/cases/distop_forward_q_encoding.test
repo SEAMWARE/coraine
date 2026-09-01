@@ -1,0 +1,208 @@
+#
+# FILE            distop_forward_q_encoding.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The q filter is re-rendered for each Context Source (its attribute terms are
+# aliases and have to be compacted via the forward @context) and then goes into
+# a URL - so its value needs percent-encoding like any other, and did not get
+# it. A string operand in the q language can hold anything:
+#
+#   name=="a&b"   the '&' ended the parameter: the source saw q=name=="a
+#                 with an unterminated string, and answered nothing
+#   name=="a b"   a raw space ends the request line
+#   name=="a+b"   the source read the '+' as a space and matched the entity
+#                 named `a b` - a 200 with the WRONG entity, not an error
+#
+# THE ORACLE: every query is asked twice, of CB (which holds nothing, so the
+# answer can only have come through the forward) and of CP1 directly. The two
+# must agree, and the three entities differ ONLY in that one character, so a
+# mangled filter cannot accidentally look right.
+#
+# --noSplitEntities, because that is the mode whose forward carries q at all -
+# the split forward asks for the whole type and filters what comes back.
+#
+--NAME--
+DistOps - a forwarded q is percent-encoded, so '&', ' ' and '+' survive it
+
+--TAGS--
+distops registration query encoding
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist --noSplitEntities
+coraineStart -role CP1 -dist --noSplitEntities
+
+--RUN--
+
+echo "01. Three entities on CP1, names differing in one character: a&b, a b, a+b"
+echo "=========================================================================="
+for e in \
+  '{"id":"urn:ngsi-ld:Q:1","type":"T","name":{"type":"Property","value":"a&b"}}' \
+  '{"id":"urn:ngsi-ld:Q:2","type":"T","name":{"type":"Property","value":"a b"}}' \
+  '{"id":"urn:ngsi-ld:Q:3","type":"T","name":{"type":"Property","value":"a+b"}}' ; do
+  corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$e" | head -1
+done
+echo
+echo
+
+
+echo "02. CB registers CP1 for type T"
+echo "==============================="
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "T" } ] } ],
+  "endpoint": "http://localhost:'$CP1_PORT'"
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. q=name==\"a%26b\" via CB - only the ampersand entity"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%26b"&options=keyValues'
+echo
+echo
+
+
+echo "04. the same, asked of CP1 directly - must be the same answer"
+echo "============================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%26b"&options=keyValues'
+echo
+echo
+
+
+echo "05. q=name==\"a%20b\" via CB - only the space entity"
+echo "=================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%20b"&options=keyValues'
+echo
+echo
+
+
+echo "06. q=name==\"a%2Bb\" via CB - only the PLUS entity, not the space one"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%2Bb"&options=keyValues'
+echo
+echo
+
+
+echo "07. the same, asked of CP1 directly - must be the same answer"
+echo "============================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name=="a%2Bb"&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Three entities on CP1, names differing in one character: a&b, a b, a+b
+==========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. CB registers CP1 for type T
+===============================
+HTTP/1.1 201 Created
+
+
+03. q=name=="a%26b" via CB - only the ampersand entity
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+[
+  {
+    "id": "urn:ngsi-ld:Q:1",
+    "name": "a&b",
+    "type": "T"
+  }
+]
+
+
+
+04. the same, asked of CP1 directly - must be the same answer
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+[
+  {
+    "id": "urn:ngsi-ld:Q:1",
+    "name": "a&b",
+    "type": "T"
+  }
+]
+
+
+
+05. q=name=="a%20b" via CB - only the space entity
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+[
+  {
+    "id": "urn:ngsi-ld:Q:2",
+    "name": "a b",
+    "type": "T"
+  }
+]
+
+
+
+06. q=name=="a%2Bb" via CB - only the PLUS entity, not the space one
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+[
+  {
+    "id": "urn:ngsi-ld:Q:3",
+    "name": "a+b",
+    "type": "T"
+  }
+]
+
+
+
+07. the same, asked of CP1 directly - must be the same answer
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 76
+
+[
+  {
+    "id": "urn:ngsi-ld:Q:3",
+    "name": "a+b",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

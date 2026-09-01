@@ -21,6 +21,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestClient.h"                     // CorRestClientRequest, corRestClientSend
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
+#include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 #include "corJsonld/corLdCompact.h"                    // corLdCompact
@@ -305,52 +306,13 @@ static char** computeWantedAttrs(KAlloc* kaP)
 // non-listed members, including id+type, which would leave us unable to
 // aggregate the response by entity id.
 //
-// urlEncodeReserved - percent-encode the URL-reserved chars that would
-// break a query string if emitted raw: '#' (fragment delimiter), '&'
-// (param delimiter), '=' (key/value separator), '%' (escape lead),
-// '?' (query lead). Other RFC 3986 reserved chars (':', '/', etc.) are
-// permitted in query values per § 3.4 and we keep them readable (the URN
-// shape `urn:ngsi-ld:Vehicle:X` stays compact).
-//
-// Used on the fallback "compaction returned the IRI unchanged" path,
-// where the expanded IRI carries '#' from the fragment-style core
-// context. Returns a freshly-allocated string from kaP.
-//
-static const char* urlEncodeReserved(const char* s, KAlloc* kaP)
-{
-  if (s == NULL) return "";
-  int extra = 0;
-  for (const char* p = s; *p; p++)
-    if (*p == '#' || *p == '&' || *p == '=' || *p == '%' || *p == '?')
-      extra += 2;  // 1 char → 3 chars
-
-  if (extra == 0)
-    return s;  // nothing to encode, return as-is
-
-  char* out = (char*) kaAlloc(kaP, strlen(s) + extra + 1);
-  char* w   = out;
-  static const char hex[] = "0123456789ABCDEF";
-  for (const char* p = s; *p; p++)
-  {
-    if (*p == '#' || *p == '&' || *p == '=' || *p == '%' || *p == '?')
-    {
-      *w++ = '%';
-      *w++ = hex[(unsigned char)*p >> 4];
-      *w++ = hex[(unsigned char)*p & 0xf];
-    }
-    else
-      *w++ = *p;
-  }
-  *w = 0;
-  return out;
-}
-
-
 // compactForUrl - compact an expanded IRI via the given context and make
 // the result safe to embed in a URL query-string value. If the alias is
 // found in `ctx`, returns the short name as-is (short names are URL-
-// safe). If not, falls back to the expanded IRI and percent-encodes any
-// URL-reserved chars.
+// safe). If not, it falls back to the expanded IRI and hands it to
+// corRestUrlValueEncode - the library's encoder, the counterpart of the
+// decoding corRest does on the way in. That fallback is where the '#' of a
+// fragment-style core context IRI would otherwise reach the URL raw.
 //
 // `ctx` MUST NOT be NULL — callers ensure that (e.g. CSR's forwardCtxP
 // is initialised to core at registration time).
@@ -361,7 +323,7 @@ static const char* compactForUrl(CorLdContext* ctx, const char* iri, KAlloc* kaP
     return "";
   const char* shorter = corLdCompact(ctx, iri);
   if (shorter == NULL || shorter == iri)
-    return urlEncodeReserved(iri, kaP);
+    return corRestUrlValueEncode(iri, kaP);
   // Compaction returned a new pointer — assume it's a short alias from
   // the context and URL-safe.
   return shorter;
@@ -726,7 +688,7 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
       if (eiP->id == NULL || eiP->idPatternList != NULL)
         return "";   // id-less or pattern-matched entry — can't narrow
 
-      const char* v    = urlEncodeReserved(eiP->id, kaP);
+      const char* v    = corRestUrlValueEncode(eiP->id, kaP);
       int         vLen = strlen(v);
       if (pos + vLen + 8 >= cap)
       {
@@ -783,6 +745,19 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
     if (eq == NULL) continue;
     *eq = 0;
     char* val = eq + 1;
+
+    //
+    // DECODED again on the way into the body. `qs` is a URL query string and
+    // its values are percent-encoded; a § 5.2.23 Query is JSON, where they must
+    // not be - a `q` of `name=="a%26b"` in the body would be a filter looking
+    // for the literal characters '%', '2', '6'.
+    //
+    // The split on '&' above is why the encoding has to happen first and be
+    // undone here rather than never happening at all: with a raw value, an '&'
+    // inside q ends the token and the rest of the filter is lost.
+    //
+    corRestUrlValueDecode(val);
+
     if      (strcmp(tok, "type")      == 0) types     = val;
     else if (strcmp(tok, "id")        == 0) ids       = val;
     else if (strcmp(tok, "idPattern") == 0) idPattern = val;
@@ -863,22 +838,6 @@ static const char* buildQueryString(CorLdContext* csrCtx)
 {
   if (csrCtx == NULL) csrCtx = corLdCoreContext();
 
-  char* qs = (char*) kaAlloc(&corRest.kalloc, 4096);
-  int   pos = 0;
-
-  // type — alias-bearing → emit from corNgsild.typeV via CSR ctx
-  if (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL)
-  {
-    strcpy(qs + pos, "type="); pos += 5;
-    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
-    {
-      if (i > 0) qs[pos++] = ',';
-      const char* v = compactForUrl(csrCtx, corNgsild.typeV[i], &corRest.kalloc);
-      int vLen = strlen(v);
-      strcpy(qs + pos, v); pos += vLen;
-    }
-  }
-
   // q — its attribute terms are aliases too; re-render the parsed
   // expression via the forward context (uncompactable IRIs %-encoded).
   //
@@ -909,16 +868,65 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     attrsExists[apos] = 0;
   }
 
+  //
+  // Size the buffer from what actually goes in it, rather than hoping 4096 is
+  // enough. A percent-encoded byte becomes three, the re-rendered q can be far
+  // longer than the client's (short aliases come back as full IRIs through the
+  // forward context), and nothing below bounds-checks as it writes.
+  //
+  int need = 256;                                    // the fixed literals below
+
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
+  {
+    const char* v = corRest.in.uriParamV[i].value;
+    need += strlen(corRest.in.uriParamV[i].key) + 2 + ((v != NULL) ? 3 * strlen(v) : 0);
+  }
+
+  if (corNgsild.typeV != NULL)
+    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
+      need += 3 * strlen(corNgsild.typeV[i]) + 1;
+
+  if (qRendered                  != NULL)  need += 3 * strlen(qRendered) + 8;
+  if (attrsExists                != NULL)  need += 3 * strlen(attrsExists) + 8;
+  if (corNgsild.geoproperty      != NULL)  need += 3 * strlen(corNgsild.geoproperty) + 16;
+  if (corNgsild.geometryProperty != NULL)  need += 3 * strlen(corNgsild.geometryProperty) + 20;
+
+  char* qs = (char*) kaAlloc(&corRest.kalloc, need);
+  int   pos = 0;
+
+  // type — alias-bearing → emit from corNgsild.typeV via CSR ctx
+  if (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL)
+  {
+    strcpy(qs + pos, "type="); pos += 5;
+    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
+    {
+      if (i > 0) qs[pos++] = ',';
+      const char* v = compactForUrl(csrCtx, corNgsild.typeV[i], &corRest.kalloc);
+      int vLen = strlen(v);
+      strcpy(qs + pos, v); pos += vLen;
+    }
+  }
+
   if (qRendered != NULL || attrsExists != NULL)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "q="); pos += 2;
-    if (qRendered != NULL && attrsExists != NULL)
-      pos += sprintf(qs + pos, "(%s);(%s)", qRendered, attrsExists);
-    else if (qRendered != NULL)
-      pos += sprintf(qs + pos, "%s", qRendered);
+    //
+    // Encoded, like every other value — ldQRender emits the q language, and a
+    // string operand in it can hold anything: `q=name=="a&b"` truncates the
+    // filter at the '&' if it goes out raw. The encoder leaves the language's
+    // own '=', '"', ';', '|', '(' and ')' alone, so the forwarded q still reads
+    // like the one a client sends.
+    //
+    const char* qEnc = (qRendered   != NULL) ? corRestUrlValueEncode(qRendered,   &corRest.kalloc) : NULL;
+    const char* aEnc = (attrsExists != NULL) ? corRestUrlValueEncode(attrsExists, &corRest.kalloc) : NULL;
+
+    if (qEnc != NULL && aEnc != NULL)
+      pos += sprintf(qs + pos, "(%s);(%s)", qEnc, aEnc);
+    else if (qEnc != NULL)
+      pos += sprintf(qs + pos, "%s", qEnc);
     else
-      pos += sprintf(qs + pos, "%s", attrsExists);
+      pos += sprintf(qs + pos, "%s", aEnc);
   }
 
   // geoproperty — alias-bearing (corNgsild.geoproperty is already expanded)
@@ -954,12 +962,21 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     if (strcmp(key, "geoproperty")      == 0) continue;  // handled above
     if (strcmp(key, "geometryProperty") == 0) continue;  // handled below
 
+    //
+    // The value arrived percent-DECODED (corRest decodes on the way in), so it
+    // has to be encoded again on the way out. Emitted raw, a '&' in the value
+    // starts a new parameter, a space ends the request line, and a '+' is read
+    // as a space by the receiver — that last one answers 200 with the wrong
+    // entity rather than failing.
+    //
+    const char* value = corRestUrlValueEncode(corRest.in.uriParamV[i].value, &corRest.kalloc);
+
     if (pos > 0) qs[pos++] = '&';
     int kLen = strlen(key);
-    int vLen = strlen(corRest.in.uriParamV[i].value);
+    int vLen = strlen(value);
     strcpy(qs + pos, key); pos += kLen;
     qs[pos++] = '=';
-    strcpy(qs + pos, corRest.in.uriParamV[i].value); pos += vLen;
+    strcpy(qs + pos, value); pos += vLen;
   }
 
   //
@@ -1012,7 +1029,21 @@ static const char* buildQueryString(CorLdContext* csrCtx)
 //
 static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
 {
-  char* qs = (char*) kaAlloc(&corRest.kalloc, 4096);
+  //
+  // Sized from the inputs: a percent-encoded byte becomes three, an id is an
+  // unbounded URI and an idPattern an unbounded regex, and nothing below
+  // bounds-checks as it writes.
+  //
+  int need = 128;
+
+  if (corNgsild.typeV != NULL)
+    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
+      need += 3 * strlen(corNgsild.typeV[i]) + 1;
+
+  if (corNgsild.id        != NULL)  need += 3 * strlen(corNgsild.id) + 4;
+  if (corNgsild.idPattern != NULL)  need += 3 * strlen(corNgsild.idPattern) + 11;
+
+  char* qs = (char*) kaAlloc(&corRest.kalloc, need);
   int   pos = 0;
 
   if (csrCtx == NULL) csrCtx = corLdCoreContext();
@@ -1051,7 +1082,7 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
     strcpy(qs + pos, "id="); pos += 3;
     // id is a URI (not a JSON-LD alias) — compaction doesn't apply.
     // URL-encode only the chars that would break the query string.
-    const char* v = urlEncodeReserved(corNgsild.id, &corRest.kalloc);
+    const char* v = corRestUrlValueEncode(corNgsild.id, &corRest.kalloc);
     int vLen = strlen(v);
     strcpy(qs + pos, v); pos += vLen;
   }
@@ -1060,7 +1091,7 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "idPattern="); pos += 10;
-    const char* v = urlEncodeReserved(corNgsild.idPattern, &corRest.kalloc);
+    const char* v = corRestUrlValueEncode(corNgsild.idPattern, &corRest.kalloc);
     int vLen = strlen(v);
     strcpy(qs + pos, v); pos += vLen;
   }

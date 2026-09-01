@@ -21,6 +21,7 @@
 
 #include "corRest/CorRestState.h"                          // corRest
 #include "corRest/corRestClient.h"                         // CorRestClientRequest, corRestClientSend
+#include "corRest/corRestUrlValueEncode.h"                 // corRestUrlValueEncode
 
 #include "corJsonld/corLdExpand.h"                         // corLdExpand, corLdAlreadyExpanded
 #include "corJsonld/corLdExpandTree.h"                     // corLdExpandTree
@@ -40,6 +41,7 @@
 #include "kjson/kjClone.h"                               // kjClone
 #include "kjson/kjFree.h"                                // kjFree
 #include "kjson/kjChildReplace.h"                        // kjChildReplace
+#include "kjson/kjRenderSize.h"                        // kjFastRenderSize
 
 #include "db/DbDriver.h"                                 // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
@@ -187,15 +189,27 @@ static void queryToFilter(KjNode* queryP, DbQueryFilter* filterP)
 //
 static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP)
 {
-  char* qs = (char*) kaAlloc(kaP, 4096);
+  //
+  // Sized from the Query it renders: every value emitted below is a substring
+  // of that JSON, and percent-encoding turns a byte into at most three. The
+  // fixed 4096 that used to be here was never checked as it wrote - the one
+  // `pos < 4095` guarded the '&' and nothing else.
+  //
+  char* qs = (char*) kaAlloc(kaP, 3 * kjFastRenderSize(queryP) + 256);
   int   pos = 0;
 
+  //
+  // The value is percent-encoded: these come from a stored § 5.2.23 Query and
+  // can hold anything, and a raw '&' in one would start a new parameter at the
+  // receiver rather than staying part of the filter.
+  //
   #define APPEND_KV(k, v) do {                                                  \
-      int kl = strlen(k); int vl = strlen(v);                                   \
-      if (pos > 0 && pos < 4095) qs[pos++] = '&';                               \
+      const char* ev = corRestUrlValueEncode(v, kaP);                           \
+      int kl = strlen(k); int vl = strlen(ev);                                  \
+      if (pos > 0) qs[pos++] = '&';                                             \
       memcpy(qs + pos, k, kl); pos += kl;                                       \
       qs[pos++] = '=';                                                          \
-      memcpy(qs + pos, v, vl); pos += vl;                                       \
+      memcpy(qs + pos, ev, vl); pos += vl;                                      \
     } while (0)
 
   // entities[]: id (single string OR array), idPattern, type. URL params
@@ -300,15 +314,27 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
 //
 static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
 {
-  char* qs = (char*) kaAlloc(kaP, 4096);
+  //
+  // Sized from the Query it renders: every value emitted below is a substring
+  // of that JSON, and percent-encoding turns a byte into at most three. The
+  // fixed 4096 that used to be here was never checked as it wrote - the one
+  // `pos < 4095` guarded the '&' and nothing else.
+  //
+  char* qs = (char*) kaAlloc(kaP, 3 * kjFastRenderSize(queryP) + 256);
   int   pos = 0;
 
+  //
+  // The value is percent-encoded: these come from a stored § 5.2.23 Query and
+  // can hold anything, and a raw '&' in one would start a new parameter at the
+  // receiver rather than staying part of the filter.
+  //
   #define APPEND_KV(k, v) do {                                                  \
-      int kl = strlen(k); int vl = strlen(v);                                   \
-      if (pos > 0 && pos < 4095) qs[pos++] = '&';                               \
+      const char* ev = corRestUrlValueEncode(v, kaP);                           \
+      int kl = strlen(k); int vl = strlen(ev);                                  \
+      if (pos > 0) qs[pos++] = '&';                                             \
       memcpy(qs + pos, k, kl); pos += kl;                                       \
       qs[pos++] = '=';                                                          \
-      memcpy(qs + pos, v, vl); pos += vl;                                       \
+      memcpy(qs + pos, ev, vl); pos += vl;                                      \
     } while (0)
 
   KjNode* entitiesP = kjLookup(queryP, "entities");

@@ -1,0 +1,184 @@
+#
+# FILE            distop_forward_idpattern_encoding.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A forwarded URL parameter must be percent-encoded again on the way out.
+#
+# corRest decodes percent-escapes on the way IN, so by the time the broker
+# builds a forward it holds the decoded value - and emitting that raw means the
+# Context Source reads something else than the client asked for.
+#
+# idPattern is where it shows up in ordinary use, because '+' is in every
+# second regex. `^urn:ngsi-ld:T:a+$` went out raw, the receiver read the '+'
+# as a space (that is what every form-style decoder does with it, MHD
+# included), and the query matched nothing - 200 OK with an empty array, no
+# error anywhere.
+#
+# THE ORACLE: CB holds no entities at all, so every answer here came through
+# the forward, and the regex is one that discriminates - it matches the two
+# ids made of a-runs and not the third.
+#
+# The pattern is `^urn:ngsi-ld:T:a+$` - no digit class and no brackets, for two
+# separate reasons. \d is a PCRE shorthand mongo understands and corDB's POSIX
+# engine does not, and curl reads an unescaped [ ] in a URL as a GLOB RANGE and
+# quietly sends one request per character. Neither has anything to do with what
+# is under test, which is the '+': lose it to a space and `^urn:ngsi-ld:T:a $`
+# matches nothing at all.
+#
+# Default (split) mode, which is what ships.
+#
+--NAME--
+DistOps - a forwarded idPattern is percent-encoded, so a '+' survives it
+
+--TAGS--
+distops registration query encoding
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+echo "01. Three entities on CP1 - two ids that are runs of "a", one not"
+echo "===================================================="
+for e in \
+  '{"id":"urn:ngsi-ld:T:a","type":"T","name":{"type":"Property","value":"one"}}' \
+  '{"id":"urn:ngsi-ld:T:aa","type":"T","name":{"type":"Property","value":"two"}}' \
+  '{"id":"urn:ngsi-ld:T:b","type":"T","name":{"type":"Property","value":"bee"}}' ; do
+  corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$e" | head -1
+done
+echo
+echo
+
+
+echo "02. CB registers CP1 for type T"
+echo "==============================="
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "T" } ] } ],
+  "endpoint": "http://localhost:'$CP1_PORT'"
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations -X POST --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. CB is empty - a plain type query answers only what the forward brings back"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&options=keyValues'
+echo
+echo
+
+
+echo "04. idPattern=^urn:ngsi-ld:T:a+\$ - the '+' is sent as %2B, and must arrive as a '+'"
+echo "====================================================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&idPattern=^urn:ngsi-ld:T:a%2B$&options=keyValues'
+echo
+echo
+
+
+echo "05. The same regex asked of CP1 directly - the answer that must match"
+echo "====================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --urlParams 'type=T&idPattern=^urn:ngsi-ld:T:a%2B$&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Three entities on CP1 - two ids that are runs of a, one not
+====================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. CB registers CP1 for type T
+===============================
+HTTP/1.1 201 Created
+
+
+03. CB is empty - a plain type query answers only what the forward brings back
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 223
+
+[
+  {
+    "id": "urn:ngsi-ld:T:a",
+    "name": "one",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:aa",
+    "name": "two",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:b",
+    "name": "bee",
+    "type": "T"
+  }
+]
+
+
+
+04. idPattern=^urn:ngsi-ld:T:a+$ - the '+' is sent as %2B, and must arrive as a '+'
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 150
+
+[
+  {
+    "id": "urn:ngsi-ld:T:a",
+    "name": "one",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:aa",
+    "name": "two",
+    "type": "T"
+  }
+]
+
+
+
+05. The same regex asked of CP1 directly - the answer that must match
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 150
+
+[
+  {
+    "id": "urn:ngsi-ld:T:a",
+    "name": "one",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:aa",
+    "name": "two",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
