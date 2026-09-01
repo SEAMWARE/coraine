@@ -175,6 +175,47 @@ The thresholds are wide on purpose - warn at -20%, fail at -50% against the medi
 of the last five runs - because a shared runner moves 20-30% by itself. A scenario
 is worth adding only when its numbers are steady enough to mean something.
 
+## 11. Unit tests for the libs, and CI to run them
+
+No lib repo runs a test in CI. Not one — `corLibs` has a single workflow and it
+builds the CI base image. So the only thing that has ever verified a Cor-Lib is
+coraine's functional suite, downstream, through the broker.
+
+That is not a gap in coverage so much as a gap in *when*: `corLibs/bootstrap.sh`
+clones `corRest`, `corNgsild`, `corJsonld`, `corPlugin` and `corTest` from `main`
+with no pin, deliberately — they move together. A lib change is therefore invisible
+to CI until it is merged to `main`, and the coraine PR that needs it cannot build
+before then. The first thing that can fail is the coraine PR, after the lib change
+is already in. A lib regression is discovered by the consumer, one merge too late.
+
+Where things stand:
+
+- **k-libs** — `kjson`, `kalloc`, `kbase`, `klog`, `ktrace`, `khash`, `kargs`,
+  `kprom` each already ship a test binary (`kallocTest`, `kTest`, `khashTest`, …).
+  They are written and they are not run by anything. This is the cheap half: a
+  workflow per repo that builds the lib and runs its existing binary.
+- **Cor-Libs** — `corNgsild`, `corJsonld` and `corPlugin` have no tests at all, and
+  `corRest`'s `corRestTest` is a demo server (it starts on :8080 and serves a few
+  endpoints), not an assertion. This is the half that has to be written.
+
+`corNgsild` is where it matters most: it is the biggest of them, it is where the
+NGSI-LD rules actually live, and it is pure enough to test directly — most of it is
+tree in, tree out. `ldDistMerge` is the shape to start from. § 4.5.5.3 is a decision
+table over (expiresAt, observedAt, modifiedAt) with a handful of branches; a unit
+test enumerates them in milliseconds, where a functest needs three brokers, a
+registration and twenty seconds to reach one of them. The same goes for `ldQParse`,
+`ldScopeMatch`, `ldEntityMatch`, `ldCheckDateTime`, `ldIso8601Duration`,
+`ldPickOmit`, `ldOrderSort` — all decidable from arguments alone.
+
+The functests stay where they are. They answer "does the broker behave", which is a
+different question from "does this function compute the right answer", and they are
+a bad instrument for the second one: the reason § 4.5.5.3 rule 3 could be dead on
+the query path for as long as it was is that reaching one branch of one comparator
+took a three-broker fixture nobody had written.
+
+Order: the k-lib workflows first (the tests exist, so it is configuration), then
+`corNgsild` unit tests, then the rest.
+
 ## Smaller, still open
 
 **Broker**
