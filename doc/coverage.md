@@ -1,21 +1,54 @@
 # Test coverage
 
-Measured **2026-08-27** on `227042c`, with `make coverage` (see below for how to
-reproduce). Both suites green.
+Measured **2026-09-01** on `bfa4d85` plus the new collation test below, with
+`make coverage` (see the end for how to reproduce). Both suites green.
+
+## The figure covers the broker, and the broker is four repositories
+
+`corRest`, `corNgsild` and `corJsonld` are static archives whole-archived into the
+binary — `corNgsild` alone is 12k lines, most of the NGSI-LD rulebook, three quarters
+the size of `coraine/src`. Until 2026-09-01 `make coverage` linked them exactly as
+`make libs` had left them: ordinary flags, no gcov counters. They were therefore not
+reported as *uncovered*, they were **absent** — in neither numerator nor denominator —
+and `--root coraine/src` kept the omission out of sight. Roughly half the broker's C
+sat outside a number presented as the broker's.
 
 | Run | Tests | Lines | Functions | Branches |
 |-----|-------|-------|-----------|----------|
-| `make coverage DB=mongoc` | 620 / 620 pass | 81.8% (13265/16216) | 95.2% (556/584) | **60.8%** (7721/12691) |
-| `make coverage` (corDB) | 571 / 571 pass | 76.7% (10980/14320) | 89.5% (486/543) | **56.3%** (6551/11643) |
+| `make coverage DB=mongoc` | 623 / 623 pass | 82.7% (26130/31613) | 95.1% (1310/1378) | **64.3%** (18080/28102) |
+| `make coverage` (corDB) | 573 / 573 pass | 78.9% (23451/29717) | 90.9% (1215/1337) | **61.6%** (16675/27054) |
 
-> **What moved, and why it was not new tests.** The previous measurement
-> (2026-08-20, `e8e6bb6`) read 80.7% / 93.7% / 60.8% on mongoc. Four new functest
-> cases account for a little of the rise; almost all of it is **twenty dead static
-> functions being deleted**. They were unreachable — nothing called them — so they
-> could never be covered, and every one of them was dragging the denominator down.
-> The mongoc function count fell from 604 to 584, which is exactly the twenty. A
-> coverage figure depressed by unreachable code understates the suite rather than
-> flattering it.
+...and per repository, in the mongoc run, which is where it gets interesting:
+
+| Repository | Lines | Functions | Branches |
+|---|---|---|---|
+| `corNgsild` | **84.3%** (10240/12153) | 94.4% (589/624) | 67.4% (8705/12915) |
+| `coraine/src` | 82.9% (13356/16107) | 97.6% (565/579) | 61.7% (7765/12581) |
+| `corJsonld` | 80.0% (825/1031) | 96.5% (55/57) | 67.8% (629/928) |
+| `corRest` | **73.6%** (1709/2322) | 85.6% (101/118) | 58.5% (981/1678) |
+
+The widening was expected to hurt, and it did not. `corNgsild` — the library nobody
+was measuring — is the **best-covered** of the four, and branch coverage went *up*,
+60.8% → 64.3%, because the NGSI-LD rules the functests hammer hardest live there.
+`corRest` is the one thin spot: the HTTP layer's error and negotiation paths, and the
+only place in the four where fewer than nine functions in ten are entered at all.
+
+The two runs disagree almost entirely in one place. `corRest` and `corJsonld` barely
+move between them (73.6% → 73.5%, 80.0% → 79.5%) because nothing in them knows which
+database is underneath; the gap is `coraine/src` (82.9% → 76.9%) and, through the 56
+mongoc-only tests against corDB's 6, `corNgsild` (84.3% → 82.3%).
+
+⚠️ **No figure recorded before 2026-09-01 is comparable with these.** The denominator
+roughly doubles (16216 lines → 31613). A drop against an older number in this file is
+the measurement widening, not the suite regressing.
+
+⚠️ And every pre-2026-09-01 figure measured a build nobody ships. Both coverage
+targets passed their flags in `DFLAGS`, which **replaces** each lib's own definition
+rather than adding to it — so `corNgsild` lost `-DANSI` *and* `-DCOR_WITH_ICU` and
+compiled its dependency-free collation approximation while the broker went on linking
+libicu. The instrumentation now goes through an `EXTRA_CFLAGS` hook, appended last.
+The suite could not tell the two builds apart until
+`orderby_collation_locale.test` was written to do exactly that.
 
 ## Why two runs, and why the totals differ
 
@@ -23,7 +56,7 @@ They are separate measurements, not two views of one. A test that pins a
 backend-specific answer — mongo's earth model in the fourth digit of a distance, or
 the tenant-wide 2dsphere index that makes a GeoProperty and a Property refuse to
 share an Attribute name — declares `REQUIRE_DB` and belongs to one run only. Hence
-620 tests against mongoc and 571 against corDB.
+623 tests against mongoc and 573 against corDB.
 
 Each report also excludes the DB plugin that is *not* under test: a corDB run cannot
 execute a line of `mongoc.so`, and counting it would measure the choice of backend
@@ -33,16 +66,23 @@ rather than the state of the suite.
 
 A line is covered if it ran once. `if (a && b)` that only ever runs with both true is
 a covered line and two uncovered branches — and the second case is where untested
-behaviour hides. That is why branch coverage sits ~20 points below line coverage
-here, and why it is the figure to move.
+behaviour hides. That is why branch coverage sits close to twenty points below line
+coverage here, and why it is the figure to move.
 
 ## "Anything less than 100% is laziness"
 
-It is worth being precise about what the missing 18.2% actually is, because the
+It is worth being precise about what the missing 17.3% actually is, because the
 reflex answer — *it's all unreachable error handling* — is not what the data says.
 
-Of the **2951 uncovered lines** in the mongoc run, one bucket is measured directly
-and is the one that moved:
+⚠ **The breakdown that follows is `coraine/src` only, from 2026-08-27.** It was
+hand-sampled against a gcov run of that source, and line numbers move the moment a
+file is edited, so it cannot simply be re-scaled. Of today's **5483 uncovered lines**,
+2751 are in `coraine/src` and **2732 are in the three libs and have never been
+classified at all** — that is the next piece of this analysis to do, and `corRest`
+at 73.6% is where to start.
+
+Of the **2951 uncovered lines** in the 2026-08-27 mongoc run, one bucket was measured
+directly and was the one that moved:
 
 | Share | What it is |
 |-------|-----------|
@@ -105,7 +145,7 @@ make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
 make coverage-etsi           # ETSI TP suite, instrumenting the libs too
 ```
 
-Three details the target handles, each of which produced a wrong number before it did:
+Five details the target handles, each of which produced a wrong number before it did:
 
 1. **The coverage tree is rebuilt from scratch.** `.gcno` files of a renamed or
    deleted source are never cleaned up, and gcovr reports those vanished files as
@@ -119,7 +159,26 @@ Three details the target handles, each of which produced a wrong number before i
 3. **gcovr is told not to abort on GCC bug 68080.** gcov occasionally reports a
    negative hit count in a threaded binary; without
    `--gcov-ignore-parse-errors=negative_hits.warn_once_per_file` a twenty-minute run
-   ends with no report at all.
+   ends with no report at all. The flag needs **gcovr >= 8.3**, pinned in
+   `corLibs/docker/Dockerfile.ci-nightly`: on 8.2 it was read only by the text
+   `.gcov` parser, and on >= 8.3 without it gcovr does not fail — it silently drops
+   the whole affected file from the report and exits 0.
+4. **The libs are instrumented and the root moves up to the sibling directory.**
+   Otherwise `corRest`, `corNgsild` and `corJsonld` link in with no counters and
+   vanish from both sides of the fraction, as they did until 2026-09-01.
+5. **The flags go in `EXTRA_CFLAGS`, never `DFLAGS`.** `DFLAGS` is a plain variable
+   in each lib's makefile, so setting it on the command line *replaces* the lib's own
+   defaults — and a `DFLAGS +=` inside the makefile is then ignored too, because `+=`
+   never appends to a command-line variable. `corNgsild` lost `-DANSI` and
+   `-DCOR_WITH_ICU` that way and compiled its non-ICU collation fallback while the
+   broker went on linking libicu. `EXTRA_CFLAGS` is appended last, so `-O0` beats
+   `-O2` and `-Wno-error` beats `-Werror` without displacing anything.
+
+Afterwards the libs are **left instrumented**, and getting out of that takes
+`make libs-rebuild`, not `make libs`: `libs` is each lib's own incremental build, and
+a change of compiler flags is invisible to it — the objects are newer than their
+sources, so it rebuilds nothing and `corNgsild` stays instrumented inside a build
+that calls itself ordinary.
 
 The per-spec-statement view — which statements of TS 104-175 have a test asserting
 them — is a different question, tracked in
