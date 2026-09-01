@@ -70,6 +70,24 @@ libs:
 	done
 
 #
+# The way OUT of a coverage build - and it has to be a separate target.
+#
+# `libs` above is each lib's own incremental `make di`, and a change of COMPILER
+# FLAGS is invisible to that: after `make coverage` the objects are instrumented
+# and NEWER than their sources, so `make libs` rebuilds precisely nothing. What
+# you get is not a warning but two silent wrongs - corNgsild stays instrumented
+# inside a build that calls itself ordinary (`--coverage -O0`, so also a build
+# nobody should measure performance on), and corRest fails outright, because its
+# own test binary is linked without -lgcov and every object now wants
+# __gcov_init. The coverage targets say to run this one, not `libs`.
+#
+libs-rebuild:
+	@for lib in $(SIBLING_LIBS); do \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib clean >/dev/null || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib di    || exit 1; \
+	done
+
+#
 # src/app/coraine/coraineStack.h - the resolved commit of every library linked in.
 #
 # GENERATED, never committed. The broker is largely library code, the cor* repos
@@ -272,7 +290,8 @@ coverage:
 	@echo "Coverage report ($(COV_DB)): file://$(CURDIR)/$(COV_REPORT)"
 	@echo ""
 	@echo "NOTE: $(COV_LIBS) are left INSTRUMENTED (--coverage -O0)."
-	@echo "      Run 'make libs' before an ordinary build or a perf measurement."
+	@echo "      Run 'make libs-rebuild' before an ordinary build or a perf measurement."
+	@echo "      Not 'make libs' - that is incremental and would rebuild nothing."
 #
 # Now, and only now, the suite's verdict. The report exists either way.
 #
@@ -325,6 +344,10 @@ coverage-etsi:
 	      $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS))
 	@echo ""
 	@echo "ETSI coverage report: file://$(CURDIR)/$(COV_ETSI_DIR)/index.html"
+	@echo ""
+	@echo "NOTE: $(COV_LIBS) are left INSTRUMENTED (--coverage -O0)."
+	@echo "      Run 'make libs-rebuild' before an ordinary build or a perf measurement."
+	@echo "      Not 'make libs' - that is incremental and would rebuild nothing."
 
 install_from_coverage: etc/contextSourceExtras.json
 	$(call install_from,$(BUILD_COVERAGE))
@@ -334,4 +357,4 @@ di:         debug install_debug
 ci:         clean release install
 cdi:        clean debug install_debug
 
-.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs
+.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild
