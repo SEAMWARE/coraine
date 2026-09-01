@@ -207,6 +207,7 @@ Content-Length: REGEX(\d+)
     "params": {
       "id": "urn:R1",
       "pick": "speed,id,type,scope",
+      "sysAttrs": "true",
       "type": "Vehicle"
     },
     "url": "/ngsi-ld/v1/entities",
@@ -263,6 +264,9 @@ Content-Length: REGEX(\d+)
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
       "User-Agent": "REGEX(Coraine/.*)",
       "Via": "1.1 localhost:1026"
+    },
+    "params": {
+      "sysAttrs": "true"
     },
     "url": "/ngsi-ld/v1/entityOperations/query",
     "verb": "POST"

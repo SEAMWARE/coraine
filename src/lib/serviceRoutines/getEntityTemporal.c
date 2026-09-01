@@ -173,8 +173,9 @@ static const char* buildTemporalForwardQuery(KAlloc* kaP)
     NULL
   };
 
-  // Worst-case length: each (key=value&) plus NULL terminator.
-  int len = 1;
+  // Worst-case length: each (key=value&) plus NULL terminator, plus
+  // "&sysAttrs=true".
+  int len = 1 + 15;
   for (int i = 0; i < corRest.in.uriParamCount; i++)
   {
     const char* key = corRest.in.uriParamV[i].key;
@@ -211,6 +212,20 @@ static const char* buildTemporalForwardQuery(KAlloc* kaP)
       memcpy(buf + pos, val, vl);
       pos += vl;
     }
+  }
+
+  //
+  // sysAttrs is not in forwardKeys because it is not a filter - it shapes the
+  // response. A temporal retrieve merges per-instance time series rather than
+  // resolving § 4.5.5.3 conflicts, so the sources need it only when the CLIENT
+  // asked - but then they do need it, and the parsed flag is the only place
+  // that knows: the client can spell it `sysAttrs=true` or `options=sysAttrs`.
+  //
+  if (corNgsild.sysAttrs)
+  {
+    if (pos > 0) buf[pos++] = '&';
+    memcpy(buf + pos, "sysAttrs=true", 13);
+    pos += 13;
   }
 
   buf[pos] = 0;

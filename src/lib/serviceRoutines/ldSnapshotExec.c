@@ -33,7 +33,7 @@
 #include "corNgsild/ldStripAtContext.h"                   // ldStripAtContext
 #include "corNgsild/ldApiEntityToDbModel.h"               // ldApiEntityToDbModel
 #include "corNgsild/ldExpiresAtPropagate.h"            // ldExpiresAtPropagate
-#include "corNgsild/ldDistMerge.h"                        // ldDistInstanceShouldReplace, ldDistInstanceIsExpired, ldDistExpiresAtReconcile, ldDistScopeMerge
+#include "corNgsild/ldDistMerge.h"                        // ldDistMergeSourceInto, ldDistInstanceIsExpired
 #include "corNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
@@ -378,6 +378,16 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
   if (pos == 0)
     APPEND_KV("local", "true");
 
+  //
+  // sysAttrs=true, for the same reason the split-mode entity query sends it
+  // (getEntities.c/buildSplitForwardQueryString): a snapshot assembled from
+  // several sources resolves (attrName, dsKey) conflicts per § 4.5.5.3, whose
+  // last rule is "newest modifiedAt wins" - and modifiedAt is a System
+  // Attribute a source only emits when asked. Appended after the local=true
+  // fallback, which keys off pos == 0.
+  //
+  APPEND_KV("sysAttrs", "true");
+
   qs[pos] = 0;
   return qs;
 
@@ -487,66 +497,16 @@ static void snapshotExpiryApply(KjNode* entityP, uint64_t nowNs)
 
 //
 // mergeFragmentInto - merge `srcDb` (DB-format entity from a CSR) into
-// `destDb` (the snap-tenant's existing DB-format entity for the same
-// id). Per-attr / per-datasetId conflict resolution follows § 4.5.5.3
-// via ldDistInstanceShouldReplace.
+// `destDb` (the snap-tenant's existing DB-format entity for the same id).
 //
-// Both trees are mutated in place; the caller is responsible for
-// passing trees in a long-enough-lived allocator (typically corRest.kjsonP).
+// A thin wrapper over the shared § 4.5.5.3 merge, kept for the name at the
+// call sites and for the one thing that is snapshot-specific: clone=true.
+// destDb is frozen into the snap-tenant and outlives srcDb, so instances are
+// copied into corRest.kjsonP rather than moved out of the response tree.
 //
 static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
 {
-  if (destDb == NULL || srcDb == NULL || destDb->type != KjObject || srcDb->type != KjObject)
-    return;
-
-  // The non-reified entity-level expiresAt is not an Attribute and so takes
-  // its own § 4.5.5.3 route: unanimous across versions or gone.
-  ldDistExpiresAtReconcile(destDb, srcDb);
-
-  // § 5.2.7 — the Scopes of every version are merged, here into the frozen copy
-  ldDistScopeMerge(destDb, srcDb, corRest.kjsonP);
-
-  KjNode* srcAttrP = srcDb->value.firstChildP;
-  while (srcAttrP != NULL)
-  {
-    KjNode* nextSrcAttr = srcAttrP->next;
-
-    if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
-        strcmp(srcAttrP->name, "id")   == 0 ||
-        strcmp(srcAttrP->name, "_id")  == 0 ||
-        strcmp(srcAttrP->name, "type") == 0 ||
-        srcAttrP->type != KjObject)
-    {
-      srcAttrP = nextSrcAttr;
-      continue;
-    }
-
-    KjNode* destAttrP = kjLookup(destDb, srcAttrP->name);
-    if (destAttrP == NULL)
-    {
-      // Attr absent in dest — clone the whole wrapper across.
-      kjChildAdd(destDb, kjClone(corRest.kjsonP, srcAttrP));
-    }
-    else
-    {
-      // Per-dsKey instance merge.
-      for (KjNode* srcInstP = srcAttrP->value.firstChildP; srcInstP != NULL; srcInstP = srcInstP->next)
-      {
-        KjNode* destInstP = kjLookup(destAttrP, srcInstP->name);
-        if (destInstP == NULL)
-        {
-          if (!ldDistInstanceIsExpired(srcInstP, nowNs))
-            kjChildAdd(destAttrP, kjClone(corRest.kjsonP, srcInstP));
-        }
-        else if (ldDistInstanceShouldReplace(destInstP, srcInstP, nowNs))
-        {
-          kjChildReplace(destAttrP, destInstP, kjClone(corRest.kjsonP, srcInstP));
-        }
-      }
-    }
-
-    srcAttrP = nextSrcAttr;
-  }
+  ldDistMergeSourceInto(destDb, srcDb, (int64_t) nowNs, corRest.kjsonP, true);
 }
 
 
