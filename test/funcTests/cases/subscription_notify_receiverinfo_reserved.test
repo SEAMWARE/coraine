@@ -95,6 +95,15 @@ sleep 0.4
 ftClientDump
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. receiverInfo Content-Length -> 400
 ======================================
@@ -275,5 +284,6 @@ Content-Length: 0
     "verb": "POST"
   }
 ]
+[]
 --TEARDOWN--
 coraineStop

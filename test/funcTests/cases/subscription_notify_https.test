@@ -53,6 +53,15 @@ corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:S1 | grep -E "\"status\"|tim
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Subscribe to T with an https endpoint, then create + update to trigger
 ===========================================================================
@@ -74,6 +83,7 @@ HTTP/1.1 201 Created
   "notificationTrigger": [
   "status": "active",
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

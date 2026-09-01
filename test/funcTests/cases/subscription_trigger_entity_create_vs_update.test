@@ -89,6 +89,15 @@ corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1 >/dev/null
 dump
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Create S_EC [entityCreated] and S_EU [entityUpdated] (both on type Vehicle)
 ===============================================================================
@@ -122,5 +131,6 @@ done
 06. DELETE entity → neither fires (entityUpdated != entityDeleted)
 =================================================================
 0 notifications
+[]
 --TEARDOWN--
 coraineStop

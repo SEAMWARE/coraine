@@ -131,6 +131,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Seed Vehicle and create snapshot WITHOUT endpoint (no notification)
 =======================================================================
@@ -236,6 +245,7 @@ Date: REGEX(.*)
   expiresAt < notifiedAt: True
 
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

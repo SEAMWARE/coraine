@@ -88,6 +88,17 @@ echo
 echo
 
 
+#
+# The 100 patches notify, so the trailing check counts them instead of dumping
+# them: one notification per patch, none lost, none doubled. ftClientCount reads
+# a bare integer - a hundred notifications is ~56 KB of JSON, and there is no
+# reason to render it to assert a number.
+#
+echo "06. One notification per patch"
+echo "=============================="
+ftClientSettle
+ftClientCount
+
 --EXPECT--
 01. Create subscription
 =======================
@@ -135,6 +146,9 @@ Content-Length: 71
 
 
 
+06. One notification per patch
+==============================
+100
 --TEARDOWN--
 coraineStop
 ftClientStop

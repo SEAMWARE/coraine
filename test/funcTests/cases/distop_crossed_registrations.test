@@ -29,6 +29,17 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump --port 7711
+echo
+ftClientDump --port 7712
+echo
+
 --EXPECT--
 01. Register A@7711 (E:1 property a) and B@7712 (E:1 property b)
 ===============================================================
@@ -44,6 +55,8 @@ source B (7712):
   requests: 1
 
 
+[]
+[]
 --TEARDOWN--
 ftClientStop --port 7711
 ftClientStop --port 7712

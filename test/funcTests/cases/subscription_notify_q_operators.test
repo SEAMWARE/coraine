@@ -98,6 +98,15 @@ ftClientDump | grep -E "subscriptionId|\"id\": \"urn:ngsi-ld:[EN]:" | sort
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Create one subscription per operator
 ========================================
@@ -170,6 +179,7 @@ HTTP/1.1 201 Created
       "subscriptionId": "urn:ngsi-ld:Sub:RANGE",
       "subscriptionId": "urn:ngsi-ld:Sub:SA",
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

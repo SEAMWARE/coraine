@@ -190,6 +190,27 @@ echo
 echo
 
 
+#
+# Step 13 created urn:E4, and that notifies too - the trailing check below is
+# what found it unread. Read it here, where it belongs.
+#
+echo "15. urn:E4's create notification"
+echo "================================"
+ftClientWait 1
+ftClientDump | grep -cE '"id": "urn:E4"'
+echo
+echo
+
+
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Create a subscription on entity type T
 ==========================================
@@ -488,6 +509,12 @@ Content-Length: REGEX(\d+)
 
 
 
+15. urn:E4's create notification
+================================
+1
+
+
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

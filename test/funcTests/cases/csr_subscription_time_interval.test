@@ -72,6 +72,21 @@ echo
 echo
 
 
+#
+# A timeInterval subscription never stops on its own, so "nothing arrived" can
+# only be asserted once it is gone. Deleting it first turns the trailing check
+# into a real one: the periodic engine drops the subscription and stops ticking
+# for it, rather than leaving a timer running against a deleted sub.
+#
+echo "05. Delete the CSR-sub — the periodic engine stops ticking for it"
+echo "================================================================="
+corCurl -X DELETE --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSRTimeInterval | head -1
+ftClientSettle 1500
+ftClientDump > /dev/null      # drain whatever was already in flight at delete time
+ftClientSettle 1500
+ftClientDump
+echo
+
 --EXPECT--
 01. Register a CSR (target Vehicle.speed)
 =========================================
@@ -97,6 +112,10 @@ HTTP/1.1 201 Created
   data carries CSR R1: True
 
 
+05. Delete the CSR-sub — the periodic engine stops ticking for it
+=================================================================
+HTTP/1.1 204 No Content
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

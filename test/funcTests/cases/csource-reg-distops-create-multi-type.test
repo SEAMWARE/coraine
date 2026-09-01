@@ -85,6 +85,17 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump --port 7711
+echo
+ftClientDump --port 7712
+echo
+
 --EXPECT--
 01. Register CSR_B (inclusive, type=Building) -> ftClient@7711
 ===============================================================
@@ -128,6 +139,8 @@ Content-Length: 0
   - POST /ngsi-ld/v1/entities
 
 
+[]
+[]
 --TEARDOWN--
 coraineStop
 corDbDrop

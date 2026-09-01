@@ -96,6 +96,15 @@ corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/speed >/dev/null
 dump
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Subs: S_DEF(default) S_AU(attributeUpdated) S_AD(attributeDeleted) S_EU(entityUpdated)
 =========================================================================================
@@ -128,5 +137,6 @@ done
 2 notifications
   urn:S_AD
   urn:S_EU
+[]
 --TEARDOWN--
 coraineStop
