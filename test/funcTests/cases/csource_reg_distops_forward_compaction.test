@@ -257,6 +257,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump --port 7711
+echo
+
 --EXPECT--
 01. Exclusive CSR on urn:V1 claiming speed (no csi.jsonldContext)
 ==================================================================
@@ -442,6 +451,7 @@ HTTP/1.1 204 No Content
       "Link": "<http://localhost:7080/jsonldContexts/veh>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
 
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop --port 7711

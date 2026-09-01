@@ -56,6 +56,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Subscribe — endpoint on non-default port 7701, receiverInfo fiware-service
 ==============================================================================
@@ -74,6 +83,7 @@ HTTP/1.1 201 Created
       "fiware-service": "openiot"
 
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

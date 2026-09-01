@@ -842,6 +842,38 @@ ftClientProbeCount() {
 }
 
 
+# ftClientSettle [ms] [--port P] - the window in which NOTHING should arrive.
+#
+# The last thing a notification test does. `ftClientWait N` returns the instant
+# the Nth notification lands and never looks for an N+1th, so a notification the
+# broker should not have sent is invisible to it. This waits out the delivery
+# window with nothing expected, and the ftClientDump that follows asserts the
+# accumulator is empty - in the test's own --EXPECT--, where it can be read.
+#
+# Why 50 ms. Measured, not chosen: from "triggering response in hand" to
+# "notification landed at ftClient", over 1300 samples on an idle machine, on 32
+# cores under 64 busy loops, and pinned to 2 contended CPUs, the worst observed
+# was 5.9 ms and p99 was 4 ms. It stays small by construction - the deferred
+# notification queue is per-connection and thread-local (ldNotifyDefer.c), so it
+# is flushed inside the request rather than handed to a thread a loaded
+# scheduler can starve. 50 ms is ~8x the worst measurement; it costs the suite
+# about 6 seconds in total.
+#
+# Under valgrind, delivery is slower by the same factor as everything else.
+#
+ftClientSettle() {
+  local ms=50
+  local explicit=""
+  [ -n "$1" ] && [ "$1" != "--port" ] && [ "$1" != "-p" ] && { ms="$1"; explicit=yes; shift; }
+
+  # Only the DEFAULT scales under valgrind. A caller that names a number has
+  # already decided what it is waiting for - multiplying it by 20 turned a 2 s
+  # settle into 40 s and a 10 s test into 93 s.
+  [ "$COR_VALGRIND" == "1" ] && [ -z "$explicit" ] && ms=$((ms * 20))
+
+  sleep "$(awk "BEGIN { printf \"%.3f\", $ms / 1000 }")"
+  return 0
+}
 
 
 # corHttpsCertGen [keyFile] [certFile] - generate a self-signed key + certificate

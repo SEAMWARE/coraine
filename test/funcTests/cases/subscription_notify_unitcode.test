@@ -41,6 +41,15 @@ ftClientDump
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Subscribe to T, then create an entity whose Property carries unitCode=CEL
 =============================================================================
@@ -81,6 +90,7 @@ HTTP/1.1 201 Created
   }
 ]
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

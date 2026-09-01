@@ -71,6 +71,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Subscribe + create E with P=5 (unitCode A) — notifies
 =========================================================
@@ -226,6 +235,7 @@ HTTP/1.1 204 No Content
 ]
 
 
+[]
 --TEARDOWN--
 coraineStop
 corDbDrop

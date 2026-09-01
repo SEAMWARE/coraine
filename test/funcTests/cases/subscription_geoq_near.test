@@ -123,6 +123,15 @@ ftClientDump | grep -E "subscriptionId|\"id\": \"urn:ngsi-ld:[A-Z]" | grep -v No
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. near;maxDistance — radius 200 km around Madrid (geoproperty=location)
 =========================================================================
@@ -173,6 +182,7 @@ HTTP/1.1 201 Created
       "subscriptionId": "urn:ngsi-ld:Subscription:Shapes",
       "subscriptionId": "urn:ngsi-ld:Subscription:Shapes",
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

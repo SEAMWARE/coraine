@@ -98,6 +98,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump --port 7711
+echo
+
 --EXPECT--
 01. Seed a local Vehicle so the geo-query DB index exists
 =========================================================
@@ -133,6 +142,7 @@ Content-Length: 0
   forwarded pick: ['id', 'location', 'scope', 'speed', 'type']
 
 
+[]
 --TEARDOWN--
 ftClientStop --port 7711
 coraineStop

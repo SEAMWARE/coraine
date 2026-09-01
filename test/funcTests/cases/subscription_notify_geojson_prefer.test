@@ -44,6 +44,15 @@ sleep 0.4
 ftClientDump
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. default geo+json -> @context a top-level FeatureCollection member, no Link header
 ====================================================================================
@@ -147,5 +156,6 @@ ftClientDump
     "verb": "POST"
   }
 ]
+[]
 --TEARDOWN--
 coraineStop

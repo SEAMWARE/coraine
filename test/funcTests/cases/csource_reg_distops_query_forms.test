@@ -154,6 +154,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump --port 7711
+echo
+
 --EXPECT--
 01. Local entity urn:L1 (no speed)
 ==================================
@@ -341,6 +350,7 @@ HTTP/1.1 404 Not Found
     "url": "/ngsi-ld/v1/entityOperations/query",
 
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop --port 7711

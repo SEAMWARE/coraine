@@ -113,6 +113,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Subscription with bad ngsildConformance — 400
 =================================================
@@ -168,6 +177,7 @@ sub=urn:ngsi-ld:Subscription:v18
   attr-kinds: name=LanguageProperty config=JsonProperty category=VocabProperty stops=ListProperty drivers=ListRelationship
 
 
+[]
 --TEARDOWN--
 coraineStop
 ftClientStop

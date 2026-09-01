@@ -64,6 +64,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump --port 7711
+echo
+
 --EXPECT--
 01. Seed P1 + V1 (parking → P1)
 ===============================
@@ -89,6 +98,7 @@ HTTP/1.1 204 No Content
             "object": "urn:P1",
 
 
+[]
 --TEARDOWN--
 ftClientStop --port 7711
 coraineStop

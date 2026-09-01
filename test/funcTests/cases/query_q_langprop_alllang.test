@@ -92,6 +92,15 @@ echo
 echo
 
 
+#
+# Nothing should have arrived since the last read. ftClientWait returns the
+# instant its Nth notification lands and never looks for an N+1th, so this is
+# where an unwanted one is caught.
+#
+ftClientSettle
+ftClientDump
+echo
+
 --EXPECT--
 01. Seed LanguageProperties: L1 string, L2 array in de, L3 no pain, L4 array in en
 ==================================================================================
@@ -313,6 +322,7 @@ HTTP/1.1 201 Created
 ]
 
 
+[]
 --TEARDOWN--
 coraineStop
 corDbDrop
