@@ -14,11 +14,16 @@ because untested behaviour is a real risk even when the behaviour is correct.
 Generated from the spec-feature audit workflow (70 spec units) + `make coverage`
 baseline. COMPLETE.
 
-## Line-coverage baseline (2026-08-20, `e8e6bb6`)
+## Line coverage is a different question
 
-- `make coverage DB=mongoc`, 613/613 pass: Lines 80.7% (13374/16570) · Functions 93.7% (563/601) · **Branches 60.8% (7806/12843)** = the real target
-- `make coverage` (corDB), 563/563 pass: Lines 74.4% (10922/14674) · Functions 85.7% (480/560) · **Branches 55.4% (6529/11795)**
-- What the uncovered lines actually are, and what a ceiling without mocks looks like: [`coverage.md`](coverage.md)
+This file is about which STATEMENTS OF THE SPEC have a test asserting them. Line
+coverage answers something else entirely - which lines of our C ran - and a file can
+be at 100% of one and half of the other.
+
+It used to carry a copy of the line-coverage baseline, which then went stale against
+a denominator that had changed underneath it. The figures live in
+[`coverage.md`](coverage.md), which is the one place they are measured and the one
+place they are kept.
 
 ## Matrix: 2314 spec statements — 1051 asserted by a test, 373 partially, 890 unasserted; 245 high-priority
 
