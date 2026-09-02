@@ -439,12 +439,20 @@ bool postEntityBatchMerge(void)
       KjNode* idP = kjLookup(inP, "id");
       if (idP != NULL && idP->type == KjString) eid = idP->value.s;
 
-      char snapshot[512];
-      strncpy(snapshot, corRest.out.problemDetail, sizeof(snapshot) - 1);
-      snapshot[sizeof(snapshot) - 1] = 0;
-
+      //
+      // problemDetail is handed straight to addBatchError - no local copy. It
+      // ends up in kjString(), which memcpy's the value into the KjNode's own
+      // allocation, so the buffer is free to be reused on the next iteration
+      // before this one is rendered.
+      //
+      // "Invalid Entity" is DELIBERATE, and decided here rather than taken from
+      // corRest.out.problemTitle: an invalid attribute makes the whole entity
+      // invalid, and the whole entity is what gets discarded. The specific title
+      // the check function set is not lost - ldError logs it, with its own file
+      // and line.
+      //
       addBatchError(errorsP, eid, 400,
-                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Entity", snapshot, NULL);
+                    LD_ERROR_BAD_REQUEST_DATA, "Invalid Entity", corRest.out.problemDetail, NULL);
 
       corRest.out.httpStatusCode   = 0;
       corRest.out.problemType      = NULL;
