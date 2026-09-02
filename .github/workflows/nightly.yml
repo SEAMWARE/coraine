@@ -65,8 +65,17 @@ jobs:
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
+      #
+      # A REPLICA SET - the HA cache sync watches a change stream, a change stream
+      # reads the oplog, and a standalone mongod has none. On a standalone
+      # ha_cache_sync.test leaves the run set SILENTLY, which is why the coverage
+      # figure reported the HA paths as untested code for weeks. `services:` passes
+      # docker-create options but not a command, so --replSet cannot be set from
+      # here - hence an image whose whole content is that command. The set is
+      # initiated by a step; see .github/scripts/mongo-rs-init.sh.
+      #
       mongo:
-        image: mongo:8.0
+        image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
         ports: ['27017:27017']
       timescale:
         image: timescale/timescaledb-ha:pg16
@@ -125,6 +134,13 @@ jobs:
       # "report generated" instead. Tee it, so the numbers reach both the log and
       # the run summary - which is what the comment above this job always claimed.
       #
+      #
+      # The set is initiated here rather than in the image: a member is addressed by
+      # the name its clients use, and the image cannot know that name.
+      #
+      - name: Initiate the mongo replica set
+        run: stack/coraine/.github/scripts/mongo-rs-init.sh
+
       - name: Coverage - mongoc
         working-directory: stack/coraine
         run: |
@@ -288,8 +304,17 @@ jobs:
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
+      #
+      # A REPLICA SET - the HA cache sync watches a change stream, a change stream
+      # reads the oplog, and a standalone mongod has none. On a standalone
+      # ha_cache_sync.test leaves the run set SILENTLY, which is why the coverage
+      # figure reported the HA paths as untested code for weeks. `services:` passes
+      # docker-create options but not a command, so --replSet cannot be set from
+      # here - hence an image whose whole content is that command. The set is
+      # initiated by a step; see .github/scripts/mongo-rs-init.sh.
+      #
       mongo:
-        image: mongo:8.0
+        image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
         ports: ['27017:27017']
       timescale:
         image: timescale/timescaledb-ha:pg16
@@ -325,6 +350,13 @@ jobs:
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
           make di
+      #
+      # The set is initiated here rather than in the image: a member is addressed by
+      # the name its clients use, and the image cannot know that name.
+      #
+      - name: Initiate the mongo replica set
+        run: stack/coraine/.github/scripts/mongo-rs-init.sh
+
       - name: Suite under valgrind - tests ${{ matrix.shard.name }}
         working-directory: stack/coraine
         run: |
@@ -376,6 +408,10 @@ jobs:
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
+      #
+      # Standalone: the TP suite has no HA test, so there is nothing here that needs
+      # a change stream, and an oplog would only be overhead.
+      #
       mongo:
         image: mongo:8.0
         ports: ['27017:27017']
@@ -560,6 +596,12 @@ jobs:
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
+      #
+      # STANDALONE on purpose, unlike the coverage and valgrind jobs above. This job
+      # compares against RECORDED HISTORY, and a replica set puts every write through
+      # an oplog - the baseline would move under it and the comparison would be
+      # measuring the change of database topology, not the change in the broker.
+      #
       mongo:
         image: mongo:8.0
         ports: ['27017:27017']
