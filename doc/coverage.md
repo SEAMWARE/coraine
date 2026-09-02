@@ -74,14 +74,27 @@ The measurements above were taken against a **single-node replica set**, so they
 include the HA code — 108/149 lines, 10/10 functions, 72/114 branches across
 `haInit.c`, `haEventApply.c` and `mongocHaWatch.c`.
 
-**CI runs a standalone `mongo:8.0`**, so the nightly's published figure does not:
-those 108 lines and 10 functions read as entirely unexecuted there, worth
-−0.34 pp on lines, −0.73 pp on functions and −0.26 pp on branches against the numbers
-in this file. The two are not comparable until CI grows an oplog.
+**CI ran a standalone `mongo:8.0` until 2026-09-02**, and so the nightly's published
+figure did not include any of it: those 108 lines and 10 functions read as entirely
+unexecuted there, worth −0.34 pp on lines, −0.73 pp on functions and −0.26 pp on
+branches against a local run. Since then the jobs that run the suite — `ci.yml`'s
+functest matrix and the nightly's coverage and valgrind jobs — use
+`quay.io/seamware/mongo-rs`, which is `mongo:8.0` with `--replSet` on the command
+line, and initiate the set from `.github/scripts/mongo-rs-init.sh`. The CI figure and
+the figure in this file now measure the same thing.
 
-⚠️ Every earlier revision of this file called those lines *untested code needing an
-environment the harness does not stand up*. That sentence was describing our own CI,
-not the broker, and it is the reason the distinction is spelled out here.
+Two jobs deliberately stay on a standalone, and the reason is worth knowing before
+anyone "fixes" them: the **perf** job compares against recorded history, and putting
+every write through an oplog would move the baseline out from under it — the
+comparison would be measuring a change of database topology rather than a change in
+the broker. The **ETSI** job has no HA test, so nothing there needs a change stream.
+
+⚠️ Every revision of this file before 2026-09-02 called those lines *untested code
+needing an environment the harness does not stand up*. The harness stands it up
+perfectly well — it was our own CI that did not, and the sentence read as a property
+of the broker. That is the whole reason this section exists: **a coverage figure is a
+measurement of an environment as much as of a suite**, and nothing in the output says
+which environment produced it.
 
 The corDB run does not enter them either, and correctly so — `ha_cache_sync.test`
 declares `REQUIRE_DB: mongoc`, because the sync it tests is a mongo mechanism.
@@ -223,7 +236,9 @@ Six details, each of which produced a wrong number before it was handled:
 6. **The mongod must be a replica set** for the run to include the HA paths, and a
    single-node set is enough — `mongod --replSet rs0`, then `rs.initiate()` once. On
    a standalone the numbers are quietly lower and nothing says why; see the section
-   above.
+   above. CI gets this from the `mongo-rs` service image plus
+   `.github/scripts/mongo-rs-init.sh`; on a workstation it is a property of the
+   mongod you happen to be running.
 
 Afterwards the libs are **left instrumented**, and getting out of that takes
 `make libs-rebuild`, not `make libs`: `libs` is each lib's own incremental build, and
