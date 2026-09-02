@@ -186,8 +186,18 @@ jobs:
       image: quay.io/seamware/coraine-ci:2026-08-24-814ad08
 
     services:
+      #
+      # A REPLICA SET, not a standalone. The HA cache sync rides on a mongo change
+      # stream, a change stream reads the oplog, and a standalone mongod has none -
+      # so corTestParams.sh detects the environment and ha_cache_sync.test silently
+      # leaves the run set on a standalone, which is what happened here from the day
+      # this workflow was written. `services:` passes docker-create OPTIONS but not
+      # a COMMAND, so --replSet cannot be added from this file: hence an image whose
+      # entire content is that command line. The set still has to be INITIATED - see
+      # the step below.
+      #
       mongo:
-        image: mongo:8.0
+        image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
         ports:
           - 27017:27017
 
@@ -260,19 +270,21 @@ jobs:
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
           make di
 
-      - name: Wait for the databases
+      #
+      # The mongo half of the old wait now lives in the script, because initiating
+      # the set has to wait for mongod anyway and two waits would only disagree.
+      #
+      - name: Initiate the mongo replica set
+        run: stack/coraine/.github/scripts/mongo-rs-init.sh
+
+      - name: Wait for timescale
         run: |
-          for i in $(seq 1 30); do
-            mongosh --host mongo --quiet --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1 && break
-            [ "$i" = 30 ] && { echo "mongo never became reachable"; exit 1; }
-            sleep 2
-          done
           for i in $(seq 1 30); do
             psql -h timescale -U postgres -c 'SELECT 1' >/dev/null 2>&1 && break
             [ "$i" = 30 ] && { echo "timescale never became reachable"; exit 1; }
             sleep 2
           done
-          echo "both databases are up"
+          echo "timescale is up"
 
       #
       # 36 tests hardcode http://localhost:7080/jsonldContexts/... and assert that
