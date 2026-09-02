@@ -1,7 +1,7 @@
 # Test coverage
 
-Measured **2026-09-01** on `bfa4d85` plus the new collation test below, with
-`make coverage` (see the end for how to reproduce). Both suites green.
+Measured **2026-09-02** on `e0a5427`, with `make coverage` (see the end for how to
+reproduce). Both suites green: 627/627 on mongoc, 577/577 on corDB.
 
 ## The figure covers the broker, and the broker is four repositories
 
@@ -15,40 +15,76 @@ sat outside a number presented as the broker's.
 
 | Run | Tests | Lines | Functions | Branches |
 |-----|-------|-------|-----------|----------|
-| `make coverage DB=mongoc` | 623 / 623 pass | 82.7% (26130/31613) | 95.1% (1310/1378) | **64.3%** (18080/28102) |
-| `make coverage` (corDB) | 573 / 573 pass | 78.9% (23451/29717) | 90.9% (1215/1337) | **61.6%** (16675/27054) |
+| `make coverage DB=mongoc` | 627 / 627 pass | 82.9% (26180/31573) | 95.7% (1312/1371) | **64.6%** (18132/28078) |
+| `make coverage` (corDB) | 577 / 577 pass | 79.2% (23496/29677) | 91.5% (1217/1330) | **61.8%** (16717/27030) |
 
 ...and per repository, in the mongoc run, which is where it gets interesting:
 
 | Repository | Lines | Functions | Branches |
 |---|---|---|---|
 | `corNgsild` | **84.3%** (10240/12153) | 94.4% (589/624) | 67.4% (8705/12915) |
-| `coraine/src` | 82.9% (13356/16107) | 97.6% (565/579) | 61.7% (7765/12581) |
+| `coraine/src` | 83.0% (13376/16115) | 97.6% (564/578) | 61.9% (7784/12567) |
 | `corJsonld` | 80.0% (825/1031) | 96.5% (55/57) | 67.8% (629/928) |
-| `corRest` | **73.6%** (1709/2322) | 85.6% (101/118) | 58.5% (981/1678) |
+| `corRest` | **76.5%** (1739/2274) | 92.9% (104/112) | 60.8% (1014/1668) |
 
-The widening was expected to hurt, and it did not. `corNgsild` — the library nobody
-was measuring — is the **best-covered** of the four, and branch coverage went *up*,
-60.8% → 64.3%, because the NGSI-LD rules the functests hammer hardest live there.
-`corRest` is the one thin spot: the HTTP layer's error and negotiation paths, and the
-only place in the four where fewer than nine functions in ten are entered at all.
+The same four in the corDB run:
+
+| Repository | Lines | Functions | Branches |
+|---|---|---|---|
+| `corNgsild` | 82.3% (10000/12153) | 92.5% (577/624) | 66.3% (8558/12915) |
+| `corJsonld` | 79.5% (820/1031) | 96.5% (55/57) | 67.3% (625/928) |
+| `coraine/src` | 76.9% (10939/14219) | 89.6% (481/537) | 56.7% (6526/11519) |
+| `corRest` | 76.4% (1737/2274) | 92.9% (104/112) | 60.4% (1008/1668) |
+
+`corNgsild` — the library nobody was measuring until 2026-09-01 — is still the
+**best-covered** of the four, because the NGSI-LD rules the functests hammer hardest
+live there.
 
 The two runs disagree almost entirely in one place. `corRest` and `corJsonld` barely
-move between them (73.6% → 73.5%, 80.0% → 79.5%) because nothing in them knows which
-database is underneath; the gap is `coraine/src` (82.9% → 76.9%) and, through the 56
+move between them (76.5% → 76.4%, 80.0% → 79.5%) because nothing in them knows which
+database is underneath; the gap is `coraine/src` (83.0% → 76.9%) and, through the 56
 mongoc-only tests against corDB's 6, `corNgsild` (84.3% → 82.3%).
 
-⚠️ **No figure recorded before 2026-09-01 is comparable with these.** The denominator
-roughly doubles (16216 lines → 31613). A drop against an older number in this file is
-the measurement widening, not the suite regressing.
+## What moved since 2026-09-01, and why it was not new tests
 
-⚠️ And every pre-2026-09-01 figure measured a build nobody ships. Both coverage
-targets passed their flags in `DFLAGS`, which **replaces** each lib's own definition
-rather than adding to it — so `corNgsild` lost `-DANSI` *and* `-DCOR_WITH_ICU` and
-compiled its dependency-free collation approximation while the broker went on linking
-libicu. The instrumentation now goes through an `EXTRA_CFLAGS` hook, appended last.
-The suite could not tell the two builds apart until
-`orderby_collation_locale.test` was written to do exactly that.
+Four tests were added (623 → 627 on mongoc) and every headline number rose:
+82.7% → 82.9% lines, 95.1% → **95.7%** functions, 64.3% → **64.6%** branches.
+
+Almost none of that is the new tests. It is `corRest`, which went
+73.6% → **76.5%** on lines and 85.6% → **92.9%** on functions without gaining a
+single test of its own — 253 lines were **deleted** from it: the convenience client
+layer no caller could use, and a `CorRestMetrics` block that duplicated what the
+broker already measures from `corRestPostResponseHook`. Nearly all of it was
+uncovered, so removing it moved the fraction from the denominator side.
+
+⭐ **A rise can be dead code removed rather than behaviour newly tested**, and the
+two are indistinguishable in the headline figure. The whole-broker denominator only
+fell 31613 → 31573 across the same week, because the metrics and query-encoding work
+put most of those lines back.
+
+## ⚠️ The figure depends on the environment, and the HA paths are the proof
+
+The HA cache sync (`--high-availability mongo`) rides on a mongo **change stream**,
+and a change stream reads the **oplog** — which a standalone mongod does not have.
+`corTestParams.sh` probes `isMaster.setName` and decides: on a replica set
+`ha_cache_sync.test` is in the run set, on a standalone it is not. It is not reported
+as skipped. Nothing in the output says the HA paths went unexercised.
+
+The measurements above were taken against a **single-node replica set**, so they
+include the HA code — 108/149 lines, 10/10 functions, 72/114 branches across
+`haInit.c`, `haEventApply.c` and `mongocHaWatch.c`.
+
+**CI runs a standalone `mongo:8.0`**, so the nightly's published figure does not:
+those 108 lines and 10 functions read as entirely unexecuted there, worth
+−0.34 pp on lines, −0.73 pp on functions and −0.26 pp on branches against the numbers
+in this file. The two are not comparable until CI grows an oplog.
+
+⚠️ Every earlier revision of this file called those lines *untested code needing an
+environment the harness does not stand up*. That sentence was describing our own CI,
+not the broker, and it is the reason the distinction is spelled out here.
+
+The corDB run does not enter them either, and correctly so — `ha_cache_sync.test`
+declares `REQUIRE_DB: mongoc`, because the sync it tests is a mongo mechanism.
 
 ## Why two runs, and why the totals differ
 
@@ -56,7 +92,7 @@ They are separate measurements, not two views of one. A test that pins a
 backend-specific answer — mongo's earth model in the fourth digit of a distance, or
 the tenant-wide 2dsphere index that makes a GeoProperty and a Property refuse to
 share an Attribute name — declares `REQUIRE_DB` and belongs to one run only. Hence
-623 tests against mongoc and 573 against corDB.
+627 tests against mongoc and 577 against corDB.
 
 Each report also excludes the DB plugin that is *not* under test: a corDB run cannot
 execute a line of `mongoc.so`, and counting it would measure the choice of backend
@@ -71,71 +107,82 @@ coverage here, and why it is the figure to move.
 
 ## "Anything less than 100% is laziness"
 
-It is worth being precise about what the missing 17.3% actually is, because the
+It is worth being precise about what the missing 17.1% actually is, because the
 reflex answer — *it's all unreachable error handling* — is not what the data says.
 
-⚠ **The breakdown that follows is `coraine/src` only, from 2026-08-27.** It was
-hand-sampled against a gcov run of that source, and line numbers move the moment a
-file is edited, so it cannot simply be re-scaled. Of today's **5483 uncovered lines**,
-2751 are in `coraine/src` and **2732 are in the three libs and have never been
-classified at all** — that is the next piece of this analysis to do, and `corRest`
-at 73.6% is where to start.
+Of the **5393 uncovered lines** in the mongoc run — 2739 in `coraine/src`, 1913 in
+`corNgsild`, 535 in `corRest`, 206 in `corJsonld`:
 
-Of the **2951 uncovered lines** in the 2026-08-27 mongoc run, one bucket was measured
-directly and was the one that moved:
-
-| Share | What it is |
-|-------|-----------|
-| **12.3%** (362) | inside **35 functions the suite never enters at all** — and 158 of those lines, 9 functions, are the HA cache-sync paths |
-
-That bucket was 18.3% (586 lines, 38 functions) on 2026-08-20. It shrank because
-most of what was in it turned out to be **dead code rather than untested code** —
-see the note at the top. What is left in it divides cleanly:
-
-- **The HA cache-sync paths** — `mongocHaWatch.c`, `haEventApply.c`, and the tenant
-  and @context cache refresh/drop hooks they drive. 158 lines. These need a MongoDB
-  **replica set**, because change streams do not exist without one. That is an
-  environment the functest harness does not stand up, not a test nobody wrote.
-- **`httpEndpointDetect`** (41 lines) — startup auto-detection of the broker's own
-  externally-reachable endpoint.
-- **Genuinely untested behaviour**, and the honest remainder: `mergeAttrsNonOverriding`
-  (inclusive-mode merge from a Context Source), `geoEntityValidate`,
-  `stripInfoAttrsFromTemporal` / `stripInfoAttrsFromEntity`.
-- **Shutdown paths** — `timescalePoolCloseAll`, `timescaleClose`, `troeStop` — which
-  run when the process is going away and assert nothing a test could read.
-
-⚠ **The other buckets below have not been recomputed** since 2026-08-20, and their
-denominator has changed (3196 uncovered lines then, 2951 now), so the percentages
-would be wrong if carried across unchanged. They are kept as the shape of the
-answer, not as current figures, and the classification is worth redoing:
-
-| Share (of 3196, 2026-08-20) | What it is |
-|-------|-----------|
-| 10.9% (349) | guarded by a **DB / driver failure** — `bson_error_t`, a cursor that fails, `!= DB_OK` |
-| 4.8% (155) | the **NULL-driver-method → 501/422** convention |
-| 2.2% (71) | **defensive** paths — `KT_X`, `default:` on an exhaustive switch, "cannot happen" |
-| 1.3% (42) | **network / socket** failure |
-| 0.5% (18) | `pthread_create` failing, a short `fread`, an allocator returning NULL |
-| 61.8% (1975) | **ordinary code with no failure guard at all** |
+| Share | Lines | What it is |
+|-------|-------|-----------|
+| **60.2%** | 3249 | **ordinary code with no failure guard at all** |
+| 25.5% | 1374 | inside a **NULL / invalid-argument guard** |
+| **9.8%** | 527 | inside **59 functions the suite never enters at all** |
+| 2.4% | 132 | guarded by a **DB / driver failure** — `bson_error_t`, a cursor that fails, `!= DB_OK` |
+| 1.2% | 64 | the **NULL-driver-method → 501/422** convention |
+| 0.5% | 25 | **defensive** paths — `KT_X`, `default:` on an exhaustive switch, "cannot happen" |
+| 0.2% | 12 | `pthread_create` failing, a short `fread`, an allocator returning NULL |
+| 0.2% | 10 | **network / socket** failure |
 
 The part that genuinely needs **fault injection** — a database that fails on demand,
-a socket that dies mid-write, an allocator that returns NULL — was about one line in
-six at that measurement. The largest remaining group is **partial-success assembly**:
-the code that builds the `success` / `errors` arrays when a batch operation
-half-works, plus optional request shapes — `$minDistance` on a geo query, `idPattern`
-in a snapshot, `expiresAt` on a Context-Source subscription.
+a socket that dies mid-write, an allocator that returns NULL — is 154 lines, under
+3% of what is uncovered. The largest group by far is ordinary behaviour nobody has
+written a test for. Counted in this run: the `success`/`errors` assembly for a batch
+operation that half-works (64 lines), `idPattern` handling across subscription
+validation, CSR notification and DistOp matching (23), the LRU eviction that runs
+when the @context cache is full and the expiry sweep for volatile contexts
+(`corLdCache.c`, 14 and 10), `$minDistance` on a geo query (4) and `expiresAt` on a
+Context-Source subscription (4).
 
-⚠ The earlier estimate of a **~83% ceiling** without mocks also predates the
-deletions, and the denominator it was computed against no longer exists. Today's
-81.8% is much closer to that old ceiling than the arithmetic of new tests would
-suggest — because the ceiling itself moved when the unreachable code went.
+### The 59 functions that are never entered
 
-**On the method:** the classification comes from the gcov JSON — every uncovered line
-is attributed to the function it sits in, and, when that function does run, to the
-nearest enclosing guard. It is a heuristic; the buckets were sampled by hand and the
-`ordinary code` bucket in particular was read line by line before being described
-that way. The line numbers must come from a coverage run of the *same* source, since
-editing a file shifts every line under it.
+This is the one bucket that needs no heuristic — gcov reports an execution count per
+function — and the first time it has been measured across all four repositories
+rather than `coraine/src` alone.
+
+| Lines | Functions | What they are |
+|---|---|---|
+| 246 | 25 | **genuinely untested behaviour** |
+| 136 | 19 | **shutdown and cleanup** — `troeStop`, `timescaleClose`, `corRestStop`, the three cache `…Release` functions, `ldMqttCleanup`, `onCrash`. They run when the process is going away and assert nothing a test can read |
+| 94 | 10 | **parked, or with no caller at all** — see below |
+| 42 | 1 | `httpEndpointDetect`, startup auto-detection of the broker's own externally-reachable endpoint |
+| 9 | 4 | **null-object defaults** — `hookNoop`, `preServiceHookNoop` and two setters nothing calls |
+
+The largest single entries in the untested-behaviour group are `geoEntityValidate`
+(23), `attrToNormalized` (19), `stripInfoAttrsFromEntity` and
+`stripInfoAttrsFromTemporal` (17 each), `vocabCompactInPlace` (17),
+`temporalLatestInstance` (13) and `isNumberString` (13).
+
+The parked group is two families, and they are not the same thing:
+
+- **`ringSelfIntersects`** and its four helpers, 51 lines. Deliberately parked, with
+  the reason written at the call site: `(void) ringSelfIntersects;` — real fixtures
+  have near-coincident vertices that produce mathematically-valid self-intersections,
+  and the geo backend resolves interior by the right-hand rule anyway. Kept for a
+  strict-validation mode.
+- **`ldDatasetIdDedup`** and its four helpers, 43 lines. Declared in corNgsild's
+  public header, named in its README as part of the entity API — and called from
+  nowhere in the four repositories. That is the same shape as the corRest client
+  layer deleted above: advertised library surface with no consumer. ▶ **Worth a
+  decision: wire it up or delete it.**
+
+The corDB run has 113 never-entered functions and 1541 lines rather than 59 and 527.
+The difference is the 56 mongoc-only tests plus the HA test, and it is a property of
+the run, not of the code.
+
+**On the method:** the never-entered bucket comes straight from the gcov JSON. The
+other buckets are machine-classified — each uncovered line is attributed to the
+nearest enclosing guard by indentation, and the guard's text decides the bucket. Two
+limits worth knowing before quoting them. The *NULL / invalid-argument* bucket is
+coarse: it matches `== NULL`, `!= 0` and `< 0` alike, so it mixes real input
+validation with ordinary logic, which makes it an upper bound on "defensive" and the
+"ordinary code" figure a lower bound. And line numbers move the moment a file is
+edited, so the classification must be recomputed from a coverage run of the *same*
+source rather than re-scaled.
+
+⚠️ **The percentages here are not comparable with the hand-sampled ones this file
+carried before 2026-09-02.** Those covered `coraine/src` only, against a denominator
+that no longer exists, and were bucketed by a different reading of the same idea.
 
 ## Reproducing it
 
@@ -145,7 +192,7 @@ make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
 make coverage-etsi           # ETSI TP suite, instrumenting the libs too
 ```
 
-Five details the target handles, each of which produced a wrong number before it did:
+Six details, each of which produced a wrong number before it was handled:
 
 1. **The coverage tree is rebuilt from scratch.** `.gcno` files of a renamed or
    deleted source are never cleaned up, and gcovr reports those vanished files as
@@ -173,6 +220,10 @@ Five details the target handles, each of which produced a wrong number before it
    `-DCOR_WITH_ICU` that way and compiled its non-ICU collation fallback while the
    broker went on linking libicu. `EXTRA_CFLAGS` is appended last, so `-O0` beats
    `-O2` and `-Wno-error` beats `-Werror` without displacing anything.
+6. **The mongod must be a replica set** for the run to include the HA paths, and a
+   single-node set is enough — `mongod --replSet rs0`, then `rs.initiate()` once. On
+   a standalone the numbers are quietly lower and nothing says why; see the section
+   above.
 
 Afterwards the libs are **left instrumented**, and getting out of that takes
 `make libs-rebuild`, not `make libs`: `libs` is each lib's own incremental build, and
