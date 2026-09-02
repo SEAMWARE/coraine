@@ -15,6 +15,14 @@ admin corDB
 
 --INIT--
 corDbDrop
+#
+# This test asserts the broker's LOG STATE, so it has to own that state rather
+# than inherit it. The suite starts every broker with a default set of trace
+# levels (corTestParams.sh), and ktrace bumps the log level to 5 whenever any
+# trace level is set - which turns info and verbose on with it. "All off" below
+# is therefore something this test switches off on purpose, not a default.
+#
+COR_TRACE_LEVELS=""
 coraineStart --apiPlugins admin
 
 --RUN--
