@@ -31,6 +31,14 @@ coraineStart
 # 03. One default + one dataset instance (distinct identities) -> 201
 # 04. Two distinct datasetIds in one multi-attr -> 201, both kept
 #
+# The rejection is the reason no tiebreaker code is needed on a local write, so
+# it has to hold on EVERY local write path, not just entity creation:
+#
+# 05. Append   - POST  /entities/{id}/attrs -> 400
+# 06. Update   - PATCH /entities/{id}/attrs -> 400
+# 07. Merge    - PATCH /entities/{id}       -> 400
+# 08. Batch    - POST  /entityOperations/upsert -> 207, BadRequestData for the entity
+#
 
 echo "01. Two default-instance speeds (no datasetId) -> 400"
 echo "====================================================="
@@ -96,6 +104,62 @@ echo
 echo
 
 
+echo "05. Append with two same-datasetId speeds -> 400"
+echo "================================================"
+payload='{
+  "speed": [
+    {"type": "Property", "value": 10, "datasetId": "urn:dsA"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
+  ]
+}'
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:V4/attrs --payload "$payload"
+echo
+echo
+
+
+echo "06. Update with two same-datasetId speeds -> 400"
+echo "================================================"
+payload='{
+  "speed": [
+    {"type": "Property", "value": 10, "datasetId": "urn:dsA"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
+  ]
+}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V4/attrs --payload "$payload"
+echo
+echo
+
+
+echo "07. Merge with two same-datasetId speeds -> 400"
+echo "==============================================="
+payload='{
+  "speed": [
+    {"type": "Property", "value": 10, "datasetId": "urn:dsA"},
+    {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
+  ]
+}'
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:V4 --payload "$payload"
+echo
+echo
+
+
+echo "08. Batch upsert with two same-datasetId speeds -> 207 with the entity in errors"
+echo "==============================================================================="
+payload='[
+  {
+    "id": "urn:V5",
+    "type": "Vehicle",
+    "speed": [
+      {"type": "Property", "value": 10, "datasetId": "urn:dsA"},
+      {"type": "Property", "value": 99, "datasetId": "urn:dsA"}
+    ]
+  }
+]'
+corCurl -X POST --url /ngsi-ld/v1/entityOperations/upsert --payload "$payload"
+echo
+echo
+
+
 --EXPECT--
 01. Two default-instance speeds (no datasetId) -> 400
 =====================================================
@@ -146,6 +210,78 @@ HTTP/1.1 201 Created
       "datasetId": "urn:dsY",
       "value": 10
       "value": 99
+
+
+05. Append with two same-datasetId speeds -> 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:dsA'",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Update with two same-datasetId speeds -> 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:dsA'",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Merge with two same-datasetId speeds -> 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:dsA'",
+  "status": 400,
+  "title": "Invalid Multi-Attribute",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Batch upsert with two same-datasetId speeds -> 207 with the entity in errors
+===============================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 346
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V5",
+      "error": {
+        "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed': duplicate datasetId 'urn:dsA'",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
+}
+
 
 
 --TEARDOWN--
