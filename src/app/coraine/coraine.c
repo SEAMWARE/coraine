@@ -23,6 +23,7 @@
 
 #include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
 #include "ktrace/kTrace.h"                        // KT_I, KT_V, KT_X
+#include "ktrace/ktGlobals.h"                      // ktInfo, ktVerbose, ktDebug
 #include "kargs/kargs.h"                          // kargsInit, kargsParse, kargsPeek, KArg, KArgsStatus, kargsStatus, KARGS_END, kargsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
@@ -869,6 +870,35 @@ int main(int argC, char* argV[])
   int r = ktInit("coraine", NULL, true, NULL, traceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
     KT_X(1, "ktInit failed");
+
+  //
+  // Each switch steers its OWN class of output: -v drives KT_V, -d drives KT_D,
+  // and a trace level drives KT_T for that level. Nothing else.
+  //
+  // ktInit does not do that. It derives ktInfo/ktVerbose/ktDebug from a single
+  // CUMULATIVE level (CERO 0, ERR 1, WARN 2, INFO 3, VERBOSE 4, TRACE 5,
+  // DEBUG 6), and it sets that level to 5 as soon as ANY trace level is asked
+  // for - so `-t 235`, which asks for one line about one decision, silently
+  // turns on every KT_I and KT_V in the broker as well. That is how the admin
+  // test came to report three fields changed when one option was passed.
+  //
+  // We do not pass a logLevel at all (the NULL above), so without the bump the
+  // level would stay -1 and both would be off. Restoring that here is therefore
+  // not a policy of our own; it is what ktInit computes for our own arguments,
+  // minus a bump we never asked for.
+  //
+  // Fixing it in ktrace is the right place and NOT today's errand: the library
+  // is shared with consumers that pass a real logLevel and have a large user
+  // base, and there the same line silently DOWNGRADES an explicit
+  // `--logLevel DEBUG` to 5 and takes KT_D away. One thing at a time.
+  //
+  // ⚠️ ktInfo follows -v because there is no -i: kargs has kaBuiltinVerbose and
+  // kaBuiltinDebug and no info switch, and INFO sits below VERBOSE on that same
+  // ladder. Give it its own option and this becomes that option.
+  //
+  ktInfo    = kaBuiltinVerbose;
+  ktVerbose = kaBuiltinVerbose;
+  ktDebug   = kaBuiltinDebug;
 
   KT_V("coraine  %s", CORAINE_VERSION);
   KT_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
