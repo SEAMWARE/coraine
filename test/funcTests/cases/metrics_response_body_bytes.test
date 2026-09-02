@@ -1,0 +1,95 @@
+#
+# FILE            metrics_response_body_bytes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ngsild_response_body_bytes_total - the one HTTP-level number the broker did
+# not have. Request counts, error counts and end-to-end latency were all
+# observed in the post-response hook already; the bytes were not, so there was
+# no way to see how much a query actually costs to ship.
+#
+# THE ORACLE: the response's own Content-Length says exactly how many body bytes
+# went out, so the counter must grow by at least that much across the request.
+# At least, not exactly: the scrape that reads the counter is itself a request,
+# and its own body is counted after its value is rendered - so two consecutive
+# scrapes never read the same number.
+#
+--NAME--
+ngsild_response_body_bytes_total counts the body bytes a response carried
+
+--TAGS--
+admin metrics
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+
+echo "01. Seed one entity"
+echo "==================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:B:1","type":"T","name":{"type":"Property","value":"counted"}}' | head -1
+echo
+echo
+
+
+echo "02. The counter exists, with its HELP and TYPE"
+echo "=============================================="
+corCurl --url /metrics --out raw | grep -aE "^# (HELP|TYPE) ngsild_response_body_bytes_total"
+echo
+echo
+
+
+echo "03. Read it, issue a query of known Content-Length, read it again"
+echo "================================================================="
+before=$(corCurl --url /metrics --out raw | grep -aoE "^ngsild_response_body_bytes_total [0-9]+" | grep -oE "[0-9]+$")
+len=$(corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues' | grep -aoE "^Content-Length: [0-9]+" | grep -oE "[0-9]+$")
+after=$(corCurl --url /metrics --out raw | grep -aoE "^ngsild_response_body_bytes_total [0-9]+" | grep -oE "[0-9]+$")
+
+echo "the query's Content-Length was: $len"
+echo "counter grew by at least that: $(( after - before >= len ))"
+echo "counter went up at all: $(( after > before ))"
+echo
+echo
+
+
+echo "04. A bodyless response adds nothing but still leaves the counter monotonic"
+echo "==========================================================================="
+b2=$(corCurl --url /metrics --out raw | grep -aoE "^ngsild_response_body_bytes_total [0-9]+" | grep -oE "[0-9]+$")
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:B:1 -X DELETE | head -1
+a2=$(corCurl --url /metrics --out raw | grep -aoE "^ngsild_response_body_bytes_total [0-9]+" | grep -oE "[0-9]+$")
+echo "still monotonic: $(( a2 >= b2 ))"
+echo
+echo
+
+
+--EXPECT--
+01. Seed one entity
+===================
+HTTP/1.1 201 Created
+
+
+02. The counter exists, with its HELP and TYPE
+==============================================
+# HELP ngsild_response_body_bytes_total Response body bytes rendered (sum over all requests)
+# TYPE ngsild_response_body_bytes_total counter
+
+
+03. Read it, issue a query of known Content-Length, read it again
+=================================================================
+the query's Content-Length was: 80
+counter grew by at least that: 1
+counter went up at all: 1
+
+
+04. A bodyless response adds nothing but still leaves the counter monotonic
+===========================================================================
+HTTP/1.1 204 No Content
+still monotonic: 1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

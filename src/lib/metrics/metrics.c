@@ -79,6 +79,13 @@ static KpromMetric* distopLatency;
 static KpromMetric* requestLatency;
 static double       requestLatencyBuckets[] = { 0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5 };
 
+// Response body bytes, observed in the same post-response hook. The one
+// HTTP-level number the broker did not have: request counts, error counts and
+// latency were all here already, bytes were not. corRest renders the body and
+// leaves its size in corRest.out.payloadSize, which is still valid when the
+// hook runs (the hook fires before corRestStateRelease).
+static KpromMetric* responseBodyBytes;
+
 // Buckets in seconds. Tuned for typical intra-DC HTTP roundtrips with
 // tail coverage out to 5s to catch slow CPs. The +Inf bucket is added
 // by kprom automatically.
@@ -206,6 +213,9 @@ bool metricsInit(void)
                                              distopLatencyBuckets,
                                              sizeof(distopLatencyBuckets) / sizeof(distopLatencyBuckets[0]));
 
+  responseBodyBytes   = kpromCounterCreate("ngsild_response_body_bytes_total",
+                                           "Response body bytes rendered (sum over all requests)");
+
   requestLatency      = kpromHistogramCreate("ngsild_request_latency_seconds",
                                              "End-to-end request latency — service-routine processing time (seconds)",
                                              requestLatencyBuckets,
@@ -310,6 +320,9 @@ void metricsPostResponse(void)
     kpromCounterInc(errors5xx);
   else if (sc >= 400 && sc < 500)
     kpromCounterInc(errors4xx);
+
+  if (corRest.out.payloadSize > 0)
+    kpromCounterAdd(responseBodyBytes, corRest.out.payloadSize);
 
   // End-to-end request latency. requestStartTimeMono is CLOCK_MONOTONIC
   // nanoseconds (set by corRest on request entry — the CorRestState.h
