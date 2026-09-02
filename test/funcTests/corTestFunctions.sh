@@ -100,6 +100,13 @@ coraineStart() {
   # test machine). Tests that need a different endpoint append their own -he.
   local cmd="$COR_BROKER --port $COR_ROLE_PORT --pretty-print 2 --foreground --httpEndpoint http://localhost:$COR_ROLE_PORT"
 
+  #
+  # Traces go to the role's log file (never to the test's stdout, which is what
+  # the expect is matched against). Default set in corTestParams.sh; -traceLevels ""
+  # turns them off for a test that measures something.
+  #
+  [ -n "$COR_TRACE_LEVELS" ] && cmd="$cmd --traceLevels $COR_TRACE_LEVELS"
+
   # Current-state DB plugin
   case "$COR_DB_TYPE" in
     mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT" ;;
