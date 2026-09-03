@@ -406,11 +406,34 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
 
   char cond[24576];   // must hold `any` (16K) plus the negation wrapper
   if (negative)
+  {
+    //
     // EVERY instance must satisfy != / notPattern, i.e. none satisfies the
-    // positive form - but the Attribute must still be present, since an Entity
-    // without it does not "have a value different from X".
+    // positive form - but the value under test must still be PRESENT, since an
+    // Entity that does not have it does not "have a value different from X"
+    // (§ 4.9: a term over an attrPath that is not in the Entity is false).
+    //
+    // Two guards, and both are needed. The $type check on attrPath says the
+    // Attribute is there; it says nothing about the rest of the path, so on
+    // `q=a.b.c!=1` an Entity holding `a` and no `a.b.c` used to pass it and
+    // then match, because $not over a missing field is true. That answer also
+    // contradicted the same backend's reply to `q=!a.b.c`, which correctly
+    // listed the very same Entity as NOT having the path.
+    //
+    // The second guard requires the full per-instance expression - sub-path,
+    // value and value-path included - to resolve in at least one instance. At
+    // depth 0 it costs nothing: a stored Attribute always has its value.
+    //
+    char presence[4096];
+    snprintf(presence, sizeof(presence),
+      "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\","
+      "\"in\":{\"$ne\":[{\"$type\":\"%s\"},\"missing\"]}}}}",
+      attrPath, vexpr);
+
     snprintf(cond, sizeof(cond),
-      "{\"$and\":[{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},{\"$not\":[%s]}]}", attrPath, any);
+      "{\"$and\":[{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},%s,{\"$not\":[%s]}]}",
+      attrPath, presence, any);
+  }
   else
     snprintf(cond, sizeof(cond), "%s", any);
 
