@@ -348,7 +348,7 @@ coraine implements in full. Every command-line option is listed by
 
 - **Conformance:** 100% of the official ETSI NGSI-LD conformance test suite
   (see the note at the top of this file).
-- **Functional tests:** 627 tests against MongoDB, 577 against the in-memory store,
+- **Functional tests:** 634 tests against MongoDB, 584 against the in-memory store,
   run through `corTest`. A change in behaviour is not finished until a test pins it.
 - **Coverage:** measured per DB, run as described in [`doc/testing.md`](doc/testing.md)
   and published in [`doc/coverage.md`](doc/coverage.md),

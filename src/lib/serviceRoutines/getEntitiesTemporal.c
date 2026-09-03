@@ -336,15 +336,50 @@ static void mergeRemoteArray(KjNode* arrayP, KjNode* remoteArrayP, bool keepOnly
 
 // -----------------------------------------------------------------------------
 //
-// stripInfoAttrsFromArray - apply a RegistrationInfo's coverage to every
-// entity in arrayP (used for exclusive/redirect modes).
+// entityInfoCoversId - does any EntityInfo entry in riP cover entityId?
+//
+static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
+{
+  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+  {
+    if (eiP->id == NULL && eiP->idPatternList == NULL)
+      return true;
+    if (eiP->id != NULL && entityId != NULL && strcmp(eiP->id, entityId) == 0)
+      return true;
+    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
+      if (entityId != NULL && regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
+        return true;
+  }
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// stripInfoAttrsFromArray - apply a RegistrationInfo's coverage to the entities
+// in arrayP it actually covers (used for exclusive/redirect modes).
+//
+// The attribute names are only half of the claim - the RegistrationInfo's
+// entityInfo[] says WHICH entities they are claimed for. Stripping by name
+// alone would hide a locally-owned attribute of an entity the registration
+// never mentioned: the claim is per (entity, attribute) pair, and § 9.3.3
+// keeps exclusive entries pinned to a specific id precisely so that pair is
+// unambiguous.
 //
 static void stripInfoAttrsFromArray(KjNode* arrayP, LdRegInfo* riP)
 {
   if (arrayP == NULL || arrayP->type != KjArray)
     return;
+
   for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+  {
+    KjNode* idP = kjLookup(ep, "id");
+    if ((idP != NULL) && (idP->type == KjString) && !entityInfoCoversId(riP, idP->value.s))
+      continue;
+
     stripInfoAttrsFromEntity(ep, riP);
+  }
 }
 
 

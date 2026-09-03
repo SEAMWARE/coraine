@@ -1,0 +1,118 @@
+#
+# FILE            csource-reg-distops-updated-dedup.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.2.18 UpdateResult aggregation across CSRs. Each forwarded leg answers
+# with its own { updated[], notUpdated[] }, and the broker folds them into
+# ONE result. `updated[]` is a plain list of attribute names, so the same
+# name can legitimately arrive twice - a source that distributes further can
+# report an attribute another source also reported. The aggregate must list
+# it once.
+#
+# `notUpdated[]` is deliberately NOT deduplicated: per-registration
+# attribution is the whole point there, and two sources failing on the same
+# attribute are two facts, not one.
+#
+#   CSR:Speed -> 7741  updated: ["speed"]
+#   CSR:Color -> 7742  updated: ["color", "speed"]   <- overlap
+#                      notUpdated: ["paint"]         <- makes it a 207, so
+#                                                       updated[] is rendered
+#
+--NAME--
+DistOps - updated[] folds duplicates from two CSRs into one entry
+
+--TAGS--
+distops append registration error
+
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7741
+ftClientStart --port 7742
+
+--RUN--
+
+echo "01. Register two redirect CSRs on urn:V1: CSR:Speed->7741, CSR:Color->7742"
+echo "=========================================================================="
+payload='{
+  "id": "urn:CSR:Speed",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7741",
+  "mode": "redirect",
+  "operations": ["appendAttrs"],
+  "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+payload='{
+  "id": "urn:CSR:Color",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7742",
+  "mode": "redirect",
+  "operations": ["appendAttrs"],
+  "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["color", "paint"] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Program both sources - CSR:Color also claims to have updated speed"
+echo "======================================================================"
+corCurl --port 7741 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":207,"body":{"updated":["speed"],"notUpdated":[]}}' | head -1
+corCurl --port 7742 --url /mock/reply --payload '{"verb":"POST","path":"/attrs","status":207,"body":{"updated":["color","speed"],"notUpdated":[{"attributeName":"paint","reason":"read-only at source","statusCode":409}]}}' | head -1
+echo
+echo
+
+
+echo "03. POST urn:V1/attrs {speed,color,paint} - speed listed ONCE in updated[]"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs --payload '{"speed":{"type":"Property","value":9},"color":{"type":"Property","value":"red"},"paint":{"type":"Property","value":"matte"}}'
+echo
+echo
+
+
+--EXPECT--
+01. Register two redirect CSRs on urn:V1: CSR:Speed->7741, CSR:Color->7742
+==========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Program both sources - CSR:Color also claims to have updated speed
+======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. POST urn:V1/attrs {speed,color,paint} - speed listed ONCE in updated[]
+===========================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "paint",
+      "reason": "read-only at source",
+      "registrationId": "urn:CSR:Color",
+      "statusCode": 409
+    }
+  ],
+  "updated": [
+    "speed",
+    "color"
+  ]
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7741
+ftClientStop --port 7742
+coraineStop
+corDbDrop

@@ -5,6 +5,13 @@
 #
 # Copyright 2026 Seamware
 #
+# Steps 09/10: XSD 1.1 does list INF / -INF / NaN in the lexical space of
+# xsd:double, and the broker still refuses them. Deliberate, for two separate
+# reasons: NGSI-LD already spells "unbounded" as ABSENCE (an omitted
+# throttling, an omitted expiresAt), so an INF literal would be a second way
+# to say something the API can already say; and NaN is not a value a client
+# can have meant.
+#
 --NAME--
 Entity attribute typed value-object - @value validated against @type (DateTime + xsd)
 
@@ -43,6 +50,54 @@ echo
 echo "04. Property value {@type:xsd:integer, @value: 'banana'} -> 400 (previously slipped through)"
 echo "==========================================================================================="
 payload='{ "id": "urn:ngsi-ld:E4", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#integer", "@value": "banana" } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. Property value {@type:xsd:double, @value: '3.14'} -> 201 (a number IN a string)"
+echo "=================================================================================="
+payload='{ "id": "urn:ngsi-ld:E5", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#double", "@value": "3.14" } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Property value {@type:xsd:double, @value: '-1.5E+3'} -> 201 (exponent form)"
+echo "=============================================================================="
+payload='{ "id": "urn:ngsi-ld:E6", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#double", "@value": "-1.5E+3" } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Property value {@type:xsd:double, @value: '3.14.15'} -> 400 (two dots)"
+echo "=========================================================================="
+payload='{ "id": "urn:ngsi-ld:E7", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#double", "@value": "3.14.15" } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. Property value {@type:xsd:double, @value: '1e'} -> 400 (exponent with no digits)"
+echo "===================================================================================="
+payload='{ "id": "urn:ngsi-ld:E8", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#double", "@value": "1e" } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. Property value {@type:xsd:double, @value: 'INF'} -> 400"
+echo "==========================================================="
+payload='{ "id": "urn:ngsi-ld:E9", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#double", "@value": "INF" } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. Property value {@type:xsd:double, @value: 'NaN'} -> 400"
+echo "==========================================================="
+payload='{ "id": "urn:ngsi-ld:E10", "type": "T", "P1": { "type": "Property", "value": { "@type": "http://www.w3.org/2001/XMLSchema#double", "@value": "NaN" } } }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 echo
 echo
@@ -94,6 +149,90 @@ Content-Length: 227
 
 {
   "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid integer",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Property value {@type:xsd:double, @value: '3.14'} -> 201 (a number IN a string)
+==================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E5
+Content-Length: 0
+
+
+
+
+06. Property value {@type:xsd:double, @value: '-1.5E+3'} -> 201 (exponent form)
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E6
+Content-Length: 0
+
+
+
+
+07. Property value {@type:xsd:double, @value: '3.14.15'} -> 400 (two dots)
+==========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid number",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Property value {@type:xsd:double, @value: '1e'} -> 400 (exponent with no digits)
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid number",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Property value {@type:xsd:double, @value: 'INF'} -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid number",
+  "status": 400,
+  "title": "Invalid Value Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Property value {@type:xsd:double, @value: 'NaN'} -> 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P1': '@value' is not a valid number",
   "status": 400,
   "title": "Invalid Value Object",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

@@ -1,0 +1,207 @@
+#
+# FILE            troe_timescale_temporal_orderby_latest_instance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.23 orderBy over a TEMPORAL result. An attribute there is not a value
+# but an array of instances, so the sorter has to choose one - and it picks
+# the most recent (largest observedAt, falling back to modifiedAt), which is
+# the only choice that does not flip when lastN or the SQL row order changes.
+#
+# The fixture is built so that the two candidate rules disagree on every
+# entity: the oldest instances rank V3 < V2 < V1 and the newest rank
+# V1 < V2 < V3. An implementation that took the first row, the last row, or
+# the smallest value would produce a different order than the one expected
+# here; only "latest instance" gives V1, V2, V3.
+#
+#   V1  speed 100 @09:00 -> 10 @12:00
+#   V2  speed  50 @09:00 -> 20 @12:00
+#   V3  speed   5 @09:00 -> 30 @12:00
+#
+# They are seeded V3, V2, V1, so insertion order is neither of the two
+# answers either - an unsorted result would fail both steps.
+#
+--NAME--
+TRoE timescale - temporal orderBy sorts on the most recent instance (§ 4.23)
+
+--TAGS--
+troe timescale postgres temporal query orderby
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. Seed V3, V2, V1 (insertion order is none of the expected orders)"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":5,"observedAt":"2026-04-28T09:00:00Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V3/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T12:00:00Z"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-28T09:00:00Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T12:00:00Z"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":100,"observedAt":"2026-04-28T09:00:00Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":10,"observedAt":"2026-04-28T12:00:00Z"}' | head -1
+echo
+echo
+
+
+echo "02. orderBy=speed - by LATEST instance: V1(10), V2(20), V3(30)"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&orderBy=speed&format=temporalValues'
+echo
+echo
+
+
+echo "03. orderBy=speed;desc - the same choice, reversed: V3, V2, V1"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&orderBy=speed;desc&format=temporalValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V3, V2, V1 (insertion order is none of the expected orders)
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+02. orderBy=speed - by LATEST instance: V1(10), V2(20), V3(30)
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 783
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          100,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          10,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          50,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          20,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          5,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          30,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. orderBy=speed;desc - the same choice, reversed: V3, V2, V1
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 783
+
+[
+  {
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          5,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          30,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          50,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          20,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          100,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          10,
+          "2026-04-28T12:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

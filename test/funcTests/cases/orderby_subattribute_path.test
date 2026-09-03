@@ -1,0 +1,202 @@
+#
+# FILE            orderby_subattribute_path.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2 - an orderBy term may be a DOTTED path naming a
+# sub-attribute: `temperature.accuracy` sorts on the value of the
+# `accuracy` sub-property of the `temperature` attribute.
+#
+# Every segment of the path is @context-expanded on its own, and the walk
+# then goes attribute -> @none -> sub-attribute -> value. It cannot be done
+# by splitting the joined string, because an expanded IRI contains dots of
+# its own (`https://uri.etsi.org/...`).
+#
+# The fixture makes the three candidate readings disagree, so only the
+# right one passes:
+#
+#   S3  temperature 30, accuracy 1     seeded first
+#   S1  temperature 10, accuracy 2     seeded second
+#   S2  temperature 20, accuracy 3     seeded third
+#
+#   by temperature.accuracy -> S3, S1, S2   (1, 2, 3)
+#   by temperature          -> S1, S2, S3   (10, 20, 30)
+#   unsorted                -> S3, S1, S2 in insertion order... which is the
+#                              same as the first, so step 03 sorts descending
+#                              and step 04 sorts on the attribute itself: the
+#                              three answers are three different sequences.
+#
+--NAME--
+orderBy on a dotted sub-attribute path (§ 7.6.2)
+
+--TAGS--
+orderBy query sub-attributes
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed three Sensors - temperature with an accuracy sub-property"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S3","type":"Sensor","temperature":{"type":"Property","value":30,"accuracy":{"type":"Property","value":1}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temperature":{"type":"Property","value":10,"accuracy":{"type":"Property","value":2}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S2","type":"Sensor","temperature":{"type":"Property","value":20,"accuracy":{"type":"Property","value":3}}}' | head -1
+echo
+echo
+
+
+echo "02. orderBy=temperature.accuracy - S3(1), S1(2), S2(3)"
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.accuracy&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=temperature.accuracy;desc - S2(3), S1(2), S3(1)"
+echo "==========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.accuracy;desc&options=keyValues'
+echo
+echo
+
+
+echo "04. orderBy=temperature - the attribute's own value: S1(10), S2(20), S3(30)"
+echo "==========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature&options=keyValues'
+echo
+echo
+
+
+echo "05. orderBy=temperature.missing - no such sub-attribute anywhere, order kept"
+echo "============================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.missing&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed three Sensors - temperature with an accuracy sub-property
+==================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=temperature.accuracy - S3(1), S1(2), S2(3)
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 222
+
+[
+  {
+    "id": "urn:S3",
+    "temperature": 30,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S1",
+    "temperature": 10,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S2",
+    "temperature": 20,
+    "type": "Sensor"
+  }
+]
+
+
+
+03. orderBy=temperature.accuracy;desc - S2(3), S1(2), S3(1)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 222
+
+[
+  {
+    "id": "urn:S2",
+    "temperature": 20,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S1",
+    "temperature": 10,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S3",
+    "temperature": 30,
+    "type": "Sensor"
+  }
+]
+
+
+
+04. orderBy=temperature - the attribute's own value: S1(10), S2(20), S3(30)
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 222
+
+[
+  {
+    "id": "urn:S1",
+    "temperature": 10,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S2",
+    "temperature": 20,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S3",
+    "temperature": 30,
+    "type": "Sensor"
+  }
+]
+
+
+
+05. orderBy=temperature.missing - no such sub-attribute anywhere, order kept
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 222
+
+[
+  {
+    "id": "urn:S3",
+    "temperature": 30,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S1",
+    "temperature": 10,
+    "type": "Sensor"
+  },
+  {
+    "id": "urn:S2",
+    "temperature": 20,
+    "type": "Sensor"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

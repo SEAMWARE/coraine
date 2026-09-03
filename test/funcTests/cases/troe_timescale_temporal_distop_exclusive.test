@@ -1,0 +1,282 @@
+#
+# FILE            troe_timescale_temporal_distop_exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on the single-entity temporal GET (§ 5.7.3 / § 5.7.5),
+# EXCLUSIVE mode (§ 4.3.6.3) - the claim covers HISTORY, not just the
+# current state.
+#
+# Reaching this needs a little care, because § 5.9.2 keeps an exclusive
+# claim and local data apart in both directions: a write of a claimed
+# attribute is refused (409 inside the 207), and a claim over an
+# attribute the broker already holds is refused at registration time.
+# The temporal store is the one place where both checks can be satisfied
+# and local data still exists - they look at the CURRENT STATE, while
+# TRoE keeps every instance ever written.
+#
+# So: CB builds a real speed history, then deletes the attribute. The
+# current state no longer has speed, so CP1 may now claim it - and the
+# temporal GET must not hand out CB's own instances any more, whatever
+# CP1 answers. `fuel`, covered by no registration, is untouched.
+#
+# Step 07 is the oracle: drop the registration and the very same database
+# answers with the local history again. Nothing was deleted; only the
+# claim changed.
+#
+--NAME--
+TRoE timescale - temporal distop, exclusive
+
+--TAGS--
+troe timescale postgres temporal distops registration exclusive
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist --troeSync
+coraineStart -role CP1 --troe timescale -dist --troeSync
+
+--RUN--
+
+echo "01. Seed urn:V1 on CB - speed=10,20 and fuel=90, no registration yet"
+echo "===================================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},"fuel":{"type":"Property","value":90,"observedAt":"2026-04-28T09:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' | head -1
+echo
+echo
+
+
+echo "02. Delete speed from the current state - the history stays behind"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X DELETE | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:V1'
+echo
+echo
+
+
+echo "03. GET temporal/urn:V1 - CB still answers with its own speed history"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "04. Seed urn:V1 on CP1 - speed=30,40"
+echo "===================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' | head -1
+echo
+echo
+
+
+echo "05. Register CB → CP1 (exclusive, retrieveTemporal) for urn:V1's speed"
+echo "======================================================================"
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "exclusive",
+  "operations": ["retrieveTemporal"],
+  "information":[
+    {
+      "entities":   [{"id":"urn:V1","type":"Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "06. GET temporal/urn:V1 - only CP1's speed; local history stripped, fuel kept"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "07. Drop the registration and GET again - the local history is back"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:CB-CP1 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 on CB - speed=10,20 and fuel=90, no registration yet
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+02. Delete speed from the current state - the history stays behind
+==================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "fuel": {
+    "observedAt": "2026-04-28T09:00:00Z",
+    "type": "Property",
+    "value": 90
+  },
+  "id": "urn:V1",
+  "type": "Vehicle"
+}
+
+
+
+03. GET temporal/urn:V1 - CB still answers with its own speed history
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "fuel": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 90
+    }
+  ],
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. Seed urn:V1 on CP1 - speed=30,40
+====================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+05. Register CB → CP1 (exclusive, retrieveTemporal) for urn:V1's speed
+======================================================================
+HTTP/1.1 201 Created
+
+
+06. GET temporal/urn:V1 - only CP1's speed; local history stripped, fuel kept
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "fuel": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 90
+    }
+  ],
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T12:00:00Z",
+      "type": "Property",
+      "value": 40
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+07. Drop the registration and GET again - the local history is back
+===================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "fuel": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 90
+    }
+  ],
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    },
+    {
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

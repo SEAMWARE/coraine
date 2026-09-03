@@ -1,0 +1,221 @@
+#
+# FILE            troe_timescale_temporal_distop_query_exclusive.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on the multi-entity temporal GET (§ 5.7.4 / § 5.7.5),
+# EXCLUSIVE mode (§ 4.3.6.3) - the claim covers HISTORY, and it covers
+# only the entities it names.
+#
+# Reaching the local pre-strip needs a little care, because § 5.9.2 keeps
+# an exclusive claim and local data apart in both directions: a write of a
+# claimed attribute is refused, and a claim over an attribute the broker
+# already holds is refused at registration time. Both look at the CURRENT
+# STATE - so CB writes a speed history, deletes the attribute, and the
+# history stays in TRoE for the claim to hide.
+#
+#   CB:  urn:V1 (speed=10,20 then deleted; fuel=90)
+#        urn:V2 (speed=15,25 still current;  fuel=80)   <- the control
+#   CP1: urn:V1 (speed=30,40)
+#        urn:V3 (speed=50,60)
+#
+# CP1 claims urn:V1's speed and nothing else. urn:V2 is the control that
+# matters: its speed history is CB's own, claimed by nobody, and it must
+# survive a query that the registration also takes part in. Stripping by
+# attribute NAME alone would have hidden it - the claim is per (entity,
+# attribute) pair, which is why § 9.3.3 pins an exclusive entities[] entry
+# to a specific id.
+#
+--NAME--
+TRoE timescale - temporal distop query, exclusive
+
+--TAGS--
+troe timescale postgres temporal distops registration exclusive
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist --troeSync
+coraineStart -role CP1 --troe timescale -dist --troeSync
+
+--RUN--
+
+echo "01. Seed CB - urn:V1 and urn:V2, speed twice + fuel each"
+echo "========================================================"
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},"fuel":{"type":"Property","value":90,"observedAt":"2026-04-28T09:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' | head -1
+payload='{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":15,"observedAt":"2026-04-28T09:30:00Z"},"fuel":{"type":"Property","value":80,"observedAt":"2026-04-28T09:30:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":25,"observedAt":"2026-04-28T10:30:00Z"}' | head -1
+echo
+echo
+
+
+echo "02. Delete speed from urn:V1's current state - urn:V2 keeps its own"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X DELETE | head -1
+echo
+echo
+
+
+echo "03. Seed CP1 - urn:V1 and urn:V3, speed twice each"
+echo "=================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' | head -1
+payload='{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-28T13:00:00Z"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' | head -1
+echo
+echo
+
+
+echo "04. Register CB → CP1 (exclusive, queryTemporal) for urn:V1's speed"
+echo "===================================================================="
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "exclusive",
+  "operations": ["queryTemporal"],
+  "information":[
+    {
+      "entities":   [{"id":"urn:V1","type":"Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "05. GET /temporal/entities?type=Vehicle - V1 from CP1, V2's own history intact"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CB - urn:V1 and urn:V2, speed twice + fuel each
+========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+02. Delete speed from urn:V1's current state - urn:V2 keeps its own
+====================================================================
+HTTP/1.1 204 No Content
+
+
+03. Seed CP1 - urn:V1 and urn:V3, speed twice each
+==================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+04. Register CB → CP1 (exclusive, queryTemporal) for urn:V1's speed
+====================================================================
+HTTP/1.1 201 Created
+
+
+05. GET /temporal/entities?type=Vehicle - V1 from CP1, V2's own history intact
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "fuel": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 90
+      }
+    ],
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T11:00:00Z",
+        "type": "Property",
+        "value": 30
+      },
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T12:00:00Z",
+        "type": "Property",
+        "value": 40
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "fuel": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T09:30:00Z",
+        "type": "Property",
+        "value": 80
+      }
+    ],
+    "id": "urn:V2",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T09:30:00Z",
+        "type": "Property",
+        "value": 15
+      },
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T10:30:00Z",
+        "type": "Property",
+        "value": 25
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": [
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T13:00:00Z",
+        "type": "Property",
+        "value": 50
+      },
+      {
+        "instanceId": "REGEX(.*)",
+        "observedAt": "2026-04-28T14:00:00Z",
+        "type": "Property",
+        "value": 60
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

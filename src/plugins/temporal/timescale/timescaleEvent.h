@@ -9,16 +9,17 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-// Write a TroeEvent to postgres. The dispatch layer hands us one event
-// at a time (or a list); each entry point acquires a connection from the
-// tenant's pool and assigns it to the thread-local timescaleConn.
+// Write TroeEvents to postgres. The dispatch layer hands us the whole
+// request's queue in one call (troeDispatch prefers a driver's list hook
+// over its per-event hooks, and this driver offers only the list one, so
+// a request's events share one transaction); the entry point acquires a
+// connection from the tenant's pool and assigns it to the thread-local
+// timescaleConn.
 //
 
 #include "troe/TroeDriver.h"                              // TroeEvent
 
 
-extern int timescaleEntityEvent(const TroeEvent* evP);
-extern int timescaleAttrEvent  (const TroeEvent* evP);
 extern int timescaleEventList  (const TroeEvent* listHead, int count);
 
 //

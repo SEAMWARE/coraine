@@ -16,7 +16,7 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleArgV
 #include "temporal/timescale/timescaleInit.h"             // timescaleInit, timescaleClose
-#include "temporal/timescale/timescaleEvent.h"            // timescaleEntityEvent, timescaleAttrEvent, timescaleEventList
+#include "temporal/timescale/timescaleEvent.h"            // timescaleEventList
 #include "temporal/timescale/timescaleQuery.h"            // timescaleEntityTemporalRetrieve
 #include "temporal/timescale/timescaleHistoryWrite.h"     // timescaleEntityTemporalDelete, etc.
 
@@ -36,8 +36,11 @@ void troeRegister(TroeDriver* driverP)
   driverP->tenantSetup  = NULL;
   driverP->tenantDrop   = timescaleTenantDrop;
   driverP->migrate      = NULL;  // run inline by init; no per-tenant work yet
-  driverP->entityEvent  = timescaleEntityEvent;
-  driverP->attrEvent    = timescaleAttrEvent;
+  // The per-event hooks are the fallback for a driver without a list hook
+  // (ramdb uses them). troeDispatch always prefers eventList, which puts the
+  // whole request's events in ONE transaction — so timescale offers only that.
+  driverP->entityEvent  = NULL;
+  driverP->attrEvent    = NULL;
   driverP->eventList    = timescaleEventList;
   driverP->entityTemporalQuery     = timescaleEntityTemporalQuery;
   driverP->entityTemporalRetrieve  = timescaleEntityTemporalRetrieve;
