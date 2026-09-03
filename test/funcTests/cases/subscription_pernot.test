@@ -25,8 +25,11 @@ coraineStart
 #
 # 01. Create entity V1 (Vehicle, speed=80)
 # 02. Create periodic subscription (timeInterval=2, for Vehicle)
-# 03. Sleep 3 seconds — at least one pernot notification should fire
-# 04. Check ftClient received at least one notification containing V1
+# 03. Wait for the second periodic notification (timeInterval=2)
+# 04. Delete the subscription — that stops the timer
+# 05. Drain what arrived up to the delete
+# 06. Nothing more arrives — the assertion the old version made while the
+#     subscription was still ticking, which made it a coin flip under valgrind
 #
 
 echo "01. Create entity V1"
@@ -57,26 +60,46 @@ echo
 echo
 
 
-echo "03. Sleep 3 seconds for periodic notification"
+echo "03. Wait for the second periodic notification"
 echo "=============================================="
-sleep 3
-echo "Done sleeping"
+ftClientWait 2 && echo "two notifications arrived"
 echo
 echo
 
 
-echo "04. ftClient received notifications (grep for Pernot1)"
-echo "======================================================"
-ftClientDump | grep -c "Pernot1"
+echo "04. Delete the subscription - the periodic timer stops with it"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:Pernot1 -X DELETE | head -1
 echo
 echo
 
 
 #
-# Nothing should have arrived since the last read. ftClientWait returns the
-# instant its Nth notification lands and never looks for an N+1th, so this is
-# where an unwanted one is caught.
+# Everything up to the delete, drained in one read (a dump CONSUMES). The
+# settle first, so a notification already in flight when the DELETE landed is
+# counted here and not mistaken for a post-delete one below. The count is
+# "at least 2" on purpose: the exact number depends on how many 2s ticks fit
+# between the wait returning and the DELETE being processed, which is a
+# property of the machine, not of the broker.
 #
+echo "05. At least the two we waited for, all of them for Pernot1"
+echo "==========================================================="
+ftClientSettle
+n=$(ftClientDump | grep -c "Pernot1")
+[ "$n" -ge 2 ] && echo "at least two notifications, every one for Pernot1"
+echo
+echo
+
+
+#
+# THE assertion: the timer is gone with the subscription, so nothing more can
+# arrive - whatever the settle window happens to be. It is 50ms here and 1s
+# under valgrind, and the old version of this test asserted "nothing arrived"
+# while a 2s periodic subscription was still running, which the 1s window
+# caught roughly half the time.
+#
+echo "06. Nothing arrives once the subscription is gone"
+echo "================================================="
 ftClientSettle
 ftClientDump
 echo
@@ -102,16 +125,23 @@ Content-Length: 0
 
 
 
-03. Sleep 3 seconds for periodic notification
+03. Wait for the second periodic notification
 ==============================================
-Done sleeping
+two notifications arrived
 
 
-04. ftClient received notifications (grep for Pernot1)
-======================================================
-2
+04. Delete the subscription - the periodic timer stops with it
+==============================================================
+HTTP/1.1 204 No Content
 
 
+05. At least the two we waited for, all of them for Pernot1
+===========================================================
+at least two notifications, every one for Pernot1
+
+
+06. Nothing arrives once the subscription is gone
+=================================================
 []
 --TEARDOWN--
 coraineStop
