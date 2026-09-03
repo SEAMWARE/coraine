@@ -6,6 +6,14 @@
 # Copyright 2026 Seamware
 #
 # Periodic notification subscriptions (timeInterval).
+#
+# timeInterval is 1 and not 2 for a reason: ftClientWait's budget is
+# 100 x 0.02s = 2s (x5 under valgrind). With a 2s interval the second
+# notification is due at t=2.0s, exactly when the wait gives up - so the
+# test raced its own helper and lost about half the time on the faster
+# backend, while passing every valgrind run where the budget is 10s.
+# At timeInterval=1 the two notifications land at t=0 and t=1, inside the
+# budget on either backend.
 # The pernot loop fires every timeInterval seconds, querying for
 # matching entities and sending a notification with all results.
 #
@@ -24,8 +32,8 @@ coraineStart
 
 #
 # 01. Create entity V1 (Vehicle, speed=80)
-# 02. Create periodic subscription (timeInterval=2, for Vehicle)
-# 03. Wait for the second periodic notification (timeInterval=2)
+# 02. Create periodic subscription (timeInterval=1, for Vehicle)
+# 03. Wait for the second periodic notification (timeInterval=1)
 # 04. Delete the subscription — that stops the timer
 # 05. Drain what arrived up to the delete
 # 06. Nothing more arrives — the assertion the old version made while the
@@ -43,13 +51,13 @@ echo
 echo
 
 
-echo "02. Create periodic subscription (timeInterval=2)"
+echo "02. Create periodic subscription (timeInterval=1)"
 echo "=================================================="
 corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "id": "urn:ngsi-ld:Subscription:Pernot1",
   "type": "Subscription",
   "entities": [{"type": "Vehicle"}],
-  "timeInterval": 2,
+  "timeInterval": 1,
   "notification": {
     "endpoint": {
       "uri": "http://localhost:'$FT_CLIENT_PORT'/notify"
@@ -115,7 +123,7 @@ Content-Length: 0
 
 
 
-02. Create periodic subscription (timeInterval=2)
+02. Create periodic subscription (timeInterval=1)
 ==================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
