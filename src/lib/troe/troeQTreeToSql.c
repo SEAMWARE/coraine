@@ -261,7 +261,28 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
     const char* col  = NULL;
     bool        quot = false;
 
-    switch (tP->value.list.itemType)
+    //
+    // One column per list, so every item has to be the same kind of Value. A
+    // mixed list - legal per § 7.2.3.4 condition 2, which never asks the values
+    // to share a type - has no single column to compare against, so decline the
+    // translation: the caller turns a NULL predicate into 501 "this 'q' cannot
+    // be evaluated against the temporal store", which is the honest answer.
+    // Before per-item types this could not even be detected, and a `1,"two"`
+    // list took v_number from the first item and emitted `v_number IN (1,two)`.
+    //
+    if (tP->value.list.itemTypeV != NULL)
+    {
+      for (int i = 1; i < tP->value.list.count; i++)
+      {
+        if (tP->value.list.itemTypeV[i] != tP->value.list.itemTypeV[0])
+          return NULL;
+      }
+    }
+
+    LdQValueType listType = (tP->value.list.itemTypeV != NULL) ? tP->value.list.itemTypeV[0]
+                                                               : tP->value.list.itemType;
+
+    switch (listType)
     {
       case LdQNumber:   col = deep ? lhs : "v_number";   quot = false; break;
       case LdQString:   col = deep ? lhs : "v_text";     quot = true;  break;
@@ -280,7 +301,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
 
       if (quot)
         p += snprintf(cond + p, sizeof(cond) - p, "%s'%s'%s", (i > 0) ? "," : "", esc,
-                      (tP->value.list.itemType == LdQDateTime) ? "::timestamptz" : "");
+                      (listType == LdQDateTime) ? "::timestamptz" : "");
       else
         p += snprintf(cond + p, sizeof(cond) - p, "%s%s", (i > 0) ? "," : "", esc);
 
