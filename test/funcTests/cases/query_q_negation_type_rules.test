@@ -1,0 +1,263 @@
+#
+# FILE            query_q_negation_type_rules.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2.3.3 - what a NEGATED q operator does when the target value has a
+# different data type than the Query Term value. The spec makes the two
+# negatives disagree, deliberately, and that is exactly why an
+# implementation gets one of them wrong:
+#
+#   !=   "if the data type of the target value and the data type of the
+#         Query Term value are different, then they shall be considered
+#         UNEQUAL"                                    -> mismatch MATCHES
+#   !~=  "if the target value data type is different than String then it
+#         shall be considered as NOT MATCHING"        -> mismatch does NOT
+#
+# So a numeric Property is NOT "a value that does not match /alp/" - the
+# operator cannot be applied to it at all - while it IS "a value unequal
+# to the string alpha".
+#
+# An oracle test, and it needs nothing to be one: no REQUIRE_DB, so the
+# harness runs it against both backends, and they evaluate `q` in
+# completely different places. mongoc pushes the predicate into the
+# database, where a negation is `$not` over a type-guarded positive -
+# which turns "wrong type" into "matches", right for != and wrong for !~=.
+# corDB walks the entity in ldEntityMatch.c, where every type guard used
+# to answer plain false - right for !~= and wrong for !=. Each backend
+# had exactly one of the two rules.
+#
+# The fixture holds both directions at once: string values where the
+# query term is a number, and numeric values where it is a string.
+#
+#   E1  a.b.c = "alpha"      E2  a.b.c = "beta"
+#   N1  a.b.c = 3            N2  a.b.c = 7
+#   E3  a.b (no c)           E4  a (no b)        E5  no a
+#
+--NAME--
+q negated operators over a target of another data type (§ 7.2.3.3)
+
+--TAGS--
+q query negation sub-attributes
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed: two string values, two numeric, three that lack the path"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8,"c":{"type":"Property","value":"alpha"}}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8,"c":{"type":"Property","value":"beta"}}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N1","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8,"c":{"type":"Property","value":3}}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:N2","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8,"c":{"type":"Property","value":7}}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"OQ","a":{"type":"Property","value":5}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E5","type":"OQ","other":{"type":"Property","value":7}}' | head -1
+echo
+echo
+
+
+echo "02. q=a.b.c~=alp - the pattern control: only the string that matches"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c%7E%3Dalp&options=keyValues'
+echo
+echo
+
+
+echo "03. q=a.b.c!~=alp - beta only; a NUMBER is not a non-matching string"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!%7E%3Dalp&options=keyValues'
+echo
+echo
+
+
+echo "04. q=a.b.c!=5 - the numbers that differ, AND both strings (type differs)"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!%3D5&options=keyValues'
+echo
+echo
+
+
+echo "05. q=a.b.c!=2..8 - both numbers are inside the range; the strings differ in type"
+echo "================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!%3D2..8&options=keyValues'
+echo
+echo
+
+
+echo "06. q=a.b.c!=3,7 - a value list: neither number survives, both strings do"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!%3D3%2C7&options=keyValues'
+echo
+echo
+
+
+echo "07. q=a.b.c!=alpha - the mirror direction: numbers differ in type, so they match"
+echo "================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!%3D%22alpha%22&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed: two string values, two numeric, three that lack the path
+==================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=a.b.c~=alp - the pattern control: only the string that matches
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  }
+]
+
+
+
+03. q=a.b.c!~=alp - beta only; a NUMBER is not a non-matching string
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+[
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  }
+]
+
+
+
+04. q=a.b.c!=5 - the numbers that differ, AND both strings (type differs)
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 235
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:N1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:N2",
+    "type": "OQ"
+  }
+]
+
+
+
+05. q=a.b.c!=2..8 - both numbers are inside the range; the strings differ in type
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  }
+]
+
+
+
+06. q=a.b.c!=3,7 - a value list: neither number survives, both strings do
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  }
+]
+
+
+
+07. q=a.b.c!=alpha - the mirror direction: numbers differ in type, so they match
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 177
+
+[
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:N1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:N2",
+    "type": "OQ"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

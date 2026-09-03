@@ -424,15 +424,38 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
     // value and value-path included - to resolve in at least one instance. At
     // depth 0 it costs nothing: a stored Attribute always has its value.
     //
-    char presence[4096];
+    char presence[2560];   // attrPath + vexpr (1024 each) + ~110 literal
     snprintf(presence, sizeof(presence),
       "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\","
       "\"in\":{\"$ne\":[{\"$type\":\"%s\"},\"missing\"]}}}}",
       attrPath, vexpr);
 
+    //
+    // notPattern needs one guard MORE, and it has to sit OUTSIDE the negation.
+    // § 7.2.3.3 makes the two negatives asymmetric, deliberately:
+    //
+    //   !=   "if the data type of the target value and the data type of the
+    //         Query Term value are different, they shall be considered UNEQUAL"
+    //   !~=  "if the target value data type is different than String it shall be
+    //         considered as NOT MATCHING"
+    //
+    // The positive predicate carries a string type-check inside it, so negating
+    // the whole thing turns "wrong type" into "matches" - right for !=, wrong for
+    // !~=. For a pattern the type-check is therefore asserted positively and only
+    // the regex is negated: a numeric Property is not "a value that does not
+    // match /alp/", it is a value the operator cannot be applied to.
+    //
+    char strGuard[2560];   // same shape as `presence`
+    strGuard[0] = 0;
+    if (pattern)
+      snprintf(strGuard, sizeof(strGuard),
+        "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\","
+        "\"in\":{\"$eq\":[{\"$type\":\"%s\"},\"string\"]}}}},",
+        attrPath, vexpr);
+
     snprintf(cond, sizeof(cond),
-      "{\"$and\":[{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},%s,{\"$not\":[%s]}]}",
-      attrPath, presence, any);
+      "{\"$and\":[{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},%s,%s{\"$not\":[%s]}]}",
+      attrPath, presence, strGuard, any);
   }
   else
     snprintf(cond, sizeof(cond), "%s", any);
