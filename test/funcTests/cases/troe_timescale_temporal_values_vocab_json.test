@@ -1,0 +1,179 @@
+#
+# FILE            troe_timescale_temporal_values_vocab_json.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.8 / § 6.3.10 Simplified Temporal Representation, for the two
+# attribute types whose pair is WRAPPED rather than bare:
+#
+#   VocabProperty  -> { vocab: [ [ {"vocab": <term>}, ts ], ... ] }
+#   JsonProperty   -> { json:  [ [ {"json":  <any>  }, ts ], ... ] }
+#
+# The VocabProperty is the interesting one. Its value is @type:@vocab, so
+# the store holds an EXPANDED IRI - and the wire has to carry the term
+# again. `diesel` goes in, https://uri.etsi.org/ngsi-ld/default-context/diesel
+# is stored, and `diesel` has to come back out of temporalValues too, not
+# only out of the normalized rendering. The sibling test
+# troe_timescale_temporal_values_format covers Property, Relationship and
+# LanguageProperty.
+#
+--NAME--
+TRoE timescale - format=temporalValues for VocabProperty and JsonProperty
+
+--TAGS--
+troe timescale postgres temporal format vocab-property json-property
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. Seed urn:V1 with a VocabProperty and a JsonProperty, then change each once"
+echo "=============================================================================="
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "fuelType": {"type":"VocabProperty","vocab":"diesel","observedAt":"2026-04-28T09:00:00Z"},
+  "spec":     {"type":"JsonProperty","json":{"seats":4,"doors":5},"observedAt":"2026-04-28T09:00:00Z"}
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/fuelType -X PATCH --payload '{"type":"VocabProperty","vocab":"petrol","observedAt":"2026-04-28T10:00:00Z"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/spec -X PATCH --payload '{"type":"JsonProperty","json":{"seats":2,"doors":3},"observedAt":"2026-04-28T10:00:00Z"}' | head -1
+echo
+echo
+
+
+echo "02. GET temporal/urn:V1 - normalized: the vocab terms are compacted"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "03. Same, format=temporalValues - wrapped pairs, terms still compacted"
+echo "======================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?format=temporalValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1 with a VocabProperty and a JsonProperty, then change each once
+==============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. GET temporal/urn:V1 - normalized: the vocab terms are compacted
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "fuelType": [
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "VocabProperty",
+      "vocab": "diesel"
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "observedAt": "REGEX(.*)",
+      "type": "VocabProperty",
+      "vocab": "petrol"
+    }
+  ],
+  "id": "urn:V1",
+  "spec": [
+    {
+      "instanceId": "REGEX(.*)",
+      "json": {
+        "doors": 5,
+        "seats": 4
+      },
+      "observedAt": "REGEX(.*)",
+      "type": "JsonProperty"
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "json": {
+        "doors": 3,
+        "seats": 2
+      },
+      "observedAt": "REGEX(.*)",
+      "type": "JsonProperty"
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. Same, format=temporalValues - wrapped pairs, terms still compacted
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 668
+
+{
+  "fuelType": {
+    "type": "VocabProperty",
+    "vocabs": [
+      [
+        {
+          "vocab": "diesel"
+        },
+        "2026-04-28T09:00:00Z"
+      ],
+      [
+        {
+          "vocab": "petrol"
+        },
+        "2026-04-28T10:00:00Z"
+      ]
+    ]
+  },
+  "id": "urn:V1",
+  "spec": {
+    "jsons": [
+      [
+        {
+          "json": {
+            "doors": 5,
+            "seats": 4
+          }
+        },
+        "2026-04-28T09:00:00Z"
+      ],
+      [
+        {
+          "json": {
+            "doors": 3,
+            "seats": 2
+          }
+        },
+        "2026-04-28T10:00:00Z"
+      ]
+    ],
+    "type": "JsonProperty"
+  },
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

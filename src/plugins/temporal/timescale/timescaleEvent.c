@@ -554,53 +554,6 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleEntityEvent -
-//
-int timescaleEntityEvent(const TroeEvent* evP)
-{
-  if (evP == NULL) return TROE_ERR;
-
-  TimescaleConn* cP = timescaleConnGet(evP->tenantP);
-  if (cP == NULL) return TROE_ERR;
-  timescaleConn = cP->conn;
-
-  int r = timescaleExecEntityInsertLocked(evP);
-
-  // For entity-level create / replace, fan out into per-attr rows so
-  // the initial state is queryable on the temporal-attrs side.
-  if (r == TROE_OK && (evP->op == TroeOpEntityCreated || evP->op == TroeOpEntityReplaced))
-    r = fanOutAttrsFromEntity(evP);
-
-  timescaleConn = NULL;
-  timescaleConnRelease(cP);
-  return r;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// timescaleAttrEvent -
-//
-int timescaleAttrEvent(const TroeEvent* evP)
-{
-  if (evP == NULL) return TROE_ERR;
-
-  TimescaleConn* cP = timescaleConnGet(evP->tenantP);
-  if (cP == NULL) return TROE_ERR;
-  timescaleConn = cP->conn;
-
-  int r = timescaleExecAttrInsertLocked(evP);
-
-  timescaleConn = NULL;
-  timescaleConnRelease(cP);
-  return r;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // timescaleEventList - drain a queue of events as one transaction.
 //
 // The deferred-event queue is built per request (troeDispatchPending drains

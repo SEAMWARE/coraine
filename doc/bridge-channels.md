@@ -806,7 +806,7 @@ typedef struct BridgeDriver
 
   // Outbound to an NGSI-LD peer — called by the distop dispatcher when
   // an operation routes to a CSR owned by this plugin. The same shape as
-  // ldDistOpSend's HTTP path, minus the URL.
+  // ldDistOpSendReceive's HTTP path, minus the URL.
   int         (*sendOne)(LdRegCacheItem* csr, LdBridgeOp* op,
                          LdBridgeResult* result);
 

@@ -1,0 +1,147 @@
+#
+# FILE            csource-reg-distops-retrieve-upstream-error.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 6.3.5 single-source error contract on GET /entities/{id}, for the case
+# where the source ANSWERS - with a failure - rather than failing to answer.
+#
+# A dead endpoint (connection refused) is the well-trodden path; it produces
+# a 502 whose `detail` quotes a transport message and carries no upstream
+# status, because there was none. Here the exclusive source is alive and
+# replies 503 / 400 / 404, which the broker has to tell apart:
+#
+#   503, 400  -> 502 Bad Gateway, and the upstream status rides along as the
+#                RFC 9457 extension member `statusCode` next to
+#                `registrationId`, so a client can see WHO failed and HOW
+#   404       -> the source simply has no data. Not an error: the request
+#                ends as a plain 404 with no registrationId or statusCode
+#
+--NAME--
+DistOps - an exclusive source that answers with an error status (§ 6.3.5)
+
+--TAGS--
+distops error registration retrieve exclusive forwarding
+
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7731
+
+--RUN--
+
+echo "01. Register an exclusive CSR for urn:V1's speed, pointing at ftClient 7731"
+echo "==========================================================================="
+payload='{
+  "id": "urn:CSR:Src",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7731",
+  "mode": "exclusive",
+  "operations": ["retrieveEntity"],
+  "information": [ { "entities": [{"id": "urn:V1", "type": "Vehicle"}], "propertyNames": ["speed"] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Source answers 503 -> 502 Bad Gateway with statusCode 503"
+echo "============================================================="
+corCurl --port 7731 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":503}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "03. Source answers 400 -> 502 Bad Gateway with statusCode 400"
+echo "============================================================="
+corCurl --port 7731 -X DELETE --url /mock/reply | head -1
+corCurl --port 7731 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":400}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "04. Source answers 404 -> plain 404, no registrationId and no statusCode"
+echo "========================================================================"
+corCurl --port 7731 -X DELETE --url /mock/reply | head -1
+corCurl --port 7731 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":404}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+--EXPECT--
+01. Register an exclusive CSR for urn:V1's speed, pointing at ftClient 7731
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Src
+Content-Length: 0
+
+
+
+
+02. Source answers 503 -> 502 Bad Gateway with statusCode 503
+=============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 502 Bad Gateway
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 218
+
+{
+  "detail": "forwarded request failed (status 503)",
+  "registrationId": "urn:CSR:Src",
+  "status": 502,
+  "statusCode": 503,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+03. Source answers 400 -> 502 Bad Gateway with statusCode 400
+=============================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 502 Bad Gateway
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 218
+
+{
+  "detail": "forwarded request failed (status 400)",
+  "registrationId": "urn:CSR:Src",
+  "status": 502,
+  "statusCode": 400,
+  "title": "Bad Gateway",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+04. Source answers 404 -> plain 404, no registrationId and no statusCode
+========================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7731
+coraineStop
+corDbDrop
