@@ -809,9 +809,20 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       char key[16];
       int  keyLen = snprintf(key, sizeof(key), "%d", i);
 
-      if (term->value.list.itemType == LdQNumber)
+      //
+      // Per ITEM. § 7.2.3.4 condition 2 asks whether the target equals ANY of
+      // the list values and says nothing about them sharing a type, so
+      // `q=a==1,"two"` is a legal list of two kinds of Value - and one $in
+      // array holds both happily. Taking the whole list's type from the first
+      // item put "two" into the array as the double 0.
+      //
+      LdQValueType itemType = (term->value.list.itemTypeV != NULL)
+                              ? term->value.list.itemTypeV[i]
+                              : term->value.list.itemType;
+
+      if (itemType == LdQNumber)
         bson_append_double(&array, key, keyLen, strtod(term->value.list.values[i], NULL));
-      else if (term->value.list.itemType == LdQBool)
+      else if (itemType == LdQBool)
         bson_append_bool(&array, key, keyLen, strcmp(term->value.list.values[i], "true") == 0);
       else
         bson_append_utf8(&array, key, keyLen, term->value.list.values[i], -1);

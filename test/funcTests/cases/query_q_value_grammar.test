@@ -1,0 +1,146 @@
+#
+# FILE            query_q_value_grammar.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2.3.3 - what may stand on the right-hand side of a q comparison.
+#
+#   CompEqualityValue = OtherValue / ValueList / Range / URI
+#   ValueList         = Value 1*(%x2C Value)
+#   Value             = ComparableValue / OtherValue
+#   ComparableValue   = Number / quotedStr / dateTime / date / time
+#
+# There is no unquoted-string production. The parser used to invent one:
+# any token strtod could not fully consume became a string, and inside a
+# value list it was worse - every item that was not true/false was
+# DECLARED a number without being converted, so the matcher's strtod made
+# `[3` into 0 and `7]` into 7, and a list of unquoted URIs compared as
+# numbers and matched nothing at all.
+#
+# A malformed q now says so instead of answering. That matters more than
+# it sounds: `q=n==12B` used to return an empty list, and an empty list is
+# a statement ABOUT THE DATA that the client has no reason to distrust.
+#
+# The one unquoted string the grammar does allow is a URI, and it allows
+# it as the whole right-hand side. Coraine also takes one as a LIST item,
+# which the ABNF does not - see spec-doubts-2 #122, which also records why
+# a URI containing a comma has to be quoted (the percent-encoding that
+# would protect it is undone by the HTTP layer before q is parsed).
+#
+--NAME--
+q right-hand side must be a Value the grammar defines (§ 7.2.3.3)
+
+--TAGS--
+q query validation negation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed one entity: a string, a number, a relationship, a boolean"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":{"type":"Property","value":"alpha"},"n":{"type":"Property","value":3},"b":{"type":"Property","value":true},"u":{"type":"Relationship","object":"urn:x:1"}}' | head -1
+echo
+echo
+
+
+echo "02. The forms the grammar allows - all 200, all matching urn:E1"
+echo "==============================================================="
+for q in 'a==%22alpha%22' 'n==3' 'b==true' 'u==urn:x:1' 'n==3,7' 'n==2..8' 'u==urn:x:1,urn:x:9' 'n==1,%22alpha%22' 'a==1,%22alpha%22' 'a~=alp'; do
+  printf '%-26s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | head -1
+  echo
+done
+echo
+echo
+
+
+echo "03. The forms it does not - all 400 Invalid q parameter"
+echo "======================================================="
+for q in 'a==Building' 'n==12B' 'n==2..8x' 'n==x..y' 'a==%5B3,7%5D' 'n==3,7x' 'n==3,%5B7'; do
+  printf '%-26s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"status":[0-9]+' | head -1
+  echo
+done
+echo
+echo
+
+
+echo "04. The 400 in full - it names the offending token"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=n==12B'
+echo
+echo
+
+
+--EXPECT--
+01. Seed one entity: a string, a number, a relationship, a boolean
+==================================================================
+HTTP/1.1 201 Created
+
+
+02. The forms the grammar allows - all 200, all matching urn:E1
+===============================================================
+a==%22alpha%22             "id":"urn:E1"
+
+n==3                       "id":"urn:E1"
+
+b==true                    "id":"urn:E1"
+
+u==urn:x:1                 "id":"urn:E1"
+
+n==3,7                     "id":"urn:E1"
+
+n==2..8                    "id":"urn:E1"
+
+u==urn:x:1,urn:x:9         "id":"urn:E1"
+
+n==1,%22alpha%22           []
+
+a==1,%22alpha%22           "id":"urn:E1"
+
+a~=alp                     "id":"urn:E1"
+
+
+
+03. The forms it does not - all 400 Invalid q parameter
+=======================================================
+a==Building                "status":400
+
+n==12B                     "status":400
+
+n==2..8x                   "status":400
+
+n==x..y                    "status":400
+
+a==%5B3,7%5D               "status":400
+
+n==3,7x                    "status":400
+
+n==3,%5B7                  "status":400
+
+
+
+04. The 400 in full - it names the offending token
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 232
+
+{
+  "detail": "'12B' is not a valid value: a string must be quoted, and a number must not carry anything after it",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
