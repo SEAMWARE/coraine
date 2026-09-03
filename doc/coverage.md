@@ -1,7 +1,7 @@
 # Test coverage
 
-Measured **2026-09-02** on `52d683e`, with `make coverage` (see the end for how to
-reproduce). Both suites green: 627/627 on mongoc, 577/577 on corDB.
+Measured **2026-09-03** on `577e633`, with `make coverage` (see the end for how to
+reproduce). Both suites green: 634/634 on mongoc, 584/584 on corDB.
 
 **These are the only coverage figures in the repository.** They used to be repeated
 in `testing.md`, `spec-coverage-gaps.md` and the README, and the copies drifted
@@ -21,42 +21,42 @@ sat outside a number presented as the broker's.
 
 | Run | Tests | Lines | Functions | Branches |
 |-----|-------|-------|-----------|----------|
-| `make coverage DB=mongoc` | 627 / 627 pass | 83.0% (26188/31534) | 96.0% (1312/1366) | **64.7%** (18133/28030) |
-| `make coverage` (corDB) | 577 / 577 pass | 79.3% (23502/29638) | 91.8% (1217/1325) | **62.0%** (16718/26982) |
+| `make coverage DB=mongoc` | 634 / 634 pass | 83.8% (26347/31448) | 97.7% (1324/1355) | **65.5%** (18318/27984) |
+| `make coverage` (corDB) | 584 / 584 pass | 80.1% (23664/29552) | 93.5% (1229/1314) | **62.8%** (16908/26936) |
 
 ...and per repository, in the mongoc run, which is where it gets interesting:
 
 | Repository | Lines | Functions | Branches |
 |---|---|---|---|
-| `corNgsild` | **84.6%** (10247/12116) | 95.2% (589/619) | 67.7% (8709/12869) |
-| `coraine/src` | 83.0% (13377/16114) | 97.6% (564/578) | 61.9% (7785/12567) |
-| `corJsonld` | 80.0% (825/1031) | 96.5% (55/57) | 67.8% (629/928) |
+| `corNgsild` | **85.8%** (10336/12046) | 97.9% (597/610) | 68.7% (8811/12817) |
+| `coraine/src` | 83.5% (13447/16107) | 98.4% (568/577) | 62.6% (7868/12577) |
+| `corJsonld` | 80.7% (825/1022) | 98.2% (55/56) | 68.1% (629/924) |
 | `corRest` | **76.5%** (1739/2273) | 92.9% (104/112) | 60.6% (1010/1666) |
 
 The same four in the corDB run:
 
 | Repository | Lines | Functions | Branches |
 |---|---|---|---|
-| `corNgsild` | 82.6% (10005/12116) | 93.2% (577/619) | 66.5% (8560/12869) |
-| `corJsonld` | 79.5% (820/1031) | 96.5% (55/57) | 67.3% (625/928) |
-| `coraine/src` | 76.9% (10940/14218) | 89.6% (481/537) | 56.7% (6527/11519) |
-| `corRest` | 76.4% (1737/2273) | 92.9% (104/112) | 60.4% (1006/1666) |
+| `corNgsild` | 83.8% (10097/12046) | 95.9% (585/610) | 67.6% (8665/12817) |
+| `corJsonld` | 80.2% (820/1022) | 98.2% (55/56) | 67.6% (625/924) |
+| `coraine/src` | 77.5% (11010/14211) | 90.5% (485/536) | 57.3% (6610/11529) |
+| `corRest` | 76.4% (1737/2273) | 92.9% (104/112) | 60.5% (1008/1666) |
 
 `corNgsild` — the library nobody was measuring until 2026-09-01 — is still the
 **best-covered** of the four, because the NGSI-LD rules the functests hammer hardest
 live there.
 
 The two runs disagree almost entirely in one place. `corRest` and `corJsonld` barely
-move between them (76.5% → 76.4%, 80.0% → 79.5%) because nothing in them knows which
-database is underneath; the gap is `coraine/src` (83.0% → 76.9%) and, through the 56
-mongoc-only tests against corDB's 6, `corNgsild` (84.6% → 82.6%).
+move between them (76.5% → 76.4%, 80.7% → 80.2%) because nothing in them knows which
+database is underneath; the gap is `coraine/src` (83.5% → 77.5%) and, through the 56
+mongoc-only tests against corDB's 6, `corNgsild` (85.8% → 83.8%).
 
 ## What moves these numbers is usually not new tests
 
-Every headline figure has risen twice this week, and **not one covered line or
-function was added either time.**
+The headline has now risen three times in a week. **Twice, not one covered line or
+function was added.**
 
-The second rise, between `e0a5427` and `52d683e`, is the clearest case the file has:
+The clearest case the file has, between `e0a5427` and `52d683e`:
 
 | | before | after |
 |---|---|---|
@@ -78,6 +78,26 @@ uncovered lines of unreachable client API were deleted.
 headline cannot tell you which.** Read the numerator. If it has not moved, nothing
 new is tested — the code got smaller, which is worth doing and is not the same
 achievement.
+
+### The third rise, and what it looks like when the numerator *does* move
+
+`52d683e` → `577e633` is the counter-example, and the reason the rule is "read the
+numerator" rather than "distrust every rise":
+
+| | numerator | denominator |
+|---|---|---|
+| lines | 26188 → 26347 (**+159 newly covered**) | 31534 → 31448 (−86) |
+| functions | 1312 → 1324 (**+12 newly entered**) | 1366 → 1355 (−11) |
+| branches | 18133 → 18318 (**+185 newly taken**) | 28030 → 27984 (−46) |
+
+Both effects at once — eight new tests, and three repositories' worth of unreachable
+code deleted — but this time the numerator carries most of it. The twelve functions
+are exactly the ones the new tests were written for; the eleven that left the
+denominator are the ones nothing could reach.
+
+Which is also why the two halves have to be reported separately. Lines alone would
+say "+0.8 pp" and leave a reader to guess whether the suite grew or the code shrank.
+It was both, and only the numerator says so.
 
 ## ⚠️ The figure depends on the environment, and the HA paths are the proof
 
@@ -122,7 +142,7 @@ They are separate measurements, not two views of one. A test that pins a
 backend-specific answer — mongo's earth model in the fourth digit of a distance, or
 the tenant-wide 2dsphere index that makes a GeoProperty and a Property refuse to
 share an Attribute name — declares `REQUIRE_DB` and belongs to one run only. Hence
-627 tests against mongoc and 577 against corDB.
+634 tests against mongoc and 584 against corDB.
 
 Each report also excludes the DB plugin that is *not* under test: a corDB run cannot
 execute a line of `mongoc.so`, and counting it would measure the choice of backend
@@ -137,25 +157,25 @@ coverage here, and why it is the figure to move.
 
 ## "Anything less than 100% is laziness"
 
-It is worth being precise about what the missing 17.0% actually is, because the
+It is worth being precise about what the missing 16.2% actually is, because the
 reflex answer — *it's all unreachable error handling* — is not what the data says.
 
-Of the **5346 uncovered lines** in the mongoc run — 2737 in `coraine/src`, 1869 in
-`corNgsild`, 534 in `corRest`, 206 in `corJsonld`:
+Of the **5101 uncovered lines** in the mongoc run — 2660 in `coraine/src`, 1710 in
+`corNgsild`, 534 in `corRest`, 197 in `corJsonld`:
 
 | Share | Lines | What it is |
 |-------|-------|-----------|
-| **60.8%** | 3248 | **ordinary code with no failure guard at all** |
-| 25.6% | 1371 | inside a **NULL / invalid-argument guard** |
-| **9.1%** | 484 | inside **54 functions the suite never enters at all** |
-| 2.4% | 132 | guarded by a **DB / driver failure** — `bson_error_t`, a cursor that fails, `!= DB_OK` |
-| 1.2% | 64 | the **NULL-driver-method → 501/422** convention |
+| **63.0%** | 3216 | **ordinary code with no failure guard at all** |
+| 26.9% | 1374 | inside a **NULL / invalid-argument guard** |
+| 5.3% | 268 | inside **31 functions the suite never enters at all** |
+| 2.6% | 132 | guarded by a **DB / driver failure** — `bson_error_t`, a cursor that fails, `!= DB_OK` |
+| 1.3% | 64 | the **NULL-driver-method → 501/422** convention |
 | 0.5% | 25 | **defensive** paths — `KT_X`, `default:` on an exhaustive switch, "cannot happen" |
 | 0.2% | 12 | `pthread_create` failing, a short `fread`, an allocator returning NULL |
 | 0.2% | 10 | **network / socket** failure |
 
 The part that genuinely needs **fault injection** — a database that fails on demand,
-a socket that dies mid-write, an allocator that returns NULL — is 154 lines, under
+a socket that dies mid-write, an allocator that returns NULL — is 154 lines, about
 3% of what is uncovered. The largest group by far is ordinary behaviour nobody has
 written a test for. Counted in this run: the `success`/`errors` assembly for a batch
 operation that half-works (64 lines), `idPattern` handling across subscription
@@ -164,24 +184,54 @@ when the @context cache is full and the expiry sweep for volatile contexts
 (`corLdCache.c`, 14 and 10), `$minDistance` on a geo query (4) and `expiresAt` on a
 Context-Source subscription (4).
 
-### The 54 functions that are never entered
+Now that the never-entered bucket is nearly exhausted, this is where the remaining
+work is — and it is no longer a matter of finding a function nobody calls. The four
+files holding the most of it are, in the mongoc run:
+
+| File | Uncovered | Covered |
+|---|---|---|
+| `corRest/corRestClientMulti.c` | 187 | 58.9% |
+| `mongoc/mongocEntityQuery.c` | 172 | 73.9% |
+| `corRest/corRestClient.c` | 122 | 69.0% |
+| `corNgsild/ldEntityMatch.c` | 120 | 64.6% |
+
+The last two rows of that list are the same pair as `geoEntityValidate` /
+`attrInstanceOf` above, one layer down: `mongocEntityQuery.c` builds the pushdown and
+`ldEntityMatch.c` evaluates in the broker, and every predicate that appears in both
+has two implementations that must agree. The multi-request client is the other half —
+the pooled-connection retry after a peer has gone away, and the response-buffer
+growth past 8 KB that the single-request client exercises exactly once.
+
+### The 31 functions that are never entered
 
 This is the one bucket that needs no heuristic — gcov reports an execution count per
-function — and the first time it has been measured across all four repositories
-rather than `coraine/src` alone.
+function.
 
 | Lines | Functions | What they are |
 |---|---|---|
-| 246 | 25 | **genuinely untested behaviour** |
-| 136 | 19 | **shutdown and cleanup** — `troeStop`, `timescaleClose`, `corRestStop`, the three cache `…Release` functions, `ldMqttCleanup`, `onCrash`. They run when the process is going away and assert nothing a test can read |
+| 125 | 18 | **shutdown and cleanup** — `troeStop`, `timescaleClose`, `corRestStop`, the three cache `…Release` functions, `ldMqttCleanup`, `onCrash`. They run when the process is going away and assert nothing a test can read |
 | 51 | 5 | **parked on purpose** — see below |
 | 42 | 1 | `httpEndpointDetect`, startup auto-detection of the broker's own externally-reachable endpoint |
+| 41 | 3 | **genuinely untested behaviour** — the whole remainder, named below |
 | 9 | 4 | **null-object defaults** — `hookNoop`, `preServiceHookNoop` and two setters nothing calls |
 
-The largest single entries in the untested-behaviour group are `geoEntityValidate`
-(23), `attrToNormalized` (19), `stripInfoAttrsFromEntity` and
-`stripInfoAttrsFromTemporal` (17 each), `vocabCompactInPlace` (17),
-`temporalLatestInstance` (13) and `isNumberString` (13).
+It was 54 functions and 484 lines a day earlier, with 25 functions in the
+untested-behaviour group. That group is down to **three**, and they are the three that
+each need something the suite cannot express today:
+
+- **`geoEntityValidate`** (23) and **`attrInstanceOf`** (10) are zero here and
+  **covered in the corDB run** — mongoc pushes those two predicates into the
+  database, corDB evaluates them in the broker. Two implementations of one rule that
+  have never been compared against each other; the way in is a fixture queried
+  against both backends, with the negated operators first, since Mongo's `$ne` /
+  `$nin` / `$not` also match a *missing* field.
+- **`corRestClientResponseHeader`** (8) is the redirect `Location` lookup. Reaching
+  it needs a Context Source that answers 3xx **with a `Location` header**, and
+  ftClient's `/mock/reply` can set a status but not headers.
+
+Mining this bucket is what produced the 2026-09-03 tests, and it is close to
+exhausted: what remains is either deliberate, or shutdown code that outlives the
+assertions a test could make.
 
 The parked group was two families when this file was first written. It is one now:
 
@@ -204,7 +254,31 @@ kept on purpose with the reason recorded at the call site; the other was adverti
 library surface no consumer could consume. A list of never-entered functions does not
 tell you which is which — reading them does.
 
-The corDB run has 108 never-entered functions and 1498 lines rather than 54 and 484.
+### What the 2026-09-03 pass deleted, and why every one of them was a duplicate
+
+Nine more functions left on the same reasoning, across three repositories. Not one
+was a missing wiring — each duplicated a mechanism that was already live, so
+*hooking it up* was never the alternative to deleting it:
+
+| Deleted | The live mechanism |
+|---|---|
+| `ldToNormalized` + `attrToNormalized` | normalized *is* the storage form, and a forward strips `format` from the query string, so an upstream answer arrives normalized too. `ldToConcise` / `ldToSimplified` are the live pair |
+| `ldParamExpandV` | `ldExpandParams.c::expandArray` |
+| `ldQueryParamValue` | the `ldUrlParams` dispatch table |
+| `ldPickOmitNested` | `ldPickOmit` — the deleted one was a byte-identical alias "so call sites can document intent", and no call site ever did |
+| `ldBatchErrorListSingleStatus`, `…FirstAsProblemDetails` | `ldBatchErrorsSingleStatus` / `ldBatchErrorAsProblemDetails`, used by all six batch routines |
+| `ldSnapshotStatusToString` | status travels as a string; both snapshot exec files carry their own `pickStatus` / `statusFromString` |
+| `ldDistOpSend` | `ldDistOpSendReceive` |
+| `corLdCacheDownloadingCheck` | `corLdCacheDownloadingAdd`, an atomic test-and-set that also distinguishes a cycle from another thread |
+| `timescaleEntityEvent`, `timescaleAttrEvent` | `timescaleEventList`. **Unreachable by construction**: `troeDispatch` checks the list hook first, and timescale registers it |
+
+⚠️ Two of their header comments described behaviour the code did not have.
+`LdBatchErrors.h` said "the decision matrix uses this to collapse a uniform-error 207
+into a single-status 4xx"; the only user of that type documents the opposite policy
+and always answers 207. **A never-called function's doc comment is unverified
+prose** — read the caller, not the comment.
+
+The corDB run has 85 never-entered functions and 1282 lines rather than 31 and 268.
 The difference is the 56 mongoc-only tests plus the HA test, and it is a property of
 the run, not of the code.
 
