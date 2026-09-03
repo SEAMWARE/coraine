@@ -1,0 +1,217 @@
+#
+# FILE            query_q_deep_path_negated.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.9 attrPath with a NEGATED operator, over a fixture that lacks the
+# path at three different depths.
+#
+# This is an oracle test, and it needs no special machinery to be one: it
+# declares no REQUIRE_DB, so the harness runs it against both backends -
+# and the two evaluate `q` in completely different places. mongoc pushes
+# the predicate into the database; corDB walks the entity in the broker
+# (ldEntityMatch.c). Any disagreement is a bug in one of them, and this
+# file fails in exactly one of the two suite runs when that happens.
+#
+# The negated operators are where they are most likely to disagree,
+# because a Mongo $ne / $nin / $not ALSO matches a document where the
+# field is absent - so a pushdown that forgets $exists:true answers a
+# different question than the in-broker walk.
+#
+# § 4.9 is explicit that the comparison needs a target: "if the attribute
+# path does not exist in the Entity, the term evaluates to false". An
+# Entity with no `a` at all does not satisfy `a.b.c!=1`; it has no
+# a.b.c to be unequal to anything.
+#
+# The fixture truncates the path at every level, so a matcher that stops
+# checking too early is caught:
+#
+#   E1  a.b.c = 1        the full path
+#   E2  a.b.c = 2        the full path, different value
+#   E3  a.b   = {}       leaf missing
+#   E4  a     = 5        second segment missing
+#   E5  (no a)           attribute missing entirely
+#
+--NAME--
+q on a deep attrPath with negated operators, over a fixture that lacks it (§ 4.9)
+
+--TAGS--
+q query sub-attributes negation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed five entities, truncating a.b.c at every level"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8,"c":{"type":"Property","value":1}}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8,"c":{"type":"Property","value":2}}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"OQ","a":{"type":"Property","value":9,"b":{"type":"Property","value":8}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"OQ","a":{"type":"Property","value":5}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E5","type":"OQ","other":{"type":"Property","value":7}}' | head -1
+echo
+echo
+
+
+echo "02. q=a.b.c==1 - the positive control: E1"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c==1&options=keyValues'
+echo
+echo
+
+
+echo "03. q=a.b.c!=1 - E2 only; a missing path is not 'unequal to 1'"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!=1&options=keyValues'
+echo
+echo
+
+
+echo "04. q=a.b.c!=99 - both entities that HAVE the path, neither is 99"
+echo "================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c!=99&options=keyValues'
+echo
+echo
+
+
+echo "05. q=a.b.c - exists: E1 and E2"
+echo "==============================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=a.b.c&options=keyValues'
+echo
+echo
+
+
+echo "06. q=!a.b.c - not exists: the three that lack it, at three depths"
+echo "=================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OQ&q=!a.b.c&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed five entities, truncating a.b.c at every level
+=======================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=a.b.c==1 - the positive control: E1
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  }
+]
+
+
+
+03. q=a.b.c!=1 - E2 only; a missing path is not 'unequal to 1'
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+[
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  }
+]
+
+
+
+04. q=a.b.c!=99 - both entities that HAVE the path, neither is 99
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  }
+]
+
+
+
+05. q=a.b.c - exists: E1 and E2
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+[
+  {
+    "a": 9,
+    "id": "urn:E1",
+    "type": "OQ"
+  },
+  {
+    "a": 9,
+    "id": "urn:E2",
+    "type": "OQ"
+  }
+]
+
+
+
+06. q=!a.b.c - not exists: the three that lack it, at three depths
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 181
+
+[
+  {
+    "a": 9,
+    "id": "urn:E3",
+    "type": "OQ"
+  },
+  {
+    "a": 5,
+    "id": "urn:E4",
+    "type": "OQ"
+  },
+  {
+    "id": "urn:E5",
+    "other": 7,
+    "type": "OQ"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
