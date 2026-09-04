@@ -62,7 +62,13 @@ all:        release
 # rebuild+install when something did. Without this, editing a lib's source
 # leaves the broker linking against a stale .a (silent — link succeeds
 # against last-installed copy).
-SIBLING_LIBS = corRest corNgsild corJsonld
+#
+# Dependency order, not alphabetical: corNgsild links -lcorRest and -lcorJsonld,
+# so both have to exist before it is built. This used to work only because a
+# previous build had left their artefacts behind - on a genuinely clean tree
+# corNgsild failed to link.
+#
+SIBLING_LIBS = corRest corJsonld corNgsild
 
 libs:
 	@for lib in $(SIBLING_LIBS); do \
@@ -203,7 +209,7 @@ coverage:
 	@for d in $(COV_LIBS); do \
 	   find $(SIBLING_DIR)/$$d -name '*.gcno' -delete; \
 	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
-	   $(MAKE) -C $(SIBLING_DIR)/$$d EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
+	   $(MAKE) -C $(SIBLING_DIR)/$$d BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
 	 done
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
