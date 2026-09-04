@@ -289,15 +289,15 @@ Content-Length: 189
 
 07. dist-asc with a non-Point orderGeometry — 501 Not Implemented
 =================================================================
-HTTP/1.1 501 Not Implemented
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 216
+Content-Length: 224
 
 {
   "detail": "sort by distance is only supported for a Point orderGeometry (got 'LineString')",
-  "status": 501,
-  "title": "Not Implemented",
+  "status": 422,
+  "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
 

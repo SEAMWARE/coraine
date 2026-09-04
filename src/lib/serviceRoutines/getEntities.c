@@ -1629,7 +1629,7 @@ bool getEntities(void)
     }
     if (corNgsild.orderGeometry != NULL && strcmp(corNgsild.orderGeometry, "Point") != 0)
     {
-      ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
               "sort by distance is only supported for a Point orderGeometry (got '%s')", corNgsild.orderGeometry);
       return true;
     }

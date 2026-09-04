@@ -138,14 +138,14 @@ Content-Length: 182
 
 04. valid URI but no TRoE plugin → 501 Not Implemented
 =======================================================
-HTTP/1.1 501 Not Implemented
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: 224
 
 {
   "detail": "broker started without TRoE support; 'temporal-entity create' requires a TRoE plugin",
-  "status": 501,
+  "status": 422,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }

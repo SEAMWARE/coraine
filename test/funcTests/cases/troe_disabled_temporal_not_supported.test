@@ -1,16 +1,16 @@
 #
-# FILE            troe_disabled_temporal_501.test
+# FILE            troe_disabled_temporal_not_supported.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
 # § 6.18 — a broker started without TRoE support has no temporal storage; a
-# temporal-entity retrieve must be refused with 501 (Operation Not Supported),
+# temporal-entity retrieve must be refused with 422 (Operation Not Supported),
 # not attempted. The broker here runs with the default TRoE (none).
 #
 --NAME--
-GET /temporal/entities with TRoE disabled → 501 Operation Not Supported
+GET /temporal/entities with TRoE disabled → 422 Operation Not Supported
 
 --TAGS--
 troe temporal
@@ -21,7 +21,7 @@ coraineStart
 
 --RUN--
 
-echo "01. GET /temporal/entities/{id} — 501 (no TRoE backend)"
+echo "01. GET /temporal/entities/{id} — 422 (no TRoE backend)"
 echo "======================================================="
 corCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:T:1
 echo
@@ -29,16 +29,16 @@ echo
 
 
 --EXPECT--
-01. GET /temporal/entities/{id} — 501 (no TRoE backend)
+01. GET /temporal/entities/{id} — 422 (no TRoE backend)
 =======================================================
-HTTP/1.1 501 Not Implemented
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: 226
 
 {
   "detail": "broker started without TRoE support; 'temporal-entity retrieve' requires a TRoE plugin",
-  "status": 501,
+  "status": 422,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
