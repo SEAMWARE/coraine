@@ -1,0 +1,109 @@
+#
+# FILE            distop_query_pooled_connection_reuse.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A forwarded query keeps its connection: on a clean 2xx with keep-alive
+# the multi-request engine hands the socket back to the pool
+# (corRestClientPoolPut), and the next forward to the same host:port takes
+# it out again and marks the entry `fromPool`.
+#
+# Which means the broker holds sockets to Context Sources it does not own,
+# and a Context Source restarting - the most ordinary thing that happens to
+# one - leaves it holding a dead socket. This pins that the client does not
+# notice: the query after the restart answers exactly as the one before it.
+#
+# ⚠️ What this test does NOT cover, despite appearances: the engine's
+# retry-after-reuse-failure blocks (`fromPool && !retried`, one on the send
+# path and one on the read path). Instrumenting them proved it - the second
+# query DOES take the pooled socket (POOLGET reports a hit, so the liveness
+# probe above it does not catch the death either: the peer's FIN has not
+# arrived when poll() runs), and yet neither retry block is entered and the
+# request succeeds anyway. Whatever recovers it, it is not those two, and
+# they remain uncovered.
+#
+# Worth knowing before someone writes "covers the pooled retry" on a test
+# like this one: it passes with both retry blocks compiled out, and it
+# passes with the liveness probe compiled out too. Each of those changes
+# has to be made and RUN to find that out.
+#
+--NAME--
+DistOps - a forwarded query survives the Context Source restarting
+
+--TAGS--
+distops query registration forwarding
+
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7751
+
+--RUN--
+
+echo "01. Register an inclusive CSR for type T, pointing at ftClient 7751"
+echo "==================================================================="
+payload='{
+  "id": "urn:CSR:Pool",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7751",
+  "mode": "inclusive",
+  "operations": ["queryEntity"],
+  "information": [ { "entities": [{"type": "T"}] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Program the source, then query - the connection ends up in the pool"
+echo "======================================================================="
+corCurl --port 7751 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":200,"raw":"[{\"id\":\"urn:R1\",\"type\":\"T\",\"a\":{\"type\":\"Property\",\"value\":1}}]"}' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues' | tr -d ' \n' | grep -oE '"id":"[^"]*"'
+echo
+echo
+
+
+echo "03. The Context Source restarts - same port, new process, dead socket"
+echo "====================================================================="
+ftClientStop --port 7751
+ftClientStart --port 7751
+corCurl --port 7751 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":200,"raw":"[{\"id\":\"urn:R1\",\"type\":\"T\",\"a\":{\"type\":\"Property\",\"value\":1}}]"}' | head -1
+echo
+echo
+
+
+echo "04. Query again - the pooled socket is dead, and the answer is the same"
+echo "======================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues' | tr -d ' \n' | grep -oE '"id":"[^"]*"'
+echo
+echo
+
+
+--EXPECT--
+01. Register an inclusive CSR for type T, pointing at ftClient 7751
+===================================================================
+HTTP/1.1 201 Created
+
+
+02. Program the source, then query - the connection ends up in the pool
+=======================================================================
+HTTP/1.1 201 Created
+"id":"urn:R1"
+
+
+03. The Context Source restarts - same port, new process, dead socket
+=====================================================================
+HTTP/1.1 201 Created
+
+
+04. Query again - the pooled socket is dead, and the answer is the same
+=======================================================================
+"id":"urn:R1"
+
+
+--TEARDOWN--
+ftClientStop --port 7751
+coraineStop
+corDbDrop

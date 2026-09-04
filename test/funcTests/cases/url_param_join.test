@@ -174,10 +174,10 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: 178
 
 {
-  "detail": "'joinLevel' must be a positive integer",
+  "detail": "'joinLevel' must be a positive integer (got '0')",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -190,10 +190,10 @@ Content-Length: 168
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: 179
 
 {
-  "detail": "'joinLevel' must be a positive integer",
+  "detail": "'joinLevel' must be a positive integer (got '-3')",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -206,10 +206,10 @@ Content-Length: 168
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: 180
 
 {
-  "detail": "'joinLevel' must be a positive integer",
+  "detail": "'joinLevel' must be a positive integer (got 'abc')",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

@@ -31,6 +31,12 @@
 #   and so MATCHES; the ordering operators and the pattern operators treat
 #   it as not matching.
 #
+#   A RELATIONSHIP ANSWERS ONLY TO equal AND unequal (§ 7.2.3.3) - "the
+#   combination of such target element with any operator different than
+#   equal or unequal shall result in not matching". Its target is a URI,
+#   and a URI has no order; `A>"mid"` used to match one on the
+#   alphabetical accident that "urn:x:14" sorts after "mid".
+#
 #   ORDERING TAKES A ComparableValue AND NOTHING ELSE - a boolean, a value
 #   list and a range belong to CompEqualityValue, which only == and !=
 #   accept. `A>=true` used to answer with every Entity in the collection,
@@ -56,6 +62,7 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:bool","type":"M","A":{"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:numarr","type":"M","A":{"type":"Property","value":[1,3,14,56]}}' | head -1
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:strarr","type":"M","A":{"type":"Property","value":["aaa","mid","zzz"]}}' | head -1
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:obj","type":"M","A":{"type":"Property","value":{"x":14}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:rel","type":"M","A":{"type":"Relationship","object":"urn:x:14"}}' | head -1
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:none","type":"M","B":{"type":"Property","value":1}}' | head -1
 echo
 echo
@@ -116,7 +123,18 @@ echo
 echo
 
 
-echo "07. The refusal in full"
+echo "07. A Relationship answers to equality, and to nothing that orders it"
+echo "======================================================================"
+for q in 'A%3D%3Durn:x:14' 'A!%3Durn:x:14' 'A%3E%22mid%22' 'A%3C%22zzz%22' 'A%3E%3D%22urn:x:00%22' 'A%7E%3Durn' 'A!%7E%3Durn'; do
+  printf '%-32s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=M&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | tr '\n' ' '
+  echo
+done
+echo
+echo
+
+
+echo "08. The refusal in full"
 echo "======================="
 corCurl --url '/ngsi-ld/v1/entities?type=M&q=A%3E%3Dtrue'
 echo
@@ -126,6 +144,7 @@ echo
 --EXPECT--
 01. One entity per shape a value can take
 =========================================
+HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created
@@ -148,12 +167,12 @@ A%3D%3D99                        []
 
 03. Inequality - a different data type counts as unequal, absence does not
 ==========================================================================
-A!%3D14                          "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" 
-A!%3D%22mid%22                   "id":"urn:num" "id":"urn:bool" "id":"urn:numarr" "id":"urn:obj" 
-A!%3Dtrue                        "id":"urn:num" "id":"urn:str" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
-A!%3D1,5                         "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" 
-A!%3D2..8                        "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" 
-A!%3D99                          "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
+A!%3D14                          "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" "id":"urn:rel" 
+A!%3D%22mid%22                   "id":"urn:num" "id":"urn:bool" "id":"urn:numarr" "id":"urn:obj" "id":"urn:rel" 
+A!%3Dtrue                        "id":"urn:num" "id":"urn:str" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" "id":"urn:rel" 
+A!%3D1,5                         "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" "id":"urn:rel" 
+A!%3D2..8                        "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" "id":"urn:rel" 
+A!%3D99                          "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" "id":"urn:rel" 
 
 
 04. Ordering - only a ComparableValue, and only where the types line up
@@ -180,11 +199,22 @@ A%3C2..8                         "status":400
 A%7E%3Dmid                       "id":"urn:str" "id":"urn:strarr" 
 A!%7E%3Dmid                      [] 
 A%7E%3D%5Ea                      "id":"urn:strarr" 
-A                                "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
+A                                "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" "id":"urn:rel" 
 !A                               "id":"urn:none" 
 
 
-07. The refusal in full
+07. A Relationship answers to equality, and to nothing that orders it
+======================================================================
+A%3D%3Durn:x:14                  "id":"urn:rel" 
+A!%3Durn:x:14                    "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
+A%3E%22mid%22                    [] 
+A%3C%22zzz%22                    "id":"urn:str" 
+A%3E%3D%22urn:x:00%22            [] 
+A%7E%3Durn                       [] 
+A!%7E%3Durn                      "id":"urn:str" "id":"urn:strarr" 
+
+
+08. The refusal in full
 =======================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
