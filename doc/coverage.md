@@ -195,8 +195,8 @@ files holding the most of it are, in the mongoc run:
 | `corRest/corRestClient.c` | 122 | 69.0% |
 | `corNgsild/ldEntityMatch.c` | 120 | 64.6% |
 
-The last two rows of that list are the same pair as `geoEntityValidate` /
-`attrInstanceOf` above, one layer down: `mongocEntityQuery.c` builds the pushdown and
+The last two rows of that list are the pushdown and the in-broker evaluator of the
+same predicates: `mongocEntityQuery.c` builds the pushdown and
 `ldEntityMatch.c` evaluates in the broker, and every predicate that appears in both
 has two implementations that must agree. The multi-request client is the other half —
 the pooled-connection retry after a peer has gone away, and the response-buffer
@@ -216,18 +216,27 @@ function.
 | 9 | 4 | **null-object defaults** — `hookNoop`, `preServiceHookNoop` and two setters nothing calls |
 
 It was 54 functions and 484 lines a day earlier, with 25 functions in the
-untested-behaviour group. That group is down to **three**, and they are the three that
-each need something the suite cannot express today:
+untested-behaviour group. That group is down to **three**, and only ONE of them is a
+gap in the suite:
 
-- **`geoEntityValidate`** (23) and **`attrInstanceOf`** (10) are zero here and
-  **covered in the corDB run** — mongoc pushes those two predicates into the
-  database, corDB evaluates them in the broker. Two implementations of one rule that
-  have never been compared against each other; the way in is a fixture queried
-  against both backends, with the negated operators first, since Mongo's `$ne` /
-  `$nin` / `$not` also match a *missing* field.
-- **`corRestClientResponseHeader`** (8) is the redirect `Location` lookup. Reaching
-  it needs a Context Source that answers 3xx **with a `Location` header**, and
-  ftClient's `/mock/reply` can set a status but not headers.
+- **`corRestClientResponseHeader`** (8) is the redirect `Location` lookup. Reaching it
+  needs a Context Source that answers 3xx **with a `Location` header**, and ftClient's
+  `/mock/reply` can set a status but not headers. A real gap, and the only one here.
+
+- **`geoEntityValidate`** (23) and **`attrInstanceOf`** (10) are **not gaps at all** —
+  they are an artefact of what a single run measures, and this file said otherwise for
+  a day. `geoEntityValidate` lives in `plugins/shared/`, which no run excludes, but it
+  is called only from `plugins/currentState/corDB/`, which a mongoc run *does* exclude.
+  It can therefore never be non-zero in the mongoc column, whatever anyone writes. All
+  four of its diagnostics are already asserted, by `geoproperty_degenerate_polygon` and
+  three others. `attrInstanceOf` is the same shape one level up: it is reached only
+  when the broker evaluates `q` in-process, which a mongoc query does not do.
+
+  ⭐ **The mongoc run's never-entered list contains functions only the corDB path can
+  reach, and vice versa.** The corDB figure below already says this about itself — "a
+  property of the run, not of the code" — and the mirror case is easy to miss, because
+  a mongoc-only zero looks exactly like an untested function until you follow the
+  caller. Both of these were chased as gaps before anyone did.
 
 Mining this bucket is what produced the 2026-09-03 tests, and it is close to
 exhausted: what remains is either deliberate, or shutdown code that outlives the
