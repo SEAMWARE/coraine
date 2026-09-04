@@ -1,0 +1,205 @@
+#
+# FILE            query_q_operator_type_matrix.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2.3.3 / § 7.2.3.4 - every q operator against every shape a Property
+# value can have. One entity per JSON data type, and each query prints the
+# whole match set, so one line pins one operator against all of them at
+# once.
+#
+# The existing q tests each check a combination somebody thought of. This
+# is the cross product, and it is where the disagreements live: six defects
+# were found in `q` in one day, all of them answering plausibly rather than
+# failing, and all in code these tests ran straight through.
+#
+# It is also an oracle - no REQUIRE_DB, so the harness runs it against both
+# backends, and they evaluate `q` in completely different places (mongoc
+# pushes the predicate into the database, corDB walks the entity). A table
+# this size cannot agree by accident.
+#
+# What it pins, beyond the operators themselves:
+#
+#   ARRAY CONTAINMENT (§ 7.2.3.4 condition 1, second bullet) - "is included
+#   in the target value, and the latter is an array". A==14 matches
+#   [1,3,14,56], and so does a ValueList or a Range that catches any one
+#   element.
+#
+#   TYPE MISMATCH (§ 7.2.3.3) - != treats a different data type as unequal
+#   and so MATCHES; the ordering operators and the pattern operators treat
+#   it as not matching.
+#
+#   ORDERING TAKES A ComparableValue AND NOTHING ELSE - a boolean, a value
+#   list and a range belong to CompEqualityValue, which only == and !=
+#   accept. `A>=true` used to answer with every Entity in the collection,
+#   including the one with no A at all.
+#
+--NAME--
+q operator x data type matrix (§ 7.2.3.3 / § 7.2.3.4)
+
+--TAGS--
+q query validation negation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. One entity per shape a value can take"
+echo "========================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:num","type":"M","A":{"type":"Property","value":14}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:str","type":"M","A":{"type":"Property","value":"mid"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:bool","type":"M","A":{"type":"Property","value":true}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:numarr","type":"M","A":{"type":"Property","value":[1,3,14,56]}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:strarr","type":"M","A":{"type":"Property","value":["aaa","mid","zzz"]}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:obj","type":"M","A":{"type":"Property","value":{"x":14}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:none","type":"M","B":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. Equality, against each kind of Query Term value"
+echo "==================================================="
+for q in 'A%3D%3D14' 'A%3D%3D%22mid%22' 'A%3D%3Dtrue' 'A%3D%3D1,5' 'A%3D%3D2..8' 'A%3D%3D%22aaa%22,%22nope%22' 'A%3D%3D99'; do
+  printf '%-32s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=M&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | tr '\n' ' '
+  echo
+done
+echo
+echo
+
+
+echo "03. Inequality - a different data type counts as unequal, absence does not"
+echo "=========================================================================="
+for q in 'A!%3D14' 'A!%3D%22mid%22' 'A!%3Dtrue' 'A!%3D1,5' 'A!%3D2..8' 'A!%3D99'; do
+  printf '%-32s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=M&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | tr '\n' ' '
+  echo
+done
+echo
+echo
+
+
+echo "04. Ordering - only a ComparableValue, and only where the types line up"
+echo "======================================================================="
+for q in 'A%3E5' 'A%3C5' 'A%3E%3D14' 'A%3C%3D14' 'A%3E%22aaa%22' 'A%3C%22zzz%22'; do
+  printf '%-32s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=M&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | tr '\n' ' '
+  echo
+done
+echo
+echo
+
+
+echo "05. Ordering against what the grammar does not offer it - 400 every time"
+echo "========================================================================"
+for q in 'A%3E%3Dtrue' 'A%3Ctrue' 'A%3E%3Dfalse' 'A%3E1,5' 'A%3C2..8'; do
+  printf '%-32s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=M&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | tr '\n' ' '
+  echo
+done
+echo
+echo
+
+
+echo "06. Patterns - a non-string target is not a non-matching string"
+echo "==============================================================="
+for q in 'A%7E%3Dmid' 'A!%7E%3Dmid' 'A%7E%3D%5Ea' 'A' '!A'; do
+  printf '%-32s ' "$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=M&q=$q&options=keyValues" | tr -d ' \n' | grep -oE '"id":"[^"]*"|\[\]|"status":[0-9]+' | tr '\n' ' '
+  echo
+done
+echo
+echo
+
+
+echo "07. The refusal in full"
+echo "======================="
+corCurl --url '/ngsi-ld/v1/entities?type=M&q=A%3E%3Dtrue'
+echo
+echo
+
+
+--EXPECT--
+01. One entity per shape a value can take
+=========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Equality, against each kind of Query Term value
+===================================================
+A%3D%3D14                        "id":"urn:num" "id":"urn:numarr" 
+A%3D%3D%22mid%22                 "id":"urn:str" "id":"urn:strarr" 
+A%3D%3Dtrue                      "id":"urn:bool" 
+A%3D%3D1,5                       "id":"urn:numarr" 
+A%3D%3D2..8                      "id":"urn:numarr" 
+A%3D%3D%22aaa%22,%22nope%22      "id":"urn:strarr" 
+A%3D%3D99                        [] 
+
+
+03. Inequality - a different data type counts as unequal, absence does not
+==========================================================================
+A!%3D14                          "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" 
+A!%3D%22mid%22                   "id":"urn:num" "id":"urn:bool" "id":"urn:numarr" "id":"urn:obj" 
+A!%3Dtrue                        "id":"urn:num" "id":"urn:str" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
+A!%3D1,5                         "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" 
+A!%3D2..8                        "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:strarr" "id":"urn:obj" 
+A!%3D99                          "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
+
+
+04. Ordering - only a ComparableValue, and only where the types line up
+=======================================================================
+A%3E5                            "id":"urn:num" 
+A%3C5                            [] 
+A%3E%3D14                        "id":"urn:num" 
+A%3C%3D14                        "id":"urn:num" 
+A%3E%22aaa%22                    "id":"urn:str" 
+A%3C%22zzz%22                    "id":"urn:str" 
+
+
+05. Ordering against what the grammar does not offer it - 400 every time
+========================================================================
+A%3E%3Dtrue                      "status":400 
+A%3Ctrue                         "status":400 
+A%3E%3Dfalse                     "status":400 
+A%3E1,5                          "status":400 
+A%3C2..8                         "status":400 
+
+
+06. Patterns - a non-string target is not a non-matching string
+===============================================================
+A%7E%3Dmid                       "id":"urn:str" "id":"urn:strarr" 
+A!%7E%3Dmid                      [] 
+A%7E%3D%5Ea                      "id":"urn:strarr" 
+A                                "id":"urn:num" "id":"urn:str" "id":"urn:bool" "id":"urn:numarr" "id":"urn:strarr" "id":"urn:obj" 
+!A                               "id":"urn:none" 
+
+
+07. The refusal in full
+=======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 256
+
+{
+  "detail": "a boolean cannot be compared with an ordering operator - only a number, a quoted string, a date-time, a date or a time can",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

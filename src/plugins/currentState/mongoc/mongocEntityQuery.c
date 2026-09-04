@@ -350,9 +350,29 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
     jsonStrEscape(esc, sizeof(esc), term->value.s);
 
     if (pattern)
+      //
+      // A string target, or ANY string element of an array target. The array
+      // half is not a ListProperty nicety: a languageMap value may itself be an
+      // array of strings (§ 5.2.x), so `description[*]~=pain` has to find
+      // "pain" inside ["schmerz","pain"] - and the in-broker matcher has always
+      // walked it, so without this the two backends answer differently for a
+      // plain Property whose value is an array.
+      //
+      // Equality expresses the same idea one line below with $isArray + $in;
+      // a regex needs the walk spelled out. Non-string elements are skipped
+      // rather than compared, which is what keeps `!~=` - the negation of this
+      // whole predicate - from reporting a NUMERIC array as "does not match".
+      //
       snprintf(pred, sizeof(pred),
-        "{\"$and\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},{\"$regexMatch\":{\"input\":\"%s\",\"regex\":\"%s\"}}]}",
-        vexpr, vexpr, esc);
+        "{\"$or\":["
+          "{\"$and\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},"
+                     "{\"$regexMatch\":{\"input\":\"%s\",\"regex\":\"%s\"}}]},"
+          "{\"$and\":[{\"$isArray\":\"%s\"},"
+                     "{\"$anyElementTrue\":{\"$map\":{\"input\":\"%s\",\"as\":\"e\","
+                       "\"in\":{\"$and\":[{\"$eq\":[{\"$type\":\"$$e\"},\"string\"]},"
+                                          "{\"$regexMatch\":{\"input\":\"$$e\",\"regex\":\"%s\"}}]}}}}]}"
+        "]}",
+        vexpr, vexpr, esc, vexpr, vexpr, esc);
     else if (relOp != NULL)
       // Guard the type: Mongo orders ACROSS BSON types, so an unguarded $gt
       // would let a number satisfy a string comparison.
