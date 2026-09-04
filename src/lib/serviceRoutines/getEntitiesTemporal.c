@@ -579,7 +579,7 @@ bool getEntitiesTemporal(void)
     //
     if (filter.qSqlPredicate == NULL)
     {
-      ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
               "this 'q' cannot be evaluated against the temporal store");
       return true;
     }

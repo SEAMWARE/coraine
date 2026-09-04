@@ -204,14 +204,14 @@ Content-Length: 152
 
 08. GET /temporal/entities/urn:S1 — accepted (plugin layer 501 is fine)
 =======================================================================
-HTTP/1.1 501 Not Implemented
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
   "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
-  "status": 501,
+  "status": 422,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
@@ -220,14 +220,14 @@ Content-Length: REGEX(\d+)
 
 09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)
 =============================================================================================
-HTTP/1.1 501 Not Implemented
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
   "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
-  "status": 501,
+  "status": 422,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
 }
