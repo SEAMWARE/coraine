@@ -270,17 +270,13 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
     // Before per-item types this could not even be detected, and a `1,"two"`
     // list took v_number from the first item and emitted `v_number IN (1,two)`.
     //
-    if (tP->value.list.itemTypeV != NULL)
+    for (int i = 1; i < tP->value.list.count; i++)
     {
-      for (int i = 1; i < tP->value.list.count; i++)
-      {
-        if (tP->value.list.itemTypeV[i] != tP->value.list.itemTypeV[0])
-          return NULL;
-      }
+      if (tP->value.list.itemTypeV[i] != tP->value.list.itemTypeV[0])
+        return NULL;
     }
 
-    LdQValueType listType = (tP->value.list.itemTypeV != NULL) ? tP->value.list.itemTypeV[0]
-                                                               : tP->value.list.itemType;
+    LdQValueType listType = tP->value.list.itemTypeV[0];
 
     switch (listType)
     {

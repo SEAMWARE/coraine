@@ -317,6 +317,20 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
 
   vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".value");
 
+  //
+  // § 7.2.3.3: "If the target element corresponds to a Relationship or
+  // ListRelationship, the combination of such target element with any operator
+  // different than equal or unequal shall result in NOT MATCHING."
+  //
+  // The instance object is $$kv.v and it carries its own `type`, so the rule is
+  // one more conjunct on the operators that need it. A Relationship's target is
+  // a URI and a URI has no order - `r>"mid"` was matching on the alphabetical
+  // accident that "urn:x:14" sorts after "mid".
+  //
+  char notRel[256];
+  snprintf(notRel, sizeof(notRel),
+    "{\"$not\":[{\"$in\":[\"$$kv.v.type\",[\"Relationship\",\"ListRelationship\"]]}]},");
+
   for (int i = 0; i < term->valuePathN; i++)
   {
     if (strcmp(term->valuePathV[i], "*") == 0)
@@ -364,21 +378,21 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
       // whole predicate - from reporting a NUMERIC array as "does not match".
       //
       snprintf(pred, sizeof(pred),
-        "{\"$or\":["
+        "{\"$and\":[%s{\"$or\":["
           "{\"$and\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},"
                      "{\"$regexMatch\":{\"input\":\"%s\",\"regex\":\"%s\"}}]},"
           "{\"$and\":[{\"$isArray\":\"%s\"},"
                      "{\"$anyElementTrue\":{\"$map\":{\"input\":\"%s\",\"as\":\"e\","
                        "\"in\":{\"$and\":[{\"$eq\":[{\"$type\":\"$$e\"},\"string\"]},"
                                           "{\"$regexMatch\":{\"input\":\"$$e\",\"regex\":\"%s\"}}]}}}}]}"
-        "]}",
-        vexpr, vexpr, esc, vexpr, vexpr, esc);
+        "]}]}",
+        notRel, vexpr, vexpr, esc, vexpr, vexpr, esc);
     else if (relOp != NULL)
       // Guard the type: Mongo orders ACROSS BSON types, so an unguarded $gt
       // would let a number satisfy a string comparison.
       snprintf(pred, sizeof(pred),
-        "{\"$and\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},{\"%s\":[\"%s\",\"%s\"]}]}",
-        vexpr, relOp, vexpr, esc);
+        "{\"$and\":[%s{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},{\"%s\":[\"%s\",\"%s\"]}]}",
+        notRel, vexpr, relOp, vexpr, esc);
     else
       snprintf(pred, sizeof(pred),
         "{\"$or\":[{\"$eq\":[\"%s\",\"%s\"]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[\"%s\",\"%s\"]}]}]}",
@@ -394,8 +408,8 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
 
     if (relOp != NULL)
       snprintf(pred, sizeof(pred),
-        "{\"$and\":[{\"$in\":[{\"$type\":\"%s\"},[\"double\",\"int\",\"long\",\"decimal\"]]},{\"%s\":[\"%s\",%s]}]}",
-        vexpr, relOp, vexpr, num);
+        "{\"$and\":[%s{\"$in\":[{\"$type\":\"%s\"},[\"double\",\"int\",\"long\",\"decimal\"]]},{\"%s\":[\"%s\",%s]}]}",
+        notRel, vexpr, relOp, vexpr, num);
     else
       snprintf(pred, sizeof(pred),
         "{\"$or\":[{\"$eq\":[\"%s\",%s]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[%s,\"%s\"]}]}]}",
@@ -424,7 +438,7 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
     "]}",
     attrPath, attrPath, pred);
 
-  char cond[24576];   // must hold `any` (16K) plus the negation wrapper
+  char cond[32768];   // `any` (16K) + presence (2.5K) + strGuard (6K) + wrapper
   if (negative)
   {
     //
@@ -465,13 +479,26 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
     // the regex is negated: a numeric Property is not "a value that does not
     // match /alp/", it is a value the operator cannot be applied to.
     //
-    char strGuard[2560];   // same shape as `presence`
+    char strGuard[6144];   // attrPath + FOUR vexpr (1024 each) + ~300 literal
     strGuard[0] = 0;
     if (pattern)
+      //
+      // ...and it has to be a string that the operator may be applied to at all:
+      // § 7.2.3.3 keeps a Relationship to equal and unequal, and a Relationship's
+      // object IS a string, so without the second conjunct it sails through the
+      // type check. Both belong OUTSIDE the negation for the same reason - the
+      // positive predicate is false for an excluded target, and negating false
+      // is a match.
+      //
       snprintf(strGuard, sizeof(strGuard),
         "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\","
-        "\"in\":{\"$eq\":[{\"$type\":\"%s\"},\"string\"]}}}},",
-        attrPath, vexpr);
+        "\"in\":{\"$and\":["
+          "{\"$or\":[{\"$eq\":[{\"$type\":\"%s\"},\"string\"]},"
+                     "{\"$and\":[{\"$isArray\":\"%s\"},"
+                                "{\"$anyElementTrue\":{\"$map\":{\"input\":\"%s\",\"as\":\"e\","
+                                  "\"in\":{\"$eq\":[{\"$type\":\"$$e\"},\"string\"]}}}}]}]},"
+          "{\"$not\":[{\"$in\":[\"$$kv.v.type\",[\"Relationship\",\"ListRelationship\"]]}]}]}}}},",
+        attrPath, vexpr, vexpr, vexpr);
 
     snprintf(cond, sizeof(cond),
       "{\"$and\":[{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]},%s,%s{\"$not\":[%s]}]}",
@@ -836,9 +863,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       // array holds both happily. Taking the whole list's type from the first
       // item put "two" into the array as the double 0.
       //
-      LdQValueType itemType = (term->value.list.itemTypeV != NULL)
-                              ? term->value.list.itemTypeV[i]
-                              : term->value.list.itemType;
+      LdQValueType itemType = term->value.list.itemTypeV[i];
 
       if (itemType == LdQNumber)
         bson_append_double(&array, key, keyLen, strtod(term->value.list.values[i], NULL));

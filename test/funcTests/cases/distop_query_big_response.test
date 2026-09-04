@@ -1,0 +1,105 @@
+#
+# FILE            distop_query_response_larger_than_the_read_buffer.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The HTTP client reads into an 8 KB buffer and doubles it when a response
+# does not fit. The single-request client has grown its buffer exactly once
+# in the whole suite; the multi-request engine - the one every forwarded
+# QUERY goes through - had never done it at all.
+#
+# That is not an exotic case. A Context Source holding a few dozen entities
+# answers with more than 8 KB, and a buffer-growth path nobody has run is
+# the kind of code that corrupts memory rather than failing politely.
+#
+# 40 entities with a padded attribute put the response well past the
+# buffer, and the test asserts the LAST one arrives - a truncated read
+# would drop the tail and still look like a valid answer.
+#
+--NAME--
+DistOps - a forwarded query whose response outgrows the read buffer
+
+--TAGS--
+distops query registration forwarding
+
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7752
+
+--RUN--
+
+echo "01. Register an inclusive CSR for type Big, pointing at ftClient 7752"
+echo "====================================================================="
+payload='{
+  "id": "urn:CSR:Big",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7752",
+  "mode": "inclusive",
+  "operations": ["queryEntity"],
+  "information": [ { "entities": [{"type": "Big"}] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Program the source with 40 entities, each carrying 200 bytes of padding"
+echo "==========================================================================="
+pad=$(printf 'x%.0s' $(seq 1 200))
+body='['
+for i in $(seq 1 40); do
+  [ $i -gt 1 ] && body="$body,"
+  body="$body{\\\"id\\\":\\\"urn:Big:$i\\\",\\\"type\\\":\\\"Big\\\",\\\"pad\\\":{\\\"type\\\":\\\"Property\\\",\\\"value\\\":\\\"$pad\\\"}}"
+done
+body="$body]"
+corCurl --port 7752 --url /mock/reply --payload "{\"verb\":\"GET\",\"path\":\"/entities\",\"status\":200,\"raw\":\"$body\"}" | head -1
+echo
+echo
+
+
+echo "03. The response is well past the 8 KB the engine starts with"
+echo "============================================================="
+corCurl --port 7752 --url '/dump' > /dev/null
+echo "40 entities x ~260 bytes"
+echo
+echo
+
+
+echo "04. Query - all 40 arrive, first and last included"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Big&options=keyValues&limit=100' | tr -d ' \n' | grep -oE '"id":"urn:Big:[0-9]+"' | wc -l
+corCurl --url '/ngsi-ld/v1/entities?type=Big&options=keyValues&limit=100' | tr -d ' \n' | grep -oE '"id":"urn:Big:1"|"id":"urn:Big:40"' | sort -u
+echo
+echo
+
+
+--EXPECT--
+01. Register an inclusive CSR for type Big, pointing at ftClient 7752
+=====================================================================
+HTTP/1.1 201 Created
+
+
+02. Program the source with 40 entities, each carrying 200 bytes of padding
+===========================================================================
+HTTP/1.1 201 Created
+
+
+03. The response is well past the 8 KB the engine starts with
+=============================================================
+40 entities x ~260 bytes
+
+
+04. Query - all 40 arrive, first and last included
+==================================================
+40
+"id":"urn:Big:1"
+"id":"urn:Big:40"
+
+
+--TEARDOWN--
+ftClientStop --port 7752
+coraineStop
+corDbDrop
