@@ -20,6 +20,8 @@
 # Verify: ftClient received exactly one notification with
 #         subscriptionId="urn:S1" and the entity payload.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistSub - end-to-end notification re-dispatch
 

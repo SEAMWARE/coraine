@@ -9,6 +9,8 @@
 # must receive a CsourceNotification carrying the (just-deleted)
 # CSR with triggerReason="noLongerMatching".
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR Subscription - noLongerMatching notification on CSR deletion
 

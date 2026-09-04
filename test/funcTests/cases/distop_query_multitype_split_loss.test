@@ -34,6 +34,8 @@
 # Until that is resolved the broker follows the spec "to the point": prune by
 # the supplied type, accept the partial result.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps query — multi-type entity split across differing-typed sources returns a partial result
 

@@ -22,6 +22,7 @@
 
 #include "coraineVersion.h"                         // CORAINE_VERSION (-Isrc/app/coraine)
 #include "coraineStack.h"                           // coraineStack - GENERATED, see the makefile
+#include "coraineFeatures.h"                        // coraineFeatures
 #include "serviceRoutines/getVersion.h"              // Own interface
 
 
@@ -49,6 +50,20 @@ bool getVersion(void)
     kjChildAdd(stack, kjString(corRest.kjsonP, coraineStack[ix][0], coraineStack[ix][1]));
 
   kjChildAdd(body, stack);
+
+  //
+  // The optional parts of the API this build actually carries (§ 5.15 has no
+  // slot for it, so it rides here). A client that gets 501 from an endpoint can
+  // read the reason off this object instead of guessing, and every feature is
+  // present with a true/false - an absent name would not distinguish "off" from
+  // "older broker that never knew the name".
+  //
+  KjNode* features = kjObject(corRest.kjsonP, "features");
+
+  for (int ix = 0; coraineFeatures[ix].name != NULL; ix++)
+    kjChildAdd(features, kjBoolean(corRest.kjsonP, coraineFeatures[ix].name, coraineFeatures[ix].on));
+
+  kjChildAdd(body, features);
 
   // Bypass @context expansion / compaction — this endpoint is non-NGSI-LD.
   corNgsild.rawResponse      = true;

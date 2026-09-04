@@ -18,6 +18,8 @@
 # Purge Entities, where csf picks the sources the purge is forwarded to while
 # the local deletion proceeds on the query filters alone.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps csf — the Context Source Filter selects sources, never Entities
 

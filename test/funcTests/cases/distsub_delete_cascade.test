@@ -12,6 +12,8 @@
 # subordinate list and propagate the DELETE to every CSR. Failures
 # don't block the local delete (best-effort).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistSub - DELETE cascade to remote derivatives
 

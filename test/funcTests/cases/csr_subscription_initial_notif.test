@@ -12,6 +12,8 @@
 # Matcher scope covered here (§ 5.12): entity type + attr list
 # (propertyNames). No geo / scope / q / temporal.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR Subscription - initial newlyMatching notification on subscribe
 

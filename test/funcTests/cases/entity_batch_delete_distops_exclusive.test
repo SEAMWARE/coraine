@@ -12,6 +12,8 @@
 # (the broker holds no local data for an exclusive scope). Uncovered ids
 # delete locally as usual.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Delete — exclusive CSR, delete forwarded
 

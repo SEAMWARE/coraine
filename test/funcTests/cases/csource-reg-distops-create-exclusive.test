@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - createEntity forwarded to exclusive registration, all attrs claimed
 

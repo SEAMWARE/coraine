@@ -41,11 +41,13 @@
 #include "currentState/mongoc/mongocSubscriptionReplace.h"          // mongocSubscriptionReplace
 #include "currentState/mongoc/mongocSubscriptionDelete.h"           // mongocSubscriptionDelete
 #include "currentState/mongoc/mongocSubscriptionStatsFlush.h"       // mongocSubscriptionStatsFlush
+#if COR_FEATURE_REGISTRATIONS
 #include "currentState/mongoc/mongocRegistrationCreate.h"           // mongocRegistrationCreate
 #include "currentState/mongoc/mongocRegistrationRetrieve.h"         // mongocRegistrationRetrieve
 #include "currentState/mongoc/mongocRegistrationQuery.h"            // mongocRegistrationQuery
 #include "currentState/mongoc/mongocRegistrationUpdate.h"           // mongocRegistrationUpdate
 #include "currentState/mongoc/mongocRegistrationDelete.h"           // mongocRegistrationDelete
+#endif
 #include "currentState/mongoc/mongocSnapshotCreate.h"               // mongocSnapshotCreate
 #include "currentState/mongoc/mongocSnapshotQuery.h"                // mongocSnapshotQuery
 #include "currentState/mongoc/mongocSnapshotUpdate.h"               // mongocSnapshotUpdate
@@ -124,11 +126,19 @@ void dbRegister(DbDriver* driverP)
   driverP->geoMatchFunc          = mongocGeoMatchCb;
   driverP->csrGeoMatchFunc       = mongocCsrGeoMatchCb;
 
+  //
+  // With COR_FEATURE_REGISTRATIONS off these five sources leave the plugin build
+  // (CMakeLists.txt) and the slots stay NULL - the driver-slot convention for
+  // "this driver does not do that". Nothing calls them: the routes that would
+  // are answered by corNotInThisBuild before any driver is reached.
+  //
+#if COR_FEATURE_REGISTRATIONS
   driverP->registrationCreate    = mongocRegistrationCreate;
   driverP->registrationRetrieve  = mongocRegistrationRetrieve;
   driverP->registrationQuery     = mongocRegistrationQuery;
   driverP->registrationUpdate    = mongocRegistrationUpdate;
   driverP->registrationDelete    = mongocRegistrationDelete;
+#endif
 
   driverP->snapshotCreate        = mongocSnapshotCreate;
   driverP->snapshotQuery         = mongocSnapshotQuery;

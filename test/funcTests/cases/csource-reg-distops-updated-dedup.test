@@ -21,6 +21,8 @@
 #                      notUpdated: ["paint"]         <- makes it a 207, so
 #                                                       updated[] is rendered
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - updated[] folds duplicates from two CSRs into one entry
 

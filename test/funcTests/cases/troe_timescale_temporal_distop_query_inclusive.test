@@ -16,6 +16,8 @@
 #   urn:V2 → 2 local-only instances
 #   urn:V3 → 2 remote-only instances
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 TRoE timescale - temporal distop query, inclusive
 

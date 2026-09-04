@@ -8,6 +8,8 @@
 # GET /entityMaps — Create EntityMap for Query Entities (§ 5.14.4, § 6.34.3.1).
 # Same URL params as GET /entities. Returns the EntityMap body + 201.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 GET /entityMaps — Create EntityMap for Query (§ 5.14.4)
 

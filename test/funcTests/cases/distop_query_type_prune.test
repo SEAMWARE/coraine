@@ -17,6 +17,8 @@
 # type declarations loses the other-typed source's attributes — the spec-clean
 # completion (a second id-list query) is deferred until the spec direction lands.)
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps query — type prune limits the fan-out to type-matching registrations
 

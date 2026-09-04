@@ -21,6 +21,8 @@
 # own tenants, and it is what the self-forward short-circuit runs in-process
 # (see distop-self-forward-retrieve, csource-reg-distops-create-tenant-via).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Registration - a redirect registration may not name this broker (§ 12.2.2.4)
 

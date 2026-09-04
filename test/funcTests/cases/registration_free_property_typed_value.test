@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Registration free (non-spec) property - typed value-object validation + round-trip (JSON-LD @type coercion)
 

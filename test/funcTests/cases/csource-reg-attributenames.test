@@ -13,6 +13,8 @@
 #   - relationshipNames only (old)               -> 201, rendered as attributeNames
 #   - attributeNames + propertyNames (mix)       -> 400 Invalid Registration
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR RegistrationInfo attributeNames — new form, old-pair merge, mix rejected
 

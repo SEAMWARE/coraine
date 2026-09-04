@@ -16,6 +16,8 @@
 # retrieveEntity on t1 (no ?local) self-forwards the GET and returns t2's
 # entity — exercising the in-process response body + header copy-back.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - self-forward short-circuit: in-process create + retrieve (Inc5b)
 

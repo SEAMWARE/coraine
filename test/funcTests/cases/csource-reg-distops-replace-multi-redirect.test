@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - replaceEntity (PUT): two redirect CSRs both get the replace (D007_01_red)
 

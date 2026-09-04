@@ -12,6 +12,8 @@
 # sub's context. A CSR registered via ctxB (auto/vel) notifying a sub
 # created via ctxA (Vehicle/spd, same IRIs) must deliver Vehicle/spd.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR-sub notifications compact via the subscription's @context
 

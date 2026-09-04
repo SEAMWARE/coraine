@@ -28,6 +28,8 @@
 # attribute) pair, which is why § 9.3.3 pins an exclusive entities[] entry
 # to a specific id.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 TRoE timescale - temporal distop query, exclusive
 

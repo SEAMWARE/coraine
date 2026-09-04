@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - a failing sourceIdentity probe is non-fatal; forwarding still works (§ 5.15)
 

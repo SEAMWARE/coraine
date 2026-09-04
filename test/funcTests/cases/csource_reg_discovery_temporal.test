@@ -13,6 +13,8 @@
 # observationInterval (when timeproperty=observedAt or omitted) or
 # managementInterval (createdAt/modifiedAt/deletedAt).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration Discovery — temporal query (§ 5.10.2.4)
 

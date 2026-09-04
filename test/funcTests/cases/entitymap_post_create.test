@@ -8,6 +8,8 @@
 # POST /entityMaps — Create EntityMap via Query body (§ 5.14.4 / § 6.34.3.2).
 # Body is a § 5.2.23 Query object.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 POST /entityMaps — Create EntityMap via Query body (§ 6.34.3.2)
 

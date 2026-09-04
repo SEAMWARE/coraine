@@ -11,6 +11,8 @@
 # stays put — and the cooldown ends exactly cooldownMs after the real
 # failure.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR subscription endpoint.cooldown — failed endpoint skipped until cooldown elapses
 

@@ -16,6 +16,8 @@
 # Also covers the disjoint case: parent restricts to urn:V1; CSR-B
 # claims only urn:V2 — narrowing is empty, no derivative on CSR-B.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistSub - filter narrowing intersects parent.entities × reg.information
 

@@ -11,6 +11,8 @@
 # request is not an attempt: the cooldown ends exactly cooldownMs after
 # the real failure.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR management.cooldown — failed endpoint not re-contacted until cooldown elapses
 

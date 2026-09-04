@@ -10,6 +10,8 @@
 # Registrations". Reuses the initial-notify code path with
 # triggerReason="newlyMatching".
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR Subscription - notification on sub PATCH lists currently matching CSRs
 

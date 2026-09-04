@@ -12,6 +12,8 @@
 #
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp § 4.5.5.2 — expiresAt entity → attr propagation
 

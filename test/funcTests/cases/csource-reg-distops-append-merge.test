@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - appendAttrs merges each CSR's UpdateResult (207 fold-in, statusCode + registrationId, malformed->502)
 

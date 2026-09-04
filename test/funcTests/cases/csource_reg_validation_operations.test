@@ -10,6 +10,8 @@
 # (Table 4.20-2). Auxiliary registrations are further restricted by
 # § 5.9.2 to retrieve-only.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration validation — operations (§ 5.2.9 / § 4.20)
 

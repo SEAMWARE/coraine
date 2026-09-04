@@ -14,6 +14,8 @@
 # Without this, a DELETE on the parent post-restart would orphan the
 # derivative because the in-memory mapping is empty.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistSub - subordinate mapping persists across CB restart
 

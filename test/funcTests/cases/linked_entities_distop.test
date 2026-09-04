@@ -20,6 +20,8 @@
 #
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Linked entities — cross-CSR join gated by objectType (toggled via PATCH) + q={}
 

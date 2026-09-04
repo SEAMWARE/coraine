@@ -17,6 +17,8 @@
 #          urn:CSR:R1 → some remote EntityMap id, AND that same id
 #          exists on CP1's own /entityMaps store.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 EntityMap linkedMaps populated by distributed creation (§ 5.14.4.4)
 

@@ -3,6 +3,8 @@
 # propertyNames (source A holds 'a', source B holds 'b'). A query for the type
 # forwards to BOTH sources (multi-source retrieval).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps — crossed registrations forward to multiple sources
 --TAGS--

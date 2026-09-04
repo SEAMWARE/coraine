@@ -11,6 +11,8 @@
 #   - user.pick + q  + reg restricts        → forward intersect(user.pick ∪ qAttrs, reg.exports)
 #   - user.pick      + intersect empty      → skip CSR
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp pick narrowing on forwarded GET /entities
 

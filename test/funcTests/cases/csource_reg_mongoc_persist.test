@@ -10,6 +10,8 @@
 # Verify that registrations persist across broker restarts (mongoc DB)
 # and that the in-memory cache is rehydrated correctly at startup.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Context Source Registration persistence + cache rehydrate (mongoc)
 

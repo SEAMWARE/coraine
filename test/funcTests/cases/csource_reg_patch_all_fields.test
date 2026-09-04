@@ -2,6 +2,8 @@
 # § 5.9.4 — Update ContextSourceRegistration. A PATCH may set every field at once
 # (description, endpoint, mode, operations, information); each is applied.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 PATCH ContextSourceRegistration — all individual fields
 --TAGS--

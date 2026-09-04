@@ -19,6 +19,8 @@
 #           is unreachable. The forward returns a transport error and
 #           every forwarded id gets a Bad Gateway entry in errors[].
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Update — exclusive CSR without updateBatch op (409 conflict)
 

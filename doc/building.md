@@ -110,17 +110,63 @@ observation/operation-space dispatch; toggle with `cmake -DCOR_FEATURE_X=OFF`.
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
 no subscription engine on a read-only edge node, no geo, no tenants, no Mongo.
 
-Where it stands today, honestly: **the flags are declared, the work behind them
-has barely started.** What works is selection at the build-tree level —
+Where it stands today, honestly: **two of them work, the rest are declared and
+not implemented.**
+
 `-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
-build host, run `--database corDB`). Everything else is still a promise: the
-per-feature `#ifdef`s inside the C are next to nonexistent, so switching off a
-core feature leaves its symbols referenced from code that still compiles, and
-the link fails. The same holds for the optional runtime deps — MQTT
-notifications, for instance, are ~2 KB of broker code against a `libmosquitto`
-that every build links and every process maps, whether or not a single MQTT
-notification is ever sent. Shrink-to-fit is a goal with a flag table, not a
-feature you can use yet.
+build host, run `--database corDB`).
+
+`-DCOR_FEATURE_REGISTRATIONS=OFF` is the first one that goes all the way down.
+It drops the Context Source Registration, registration-subscription and
+EntityMap service routines, the forwarding library, and both DB plugins'
+registration code — about 24 kB of `.text`. The fifteen routes keep their entry
+in the service table and answer
+
+```
+HTTP/1.1 501 Not Implemented
+
+{
+  "type":   "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment",
+  "title":  "Not Available In This Build",
+  "status": 501,
+  "detail": "'POST /ngsi-ld/v1/csourceRegistrations' is not included in this build of coraine"
+}
+```
+
+deliberately **not** a 404. A 404 says the resource is not there and invites the
+client to fix its URL; this says the deployment declined the capability and the
+client's move is a different deployment. The type URI is ours rather than an
+ETSI one because TS 104-176 § 6.3.2 registers no error type for a build-time
+omission — the one 501 in that table, `NoMultiTenantSupport`, is reserved for a
+single capability. See spec-doubt #124.
+
+Ask a binary what it carries:
+
+```console
+$ coraine --version
+coraine 0.4.0
+features: SUBSCRIPTIONS=1 REGISTRATIONS=0 GEOQ=1 ...
+```
+
+`GET /version` reports the same set as a `features` object, so a client that
+gets a 501 can read the reason instead of guessing. The functional suite reads
+it too: a test that needs a feature carries `# REQUIRE_FEATURE: <NAME>` and
+leaves the run set on a build without it (184 of the 640 cases need
+`REGISTRATIONS`), and `# SKIP_FEATURE: <NAME>` marks the ones that can only run
+on a build WITHOUT it — which is how the 501s above are tested.
+
+To build a reduced tree without turning your ordinary one into it:
+
+```console
+make di CMAKE_FEATURES=-DCOR_FEATURE_REGISTRATIONS=OFF BUILD_DEBUG=BUILD_DEBUG_MINIMAL
+```
+
+Everything else in the table is still a promise: the per-feature `#if`s inside
+the C are not written yet, so switching one off leaves its symbols referenced
+from code that still compiles, and the link fails. The same holds for the
+optional runtime deps — MQTT notifications, for instance, are ~2 KB of broker
+code against a `libmosquitto` that every build links and every process maps,
+whether or not a single MQTT notification is ever sent.
 
 ## Next
 

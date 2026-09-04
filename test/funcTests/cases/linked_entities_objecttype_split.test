@@ -12,6 +12,8 @@
 # (§ 4.5.5.3). Here urn:X is split — attr "local" on CB, attr "remote" on
 # CP1 (inclusive registration) — and the inlined entity must carry BOTH.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Linked entities — join assembles a target split across two brokers
 

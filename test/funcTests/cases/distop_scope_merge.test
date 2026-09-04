@@ -19,6 +19,8 @@
 #
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp § 5.2.7 — the Scopes of every version of an Entity are merged
 

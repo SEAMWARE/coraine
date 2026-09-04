@@ -9,6 +9,8 @@
 # CSR's own user-Properties (NOT against target entity attributes).
 # Allowed alone or alongside type / pick.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSource registration discovery with q filter (on CSR user-properties)
 

@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 
 --NAME--
 DistOps - inclusive multi-source merge per § 4.5.5.3

@@ -17,6 +17,8 @@
 #   B. Deleting the CSR cleans up its derivative subs — the remote
 #      receives DELETE and the local subordinate mapping is dropped.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistSub - reg-create + reg-delete reactions on entity-subs
 

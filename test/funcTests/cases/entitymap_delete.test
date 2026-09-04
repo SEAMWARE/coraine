@@ -15,6 +15,8 @@
 # The suite created and read EntityMaps but never deleted one, so neither the
 # 204 nor the 404 had ever been executed.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 EntityMap deletion, and a second delete answering 404
 

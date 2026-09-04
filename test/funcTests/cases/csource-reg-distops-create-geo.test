@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - CSR location geo filter on createEntity (shared GEOS via db.geoMatchFunc)
 

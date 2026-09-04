@@ -12,6 +12,8 @@
 # four write ops (upsert + appendAttrs + deleteAttrs + delete). Each
 # write fans out to CP1; we verify by GET on CP1 directly.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 TRoE timescale - temporal distop URL writes, inclusive
 

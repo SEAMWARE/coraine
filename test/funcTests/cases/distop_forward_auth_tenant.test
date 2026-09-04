@@ -16,6 +16,8 @@
 # (csource-reg-distops-create-csrinfo covers STATIC contextSourceInfo values;
 #  this covers the request-substitution + tenant cases.)
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps forward — Authorization from the request + tenant (original vs registration rewrite)
 

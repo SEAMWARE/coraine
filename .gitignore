@@ -19,9 +19,10 @@
 *.gcno
 coverage/
 coverage-*/
-BUILD_RELEASE/
-BUILD_DEBUG/
-BUILD_COVERAGE/
+# BUILD_* rather than the three by name: `make ... BUILD_DEBUG=BUILD_DEBUG_MINIMAL`
+# is how a reduced-feature tree is built without turning the ordinary one into it,
+# so the set of build directories is open-ended.
+BUILD_*/
 /coraine
 test/funcTests/ftClient/ftClient
 

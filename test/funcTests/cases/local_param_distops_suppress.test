@@ -9,6 +9,8 @@
 # and /temporal/entities/ (and their child resources). With a CSR pointing
 # CB→CP1, the default GETs forward and merge; ?local=true stays local.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 URL parameter ?local=true suppresses distops on /types, /attributes, /temporal/entities (§ 6.3.18)
 

@@ -9,6 +9,8 @@
 # location/observationSpace/operationSpace. Conservative overlap test:
 # CSRs whose geometry doesn't overlap the query reference are filtered out.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration Discovery — geoQ overlap (§ 5.10.2.4)
 

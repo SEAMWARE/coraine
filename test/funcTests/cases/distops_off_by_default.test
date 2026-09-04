@@ -19,6 +19,8 @@
 # Every other test in this suite starts its broker with -dist, so this one is
 # the only place the default is exercised.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps are off by default (--distributed)
 

@@ -38,11 +38,13 @@
 #include "currentState/corDB/corDbSubscriptionUpdate.h"    // corDbSubscriptionUpdate
 #include "currentState/corDB/corDbSubscriptionReplace.h"   // corDbSubscriptionReplace
 #include "currentState/corDB/corDbSubscriptionDelete.h"    // corDbSubscriptionDelete
+#if COR_FEATURE_REGISTRATIONS
 #include "currentState/corDB/corDbRegistrationCreate.h"    // corDbRegistrationCreate
 #include "currentState/corDB/corDbRegistrationRetrieve.h"  // corDbRegistrationRetrieve
 #include "currentState/corDB/corDbRegistrationQuery.h"     // corDbRegistrationQuery
 #include "currentState/corDB/corDbRegistrationUpdate.h"    // corDbRegistrationUpdate
 #include "currentState/corDB/corDbRegistrationDelete.h"    // corDbRegistrationDelete
+#endif
 #include "currentState/corDB/corDbGeoMatch.h"             // corDbGeoMatch
 
 
@@ -122,12 +124,20 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionReplace  = corDbSubscriptionReplace;
   driverP->subscriptionDelete   = corDbSubscriptionDelete;
   driverP->subscriptionList     = corDbSubscriptions;
+  //
+  // With COR_FEATURE_REGISTRATIONS off these sources leave the plugin build
+  // (CMakeLists.txt) and the slots stay NULL - the driver-slot convention for
+  // "this driver does not do that". Nothing calls them: the routes that would
+  // are answered by corNotInThisBuild before any driver is reached.
+  //
+#if COR_FEATURE_REGISTRATIONS
   driverP->registrationCreate   = corDbRegistrationCreate;
   driverP->registrationRetrieve = corDbRegistrationRetrieve;
   driverP->registrationQuery    = corDbRegistrationQuery;
   driverP->registrationUpdate   = corDbRegistrationUpdate;
   driverP->registrationDelete   = corDbRegistrationDelete;
   driverP->registrationList     = corDbRegistrations;
+#endif
   driverP->tenantSetup     = corDbTenantSetup;
   driverP->geoMatchFunc    = corDbGeoMatchCb;
   driverP->csrGeoMatchFunc = corDbCsrGeoMatchCb;

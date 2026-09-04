@@ -3,6 +3,8 @@
 # broker matches it against registrations and forwards the query; the type
 # reaches the context source (here re-compacted via the forward @context).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps forward — query by URL-encoded expanded type IRI
 --TAGS--

@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - createEntity misc cases: ?local, dead endpoint, 2 exclusives, mixed excl+incl, overlapping redirects, multi-info CSR
 

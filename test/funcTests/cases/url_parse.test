@@ -7,6 +7,8 @@
 # as the entity id; non-URI subscription/registration ids are rejected 400; an
 # unknown service path is 404. EXPECT carries Coraine's own ProblemDetails wording.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 URL parsing — URL-as-entity-id, non-URI ids, unknown path
 

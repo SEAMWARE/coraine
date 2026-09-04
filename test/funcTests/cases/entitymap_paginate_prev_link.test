@@ -9,6 +9,8 @@
 # pages and Link rel="next" while more pages remain. The entityMap path
 # previously emitted only rel="next" — this test pins both.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 EntityMap pagination - rel=first/prev/next/last (§ 5.5.9.1)
 

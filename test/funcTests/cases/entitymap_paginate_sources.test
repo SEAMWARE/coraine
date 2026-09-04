@@ -11,6 +11,8 @@
 # current query's reg-cache match (which could have shifted since the
 # map was created).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 EntityMap-based pagination routes by recorded source, not reg-match
 

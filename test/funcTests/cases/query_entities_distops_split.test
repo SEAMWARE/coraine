@@ -8,6 +8,8 @@
 # Split-entities mode: entity attrs distributed across multiple sources.
 # Default behavior (no --noSplitEntities).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Distributed queryEntities (split-entities mode)
 

@@ -8,6 +8,8 @@
 # § 5.2.9 — top-level `datasetId`: array of valid URIs, with the literal
 # "@none" accepted as a synonym for the default Attribute instance (§ 4.5.5).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration validation — datasetId (§ 5.2.9 / § 4.5.5)
 
