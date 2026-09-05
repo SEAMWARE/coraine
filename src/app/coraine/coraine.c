@@ -777,6 +777,20 @@ int main(int argC, char* argV[])
       printf(" %s=%d", coraineFeatures[ix].name, coraineFeatures[ix].on ? 1 : 0);
     printf("\n");
 
+    //
+    // The HTTP server, on a line of its own and NOT in the feature set above.
+    // Those are booleans - is this capability in the build - and this is a
+    // choice between two implementations of a capability that is always in it.
+    // Folding it in would mean inventing a feature name whose "off" meant
+    // nothing, and it is also read differently: a test file asks
+    // REQUIRE_HTTPSERVER for one current value out of alternatives, where
+    // REQUIRE_FEATURE asks for membership of a set.
+    //
+    // GET /build reports the same thing to a RUNNING broker; this line is what
+    // answers before one has started, which is when the test harness asks.
+    //
+    printf("httpServer: %s\n", CORAINE_HTTP_SERVER);
+
     exit(0);
   }
 

@@ -268,7 +268,7 @@ combinations nobody has tried are exactly the ones worth hearing about.
 
 ```console
 cmake -DCOR_HTTP_SERVER=mhd        # libmicrohttpd (the default)
-cmake -DCOR_HTTP_SERVER=builtin    # the server in corRest - not wired up yet
+cmake -DCOR_HTTP_SERVER=builtin    # corHttp, no external HTTP dependency
 ```
 
 Not a `COR_FEATURE_*` boolean, because those answer "is this capability in the
@@ -279,10 +279,22 @@ whether `libmicrohttpd` is on the link line at all, so `ldd coraine` is the
 check that it took. A running broker reports it as `build.httpServer` on
 `GET /build`.
 
-`builtin` is refused at configure time today, with that reason: the switch is
-plumbed end to end, the backend it selects is not written yet, and a switch that
-produced an unlinkable binary would be worse than one that says what it is
-waiting for.
+`builtin` selects **corHttp**, a sibling repo: an HTTP/1.1 server on one
+edge-triggered epoll loop, depending on nothing but kalloc and libc. Requests
+still run on corRest's worker pool — the loop only does I/O — and the wire
+format it emits is byte-for-byte the one libmicrohttpd produced, because several
+hundred functional tests compare captured responses line by line.
+
+Two things it does not do, and both are deliberate rather than pending:
+
+- **No TLS server.** The broker never serves HTTPS (it is put behind a proxy
+  that does), so this costs exactly one thing: the test notification receiver
+  `ftClient` cannot serve HTTPS either, and the one functional test that needs
+  that carries `REQUIRE_HTTPSERVER: mhd`.
+- **No HTTP pipelining.** A second request arriving in the same packet as the
+  first is dropped rather than answered. No client in use here pipelines — curl
+  does not, and neither browsers nor the ETSI suite's HTTP library do — and
+  supporting it properly means driving the event loop from the response side.
 
 Why bother: `libmicrohttpd` is ~180 kB of mapped code, about 21% on top of the
 broker's own, for a library coraine uses 32 of the 81 exported symbols of — and

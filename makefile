@@ -84,6 +84,15 @@ SIBLING_LIBS = corRest corJsonld corNgsild
 #
 COR_HTTP_SERVER ?= mhd
 
+#
+# corHttp only exists in the link when it is the server in use, and it has to be
+# BUILT BEFORE corRest, which links it. Prepended rather than appended for that
+# reason - the loop below is ordered.
+#
+ifeq ($(COR_HTTP_SERVER),builtin)
+SIBLING_LIBS := corHttp $(SIBLING_LIBS)
+endif
+
 libs:
 	@for lib in $(SIBLING_LIBS); do \
 	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) di || exit 1; \

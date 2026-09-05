@@ -155,20 +155,15 @@ set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS mhd builtin)
 if (COR_HTTP_SERVER STREQUAL "mhd")
   add_compile_definitions(COR_HTTP_SERVER_MHD=1 COR_HTTP_SERVER_BUILTIN=0)
 elseif (COR_HTTP_SERVER STREQUAL "builtin")
-  #
-  # The plumbing is complete - this value reaches cmake, reaches corRest's own
-  # make, and removes libmicrohttpd from the link. What is not complete is
-  # corRest's server backend, so a build with it would fail at LINK time with a
-  # pile of missing MHD symbols and no clue why.
-  #
-  # Refused here instead, with the reason. A switch that exists and says what it
-  # is waiting for is worth having; a switch that produces a broken binary is
-  # not.
-  #
-  message(FATAL_ERROR
-          "COR_HTTP_SERVER=builtin: the built-in HTTP server is not wired into corRest yet. "
-          "Use 'mhd' (the default).")
   add_compile_definitions(COR_HTTP_SERVER_MHD=0 COR_HTTP_SERVER_BUILTIN=1)
+
+  #
+  # corHttp is a static archive of its own and NOT folded into libcorRest.a - an
+  # archive cannot contain another one - so the built-in flavour links both.
+  # Appended AFTER corRest, because corRest is what calls into it and the linker
+  # resolves an archive against what is still undefined when it reaches it.
+  #
+  list(APPEND COR_STATIC_LIBS ${COR_LIBS_DIR}/corHttp/libcorHttp.a)
 else()
   message(FATAL_ERROR "COR_HTTP_SERVER must be 'mhd' or 'builtin', not '${COR_HTTP_SERVER}'")
 endif()

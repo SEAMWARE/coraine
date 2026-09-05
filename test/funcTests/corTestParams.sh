@@ -72,6 +72,29 @@ fi
 
 
 #
+# -httpServer: which HTTP server the broker under test carries
+#
+# Detected from the binary, like COR_TEST_FEATURES above, and a REQUIRE_<TAG>
+# rather than a feature: the features are a SET a test asks for membership of,
+# and this is ONE current value out of alternatives. `REQUIRE_FEATURE: A B`
+# means "A and B", which is the right reading for features and the wrong one
+# here - "REQUIRE_HTTPSERVER: mhd builtin" has to mean "either".
+#
+# Only one test needs it today: the built-in server has no TLS, so the HTTPS
+# notification receiver cannot be raised against it.
+#
+# NONE when the binary cannot be asked - corTest's own "not configured" value,
+# which makes the marker inert rather than filtering out every test that has it.
+# And COR_TEST_HTTP_SERVER, not COR_HTTP_SERVER: that name is the BUILD variable
+# (make / cmake), and an operator who still has it exported from a build would
+# otherwise override the detection with it.
+#
+corCliParamAdd "-httpServer" "COR_TEST_HTTP_SERVER" \
+              "$("${COR_BROKER:-coraine}" --version 2>/dev/null | awk '/^httpServer: /{ print $2; found = 1 } END { if (!found) print "NONE" }')" \
+              "HTTP server the broker was built with: mhd|builtin" "HTTPSERVER"
+
+
+#
 # -buildTests: run the case that COMPILES the broker in reduced configurations?
 #
 # Off by default because it is minutes rather than seconds - five cmake builds
