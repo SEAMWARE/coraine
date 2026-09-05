@@ -296,6 +296,13 @@ Two things it does not do, and both are deliberate rather than pending:
   does not, and neither browsers nor the ETSI suite's HTTP library do — and
   supporting it properly means driving the event loop from the response side.
 
+**Both servers are tested, but not in the same place.** A pull request builds and
+tests one of them — `mhd`, the default — because doubling a two-minute check to
+answer a question that changes once a month is the wrong trade. The **nightly**
+crosses its valgrind matrix and its ETSI job with `COR_HTTP_SERVER`, so `builtin`
+gets the whole functional suite under valgrind and the whole conformance suite,
+every night that something merged.
+
 Why bother: `libmicrohttpd` is ~180 kB of mapped code, about 21% on top of the
 broker's own, for a library coraine uses 32 of the 81 exported symbols of — and
 it is the last third-party runtime dependency besides libc and OpenSSL once the
