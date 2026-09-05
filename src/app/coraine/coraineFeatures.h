@@ -36,4 +36,34 @@ typedef struct CoraineFeature
 //
 extern const CoraineFeature coraineFeatures[];
 
+
+
+// -----------------------------------------------------------------------------
+//
+// CorainePlugin - one plugin the build that produced this binary also produced
+//
+// 'kind' is the plugin category as the install lays it out ("currentState",
+// "temporal", "api"), 'name' the short alias the broker loads it by.
+//
+typedef struct CorainePlugin
+{
+  const char* kind;
+  const char* name;
+} CorainePlugin;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineBuiltPlugins - the plugins this build produces, terminated by NULL kind
+//
+// "Produces", not "has installed": they are separate .so files, loaded at run
+// time from a directory this binary does not own, so a build can carry a plugin
+// that is not installed and an install can hold a plugin from another build.
+// What this list answers is the question the binary CAN answer - did the cmake
+// run that produced me also produce that plugin - which is the half an operator
+// cannot get from `ls`.
+//
+extern const CorainePlugin coraineBuiltPlugins[];
+
 #endif  // SRC_APP_CORAINE_CORAINEFEATURES_H_

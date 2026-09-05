@@ -73,6 +73,7 @@
 #include "serviceRoutines/postEntityBatchQuery.h"      // postEntityBatchQuery
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 #include "serviceRoutines/getVersion.h"                // getVersion
+#include "serviceRoutines/getBuild.h"                  // getBuild
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
 #include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h" // postTemporalEntityBatchQuery
@@ -200,6 +201,13 @@ CorRestServiceSimplified ngsildCoreServices[] =
 
   // Broker product / version handshake (non-NGSI-LD).
   { CorVerbGet,    "/version",                  getVersion,        0, LdOpNone },
+
+  // What this deployment IS - features compiled in, plugins built and loaded,
+  // and the run-time settings that change what a client gets. Non-NGSI-LD, and
+  // outside /admin on purpose: the admin API is itself a compile-time feature,
+  // and the endpoint that reports what a build contains must not be one of the
+  // things a build can leave out.
+  { CorVerbGet,    "/build",                    getBuild,          0, LdOpNone },
 
   // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
   // More-specific routes first — the router matches in registration order.

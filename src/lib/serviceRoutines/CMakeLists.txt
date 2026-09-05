@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 SET(SOURCES
   corNotInThisBuild.c
+  getBuild.c
   getEntities.c
   getEntity.c
   postEntities.c

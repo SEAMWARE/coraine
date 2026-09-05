@@ -26,19 +26,6 @@
 # change with every library commit, so pinning them would make this test a
 # tripwire for other people's merges.
 #
-# The `features` object says which optional parts of the API this build carries -
-# the answer a client needs when an endpoint replies 501 Not Available In This
-# Build. The NAMES are pinned; the true/false values are REGEXed, for the same
-# reason as the shas above: they are a property of the build, not of the broker,
-# and this test has to pass against a reduced build too. Pinning them would make
-# the one test that reports the feature set the first casualty of using it.
-#
-# The pattern is [a-z]+ and not the obvious (true|false): corDiff splices
-# REGEX()'s contents into the line pattern unbracketed, so a top-level | splits
-# the WHOLE line into alternatives - `<prefix>true` OR `false,` - and the second
-# branch then has to match from column 1. It matches "true" and rejects "false",
-# which is worse than no pattern at all because it looks right.
-#
 # Nothing exercised this route before. A broken or renamed member here would
 # have reached a release unnoticed.
 #
@@ -78,23 +65,6 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX([0-9]+)
 
 {
-  "features": {
-    "ADMIN_API": REGEX([a-z]+),
-    "CONTEXT_DL": REGEX([a-z]+),
-    "CONTEXT_HOSTING": REGEX([a-z]+),
-    "DATASETID": REGEX([a-z]+),
-    "GEOQ": REGEX([a-z]+),
-    "LOCATION": REGEX([a-z]+),
-    "METRICS": REGEX([a-z]+),
-    "MONGOC": REGEX([a-z]+),
-    "MULTI_TYPE": REGEX([a-z]+),
-    "OBSERVATION_SPACE": REGEX([a-z]+),
-    "OPERATION_SPACE": REGEX([a-z]+),
-    "REGISTRATIONS": REGEX([a-z]+),
-    "SCOPES": REGEX([a-z]+),
-    "SUBSCRIPTIONS": REGEX([a-z]+),
-    "TENANTS": REGEX([a-z]+)
-  },
   "product": "coraine",
   "stack": {
     "corJsonld": "REGEX([0-9a-f]{40})",
@@ -124,23 +94,6 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX([0-9]+)
 
 {
-  "features": {
-    "ADMIN_API": REGEX([a-z]+),
-    "CONTEXT_DL": REGEX([a-z]+),
-    "CONTEXT_HOSTING": REGEX([a-z]+),
-    "DATASETID": REGEX([a-z]+),
-    "GEOQ": REGEX([a-z]+),
-    "LOCATION": REGEX([a-z]+),
-    "METRICS": REGEX([a-z]+),
-    "MONGOC": REGEX([a-z]+),
-    "MULTI_TYPE": REGEX([a-z]+),
-    "OBSERVATION_SPACE": REGEX([a-z]+),
-    "OPERATION_SPACE": REGEX([a-z]+),
-    "REGISTRATIONS": REGEX([a-z]+),
-    "SCOPES": REGEX([a-z]+),
-    "SUBSCRIPTIONS": REGEX([a-z]+),
-    "TENANTS": REGEX([a-z]+)
-  },
   "product": "coraine",
   "stack": {
     "corJsonld": "REGEX([0-9a-f]{40})",

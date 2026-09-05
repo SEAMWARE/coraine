@@ -45,3 +45,28 @@ const CoraineFeature coraineFeatures[] =
   { "OPERATION_SPACE",   COR_FEATURE_OPERATION_SPACE   },
   { NULL,                false                         }
 };
+
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineBuiltPlugins -
+//
+// Mirrors the ADD_SUBDIRECTORY list in CMakeLists.txt. The two that are gated by
+// a feature are gated by the same 0/1 define the feature list uses, so they
+// cannot claim to exist in a build that did not compile them.
+//
+const CorainePlugin coraineBuiltPlugins[] =
+{
+  { "currentState", "corDB"     },
+#if COR_FEATURE_MONGOC
+  { "currentState", "mongoc"    },
+#endif
+  { "temporal",     "none"      },
+  { "temporal",     "ramdb"     },
+  { "temporal",     "timescale" },
+#if COR_FEATURE_ADMIN_API
+  { "api",          "admin"     },
+#endif
+  { NULL,           NULL        }
+};

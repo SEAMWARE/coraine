@@ -43,9 +43,9 @@ coraineStart
 
 --RUN--
 
-echo "01. GET /version — the build reports REGISTRATIONS: false"
-echo "========================================================="
-corCurl --url /version
+echo "01. The build says so itself — GET /build reports REGISTRATIONS: false"
+echo "======================================================================="
+corCurl --url /build | grep '"REGISTRATIONS"'
 echo
 echo
 
@@ -180,50 +180,9 @@ echo
 
 
 --EXPECT--
-01. GET /version — the build reports REGISTRATIONS: false
-=========================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX([0-9]+)
-
-{
-  "features": {
-    "ADMIN_API": true,
-    "CONTEXT_DL": true,
-    "CONTEXT_HOSTING": true,
-    "DATASETID": true,
-    "GEOQ": true,
-    "LOCATION": true,
-    "METRICS": true,
-    "MONGOC": true,
-    "MULTI_TYPE": true,
-    "OBSERVATION_SPACE": false,
-    "OPERATION_SPACE": false,
+01. The build says so itself — GET /build reports REGISTRATIONS: false
+=======================================================================
     "REGISTRATIONS": false,
-    "SCOPES": true,
-    "SUBSCRIPTIONS": true,
-    "TENANTS": true
-  },
-  "product": "coraine",
-  "stack": {
-    "corJsonld": "REGEX([0-9a-f]{40})",
-    "corNgsild": "REGEX([0-9a-f]{40})",
-    "corPlugin": "REGEX([0-9a-f]{40})",
-    "corRest": "REGEX([0-9a-f]{40})",
-    "kalloc": "REGEX([0-9a-f]{40})",
-    "kargs": "REGEX([0-9a-f]{40})",
-    "kbase": "REGEX([0-9a-f]{40})",
-    "khash": "REGEX([0-9a-f]{40})",
-    "kjson": "REGEX([0-9a-f]{40})",
-    "klog": "REGEX([0-9a-f]{40})",
-    "kprom": "REGEX([0-9a-f]{40})",
-    "ktrace": "REGEX([0-9a-f]{40})"
-  },
-  "version": "0.4.0"
-}
-
 
 
 02. POST /ngsi-ld/v1/csourceRegistrations -> 501

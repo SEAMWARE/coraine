@@ -1,0 +1,247 @@
+#
+# FILE            build_endpoint.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /build - what this deployment IS, as opposed to what version it is.
+#
+# Coraine can be compiled down to a subset of NGSI-LD, and a build with a
+# feature compiled out is indistinguishable over the wire from a full one until
+# something is asked for and answered 501. This endpoint is where it is asked,
+# and it separates three kinds of fact because they change at three different
+# moments:
+#
+#   features  - fixed when the source was compiled; no flag or restart moves one
+#   plugins   - `built` is compile-time, `loaded` is decided at startup from a
+#               directory the binary does not own
+#   runtime   - the command line, changed by a restart
+#
+# Step 02 is what makes that last row worth having: the same binary, restarted
+# with --distributed, reports distributed: true and the admin plugin as loaded.
+# Without it `runtime` could be four constants and this test would not notice.
+#
+# It is NOT under /admin, and that is the point rather than an accident: the
+# admin API is itself a compile-time feature, so an endpoint reporting what a
+# build contains must not be one of the things a build can leave out.
+#
+# What is pinned and what is not:
+#   - the feature NAMES are pinned, the true/false values are REGEXed. The
+#     values are a property of the build and this test has to pass against a
+#     reduced one; the build-specific values are asserted where they mean
+#     something, in registrations_not_in_this_build.test.
+#   - gitSha, builtAt, compiler and build type are REGEXed: four facts about the
+#     machine and the moment, not about the code.
+#   - the `built` plugin array and the loaded admin plugin DO depend on two
+#     features, hence the REQUIRE_FEATURE below. This is the test of the full
+#     plugin set; a build without mongoc is not one it can speak for.
+#   - the loaded current-state plugin is pinned to mongoc rather than REGEXed,
+#     and REQUIRE_DB keeps the test off a corDB run. What `loaded` reports is
+#     not DB-specific, so covering one of the two is covering the mechanism.
+#
+# REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: MONGOC ADMIN_API
+#
+--NAME--
+GET /build reports features, plugins built vs loaded, and the runtime settings
+
+--TAGS--
+version features admin
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. GET /build — the default broker"
+echo "==================================="
+corCurl --url /build
+echo
+echo
+
+
+echo "02. Restart with --distributed and the admin plugin — runtime follows"
+echo "====================================================================="
+coraineStop
+coraineStart -dist --apiPlugins admin
+corCurl --url /build
+echo
+echo
+
+
+--EXPECT--
+01. GET /build — the default broker
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX([0-9]+)
+
+{
+  "build": {
+    "builtAt": "REGEX([0-9T:Z-]+)",
+    "compiler": "REGEX(.+)",
+    "gitSha": "REGEX([0-9a-f]+)",
+    "type": "REGEX([A-Za-z]+)"
+  },
+  "features": {
+    "ADMIN_API": REGEX([a-z]+),
+    "CONTEXT_DL": REGEX([a-z]+),
+    "CONTEXT_HOSTING": REGEX([a-z]+),
+    "DATASETID": REGEX([a-z]+),
+    "GEOQ": REGEX([a-z]+),
+    "LOCATION": REGEX([a-z]+),
+    "METRICS": REGEX([a-z]+),
+    "MONGOC": REGEX([a-z]+),
+    "MULTI_TYPE": REGEX([a-z]+),
+    "OBSERVATION_SPACE": REGEX([a-z]+),
+    "OPERATION_SPACE": REGEX([a-z]+),
+    "REGISTRATIONS": REGEX([a-z]+),
+    "SCOPES": REGEX([a-z]+),
+    "SUBSCRIPTIONS": REGEX([a-z]+),
+    "TENANTS": REGEX([a-z]+)
+  },
+  "plugins": {
+    "built": [
+      {
+        "kind": "currentState",
+        "name": "corDB"
+      },
+      {
+        "kind": "currentState",
+        "name": "mongoc"
+      },
+      {
+        "kind": "temporal",
+        "name": "none"
+      },
+      {
+        "kind": "temporal",
+        "name": "ramdb"
+      },
+      {
+        "kind": "temporal",
+        "name": "timescale"
+      },
+      {
+        "kind": "api",
+        "name": "admin"
+      }
+    ],
+    "directory": "/opt/seamware/plugins",
+    "loaded": {
+      "api": [],
+      "currentState": {
+        "alias": "mongoc",
+        "version": "0.1.0"
+      },
+      "temporal": {
+        "alias": "none",
+        "version": "0.1.0"
+      }
+    }
+  },
+  "product": "coraine",
+  "runtime": {
+    "distributed": false,
+    "httpEndpoint": "http://localhost:1026",
+    "splitEntities": true
+  },
+  "version": "0.4.0"
+}
+
+
+
+02. Restart with --distributed and the admin plugin — runtime follows
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX([0-9]+)
+
+{
+  "build": {
+    "builtAt": "REGEX([0-9T:Z-]+)",
+    "compiler": "REGEX(.+)",
+    "gitSha": "REGEX([0-9a-f]+)",
+    "type": "REGEX([A-Za-z]+)"
+  },
+  "features": {
+    "ADMIN_API": REGEX([a-z]+),
+    "CONTEXT_DL": REGEX([a-z]+),
+    "CONTEXT_HOSTING": REGEX([a-z]+),
+    "DATASETID": REGEX([a-z]+),
+    "GEOQ": REGEX([a-z]+),
+    "LOCATION": REGEX([a-z]+),
+    "METRICS": REGEX([a-z]+),
+    "MONGOC": REGEX([a-z]+),
+    "MULTI_TYPE": REGEX([a-z]+),
+    "OBSERVATION_SPACE": REGEX([a-z]+),
+    "OPERATION_SPACE": REGEX([a-z]+),
+    "REGISTRATIONS": REGEX([a-z]+),
+    "SCOPES": REGEX([a-z]+),
+    "SUBSCRIPTIONS": REGEX([a-z]+),
+    "TENANTS": REGEX([a-z]+)
+  },
+  "plugins": {
+    "built": [
+      {
+        "kind": "currentState",
+        "name": "corDB"
+      },
+      {
+        "kind": "currentState",
+        "name": "mongoc"
+      },
+      {
+        "kind": "temporal",
+        "name": "none"
+      },
+      {
+        "kind": "temporal",
+        "name": "ramdb"
+      },
+      {
+        "kind": "temporal",
+        "name": "timescale"
+      },
+      {
+        "kind": "api",
+        "name": "admin"
+      }
+    ],
+    "directory": "/opt/seamware/plugins",
+    "loaded": {
+      "api": [
+        {
+          "alias": "admin",
+          "version": "0.4.0"
+        }
+      ],
+      "currentState": {
+        "alias": "mongoc",
+        "version": "0.1.0"
+      },
+      "temporal": {
+        "alias": "none",
+        "version": "0.1.0"
+      }
+    }
+  },
+  "product": "coraine",
+  "runtime": {
+    "distributed": true,
+    "httpEndpoint": "http://localhost:1026",
+    "splitEntities": true
+  },
+  "version": "0.4.0"
+}
+
+
+
+--TEARDOWN--
+coraineStop

@@ -57,6 +57,15 @@ foreach(feature ${COR_FEATURES})
 endforeach()
 
 #
+# What cmake knows about this build that the makefile cannot: the flavour and the
+# compiler it actually chose. GET /build reports both. The git sha and the build
+# timestamp come the other way, from the makefile, in coraineBuild.h - each fact
+# from whoever knows it rather than one of them guessing.
+#
+add_compile_definitions(CORAINE_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+add_compile_definitions(CORAINE_BUILD_COMPILER="${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
+
+#
 # Compiler flags
 #
 set(CMAKE_C_FLAGS         "-Wall -Werror -Wundef -fPIC -DLOG_ON")
