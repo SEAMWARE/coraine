@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 #
-# vendor-libs.sh — stage the private Cor-Libs into the Docker build context.
+# vendor-libs.sh — stage the Cor-Libs into the Docker build context.
 #
-# WHY THIS EXISTS: the k-libs (gitlab.com/kzangeli) are public and the image
-# clones them directly at their pinned release branches. The Cor-Libs
-# (github.com/SEAMWARE) are PRIVATE, so a container has no way to clone them.
-# Rather than bake a token into the image or make the repos public, we export
-# each one's committed HEAD from the local clone and copy that into the build.
+# WHY THIS EXISTS: the k-libs (gitlab.com/kzangeli) are cloned by the image
+# itself, at the release branches klib-pins names. The Cor-Libs
+# (github.com/SEAMWARE) are NOT cloned — they are exported from the local clones
+# with `git archive HEAD` and copied in.
+#
+# They were private when this was written, so there was no choice; they are
+# public now and the reason is a different one. A clone would build whatever
+# `main` happens to be at that moment, which is not what the developer running
+# `docker build` is looking at. Vendoring ships the tree they have COMMITTED,
+# and MANIFEST.txt records the sha that went in.
 #
 # `git archive HEAD` gives exactly the committed tree: no .git, no build
 # artifacts, no uncommitted work. Anything you have not committed will NOT be in
@@ -27,7 +32,11 @@ set -euo pipefail
 
 BASE="${BASE:-$HOME/git}"
 OUT="$(cd "$(dirname "$0")" && pwd)/vendor"
-LIBS=(corPlugin corRest corJsonld corNgsild corTest corLibs)
+# corHttp is here even though the default build does not LINK it: corLibs'
+# umbrella makefile builds every Cor-Lib, so a missing directory fails the image
+# build at `make -C corLibs di` rather than at the link. Which is how it was
+# found.
+LIBS=(corPlugin corHttp corRest corJsonld corNgsild corTest corLibs)
 
 rm -rf "$OUT"
 mkdir -p "$OUT"

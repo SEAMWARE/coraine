@@ -28,6 +28,16 @@ MANIFEST="$HERE/docker/vendor/MANIFEST.txt"
 
 LIBS="kbase kalloc klog khash kjson kargs ktrace kprom corRest corNgsild corJsonld corPlugin"
 
+#
+# corHttp only when it is the HTTP server in use. This file answers "what is
+# LINKED into this broker", and on a COR_HTTP_SERVER=mhd build corHttp is built
+# but not linked - listing it there would be a claim about the binary that is
+# not true of it.
+#
+if [ "${COR_HTTP_SERVER:-mhd}" = "builtin" ]; then
+  LIBS="$LIBS corHttp"
+fi
+
 for lib in $LIBS; do
   sha=""
 

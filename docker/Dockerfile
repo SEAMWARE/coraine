@@ -77,9 +77,11 @@ RUN set -eux; \
     done; \
     ls -d /root/git/k*
 
-# Cor-Libs are PRIVATE on GitHub — a container cannot clone them. docker/vendor-libs.sh
-# exports each one's committed HEAD next to this Dockerfile; MANIFEST.txt records the
-# exact SHAs that went in. Build fails here with a clear message if you skipped it.
+# Cor-Libs are NOT cloned here: docker/vendor-libs.sh exports each one's committed
+# HEAD next to this Dockerfile, so the image is built from the tree the developer
+# actually has rather than from whatever `main` is at that moment. MANIFEST.txt
+# records the exact SHAs that went in. Build fails here with a clear message if
+# you skipped it.
 COPY docker/vendor/ /tmp/vendor/
 RUN set -eux; \
     test -f /tmp/vendor/MANIFEST.txt || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
