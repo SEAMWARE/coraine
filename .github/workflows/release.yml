@@ -184,7 +184,7 @@ jobs:
           app-id: ${{ secrets.CI_APP_ID }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
           owner: SEAMWARE
-          repositories: corRest,corNgsild,corJsonld,corPlugin,corTest,corLibs
+          repositories: corRest,corHttp,corNgsild,corJsonld,corPlugin,corTest,corLibs
 
       #
       # Tag each Cor-Lib at the commit this release was actually built from.
@@ -193,9 +193,12 @@ jobs:
       # minutes since the build, and a release tag pointing at a commit the
       # release does not contain is worse than no tag.
       #
-      # corTest and corLibs are not linked into the broker, so they are not in the
-      # manifest - they are tagged at the commit bootstrap.sh checked out, which is
-      # what a reproduction of this build would need.
+      # corTest, corLibs and corHttp are not linked into the broker - corHttp only
+      # when COR_HTTP_SERVER=builtin, which a release is not - so they are not in
+      # the manifest. They are tagged at the commit bootstrap.sh checked out,
+      # which is what a reproduction of this build would need. corHttp is in both
+      # lists on purpose: a builtin build puts it in the manifest, and tagRepo is
+      # idempotent, so the second attempt finds the tag and leaves it alone.
       #
       - name: Tag the Cor-Libs at the released commits
         env:
@@ -227,11 +230,11 @@ jobs:
 
           # the four libraries linked into the broker, from the manifest
           while read -r lib sha; do
-            case "$lib" in corRest|corNgsild|corJsonld|corPlugin) tagRepo "$lib" "$sha" ;; esac
+            case "$lib" in corRest|corHttp|corNgsild|corJsonld|corPlugin) tagRepo "$lib" "$sha" ;; esac
           done < /tmp/stack.txt
 
           # and the two that are not linked but are part of reproducing the build
-          for lib in corTest corLibs; do
+          for lib in corHttp corTest corLibs; do
             tagRepo "$lib" "$(git -C "$GITHUB_WORKSPACE/stack/$lib" rev-parse HEAD 2>/dev/null)"
           done
 
