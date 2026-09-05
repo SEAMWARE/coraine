@@ -101,6 +101,13 @@ bool getBuild(void)
   kjChildAdd(buildP, kjString(corRest.kjsonP, "builtAt",  CORAINE_BUILT_AT));
   kjChildAdd(buildP, kjString(corRest.kjsonP, "type",     CORAINE_BUILD_TYPE));
   kjChildAdd(buildP, kjString(corRest.kjsonP, "compiler", CORAINE_BUILD_COMPILER));
+
+  //
+  // Which HTTP server this build carries. Not in `features` - that object
+  // answers "is this capability present", and the HTTP server is always
+  // present; what varies is WHICH ONE, and a boolean cannot say that.
+  //
+  kjChildAdd(buildP, kjString(corRest.kjsonP, "httpServer", CORAINE_HTTP_SERVER));
   kjChildAdd(body, buildP);
 
   //

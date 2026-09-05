@@ -264,6 +264,32 @@ saying which flags you set and what happened, and paste the `GET /build`
 output. Reduced builds are a direction this project is committed to, and the
 combinations nobody has tried are exactly the ones worth hearing about.
 
+### Choosing the HTTP server
+
+```console
+cmake -DCOR_HTTP_SERVER=mhd        # libmicrohttpd (the default)
+cmake -DCOR_HTTP_SERVER=builtin    # the server in corRest - not wired up yet
+```
+
+Not a `COR_FEATURE_*` boolean, because those answer "is this capability in the
+build" and the HTTP server is always in it — what varies is which one. The value
+reaches CMake **and** corRest's own make (the HTTP server lives in corRest,
+which builds with plain make and knows nothing of CMake options), and it decides
+whether `libmicrohttpd` is on the link line at all, so `ldd coraine` is the
+check that it took. A running broker reports it as `build.httpServer` on
+`GET /build`.
+
+`builtin` is refused at configure time today, with that reason: the switch is
+plumbed end to end, the backend it selects is not written yet, and a switch that
+produced an unlinkable binary would be worse than one that says what it is
+waiting for.
+
+Why bother: `libmicrohttpd` is ~180 kB of mapped code, about 21% on top of the
+broker's own, for a library coraine uses 32 of the 81 exported symbols of — and
+it is the last third-party runtime dependency besides libc and OpenSSL once the
+optional features are compiled out. It is also a tarball fetched from
+ftp.gnu.org and built from source in the Dockerfile.
+
 ### The optional runtime dependencies
 
 The same holds for the optional runtime deps — MQTT notifications, for
