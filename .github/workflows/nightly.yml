@@ -292,10 +292,21 @@ jobs:
     # silently, the day somebody adds it. Re-measure and re-cut when the suite has
     # grown enough for shard 4 to drift - it is the one that absorbs every new test.
     #
-    name: valgrind ${{ matrix.shard.name }}
+    #
+    # ...and crossed with the HTTP SERVER, which is what makes this the place the
+    # second one is kept honest. A pull request builds and tests ONE of them
+    # (mhd, the default), so nothing on a PR would notice `builtin` rotting; and
+    # a valgrind run is a functional run as well - it fails on an output
+    # mismatch exactly as the plain suite does - so one matrix answers both "does
+    # it still pass" and "does it still leak". The two bugs the built-in server
+    # arrived with were a use-after-the-connection-moved-on and a deadlock, which
+    # is precisely what this pairing is for.
+    #
+    name: valgrind ${{ matrix.httpServer }} ${{ matrix.shard.name }}
     strategy:
       fail-fast: false
       matrix:
+        httpServer: [mhd, builtin]
         shard:
           - { name: '1-156',   from: 1,   to: 156 }
           - { name: '157-319', from: 157, to: 319 }
@@ -345,11 +356,18 @@ jobs:
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
-      - name: Build and install coraine
+      #
+      # COR_HTTP_SERVER reaches cmake AND corRest's own make (coraine's makefile
+      # passes it down), so the whole stack is built with one server or the
+      # other. Getting it onto only one side would link a broker against a
+      # corRest compiled the other way, and nothing would report it.
+      #
+      - name: Build and install coraine - ${{ matrix.httpServer }}
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
-          make di
+          make di COR_HTTP_SERVER=${{ matrix.httpServer }}
+          coraine --version
       #
       # The set is initiated here rather than in the image: a member is addressed by
       # the name its clients use, and the image cannot know that name.
@@ -357,7 +375,7 @@ jobs:
       - name: Initiate the mongo replica set
         run: stack/coraine/.github/scripts/mongo-rs-init.sh
 
-      - name: Suite under valgrind - tests ${{ matrix.shard.name }}
+      - name: Suite under valgrind - ${{ matrix.httpServer }}, tests ${{ matrix.shard.name }}
         working-directory: stack/coraine
         run: |
           # An empty --toIx is corTest's "to the end" (toIx=0), which is what the
@@ -388,7 +406,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: valgrind-${{ matrix.shard.name }}
+          name: valgrind-${{ matrix.httpServer }}-${{ matrix.shard.name }}
           path: |
             stack/coraine/test/funcTests/cases/*.out
             stack/coraine/test/funcTests/cases/*.log
@@ -405,6 +423,17 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "etsi"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
+    #
+    # Once per HTTP server. A conformance claim is about the deployment, and the
+    # HTTP server IS part of the deployment - the six TPs the built-in one first
+    # failed were all query strings the functional suite never sends, so the
+    # functional suite could not have caught them.
+    #
+    name: etsi ${{ matrix.httpServer }}
+    strategy:
+      fail-fast: false
+      matrix:
+        httpServer: [mhd, builtin]
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
@@ -441,11 +470,12 @@ jobs:
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
-      - name: Build and install coraine
+      - name: Build and install coraine - ${{ matrix.httpServer }}
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
-          make di
+          make di COR_HTTP_SERVER=${{ matrix.httpServer }}
+          coraine --version
 
       - name: Clone the corrected ETSI suite
         run: |
@@ -563,6 +593,9 @@ jobs:
         if: always()
         working-directory: etsi-suite
         run: |
+          # Which server this run measured - the two legs' summaries are
+          # otherwise identical documents with different numbers in them.
+          echo "### HTTP server: ${{ matrix.httpServer }}" >> "$GITHUB_STEP_SUMMARY"
           python3 "$GITHUB_WORKSPACE/stack/coraine/test/etsi/etsiSummary.py" \
             /tmp/etsi-out/output.xml /tmp/etsi-out/first-pass-failures.txt \
             >> "$GITHUB_STEP_SUMMARY"
@@ -571,7 +604,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: etsi-results
+          # Unique per matrix leg: two jobs uploading one artifact name is an
+          # upload conflict, and the one that wins is whichever finished last.
+          name: etsi-results-${{ matrix.httpServer }}
           path: |
             /tmp/etsi-out
             /tmp/etsi-broker.log

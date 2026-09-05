@@ -14,6 +14,13 @@
 #
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
+# REQUIRE_HTTPSERVER: mhd
+#
+# ...because the receiver here is an HTTPS SERVER, and the built-in HTTP server
+# has none - it is the dependency on libmicrohttpd's TLS that this test is, in
+# effect, testing. The broker's own side (notifying an https endpoint) is the
+# client stack and is the same in both builds.
+#
 --NAME--
 Subscription notification over HTTPS (self-signed endpoint) — delivered and counted
 

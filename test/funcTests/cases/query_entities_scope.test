@@ -5,6 +5,18 @@
 #
 # Copyright 2026 Seamware
 #
+# ⚠️ THE SINGLE-LEVEL WILDCARD IS SENT AS %2B, NEVER AS A RAW '+'.
+#
+# A query string is form-encoded in practice - urlencode / quote_plus is what
+# every HTTP client library produces - so '+' on the wire means SPACE, and both
+# HTTP servers decode it that way. `scopeQ=/Madrid/+/ParqueNorte` therefore asks
+# for a middle level that is a single space, matches nothing, and returns 200
+# with an empty array: a passing test that proves nothing.
+#
+# Steps 08, 16 and 20 used to expect exactly that [] and read as if the wildcard
+# did not work. Percent-encoded, the broker sees the '+' the spec means and the
+# steps test the wildcard instead of the encoding.
+#
 --NAME--
 GET /ngsi-ld/v1/entities - scopeQ filtering (exact, hierarchy, wildcard, AND, OR)
 
@@ -28,7 +40,7 @@ coraineStart
 # Scope query tests:
 # 06. scopeQ=/Madrid/Gardens/ParqueNorte - exact match (E1 only)
 # 07. scopeQ=/Madrid/Gardens/# - hierarchy wildcard (E1, E2)
-# 08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)
+# 08. scopeQ=/Madrid/%2B/ParqueNorte - single-level wildcard (E1)
 # 09. scopeQ=/Madrid/Gardens/ParqueNorte,/Madrid/Districts/Centro - OR (E1, E3)
 # 10. scopeQ=(/Madrid/Districts;/CompanyA) - AND, entity has both (E4)
 # 11. scopeQ=/# - any entity with scope (E1, E2, E3, E4)
@@ -36,11 +48,12 @@ coraineStart
 # 13. scopeQ=/Madrid/# - hierarchy from Madrid (E1, E2, E3, E4)
 # 14. scopeQ=/CompanyA - exact match (E4 only, has it in array)
 # 15. scopeQ=/Barcelona/# - no match (empty result)
-# 16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)
+# 16. scopeQ=/Madrid/%2B/# - wildcard + hierarchy (E1, E2, E3, E4 - '#'
+#     matches its own level too, so /Madrid/Districts is in)
 # 17. scopeQ with | (pipe OR): /Madrid/Gardens/ParqueNorte|/Madrid/Districts/Centro - E1, E3
 # 18. scopeQ complex OR-of-AND: (/Madrid/Districts;/CompanyA)|/Madrid/Gardens/ParqueNorte - E1, E4
 # 19. scopeQ with | and ,: /Madrid/Gardens/ParqueSur|/CompanyA - E2, E4
-# 20. scopeQ multi-level +: /+/+/ParqueNorte - E1
+# 20. scopeQ multi-level +: /%2B/%2B/ParqueNorte - E1
 # 21. scopeQ OR with comma syntax: /Madrid/Gardens/ParqueSur,/Madrid/Districts/Centro - E2, E3
 #
 
@@ -137,9 +150,9 @@ echo
 echo
 
 
-echo "08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)"
+echo "08. scopeQ=/Madrid/%2B/ParqueNorte - single-level wildcard (E1)"
 echo "==========================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/ParqueNorte'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/%2B/ParqueNorte'
 echo
 echo
 
@@ -193,9 +206,9 @@ echo
 echo
 
 
-echo "16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)"
+echo "16. scopeQ=/Madrid/%2B/# - wildcard + hierarchy (E1, E2, E3, E4)"
 echo "==========================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/+/%23'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/Madrid/%2B/%23'
 echo
 echo
 
@@ -221,9 +234,9 @@ echo
 echo
 
 
-echo "20. scopeQ multi-level +: /+/+/ParqueNorte - E1"
+echo "20. scopeQ multi-level +: /%2B/%2B/ParqueNorte - E1"
 echo "==========================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/+/+/ParqueNorte'
+corCurl --url '/ngsi-ld/v1/entities?type=Park,District,Office,Building&scopeQ=/%2B/%2B/ParqueNorte'
 echo
 echo
 
@@ -339,7 +352,7 @@ Content-Length: REGEX(\d+)
 
 
 
-08. scopeQ=/Madrid/+/ParqueNorte - single-level wildcard (E1)
+08. scopeQ=/Madrid/%2B/ParqueNorte - single-level wildcard (E1)
 ===========================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
@@ -347,7 +360,17 @@ Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
-[]
+[
+  {
+    "id": "urn:entity:E1",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
+  }
+]
 
 
 
@@ -608,7 +631,7 @@ Content-Length: REGEX(\d+)
 
 
 
-16. scopeQ=/Madrid/+/# - wildcard + hierarchy (E1, E2, E3)
+16. scopeQ=/Madrid/%2B/# - wildcard + hierarchy (E1, E2, E3, E4)
 ===========================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
@@ -616,7 +639,47 @@ Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
-[]
+[
+  {
+    "id": "urn:entity:E1",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
+  },
+  {
+    "id": "urn:entity:E2",
+    "name": {
+      "type": "Property",
+      "value": "Parque Sur"
+    },
+    "scope": "/Madrid/Gardens/ParqueSur",
+    "type": "Park"
+  },
+  {
+    "id": "urn:entity:E3",
+    "name": {
+      "type": "Property",
+      "value": "Centro"
+    },
+    "scope": "/Madrid/Districts/Centro",
+    "type": "District"
+  },
+  {
+    "id": "urn:entity:E4",
+    "name": {
+      "type": "Property",
+      "value": "Branch Office"
+    },
+    "scope": [
+      "/Madrid/Districts",
+      "/CompanyA"
+    ],
+    "type": "Office"
+  }
+]
 
 
 
@@ -719,7 +782,7 @@ Content-Length: REGEX(\d+)
 
 
 
-20. scopeQ multi-level +: /+/+/ParqueNorte - E1
+20. scopeQ multi-level +: /%2B/%2B/ParqueNorte - E1
 ===========================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
@@ -727,7 +790,17 @@ Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
-[]
+[
+  {
+    "id": "urn:entity:E1",
+    "name": {
+      "type": "Property",
+      "value": "Parque Norte"
+    },
+    "scope": "/Madrid/Gardens/ParqueNorte",
+    "type": "Park"
+  }
+]
 
 
 
