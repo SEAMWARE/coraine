@@ -25,6 +25,7 @@
 #     not, if the query had been forwarded as-is to the partial sources)
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: REGISTRATIONS
 --NAME--
 Snapshot split-mode capture: per-attribute merge across CSRs (§ 5.16, Phase #142)
 

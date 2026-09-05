@@ -9,6 +9,8 @@
 # attribute is exclusively claimed, so B's colliding copy is discarded and the
 # EXCLUSIVE source A wins regardless of the newer timestamp.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps — exclusive source's attribute wins over a newer inclusive copy (§ 4.5.5)
 --TAGS--

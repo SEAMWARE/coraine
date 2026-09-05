@@ -9,6 +9,8 @@
 # A CSR registered for type T must match an entity whose type array
 # CONTAINS T (not only when type is a single-string equal to T).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - multi-type entity dispatched to CSR matching ANY of its types
 

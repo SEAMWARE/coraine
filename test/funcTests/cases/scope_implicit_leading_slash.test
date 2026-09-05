@@ -18,6 +18,8 @@
 # Canonicalized on every payload that can carry Scopes: a single Entity, an
 # Entity fragment, a batch operation, and a Registration.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 scope: the leading "/" is implicit and stored canonically, on every write path and in scopeQ
 

@@ -9,6 +9,8 @@
 # GeoJSON geometries: type ∈ Point/LineString/Polygon/Multi*,
 # coordinates shape per type, lat/lon ranges, polygon ring closure.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration validation — location / observationSpace / operationSpace (§ 5.2.9 / § 4.7)
 

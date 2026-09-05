@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 PATCH /entityMaps/{id} — Update EntityMap (§ 5.14.2)
 

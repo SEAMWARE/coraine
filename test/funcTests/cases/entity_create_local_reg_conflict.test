@@ -17,6 +17,8 @@
 #     scope /madrid          → local create of scope-less V3+speed → 201
 #                              (a scope-restricted reg doesn't apply)
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Entity Create — ?local=true still 409s against exclusive/redirect claims
 

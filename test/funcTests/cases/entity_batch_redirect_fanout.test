@@ -12,6 +12,8 @@
 # batch paths; surfaced by ETSI D013_01/02_red). Redirect now clones per
 # CSR with a single post-loop purge, like batch create/merge already did.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch upsert/update — every matching redirect CSR receives the forward
 

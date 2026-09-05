@@ -10,6 +10,8 @@
 # filter (type / id / idPattern / attrs|pick). Non-matching entries are
 # stripped from the information[] array.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR discovery — filtered RegistrationInfo in response (§ 5.10.2.5)
 

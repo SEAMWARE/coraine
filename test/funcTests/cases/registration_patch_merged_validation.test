@@ -11,6 +11,8 @@
 # information[] structure, a TimeInterval whose startAt/endAt straddle the
 # deep-merge) are caught with a 400 instead of persisting an inconsistent reg.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration PATCH - merged-result re-validation of cross-member invariants
 

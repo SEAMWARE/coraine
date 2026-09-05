@@ -23,6 +23,8 @@
 # ftClient rather than a real CP, deliberately: the assertion is about the
 # request the broker emitted, not about what a peer made of it.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - the forwarded q is encoded for a URL and plain in a JSON body
 

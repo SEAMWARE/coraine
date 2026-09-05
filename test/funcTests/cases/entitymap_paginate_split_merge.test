@@ -21,6 +21,8 @@
 # The oracle is the UNPAGINATED query: an entity assembled from the same two
 # sources must not come out differently just because the client paginated.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 EntityMap pagination assembles a split entity per § 4.5.5.3
 

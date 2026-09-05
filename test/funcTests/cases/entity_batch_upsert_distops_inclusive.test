@@ -13,6 +13,8 @@
 # mode, if present on the incoming request, is relayed in the forward
 # so the remote reaches the same create/update decision.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Upsert — inclusive CSR, local + forwarded
 

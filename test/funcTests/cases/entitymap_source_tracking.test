@@ -11,6 +11,8 @@
 # all IDs would be stamped "@none" and pagination would silently mis-route
 # when N>offset crosses a local/remote boundary.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 EntityMap source tracking — per-entity regIds (§ 5.2.39)
 

@@ -23,6 +23,8 @@
 # snapshots). They must return the same merged entity - the query path had no
 # timestamp-conflict coverage at all before step 06 was added.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp multi-source attribute conflict resolution (§ 4.5.5.3)
 

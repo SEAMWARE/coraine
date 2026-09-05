@@ -21,6 +21,8 @@
 # Targets:  urn:X = { a:1 (CB), b:5 (CP1) }   urn:Y = { a:2 (CB), b:9 (CP1) }
 # Linkers:  urn:E1 -ref-> urn:X (objectType Tx)   urn:E2 -ref-> urn:Y
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Linked entities — q over a split-across-brokers target + join inline (§ 4.9 / § 7.7.1)
 

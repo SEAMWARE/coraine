@@ -24,6 +24,8 @@
 # --noSplitEntities, because that is the mode whose forward carries q at all -
 # the split forward asks for the whole type and filters what comes back.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - a forwarded q is percent-encoded, so '&', ' ' and '+' survive it
 

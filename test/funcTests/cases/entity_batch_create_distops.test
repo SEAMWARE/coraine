@@ -11,6 +11,8 @@
 # target CSR via a SINGLE POST /entityOperations/create (§ 5.6.7.4),
 # independent of batch size — per the "group by CSR" optimisation.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Creation — distops forwarding via grouped batch-POST
 

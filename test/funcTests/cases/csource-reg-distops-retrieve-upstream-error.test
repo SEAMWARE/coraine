@@ -19,6 +19,8 @@
 #   404       -> the source simply has no data. Not an error: the request
 #                ends as a plain 404 with no registrationId or statusCode
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - an exclusive source that answers with an error status (§ 6.3.5)
 

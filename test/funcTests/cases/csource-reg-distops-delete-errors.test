@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - deleteEntity error modes (ftClient mocks): excl-no-op → 409, dead+live → 207
 

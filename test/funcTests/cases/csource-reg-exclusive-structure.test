@@ -18,6 +18,8 @@
 # redirect / auxiliary), so the new check only fires when mode ==
 # exclusive.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR creation — exclusive mode structural rules (§ 9.3.3)
 

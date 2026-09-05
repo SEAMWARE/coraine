@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Update Registration - urn:ngsi-ld:null delete-marker (TS 104-175 clause-8 / § 5.9.3)
 

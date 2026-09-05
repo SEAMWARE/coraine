@@ -11,6 +11,8 @@
 # replace attribute, merge entity, replace entity, batch update, batch
 # create. Unclaimed attributes stay writable locally.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Entity updates — ?local=true still 409s against exclusive/redirect claims
 

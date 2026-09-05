@@ -19,6 +19,8 @@
 # (computeWantedAttrs is shared). We verify on the split-mode path
 # because ftClient lets us inspect the wire.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp pick narrowing — geoproperty + geometryProperty unioned into pick
 

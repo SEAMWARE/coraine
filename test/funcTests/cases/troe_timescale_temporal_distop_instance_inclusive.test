@@ -16,6 +16,8 @@
 # the forward to CP1 succeeds → CB returns 204. We verify the changes
 # landed on CP1 with a final direct GET.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 TRoE timescale - temporal distop instance writes, inclusive
 

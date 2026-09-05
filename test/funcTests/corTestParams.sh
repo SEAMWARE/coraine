@@ -41,3 +41,31 @@ corCliParamAdd "-ha" "COR_HA" \
 corCliParamAdd "-traceLevels" "COR_TRACE_LEVELS" \
               "200-222,224,225,227,230,231,232,234,235,240-255" \
               "Broker trace levels (kargs syntax); empty for none" "TRACELEVELS"
+
+
+#
+# COR_TEST_FEATURES - the optional capabilities compiled INTO the broker binary
+#
+# Detected, like -ha above, and for the same reason: it is a property of what is
+# installed rather than a choice anyone should have to remember on a command
+# line. A build with a feature compiled out is indistinguishable from the
+# outside until asked, so the binary is asked - `coraine --version` prints one
+#
+#   features: SUBSCRIPTIONS=1 REGISTRATIONS=0 ...
+#
+# line, and the names that are ON become the set that a test file's
+# REQUIRE_FEATURE: / SKIP_FEATURE: markers are matched against (corTest).
+#
+# awk rather than grep on purpose - this file is sourced into whatever shell the
+# operator is running, and `grep` there may be a wrapper.
+#
+# Left UNSET if the broker is not on PATH or is too old to print the line. That
+# is corTest's feature-blind mode: both markers go inert and every test runs, so
+# a broken detection fails loudly instead of quietly skipping the suite.
+#
+COR_TEST_FEATURES=$("${COR_BROKER:-coraine}" --version 2>/dev/null | awk '/^features: /{ for (i = 2; i <= NF; i++) if ($i ~ /=1$/) { sub(/=1$/, "", $i); printf "%s%s", (n++ ? " " : ""), $i } }')
+if [ -n "$COR_TEST_FEATURES" ]; then
+  export COR_TEST_FEATURES
+else
+  unset COR_TEST_FEATURES
+fi

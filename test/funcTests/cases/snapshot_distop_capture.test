@@ -18,6 +18,7 @@
 # Phase 141b — implemented but not yet exercised here).
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: REGISTRATIONS
 --NAME--
 Snapshot distributed capture, no-split (§ 5.16, Phase #141)
 

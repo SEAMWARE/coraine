@@ -19,6 +19,8 @@
 #
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp § 4.5.5.3 — entity-level expiresAt across sources
 

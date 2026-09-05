@@ -19,6 +19,8 @@
 # (real CP would only show the visible response, which is identical
 # whether or not pick is narrowed at the wire).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp pick narrowing — split-entities mode
 

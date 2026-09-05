@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps GET § 6.3.5 — abnormal source → 200 + NGSILD-Warning (299/199/111)
 

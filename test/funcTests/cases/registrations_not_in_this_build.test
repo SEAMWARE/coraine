@@ -1,0 +1,496 @@
+#
+# FILE            registrations_not_in_this_build.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A build with COR_FEATURE_REGISTRATIONS=OFF - what the API surface looks like
+# when a feature is compiled out.
+#
+# The routes are still in the service table, so the URL MATCHES and the answer
+# is 501 with a ProblemDetails, not the 404 an absent route would give. The
+# difference is the one a client can act on: a 404 says "fix your URL", a 501
+# says "this deployment declined the capability, another one has it". The type
+# URI is ours rather than an ETSI one because TS 104-176 § 6.3.2 registers no
+# error type for "this build does not include that" - see spec-doubt #124 and
+# the comment in corNotInThisBuild.h.
+#
+# SKIP_FEATURE below is what makes this runnable: on an ordinary build these
+# endpoints work, and the test does not apply at all - it is filtered out of the
+# run rather than reported as skipped, the same as any REQUIRE_ marker.
+#
+# Step 18 pins the ORDER, which is not obvious: the request is parsed and
+# validated before the service table is consulted, so a body that does not parse
+# gets its 400 on a compiled-out endpoint just as it would on a full build. The
+# 501 is the answer to a well-formed request, not a blanket answer to the URL.
+#
+# The last step is the point of the whole exercise: everything NOT gated by the
+# feature still works. A build that answered 501 everywhere would pass all the
+# steps above it.
+#
+# SKIP_FEATURE: REGISTRATIONS
+#
+--NAME--
+Registrations compiled out — every registry route answers 501, the rest of the API works
+
+--TAGS--
+registration features
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. The build says so itself — GET /build reports REGISTRATIONS: false"
+echo "======================================================================="
+corCurl --url /build | grep '"REGISTRATIONS"'
+echo
+echo
+
+
+echo "02. POST /ngsi-ld/v1/csourceRegistrations -> 501"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:1","type":"ContextSourceRegistration","endpoint":"http://cp1.example","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "03. GET /ngsi-ld/v1/csourceRegistrations -> 501"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations
+echo
+echo
+
+
+echo "04. GET /ngsi-ld/v1/csourceRegistrations/<id> -> 501"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1
+echo
+echo
+
+
+echo "05. PATCH /ngsi-ld/v1/csourceRegistrations/<id> -> 501"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 -X PATCH --payload '{"endpoint":"http://cp2.example"}'
+echo
+echo
+
+
+echo "06. DELETE /ngsi-ld/v1/csourceRegistrations/<id> -> 501"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1 -X DELETE
+echo
+echo
+
+
+echo "07. POST /ngsi-ld/v1/csourceSubscriptions -> 501"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
+echo
+echo
+
+
+echo "08. GET /ngsi-ld/v1/csourceSubscriptions -> 501"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions
+echo
+echo
+
+
+echo "09. GET /ngsi-ld/v1/csourceSubscriptions/<id> -> 501"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:CSS:1
+echo
+echo
+
+
+echo "10. PATCH /ngsi-ld/v1/csourceSubscriptions/<id> -> 501"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:CSS:1 -X PATCH --payload '{"description":"x"}'
+echo
+echo
+
+
+echo "11. DELETE /ngsi-ld/v1/csourceSubscriptions/<id> -> 501"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:CSS:1 -X DELETE
+echo
+echo
+
+
+echo "12. GET /ngsi-ld/v1/entityMaps -> 501"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/entityMaps
+echo
+echo
+
+
+echo "13. POST /ngsi-ld/v1/entityMaps -> 501"
+echo "======================================"
+corCurl --url /ngsi-ld/v1/entityMaps --payload '{"expiresAt":"2030-01-01T00:00:00Z"}'
+echo
+echo
+
+
+echo "14. GET /ngsi-ld/v1/entityMaps/<id> -> 501"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EM:1
+echo
+echo
+
+
+echo "15. PATCH /ngsi-ld/v1/entityMaps/<id> -> 501"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EM:1 -X PATCH --payload '{"expiresAt":"2030-01-01T00:00:00Z"}'
+echo
+echo
+
+
+echo "16. DELETE /ngsi-ld/v1/entityMaps/<id> -> 501"
+echo "============================================="
+corCurl --url /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EM:1 -X DELETE
+echo
+echo
+
+
+echo "17. An unknown URL is still a 404 — 501 is about the FEATURE, not the router"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/csourceRegistrationsX
+echo
+echo
+
+
+echo "18. Request validation runs FIRST — a body that does not parse is still a 400"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{}'
+echo
+echo
+
+
+echo "19. The rest of the API is untouched: create, retrieve, delete, subscribe"
+echo "========================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:V:1","type":"Vehicle","speed":{"type":"Property","value":34}}'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V:1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V:1 -X DELETE
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
+echo
+echo
+
+
+--EXPECT--
+01. The build says so itself — GET /build reports REGISTRATIONS: false
+=======================================================================
+    "REGISTRATIONS": false,
+
+
+02. POST /ngsi-ld/v1/csourceRegistrations -> 501
+===============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 238
+
+{
+  "detail": "'POST /ngsi-ld/v1/csourceRegistrations' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+03. GET /ngsi-ld/v1/csourceRegistrations -> 501
+==============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 237
+
+{
+  "detail": "'GET /ngsi-ld/v1/csourceRegistrations' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+04. GET /ngsi-ld/v1/csourceRegistrations/<id> -> 501
+===================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 255
+
+{
+  "detail": "'GET /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+05. PATCH /ngsi-ld/v1/csourceRegistrations/<id> -> 501
+=====================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 257
+
+{
+  "detail": "'PATCH /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+06. DELETE /ngsi-ld/v1/csourceRegistrations/<id> -> 501
+======================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 258
+
+{
+  "detail": "'DELETE /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+07. POST /ngsi-ld/v1/csourceSubscriptions -> 501
+===============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 238
+
+{
+  "detail": "'POST /ngsi-ld/v1/csourceSubscriptions' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+08. GET /ngsi-ld/v1/csourceSubscriptions -> 501
+==============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 237
+
+{
+  "detail": "'GET /ngsi-ld/v1/csourceSubscriptions' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+09. GET /ngsi-ld/v1/csourceSubscriptions/<id> -> 501
+===================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 255
+
+{
+  "detail": "'GET /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:CSS:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+10. PATCH /ngsi-ld/v1/csourceSubscriptions/<id> -> 501
+=====================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 257
+
+{
+  "detail": "'PATCH /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:CSS:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+11. DELETE /ngsi-ld/v1/csourceSubscriptions/<id> -> 501
+======================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 258
+
+{
+  "detail": "'DELETE /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:CSS:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+12. GET /ngsi-ld/v1/entityMaps -> 501
+=====================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "'GET /ngsi-ld/v1/entityMaps' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+13. POST /ngsi-ld/v1/entityMaps -> 501
+======================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 228
+
+{
+  "detail": "'POST /ngsi-ld/v1/entityMaps' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+14. GET /ngsi-ld/v1/entityMaps/<id> -> 501
+==========================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 244
+
+{
+  "detail": "'GET /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EM:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+15. PATCH /ngsi-ld/v1/entityMaps/<id> -> 501
+============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 246
+
+{
+  "detail": "'PATCH /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EM:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+16. DELETE /ngsi-ld/v1/entityMaps/<id> -> 501
+=============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 247
+
+{
+  "detail": "'DELETE /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EM:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+17. An unknown URL is still a 404 — 501 is about the FEATURE, not the router
+============================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "GET /ngsi-ld/v1/csourceRegistrationsX is not a recognized resource",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+18. Request validation runs FIRST — a body that does not parse is still a 400
+==============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "an empty object is not valid NGSI-LD input",
+  "status": 400,
+  "title": "Empty Structure",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. The rest of the API is untouched: create, retrieve, delete, subscribe
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:V:1
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 109
+
+{
+  "id": "urn:ngsi-ld:V:1",
+  "speed": {
+    "type": "Property",
+    "value": 34
+  },
+  "type": "Vehicle"
+}
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/REGEX(urn:ngsi-ld:Subscription:[0-9a-f]+:[0-9]+)
+Content-Length: 0
+
+
+
+
+--TEARDOWN--
+coraineStop

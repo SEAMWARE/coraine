@@ -20,6 +20,8 @@
 # matching the local primary urn:E1, which would otherwise divert it to the
 # distributed-retrieve path instead of the local + join path.)
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Linked entities — join follows a non-local relationship only with a type-matched objectType
 

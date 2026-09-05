@@ -12,6 +12,8 @@
 # is a SINGLE POST /entityOperations/update carrying every updated
 # fragment in encounter order (per-CSR grouping).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Update — inclusive CSR, local + forwarded
 

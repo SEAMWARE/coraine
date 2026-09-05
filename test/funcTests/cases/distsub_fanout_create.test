@@ -17,6 +17,8 @@
 # CSRs that don't declare createSubscription, or that match no part of
 # the sub's entity types, must NOT receive a forwarded sub.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistSub - create-time fanout to matching CSR
 

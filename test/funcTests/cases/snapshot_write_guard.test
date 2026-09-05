@@ -11,6 +11,7 @@
 # OperationNotSupported. GET paths pass through.
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: REGISTRATIONS
 --NAME--
 Snapshot NGSILD-Snapshot write guard (§ 5.16 / Phase #147)
 

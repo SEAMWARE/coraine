@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps forward § 6.5.4 — contextSourceInfo cannot override reg-derived / HTTP headers
 

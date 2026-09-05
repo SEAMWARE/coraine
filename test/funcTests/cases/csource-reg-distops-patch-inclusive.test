@@ -11,6 +11,8 @@
 # (which chop the attrs out of the local entity), inclusive keeps the local copy
 # and ALSO forwards — so the entity, and later the PATCH, are visible on CP1.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Inclusive registration replicates create + attribute PATCH to the registered CP
 

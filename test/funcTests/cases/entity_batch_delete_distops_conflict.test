@@ -10,6 +10,8 @@
 # with the reg id and the CS copy stays untouched (exclusive = chopped
 # and forwarded, never local). Uncovered ids delete locally as usual.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Delete — exclusive CSR without deleteBatch op (207 conflict)
 

@@ -5,6 +5,8 @@
 # fields succeeds (no false error) and each is retrievable — the API success
 # is the oracle.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Subscription / registration / entity with only mandatory fields create cleanly
 --TAGS--

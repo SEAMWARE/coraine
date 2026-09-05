@@ -8,6 +8,8 @@
 # Distributed queryEntities — comprehensive coverage.
 # No-split mode: each entity fully at one source.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Distributed queryEntities (comprehensive, no-split mode)
 

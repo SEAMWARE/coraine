@@ -12,6 +12,8 @@
 # NGSILD-Volatile-Context: true so the receiving broker knows not to cache it.
 # The forwarded body is compacted in that same vocabulary.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOp forward with inline @context — hosted volatile Link + Volatile header
 

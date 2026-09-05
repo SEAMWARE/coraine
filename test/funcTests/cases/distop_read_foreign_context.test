@@ -18,6 +18,8 @@
 # which has no "velocity", so the attribute never came back as "spd".
 # Covers BOTH forwarded-read sites: query (getEntities split) + retrieve.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Distributed read — CP answers in its own @context, broker re-expands correctly
 

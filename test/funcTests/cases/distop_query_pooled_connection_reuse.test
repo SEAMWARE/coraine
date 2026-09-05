@@ -29,6 +29,8 @@
 # passes with the liveness probe compiled out too. Each of those changes
 # has to be made and RUN to find that out.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - a forwarded query survives the Context Source restarting
 

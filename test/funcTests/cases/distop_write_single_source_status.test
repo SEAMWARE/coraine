@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - single-entity write status per § 6.3.5 (504/502/409 single source, 207 multi)
 

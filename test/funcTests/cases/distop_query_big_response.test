@@ -18,6 +18,8 @@
 # buffer, and the test asserts the LAST one arrives - a truncated read
 # would drop the tail and still look like a valid answer.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - a forwarded query whose response outgrows the read buffer
 

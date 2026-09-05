@@ -16,6 +16,8 @@
 # is the broker's to choose. What is pinned is that it IS a URI, that it comes
 # back in the Location header, and that the resource is retrievable under it.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceSubscription without an id gets one from the broker
 

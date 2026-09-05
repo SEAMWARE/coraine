@@ -36,21 +36,39 @@ option(COR_FEATURE_OBSERVATION_SPACE "Enable geo-aware dispatch on the 'observat
 option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operationSpace' GeoProperty"    OFF)
 
 #
-# Emit compile-time defines so C code can #ifdef on them (once added)
+# Emit a compile-time define for EVERY feature - 1 when on, 0 when off, never
+# absent. So the source says `#if COR_FEATURE_X`, not `#ifdef`, and combined
+# with -Wundef (below) a misspelt feature name is a compile error instead of a
+# silently-false test that quietly compiles the code out.
 #
-foreach(feature SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+# The same 0/1 also makes a feature usable as a plain C value - which is how
+# coraineFeatures.c reports the build's feature set on --version and /version
+# without fifteen #ifdefs.
+#
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+foreach(feature ${COR_FEATURES})
   if (COR_FEATURE_${feature})
     add_compile_definitions(COR_FEATURE_${feature}=1)
     message(STATUS "Feature ${feature}: ON")
   else()
+    add_compile_definitions(COR_FEATURE_${feature}=0)
     message(STATUS "Feature ${feature}: OFF")
   endif()
 endforeach()
 
 #
+# What cmake knows about this build that the makefile cannot: the flavour and the
+# compiler it actually chose. GET /build reports both. The git sha and the build
+# timestamp come the other way, from the makefile, in coraineBuild.h - each fact
+# from whoever knows it rather than one of them guessing.
+#
+add_compile_definitions(CORAINE_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+add_compile_definitions(CORAINE_BUILD_COMPILER="${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
+
+#
 # Compiler flags
 #
-set(CMAKE_C_FLAGS         "-Wall -Werror -fPIC -DLOG_ON")
+set(CMAKE_C_FLAGS         "-Wall -Werror -Wundef -fPIC -DLOG_ON")
 set(CMAKE_C_FLAGS_RELEASE  "-O2 -g")
 set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG")
 #

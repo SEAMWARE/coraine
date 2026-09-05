@@ -16,6 +16,8 @@
 # (Create-time conflicts are covered by csource-reg-creation-conflicts; this
 # pins the PATCH/update path.)
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSourceRegistration PATCH mode-conflict re-check (§ 12.2.3.4)
 

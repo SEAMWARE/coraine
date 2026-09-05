@@ -17,6 +17,8 @@
 #   - ?q=...                             -> 501 alone, ignored alongside attrs
 #   - ?geoproperty=...                   -> 501 (unsupported filter)
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR Discovery (§ 5.10.2) — type / id / idPattern / attrs / pick
 

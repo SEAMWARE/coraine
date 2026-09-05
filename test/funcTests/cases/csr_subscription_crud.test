@@ -10,6 +10,8 @@
 # untouched. Cache-only (no DB persistence in v1). timeInterval
 # returns 422.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR Subscription CRUD - create, retrieve, query, update, delete
 

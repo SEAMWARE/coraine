@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Discovery endpoints - ?local vs ?noForward vs default modes (§ 5.7.11)
 --INIT--

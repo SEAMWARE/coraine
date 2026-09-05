@@ -9,6 +9,8 @@
 # Deletes mirror to the CSR. Local delete always attempted; remote
 # delete forwarded in parallel.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Delete — inclusive CSR, local + forwarded
 

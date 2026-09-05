@@ -26,6 +26,8 @@
 # answers with the local history again. Nothing was deleted; only the
 # claim changed.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 TRoE timescale - temporal distop, exclusive
 

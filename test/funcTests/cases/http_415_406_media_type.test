@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 HTTP media-type negotiation — unsupported Content-Type and unacceptable Accept
 

@@ -10,6 +10,8 @@
 # to go, so they become Conflict entries in errors[] with the CSR's
 # registrationId. Locally-kept attrs still apply.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Merge — exclusive CSR without mergeBatch op (409 / 207 conflict)
 

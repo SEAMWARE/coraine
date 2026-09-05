@@ -9,6 +9,8 @@
 # the corresponding fields in EntityType / EntityTypeInfo / Attribute
 # response payloads must be present-but-empty arrays, not omitted.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Introspection - CSR-only types/attrs emit empty arrays (§ 5.7.11)
 

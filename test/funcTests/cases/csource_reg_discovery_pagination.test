@@ -10,6 +10,8 @@
 # offset > 0. § 6.3.5 — ?count=true emits NGSILD-Results-Count with
 # the total number of matches.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR discovery pagination — Link header + count (§ 6.3.10 / § 6.3.5)
 

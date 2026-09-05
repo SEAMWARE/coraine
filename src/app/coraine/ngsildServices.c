@@ -73,6 +73,7 @@
 #include "serviceRoutines/postEntityBatchQuery.h"      // postEntityBatchQuery
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 #include "serviceRoutines/getVersion.h"                // getVersion
+#include "serviceRoutines/getBuild.h"                  // getBuild
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
 #include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h" // postTemporalEntityBatchQuery
@@ -83,9 +84,41 @@
 #include "serviceRoutines/patchEntityTemporalInstance.h"  // patchEntityTemporalInstance
 #include "serviceRoutines/deleteEntityTemporalInstance.h" // deleteEntityTemporalInstance
 
+#include "serviceRoutines/corNotInThisBuild.h"   // corNotInThisBuild
+
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
 
 #include "ngsildServices.h"                      // Own interface
+
+
+// -----------------------------------------------------------------------------
+//
+// Feature macros - what a compiled-out route looks like in the table below
+//
+// A route whose feature is OFF keeps its entry but loses its handler: the macro
+// DISCARDS its argument, so the handler symbol is never referenced from here
+// and its .c can leave the build (src/lib/serviceRoutines/CMakeLists.txt). That
+// is what makes the binary actually shrink - gating only the routing would keep
+// every handler linked in.
+//
+// The entry stays so that the URL still MATCHES, and the answer is 501 rather
+// than the 404 an absent route would give. See corNotInThisBuild.h for why.
+//
+#if COR_FEATURE_REGISTRATIONS
+#  define REGS(handler)   handler
+#else
+#  define REGS(handler)   corNotInThisBuild
+#endif
+
+//
+// Context Source Registration Subscriptions are subscriptions ON registrations,
+// so they need both features - as does the CMakeLists that builds them.
+//
+#if COR_FEATURE_REGISTRATIONS && COR_FEATURE_SUBSCRIPTIONS
+#  define CSUBS(handler)  handler
+#else
+#  define CSUBS(handler)  corNotInThisBuild
+#endif
 
 
 
@@ -135,25 +168,25 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbPost,   "/ngsi-ld/v1/jsonldContexts",   postJsonldContexts,  LD_PARAMS_POST_JSONLD_CONTEXTS,  LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/jsonldContexts/**", deleteJsonldContext, LD_PARAMS_DELETE_JSONLD_CONTEXT, LdOpNone },
 
-  { CorVerbPost,   "/ngsi-ld/v1/csourceRegistrations",   postCsourceRegistration,   LD_PARAMS_POST_CSOURCE_REGISTRATIONS, LdOpCreateRegistration   },
-  { CorVerbGet,    "/ngsi-ld/v1/csourceRegistrations",   getCsourceRegistrations,   LD_PARAMS_GET_CSOURCE_REGISTRATIONS,  LdOpQueryRegistration    },
-  { CorVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", getCsourceRegistration,    LD_PARAMS_GET_CSOURCE_REGISTRATION,   LdOpRetrieveRegistration },
-  { CorVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", patchCsourceRegistration,  LD_PARAMS_PATCH_CSOURCE_REGISTRATION, LdOpUpdateRegistration   },
-  { CorVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", deleteCsourceRegistration, LD_PARAMS_DELETE_CSOURCE_REGISTRATION, LdOpDeleteRegistration  },
+  { CorVerbPost,   "/ngsi-ld/v1/csourceRegistrations",   REGS(postCsourceRegistration),   LD_PARAMS_POST_CSOURCE_REGISTRATIONS, LdOpCreateRegistration   },
+  { CorVerbGet,    "/ngsi-ld/v1/csourceRegistrations",   REGS(getCsourceRegistrations),   LD_PARAMS_GET_CSOURCE_REGISTRATIONS,  LdOpQueryRegistration    },
+  { CorVerbGet,    "/ngsi-ld/v1/csourceRegistrations/*", REGS(getCsourceRegistration),    LD_PARAMS_GET_CSOURCE_REGISTRATION,   LdOpRetrieveRegistration },
+  { CorVerbPatch,  "/ngsi-ld/v1/csourceRegistrations/*", REGS(patchCsourceRegistration),  LD_PARAMS_PATCH_CSOURCE_REGISTRATION, LdOpUpdateRegistration   },
+  { CorVerbDelete, "/ngsi-ld/v1/csourceRegistrations/*", REGS(deleteCsourceRegistration), LD_PARAMS_DELETE_CSOURCE_REGISTRATION, LdOpDeleteRegistration  },
 
   // Context Source Registration Subscriptions (§ 5.11)
-  { CorVerbPost,   "/ngsi-ld/v1/csourceSubscriptions",   postCsourceSubscriptions,   LD_PARAMS_POST_CSOURCE_SUBSCRIPTIONS,   LdOpCreateCsourceSubscription   },
-  { CorVerbGet,    "/ngsi-ld/v1/csourceSubscriptions",   getCsourceSubscriptions,    LD_PARAMS_GET_CSOURCE_SUBSCRIPTIONS,    LdOpQueryCsourceSubscription    },
-  { CorVerbGet,    "/ngsi-ld/v1/csourceSubscriptions/*", getCsourceSubscription,     LD_PARAMS_GET_CSOURCE_SUBSCRIPTION,     LdOpRetrieveCsourceSubscription },
-  { CorVerbPatch,  "/ngsi-ld/v1/csourceSubscriptions/*", patchCsourceSubscription,   LD_PARAMS_PATCH_CSOURCE_SUBSCRIPTION,   LdOpUpdateCsourceSubscription   },
-  { CorVerbDelete, "/ngsi-ld/v1/csourceSubscriptions/*", deleteCsourceSubscription,  LD_PARAMS_DELETE_CSOURCE_SUBSCRIPTION,  LdOpDeleteCsourceSubscription   },
+  { CorVerbPost,   "/ngsi-ld/v1/csourceSubscriptions",   CSUBS(postCsourceSubscriptions),   LD_PARAMS_POST_CSOURCE_SUBSCRIPTIONS,   LdOpCreateCsourceSubscription   },
+  { CorVerbGet,    "/ngsi-ld/v1/csourceSubscriptions",   CSUBS(getCsourceSubscriptions),    LD_PARAMS_GET_CSOURCE_SUBSCRIPTIONS,    LdOpQueryCsourceSubscription    },
+  { CorVerbGet,    "/ngsi-ld/v1/csourceSubscriptions/*", CSUBS(getCsourceSubscription),     LD_PARAMS_GET_CSOURCE_SUBSCRIPTION,     LdOpRetrieveCsourceSubscription },
+  { CorVerbPatch,  "/ngsi-ld/v1/csourceSubscriptions/*", CSUBS(patchCsourceSubscription),   LD_PARAMS_PATCH_CSOURCE_SUBSCRIPTION,   LdOpUpdateCsourceSubscription   },
+  { CorVerbDelete, "/ngsi-ld/v1/csourceSubscriptions/*", CSUBS(deleteCsourceSubscription),  LD_PARAMS_DELETE_CSOURCE_SUBSCRIPTION,  LdOpDeleteCsourceSubscription   },
 
   // EntityMap CRUD (§ 5.14)
-  { CorVerbGet,    "/ngsi-ld/v1/entityMaps",    createEntityMap, LD_PARAMS_GET_ENTITIES, LdOpNone },
-  { CorVerbPost,   "/ngsi-ld/v1/entityMaps",    postEntityMap,   0,                      LdOpNone },
-  { CorVerbGet,    "/ngsi-ld/v1/entityMaps/*",  getEntityMap,    0,                      LdOpNone },
-  { CorVerbDelete, "/ngsi-ld/v1/entityMaps/*",  deleteEntityMap, 0,                      LdOpNone },
-  { CorVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  patchEntityMap,  0,                      LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/entityMaps",    REGS(createEntityMap), LD_PARAMS_GET_ENTITIES, LdOpNone },
+  { CorVerbPost,   "/ngsi-ld/v1/entityMaps",    REGS(postEntityMap),   0,                      LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/entityMaps/*",  REGS(getEntityMap),    0,                      LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/entityMaps/*",  REGS(deleteEntityMap), 0,                      LdOpNone },
+  { CorVerbPatch,  "/ngsi-ld/v1/entityMaps/*",  REGS(patchEntityMap),  0,                      LdOpNone },
 
   // Batch Operations (§ 5.6.7 – § 5.6.10, § 5.6.20, § 6.14 – § 6.17, § 6.31)
   { CorVerbPost,   "/ngsi-ld/v1/entityOperations/create", postEntityBatchCreate, LD_PARAM_LOCAL,         LdOpBatchCreate, NULL, { .features.entityArrayBody = 1 } },
@@ -168,6 +201,13 @@ CorRestServiceSimplified ngsildCoreServices[] =
 
   // Broker product / version handshake (non-NGSI-LD).
   { CorVerbGet,    "/version",                  getVersion,        0, LdOpNone },
+
+  // What this deployment IS - features compiled in, plugins built and loaded,
+  // and the run-time settings that change what a client gets. Non-NGSI-LD, and
+  // outside /admin on purpose: the admin API is itself a compile-time feature,
+  // and the endpoint that reports what a build contains must not be one of the
+  // things a build can leave out.
+  { CorVerbGet,    "/build",                    getBuild,          0, LdOpNone },
 
   // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
   // More-specific routes first — the router matches in registration order.

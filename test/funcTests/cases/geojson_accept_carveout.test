@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 § 6.2.2 geo+json Accept is acceptable ONLY for Retrieve/Query Entity, else 406
 

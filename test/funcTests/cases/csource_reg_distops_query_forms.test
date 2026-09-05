@@ -14,6 +14,8 @@
 # Also: ?attrs= is attribute SELECTION + projection — local entities with
 # none of the listed attributes do not match the query.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps query forwards — GET vs POST per CSR ops; attrs is selection
 

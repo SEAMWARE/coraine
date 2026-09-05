@@ -12,6 +12,8 @@
 #   was-match && not-match-now  -> "noLongerMatching"
 # data[] always carries the post-update CSR (most recent state).
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 CSR Subscription - updated / newlyMatching / noLongerMatching on CSR PATCH
 

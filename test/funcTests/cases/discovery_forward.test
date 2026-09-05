@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Discovery mode 3 — forward /types + /attributes to CSRs (§ 5.7.11 + ?hops)
 --INIT--

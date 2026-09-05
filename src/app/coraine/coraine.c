@@ -79,10 +79,13 @@
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
 
+#if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
+#endif
 
 #include "metrics/metrics.h"                      // metricsInit, metricsPreService, metricsPostResponse, metricsNotificationSent, metricsCsrNotificationSent
 
+#include "coraineFeatures.h"                      // coraineFeatures
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
 
 
@@ -761,6 +764,19 @@ int main(int argC, char* argV[])
   if (kargsPeek(argC, argV, kargV, "--version") != NULL)
   {
     printf("%s %s\n", progName, CORAINE_VERSION);
+
+    //
+    // The feature set belongs here for the same reason the version does: it is
+    // a property of the BINARY, not of a running broker, and a build with an
+    // endpoint compiled out looks identical from the outside until asked. Every
+    // feature is listed with its value - a missing name would be ambiguous
+    // between "off" and "this build is too old to know the name".
+    //
+    printf("features:");
+    for (int ix = 0; coraineFeatures[ix].name != NULL; ix++)
+      printf(" %s=%d", coraineFeatures[ix].name, coraineFeatures[ix].on ? 1 : 0);
+    printf("\n");
+
     exit(0);
   }
 
@@ -938,7 +954,9 @@ int main(int argC, char* argV[])
 
   ldDefaultCooldownNs = (uint64_t) cooldownMillis * 1000000ULL;
 
+#if COR_FEATURE_REGISTRATIONS
   forwardingHttpRegister();
+#endif
 
   if (prettySpaces > 0)
     corRestSetPrettySpaces(prettySpaces);

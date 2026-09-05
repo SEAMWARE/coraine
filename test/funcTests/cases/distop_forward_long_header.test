@@ -3,6 +3,8 @@
 # registration declares (via contextSourceInfo) that X-Long be taken from the
 # request (urn:ngsi-ld:request); a 2000-char value passes through unchanged.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps forward — long header value survives intact
 --TAGS--

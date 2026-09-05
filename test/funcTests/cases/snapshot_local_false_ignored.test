@@ -16,6 +16,7 @@
 # the snapshot header DOES forward (so the no-forward below is meaningful).
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: REGISTRATIONS
 --NAME--
 Snapshot read ignores local=false — no distop forwarding (§ 6.4.11)
 

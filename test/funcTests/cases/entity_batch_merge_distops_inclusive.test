@@ -12,6 +12,8 @@
 # per CSR. Local still merges surgically (unrelated attrs untouched);
 # the remote also applies the same fragment via its own merge path.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 Batch Entity Merge — inclusive CSR, local + forwarded
 

@@ -30,6 +30,8 @@
 #
 # Default (split) mode, which is what ships.
 #
+# REQUIRE_FEATURE: REGISTRATIONS
+#
 --NAME--
 DistOps - a forwarded idPattern is percent-encoded, so a '+' survives it
 
