@@ -13,6 +13,8 @@
 # Test rig: a private mosquitto with a TLS listener on 11887 (self-signed cert);
 # ftClient subscribes over TLS (--mqttTls) and records the publish.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification over MQTTS (MQTT-over-TLS, self-signed endpoint) (§ 7)
 

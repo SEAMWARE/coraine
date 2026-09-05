@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Invalid URI in {entityId} / {subscriptionId} / {regId} path -> 400 BadRequestData
 

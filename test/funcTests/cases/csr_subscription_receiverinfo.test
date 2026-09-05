@@ -12,7 +12,7 @@
 # rule of § 6.5.2 (see subscription_endpoint_receiverinfo.test) for the
 # Context Source Registration subscription notification path.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 CSR Subscription - endpoint.receiverInfo as outbound headers (§ 6.5.3)

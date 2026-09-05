@@ -16,6 +16,8 @@
 #   - the default set {attributeCreated, attributeUpdated},
 #   - entityUpdated (= attrCreated + attrUpdated + attrDeleted).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notificationTrigger reasons on Replace (PUT) — created / updated / deleted attrs
 

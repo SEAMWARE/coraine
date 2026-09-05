@@ -10,6 +10,8 @@
 # subscription, attempt the notification, and stay healthy — the delivery itself
 # fails (nothing listens on the endpoint) but the broker must not be affected.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 HTTPS notification endpoint with an empty URL path is handled, broker stays healthy
 

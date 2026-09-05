@@ -11,6 +11,8 @@
 # integer: re-submitting the integer form would re-parse as a Number, silently
 # changing the comparison's semantics.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription q DateTime literal round-trips as ISO 8601, not a nanosecond integer (§ 4.9)
 

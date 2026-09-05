@@ -1,0 +1,322 @@
+#
+# FILE            subscriptions_not_in_this_build.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A build with COR_FEATURE_SUBSCRIPTIONS=OFF - the second feature to compile out
+# end to end, and the one that shows the mechanism generalising.
+#
+# Three things here that the registrations test could not show:
+#
+#   - a PLUGIN's route answers the same way. /admin/subStats/flush lives in the
+#     admin plugin's own service table, and it is subject to the feature flags
+#     exactly as the core table is. It matters more than it looks: a plugin .so
+#     LINKS with unresolved symbols and only fails when it is dlopen'd, so a
+#     handler left referenced there gives a build that looks clean and a broker
+#     that dies at startup.
+#   - /ngsi-ld/v1/csourceSubscriptions answers 501 on a build that HAS
+#     registrations, because a registration subscription needs both features.
+#     That is the two-feature macro, and it cannot be tested from the
+#     registrations side alone.
+#   - the registry API is untouched. Two features, two switches: this build has
+#     no subscriptions and a complete Context Source Registration API, which is
+#     the whole point of compiling by feature rather than by subsystem.
+#
+# SKIP_FEATURE: SUBSCRIPTIONS
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Subscriptions compiled out — core, plugin and two-feature routes all 501, the registry API intact
+
+--TAGS--
+subscription features
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+
+echo "01. The build says so itself — GET /build reports SUBSCRIPTIONS: false"
+echo "======================================================================"
+corCurl --url /build | grep '"SUBSCRIPTIONS"'
+echo
+echo
+
+
+echo "02. POST /ngsi-ld/v1/subscriptions -> 501"
+echo "========================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
+echo
+echo
+
+
+echo "03. GET /ngsi-ld/v1/subscriptions -> 501"
+echo "======================================="
+corCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. GET /ngsi-ld/v1/subscriptions/<id> -> 501"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:1
+echo
+echo
+
+
+echo "05. PATCH /ngsi-ld/v1/subscriptions/<id> -> 501"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:1 -X PATCH --payload '{"description":"x"}'
+echo
+echo
+
+
+echo "06. DELETE /ngsi-ld/v1/subscriptions/<id> -> 501"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:1 -X DELETE
+echo
+echo
+
+
+echo "07. POST /ngsi-ld/ex/v1/notifications/<id> — the distributed-sub receiver -> 501"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/ex/v1/notifications/urn:ngsi-ld:Subscription:1 --payload '{"type":"Notification"}'
+echo
+echo
+
+
+echo "08. POST /admin/subStats/flush — a PLUGIN's route answers the same way -> 501"
+echo "============================================================================"
+corCurl --url /admin/subStats/flush -X POST
+echo
+echo
+
+
+echo "09. POST /ngsi-ld/v1/csourceSubscriptions — needs BOTH features -> 501"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:9999/notify"}}}'
+echo
+echo
+
+
+echo "10. The OTHER feature is untouched — the registry API works in full"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:S1","type":"ContextSourceRegistration","endpoint":"http://cp1.example","information":[{"entities":[{"type":"Vehicle"}]}]}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:S1
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:S1 -X DELETE
+echo
+echo
+
+
+echo "11. And so is everything not gated at all"
+echo "========================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:V:1","type":"Vehicle","speed":{"type":"Property","value":34}}'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V:1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:V:1 -X DELETE
+echo
+echo
+
+
+--EXPECT--
+01. The build says so itself — GET /build reports SUBSCRIPTIONS: false
+======================================================================
+    "SUBSCRIPTIONS": false,
+
+
+02. POST /ngsi-ld/v1/subscriptions -> 501
+========================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "'POST /ngsi-ld/v1/subscriptions' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+03. GET /ngsi-ld/v1/subscriptions -> 501
+=======================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "'GET /ngsi-ld/v1/subscriptions' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+04. GET /ngsi-ld/v1/subscriptions/<id> -> 501
+============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 257
+
+{
+  "detail": "'GET /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+05. PATCH /ngsi-ld/v1/subscriptions/<id> -> 501
+==============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 259
+
+{
+  "detail": "'PATCH /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+06. DELETE /ngsi-ld/v1/subscriptions/<id> -> 501
+===============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 260
+
+{
+  "detail": "'DELETE /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+07. POST /ngsi-ld/ex/v1/notifications/<id> — the distributed-sub receiver -> 501
+===============================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 261
+
+{
+  "detail": "'POST /ngsi-ld/ex/v1/notifications/urn:ngsi-ld:Subscription:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+08. POST /admin/subStats/flush — a PLUGIN's route answers the same way -> 501
+============================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "'POST /admin/subStats/flush' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+09. POST /ngsi-ld/v1/csourceSubscriptions — needs BOTH features -> 501
+======================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 238
+
+{
+  "detail": "'POST /ngsi-ld/v1/csourceSubscriptions' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+10. The OTHER feature is untouched — the registry API works in full
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:S1
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 220
+
+{
+  "endpoint": "http://cp1.example",
+  "id": "urn:ngsi-ld:CSR:S1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+11. And so is everything not gated at all
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:V:1
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 109
+
+{
+  "id": "urn:ngsi-ld:V:1",
+  "speed": {
+    "type": "Property",
+    "value": 34
+  },
+  "type": "Vehicle"
+}
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+--TEARDOWN--
+coraineStop

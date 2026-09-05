@@ -3,6 +3,8 @@
 # once; each is applied. timeInterval and watchedAttributes are mutually
 # exclusive (periodic vs change-triggered) → 400.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 PATCH Subscription — all individual fields; timeInterval+watchedAttributes → 400
 --TAGS--

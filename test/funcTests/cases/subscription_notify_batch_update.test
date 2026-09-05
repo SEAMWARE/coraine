@@ -14,6 +14,8 @@
 #   - Missing entity is excluded from data[] (error surfaces in the
 #     BatchOperationResult response, not as a notification).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Batch Entity Update — per-fragment notifications with data[]
 

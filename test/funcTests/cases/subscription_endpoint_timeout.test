@@ -8,6 +8,8 @@
 # § 5.2.15 endpoint.timeout — maximum ms before a notification is assumed
 # to have failed. The value must round-trip through GET /subscriptions.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - endpoint.timeout round-trip (§ 5.2.15)
 

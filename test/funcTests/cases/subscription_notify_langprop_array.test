@@ -10,6 +10,8 @@
 # intact), and a subscription-level `lang` filter reduces it to the matching
 # language's value.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notification of a LanguageProperty with array-valued languageMap (+ lang filter)
 

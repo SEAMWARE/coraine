@@ -12,7 +12,7 @@
 #     create → 400. (Update is left unrestricted so a sub can be
 #     immediately expired by PATCHing expiresAt to the past.)
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 Subscription jsonldContext (http(s) URL) and expiresAt-future validation (§ 5.2.12)

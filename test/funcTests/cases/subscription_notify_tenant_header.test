@@ -12,6 +12,8 @@
 # tenant carries NGSILD-Tenant (otherwise the entity ids in the body are
 # ambiguous). For the default tenant the header is omitted.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — NGSILD-Tenant carried on the notification (§ 6.4.8)
 

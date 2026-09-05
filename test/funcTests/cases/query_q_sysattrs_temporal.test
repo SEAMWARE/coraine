@@ -11,6 +11,8 @@
 # query and the notification (subscription q) paths. Bounds are fixed in the far
 # past / future so "now" is deterministically inside them.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 q over createdAt / modifiedAt (system temporal attributes)
 

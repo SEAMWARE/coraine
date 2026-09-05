@@ -10,7 +10,7 @@
 # DELETE'd remotely + unlinked locally; CSRs that newly match get a
 # fresh fanout. Still-matching CSRs receive the merge-patch verbatim.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 DistSub - PATCH overlap-recompute (delete stale + fanout new)

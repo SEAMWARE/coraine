@@ -11,6 +11,8 @@
 #   - Filter by type: non-matching entities don't appear in data[].
 #   - Two independent subscriptions each get their own notification.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Batch Entity Create — notifications batched per subscription
 

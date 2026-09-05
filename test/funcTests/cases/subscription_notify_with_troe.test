@@ -11,6 +11,8 @@
 # interaction — a create and an update produce two notifications carrying the
 # right values, and the temporal history holds both instances afterwards.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification with TRoE enabled — notifications fire and temporal history is recorded
 

@@ -12,6 +12,8 @@
 # representation strips — the combination is contradictory. With the
 # normalized (default) or concise format, showChanges is fine.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — showChanges incompatible with keyValues/simplified (§ 5.2.6)
 

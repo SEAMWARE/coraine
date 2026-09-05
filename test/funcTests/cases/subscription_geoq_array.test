@@ -12,6 +12,8 @@
 # on GET) and drive notification matching (sibling subscription_geoq.test uses
 # the string form).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription geoQ — JSON-array coordinates on create round-trip and match
 

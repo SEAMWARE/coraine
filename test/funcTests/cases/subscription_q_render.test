@@ -14,6 +14,8 @@
 #  - a user context that maps the IRI to a short term: q re-compacts to that
 #    term, and a DIFFERENT user context yields a DIFFERENT short term.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription q rendering — long-name encoding (body) + re-compaction per @context
 

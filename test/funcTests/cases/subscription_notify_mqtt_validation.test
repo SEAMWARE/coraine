@@ -11,6 +11,8 @@
 #   MQTT-Version: mqtt3.1.1, mqtt5.0   (default mqtt5.0)
 # Anything else → 400 Bad Request, subscription not created.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notifierInfo - MQTT-QoS / MQTT-Version validation (§ 7.2)
 

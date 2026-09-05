@@ -8,6 +8,8 @@
 # § 5.2.14 / § 4.21 / § 4.15: subscription notification.pick / .omit /
 # subscription-level lang shape the entity body inside notifications.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - pick / omit / lang body shaping (§ 5.2.14)
 

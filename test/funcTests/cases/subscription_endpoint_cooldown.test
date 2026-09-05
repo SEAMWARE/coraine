@@ -9,6 +9,8 @@
 # failure on the same endpoint. With a long cooldown set, the second
 # failing notification is suppressed.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - endpoint.cooldown suppresses retries after failure (§ 5.2.15)
 
