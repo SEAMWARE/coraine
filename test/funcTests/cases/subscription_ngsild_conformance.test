@@ -20,6 +20,8 @@
 #   1.9  → no downgrade
 # Bad version string → 400 BadRequestData on subscription create.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription ngsildConformance — backwards-compat downgrade (§ 5.2.12 / § 4.3.6.8)
 

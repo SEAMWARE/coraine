@@ -12,6 +12,8 @@
 #   Polygon 1 (Iberian Peninsula): [[-10,36],[4,36],[4,44],[-10,44],[-10,36]]
 #   Polygon 2 (France/Germany):    [[-2,43],[15,43],[15,55],[-2,55],[-2,43]]
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription PATCH replaces geoQ — old geometry discarded, new one applied
 

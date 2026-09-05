@@ -12,6 +12,8 @@
 #   - omit + attributes             → 400
 # pick + omit on disjoint members is valid (white + black list).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription pick/omit/attributes mutual exclusion (§ 4.21)
 

@@ -17,6 +17,8 @@
 # one NON-matching entity (urn:ngsi-ld:N:<op>) are created — only the matching
 # one may produce a notification.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription q gates notifications — relational / range / comma-list / observedAt / sub-attr
 

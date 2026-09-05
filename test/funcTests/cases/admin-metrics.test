@@ -8,7 +8,7 @@
 # Prometheus metrics — GET /admin/metrics.
 # Verifies counters move when matching requests are made.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 Admin metrics - per-LdOp counters + error counters + notification counters

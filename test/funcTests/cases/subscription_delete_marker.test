@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Update Subscription - urn:ngsi-ld:null delete-marker (TS 104-175 clause-8 / § 5.8.3)
 

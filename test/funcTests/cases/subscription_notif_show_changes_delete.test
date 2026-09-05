@@ -18,6 +18,8 @@
 # previousLanguageMap / previousVocab / previousJson), so the test
 # exercises Property + Relationship to verify the dispatch.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notification.showChanges — previous<X> on attribute & entity delete
 

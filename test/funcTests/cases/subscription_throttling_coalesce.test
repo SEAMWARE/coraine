@@ -13,6 +13,8 @@
 # notification carrying only the latest (speed 3); the intermediate speed 2 is
 # never delivered on its own.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription throttling - coalesce-to-latest, no tail-loss (§ 5.2.x)
 

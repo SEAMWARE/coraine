@@ -19,6 +19,8 @@
 # entity-create as an entityCreated event, not an entityUpdated one (the spec is
 # silent on this symmetry; see the triggerMatches comment / ETSI 046_22).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notificationTrigger entityCreated vs entityUpdated — isolated, incl. the create asymmetry
 

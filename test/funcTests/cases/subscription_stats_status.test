@@ -9,6 +9,8 @@
 # succeeded, "failed" if it failed. Derived from the relative ordering
 # of lastSuccess vs lastFailure.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification.status (§ 5.2.14.2)
 

@@ -10,6 +10,8 @@
 # the subscription context maps to a short term is rendered under that short term
 # in the keyValues notification body.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 keyValues notification compacts attribute names via the subscription @context
 

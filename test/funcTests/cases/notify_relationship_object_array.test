@@ -9,6 +9,8 @@
 # is a String[] array back as the array. Relies on the array-valued Relationship
 # object accepted by ldCheckAttribute (spec clause 5: object = String or String[]).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notification renders a Relationship with an array-valued object (String[])
 

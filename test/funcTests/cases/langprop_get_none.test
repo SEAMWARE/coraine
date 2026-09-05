@@ -17,6 +17,8 @@
 #       notify path applies lang reduction (ldSubscriptionNotify.c), so high-
 #       confidence parity. VERIFY the notification body shape on first run.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 LanguageProperty - @none fallback on GET (single/list) and in notification
 

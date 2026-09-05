@@ -9,6 +9,8 @@
 # with sysAttrs=true include createdAt and modifiedAt alongside the
 # mandatory deletedAt.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notification.sysAttrs on delete — createdAt/modifiedAt/deletedAt
 

@@ -10,6 +10,8 @@
 # (spd) notified by an entity write via ctxB (vel, same IRI) must deliver
 # "spd", with the Link header naming ctxA.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notifications compact via the subscription's @context, not the trigger's
 

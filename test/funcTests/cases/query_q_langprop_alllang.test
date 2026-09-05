@@ -16,6 +16,8 @@
 # matcher), and the subscription section drives the in-memory matcher directly
 # (subscription q is evaluated in the broker on every write).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 q over a LanguageProperty with the all-languages selector L[*]== / ~= / != (§ 7.2.3.4)
 

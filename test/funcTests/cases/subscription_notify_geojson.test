@@ -14,6 +14,8 @@
 # (One notification per dump, ftClientReset between, so each dump is
 # deterministic and shown raw.)
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — endpoint.accept rendering (§ 5.2.14)
 

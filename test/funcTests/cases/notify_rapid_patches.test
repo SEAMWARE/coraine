@@ -13,6 +13,8 @@
 # concurrently (it oscillates 0..100), so a single create-time notification is
 # checked instead to prove the path fires.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 100 rapid PATCH /attrs updates are all applied
 

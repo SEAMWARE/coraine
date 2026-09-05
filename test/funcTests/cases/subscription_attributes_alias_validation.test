@@ -10,6 +10,8 @@
 # or "scope" (those are not valid attribute names in this context).
 # The broker rejects subscriptions that include any of those.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notification.attributes rejects id/type/scope (§ 5.2.12)
 

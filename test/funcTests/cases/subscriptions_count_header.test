@@ -12,7 +12,7 @@
 # not only entities. § 6.4.6 also defines limit=0 (valid only with count=true)
 # as "give me just the count" — an empty page, NOT the whole set.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 count=true relays NGSILD-Results-Count on subscription collections; limit=0 is an empty page (§ 6.4.6)

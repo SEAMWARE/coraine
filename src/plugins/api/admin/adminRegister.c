@@ -19,8 +19,35 @@
 #include "api/admin/adminTenants.h"               // adminGetTenants
 #include "api/admin/adminPlugins.h"               // adminGetPlugins
 #include "api/admin/adminMetrics.h"               // adminGetMetrics
+#if COR_FEATURE_SUBSCRIPTIONS
 #include "api/admin/adminSubStats.h"              // adminPostSubStatsFlush
+#endif
 #include "api/admin/adminTroeDump.h"              // adminGetTroeDump
+
+#include "serviceRoutines/corNotInThisBuild.h"     // corNotInThisBuild
+
+
+
+// -----------------------------------------------------------------------------
+//
+// SUBS - the same argument-discarding macro the broker's own table uses
+//
+// A plugin's service table is subject to the feature flags exactly as the core
+// one is, and it answers the same way: 501 rather than 404, from the broker's
+// corNotInThisBuild - which a plugin can reach because the broker is linked
+// -rdynamic and the plugin resolves against it at dlopen.
+//
+// This one has teeth beyond tidiness. A plugin .so LINKS with unresolved
+// symbols and only fails when it is dlopen'd, so leaving the handler referenced
+// here would produce a build that looks clean and a broker that dies at
+// startup - which is exactly how the registrations slice found this class of
+// bug, on mongoc.so.
+//
+#if COR_FEATURE_SUBSCRIPTIONS
+#  define SUBS(handler)  handler
+#else
+#  define SUBS(handler)  corNotInThisBuild
+#endif
 
 
 
@@ -71,7 +98,7 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
   { CorVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
-  { CorVerbPost,   "/admin/subStats/flush",  adminPostSubStatsFlush,   0,                0 },
+  { CorVerbPost,   "/admin/subStats/flush",  SUBS(adminPostSubStatsFlush), 0,            0 },
   // DELETE
   { CorVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
   // PATCH

@@ -8,6 +8,8 @@
 # § 5.2.14 notification.join + joinLevel — linked-entity retrieval
 # (§ 4.5.23) applied during notification body shaping.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - notification.join flat / inline (§ 5.2.14, § 4.5.23)
 

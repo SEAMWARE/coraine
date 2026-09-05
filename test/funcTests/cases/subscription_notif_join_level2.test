@@ -11,6 +11,8 @@
 # first-level link (P1) and the second-level link (H1) into the flat data[]
 # array. (joinLevel=1 would stop at P1 — see subscription_notif_join.)
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — notification.join flat with joinLevel=2 (§ 5.2.14)
 

@@ -12,6 +12,8 @@
 # GeoProperty keeps its structure). Geometry is still extracted correctly. The
 # notification carries Ngsild-Attribute-Format: concise.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — geo+json + format concise (§ 5.2.14)
 

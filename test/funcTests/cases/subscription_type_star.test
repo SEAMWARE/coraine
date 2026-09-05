@@ -11,6 +11,8 @@
 # accepted (not @vocab-expanded into a polluted IRI), round-trip on GET, and
 # fire notifications regardless of the entity's type.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription entities type "*" — match-any wildcard fires for every entity type
 

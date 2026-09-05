@@ -13,6 +13,8 @@
 # temperature must NOT notify (not watched); a change to speed MUST notify,
 # and its body carries only temperature (not speed, not color).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — watchedAttributes (trigger) vs notification.attributes (body) (§ 5.2.6)
 

@@ -69,3 +69,20 @@ if [ -n "$COR_TEST_FEATURES" ]; then
 else
   unset COR_TEST_FEATURES
 fi
+
+
+#
+# -buildTests: run the case that COMPILES the broker in reduced configurations?
+#
+# Off by default because it is minutes rather than seconds - five cmake builds
+# against the two seconds every other case takes - and because it is the one
+# test that needs a build tree rather than a running broker. It answers a
+# question the rest of the suite structurally cannot: the suite runs against ONE
+# installed binary, so it can only test the configuration that binary was built
+# with, and "does REGISTRATIONS=OFF still link and start" is invisible to it.
+#
+# A REQUIRE_ tag rather than a --TAGS-- entry: --tags SELECTS from the run set,
+# and this needs to be OUT of the run set unless asked for. CI gives it its own
+# job with -buildTests yes.
+#
+corCliParamAdd "-buildTests" "COR_BUILD_TESTS" "no" "Compile-the-broker tests: yes|no" "BUILDTESTS"

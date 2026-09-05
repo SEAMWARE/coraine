@@ -31,8 +31,11 @@
 #     values are a property of the build and this test has to pass against a
 #     reduced one; the build-specific values are asserted where they mean
 #     something, in registrations_not_in_this_build.test.
-#   - gitSha, builtAt, compiler and build type are REGEXed: four facts about the
-#     machine and the moment, not about the code.
+#   - gitSha, builtAt, compiler, build type and the HTTP server are REGEXed:
+#     five facts about the machine, the moment and the build switches, not
+#     about the code. httpServer in particular has to stay a pattern - it is a
+#     two-valued choice, and pinning one of them would make this test fail on
+#     the other build rather than report it.
 #   - the `built` plugin array and the loaded admin plugin DO depend on two
 #     features, hence the REQUIRE_FEATURE below. This is the test of the full
 #     plugin set; a build without mongoc is not one it can speak for.
@@ -85,6 +88,7 @@ Content-Length: REGEX([0-9]+)
     "builtAt": "REGEX([0-9T:Z-]+)",
     "compiler": "REGEX(.+)",
     "gitSha": "REGEX([0-9a-f]+)",
+    "httpServer": "REGEX([a-z]+)",
     "type": "REGEX([A-Za-z]+)"
   },
   "features": {
@@ -168,6 +172,7 @@ Content-Length: REGEX([0-9]+)
     "builtAt": "REGEX([0-9T:Z-]+)",
     "compiler": "REGEX(.+)",
     "gitSha": "REGEX([0-9a-f]+)",
+    "httpServer": "REGEX([a-z]+)",
     "type": "REGEX([A-Za-z]+)"
   },
   "features": {

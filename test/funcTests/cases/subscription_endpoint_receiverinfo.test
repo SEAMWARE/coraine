@@ -8,6 +8,8 @@
 # § 5.2.15 endpoint.receiverInfo — KeyValuePair[] forwarded as outbound
 # HTTP headers when the broker sends a notification.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - endpoint.receiverInfo as outbound headers (§ 5.2.15)
 

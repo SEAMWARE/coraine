@@ -133,7 +133,58 @@ set(COR_STATIC_LIBS
 #
 # System libraries
 #
-set(COR_DYNAMIC_LIBS microhttpd ssl crypto pthread dl m mosquitto)
+#
+# COR_HTTP_SERVER - which HTTP server this build carries. Two, and exactly one.
+#
+#   mhd      libmicrohttpd, an external shared library built from source in the
+#            Dockerfile and mapped by every broker process
+#   builtin  the epoll server in corRest, no external dependency
+#
+# NOT a COR_FEATURE_* boolean: those answer "is this capability in the build",
+# and this is a choice between two implementations of a capability that is
+# always in it. A boolean would have to be read as "MHD = off means... what?"
+# and would have nowhere to go if a third implementation ever arrives.
+#
+# It still emits a 0/1 PAIR rather than a name, so the source reads
+# `#if COR_HTTP_SERVER_MHD` and -Wundef catches a misspelling - the same
+# discipline as the feature flags.
+#
+set(COR_HTTP_SERVER "mhd" CACHE STRING "HTTP server implementation: mhd | builtin")
+set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS mhd builtin)
+
+if (COR_HTTP_SERVER STREQUAL "mhd")
+  add_compile_definitions(COR_HTTP_SERVER_MHD=1 COR_HTTP_SERVER_BUILTIN=0)
+elseif (COR_HTTP_SERVER STREQUAL "builtin")
+  #
+  # The plumbing is complete - this value reaches cmake, reaches corRest's own
+  # make, and removes libmicrohttpd from the link. What is not complete is
+  # corRest's server backend, so a build with it would fail at LINK time with a
+  # pile of missing MHD symbols and no clue why.
+  #
+  # Refused here instead, with the reason. A switch that exists and says what it
+  # is waiting for is worth having; a switch that produces a broken binary is
+  # not.
+  #
+  message(FATAL_ERROR
+          "COR_HTTP_SERVER=builtin: the built-in HTTP server is not wired into corRest yet. "
+          "Use 'mhd' (the default).")
+  add_compile_definitions(COR_HTTP_SERVER_MHD=0 COR_HTTP_SERVER_BUILTIN=1)
+else()
+  message(FATAL_ERROR "COR_HTTP_SERVER must be 'mhd' or 'builtin', not '${COR_HTTP_SERVER}'")
+endif()
+message(STATUS "HTTP server: ${COR_HTTP_SERVER}")
+
+# Reported by GET /build, so a running broker can say which one it is.
+add_compile_definitions(CORAINE_HTTP_SERVER="${COR_HTTP_SERVER}")
+
+set(COR_DYNAMIC_LIBS ssl crypto pthread dl m mosquitto)
+
+# The one library the builtin server exists to remove. Linked only when it is
+# the implementation in use - which is what makes `ldd coraine` the check that
+# the switch actually worked.
+if (COR_HTTP_SERVER STREQUAL "mhd")
+  list(APPEND COR_DYNAMIC_LIBS microhttpd)
+endif()
 
 #
 # ICU "root" collation for orderBy string ordering (§ 7.6.2.1). ON by default.

@@ -15,6 +15,8 @@
 #     body) -> 400; otherwise it SUPPLIES the notification @context (json case)
 #   - absorbed Content-Type / Link are emitted ONCE (no duplicate headers)
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 endpoint.receiverInfo reserved/broker-managed headers — 400 rules + Content-Type/Link absorption
 

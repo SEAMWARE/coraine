@@ -20,6 +20,11 @@
 # endpoints work, and the test does not apply at all - it is filtered out of the
 # run rather than reported as skipped, the same as any REQUIRE_ marker.
 #
+# The REQUIRE_FEATURE beside it is not a contradiction: the last step creates a
+# subscription to show that the OTHER features still work, so this test needs a
+# build with registrations OUT and subscriptions IN. Two markers, two features,
+# and they are what makes the pair independent rather than one "reduced build".
+#
 # Step 18 pins the ORDER, which is not obvious: the request is parsed and
 # validated before the service table is consulted, so a body that does not parse
 # gets its 400 on a compiled-out endpoint just as it would on a full build. The
@@ -30,6 +35,7 @@
 # steps above it.
 #
 # SKIP_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: SUBSCRIPTIONS
 #
 --NAME--
 Registrations compiled out — every registry route answers 501, the rest of the API works

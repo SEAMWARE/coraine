@@ -12,7 +12,7 @@
 # restart, each endpoint must still only see its own kind.
 #
 # REQUIRE_DB: mongoc
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 --NAME--
 CSR + entity subscriptions — mixed persistence across broker restart (mongoc)
 

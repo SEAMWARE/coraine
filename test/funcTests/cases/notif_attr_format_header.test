@@ -12,6 +12,8 @@
 # such header (covered by the other notification tests). (A non-standard
 # extension; pending addition to TS 104-176.)
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notification Ngsild-Attribute-Format header (keyValues -> simplified)
 

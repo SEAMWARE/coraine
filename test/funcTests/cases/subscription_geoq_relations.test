@@ -12,6 +12,8 @@
 # notify path (not just the query path) for within / contains / intersects /
 # disjoint / overlaps / equals.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription geoQ — georel matrix (within/contains/intersects/disjoint/overlaps/equals)
 

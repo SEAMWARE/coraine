@@ -11,6 +11,8 @@
 # parameters intact, not strip or rewrite them. Here the endpoint URI carries
 # subId and tag query params; the received request must preserve both.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — endpoint URI query parameters are preserved on the notification request
 

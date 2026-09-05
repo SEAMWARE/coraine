@@ -15,6 +15,7 @@
 #  - Send 1 more → timesSent=3 (accumulated on top of persisted)
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription stats persist across broker restart (mongoc)
 

@@ -15,6 +15,8 @@
 # volatile cache). This creates a sub with string-form coordinates, then
 # restarts the broker to prove the array form was written to the DB.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription geoQ — string coordinates normalized to array, persisted across restart
 

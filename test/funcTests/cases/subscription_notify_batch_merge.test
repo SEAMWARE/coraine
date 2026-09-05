@@ -10,6 +10,8 @@
 #   - Surgical merge produces per-fragment data[] entries.
 #   - urn:ngsi-ld:null delete still fires a notification (attrDeleted).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Batch Entity Merge — per-fragment notifications with data[]
 

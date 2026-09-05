@@ -9,6 +9,8 @@
 # previousValue / previousObject / previousLanguageMap of each changed
 # Attribute is emitted alongside the current values.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notification.showChanges — previousValue rendered
 

@@ -9,7 +9,7 @@
 # filter matches must receive a CsourceNotification carrying the
 # new CSR with triggerReason="newlyMatching".
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 CSR Subscription - notification on CSR creation

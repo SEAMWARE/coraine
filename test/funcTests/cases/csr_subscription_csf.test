@@ -12,7 +12,7 @@
 # so this test pins both halves: a CSR-sub filters on it, an entity
 # subscription stores and echoes it but keeps notifying.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 CSR Subscription - csf filters on the registration's own Properties

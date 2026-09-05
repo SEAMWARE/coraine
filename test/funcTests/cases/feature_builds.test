@@ -1,0 +1,73 @@
+#
+# FILE            feature_builds.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Does a reduced build still COMPILE, LINK, and START?
+#
+# The rest of the suite cannot answer that. It runs against one installed
+# binary, so it tests the configuration that binary was built with and no
+# other - and the failures a reduced build produces are mostly upstream of any
+# request. A missing service routine is a link error; a plugin whose driver
+# table still names a function its own CMakeLists excluded LINKS FINE and dies
+# at dlopen, which is how both of the first two features broke. Neither reaches
+# a test that needs a running broker, because there is no running broker.
+#
+# So this case builds the broker itself, several times, and asks each result to
+# start and describe itself. It is the cheapest possible check and it catches
+# the whole class.
+#
+# ⚠️ Minutes, not seconds - five cmake builds. REQUIRE_BUILDTESTS keeps it out
+# of the run set unless `corTest -buildTests yes` asks for it, which is a
+# separate CI job.
+#
+# It expects a normal build to have happened first: cmake needs the generated
+# coraineStack.h and coraineBuild.h, which `make di` writes into the source
+# tree. Running the suite at all already implies that.
+#
+# Only the configurations that DO something are covered. Nine of the fifteen
+# features are declared and unread, so a case for one would build a
+# byte-identical binary and assert nothing, and three do not link - both states
+# are documented in doc/building.md rather than pinned here, because a test
+# that goes red when someone IMPLEMENTS a feature is a trap, not a guard.
+#
+# REQUIRE_BUILDTESTS: yes
+#
+--NAME--
+Reduced builds compile, link and start — and report what they are
+
+--TAGS--
+build features slow
+
+--INIT--
+
+--RUN--
+
+echo "01. Build the broker in each reduced configuration and start it"
+echo "==============================================================="
+test/funcTests/tools/featureBuildCheck.sh
+echo
+echo
+
+
+--EXPECT--
+01. Build the broker in each reduced configuration and start it
+===============================================================
+REGISTRATIONS=OFF: build ok, start ok, REGISTRATIONS=false SUBSCRIPTIONS=true
+SUBSCRIPTIONS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=false
+REGISTRATIONS+SUBSCRIPTIONS=OFF: build ok, start ok, REGISTRATIONS=false SUBSCRIPTIONS=false
+MONGOC=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+ADMIN_API=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+
+
+--TEARDOWN--
+# The build dirs are big and the brokers are started by the script rather than
+# by coraineStart, so neither is the harness's to clean up. The pid file is what
+# makes this decidable from observable state - a teardown runs as its own
+# process and knows nothing of what --RUN-- did.
+if [ -f /tmp/coraine-featureBuild/pids ]; then
+  while read -r p; do kill "$p" 2>/dev/null; done < /tmp/coraine-featureBuild/pids
+fi
+rm -rf /tmp/coraine-featureBuild

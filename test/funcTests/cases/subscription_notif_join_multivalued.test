@@ -10,6 +10,8 @@
 # instance (§ 4.5.23.2 / annex C.2.2.1.2); flat appends each linked entity
 # to the notification data[] array (§ 4.5.23.3).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - join over a multivalued relationship (§ 5.2.14, § 4.5.23)
 

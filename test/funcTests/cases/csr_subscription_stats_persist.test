@@ -19,7 +19,7 @@
 #  - Create 1 more matching CSR → timesSent = 3 (accumulated)
 #
 # REQUIRE_DB: mongoc
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 --NAME--
 CSR-subscription stats persist across broker restart (mongoc)
 

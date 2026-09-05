@@ -17,6 +17,8 @@
 # geoQ PATCH on a subscription that has no stored geoQ is 400), and any member
 # the fragment DOES carry is validated (an invalid georel is 400).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Partial geoQ fragment merges on Update Subscription (not wrongly rejected)
 

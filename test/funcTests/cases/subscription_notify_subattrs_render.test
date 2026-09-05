@@ -11,6 +11,8 @@
 # Property whose value is an array, and a Relationship whose object is an array
 # of URIs.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notification renders sub-attributes (every type) + array value / array object
 

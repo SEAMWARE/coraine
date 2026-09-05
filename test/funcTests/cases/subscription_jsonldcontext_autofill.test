@@ -27,6 +27,8 @@
 #   4. an inline object            -> a minted, hosted /jsonldContexts/{id} URL,
 #      because the inline body has no URL a receiver could dereference.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription jsonldContext is initialized from the applicable @context (§ 10.5.2.4)
 

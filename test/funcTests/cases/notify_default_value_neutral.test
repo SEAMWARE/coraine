@@ -11,6 +11,8 @@
 # real information. (The opt-in suppression is covered by
 # notify_value_change_only.)
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Default notification — a value-neutral update still notifies
 

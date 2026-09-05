@@ -34,6 +34,8 @@
 #
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Multi-attribute rendering: concise per-instance (§ 5.3.2.3) and simplified dataset map (§ 5.3.2.4)
 

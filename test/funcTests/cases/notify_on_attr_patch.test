@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 PATCH of an attribute notifies on every update (cumulative ftClient dump)
 

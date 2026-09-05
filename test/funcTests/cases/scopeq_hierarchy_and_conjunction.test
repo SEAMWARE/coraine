@@ -22,6 +22,8 @@
 #  3. A scopeQ that isn't a scope query expression at all is a 400, both as a URL
 #     parameter and inside a Subscription.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 scopeQ: the "/#" hierarchy wildcard stops at a scope level, conjunctions see a single scope, malformed expressions are rejected
 

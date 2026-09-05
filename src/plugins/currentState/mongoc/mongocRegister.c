@@ -34,6 +34,7 @@
 #include "currentState/mongoc/mongocHaWatch.h"                   // mongocHaWatchStart
 #include "currentState/mongoc/mongocTenantSetup.h"                  // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                     // mongocVersionInfo
+#if COR_FEATURE_SUBSCRIPTIONS
 #include "currentState/mongoc/mongocSubscriptionCreate.h"           // mongocSubscriptionCreate
 #include "currentState/mongoc/mongocSubscriptionRetrieve.h"         // mongocSubscriptionRetrieve
 #include "currentState/mongoc/mongocSubscriptionQuery.h"            // mongocSubscriptionQuery
@@ -41,6 +42,7 @@
 #include "currentState/mongoc/mongocSubscriptionReplace.h"          // mongocSubscriptionReplace
 #include "currentState/mongoc/mongocSubscriptionDelete.h"           // mongocSubscriptionDelete
 #include "currentState/mongoc/mongocSubscriptionStatsFlush.h"       // mongocSubscriptionStatsFlush
+#endif
 #if COR_FEATURE_REGISTRATIONS
 #include "currentState/mongoc/mongocRegistrationCreate.h"           // mongocRegistrationCreate
 #include "currentState/mongoc/mongocRegistrationRetrieve.h"         // mongocRegistrationRetrieve
@@ -116,6 +118,13 @@ void dbRegister(DbDriver* driverP)
   driverP->haWatchStart    = mongocHaWatchStart;
   driverP->versionInfo     = mongocVersionInfo;
 
+  //
+  // With COR_FEATURE_SUBSCRIPTIONS off these sources leave the plugin build
+  // (CMakeLists.txt) and the slots stay NULL - the driver-slot convention for
+  // "this driver does not do that". Nothing calls them: the routes that would
+  // are answered by corNotInThisBuild before any driver is reached.
+  //
+#if COR_FEATURE_SUBSCRIPTIONS
   driverP->subscriptionCreate    = mongocSubscriptionCreate;
   driverP->subscriptionRetrieve  = mongocSubscriptionRetrieve;
   driverP->subscriptionQuery     = mongocSubscriptionQuery;
@@ -123,6 +132,7 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionReplace   = mongocSubscriptionReplace;
   driverP->subscriptionDelete    = mongocSubscriptionDelete;
   driverP->subscriptionStatsFlush = mongocSubscriptionStatsFlush;
+#endif
   driverP->geoMatchFunc          = mongocGeoMatchCb;
   driverP->csrGeoMatchFunc       = mongocCsrGeoMatchCb;
 

@@ -10,6 +10,8 @@
 # subscription, attempt the HTTPS notification, and stay healthy. The delivery
 # fails (nothing listens) but the broker must not be affected.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 HTTPS notification with an Authorization header is handled, broker stays healthy
 

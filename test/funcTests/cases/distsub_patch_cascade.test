@@ -13,7 +13,7 @@
 # reg overlap — the remote derivative keeps the same scope and
 # is patched in place.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 DistSub - PATCH cascade to remote derivatives

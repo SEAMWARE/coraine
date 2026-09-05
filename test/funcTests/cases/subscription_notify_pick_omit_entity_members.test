@@ -11,6 +11,8 @@
 # and omit can DROP an entity member. Per § 6.3.6 pick reduces each entity to
 # only the listed members, so id/type are stripped unless listed.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - pick/omit target Entity members id/type (§ 5.2.6.7.3)
 

@@ -10,6 +10,8 @@
 # scheme default (80/443). receiverInfo entries are emitted as request headers
 # on the notification.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notification request — Host header carries the (non-default) port + receiverInfo headers
 
