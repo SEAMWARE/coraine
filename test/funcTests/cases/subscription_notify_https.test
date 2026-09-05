@@ -12,6 +12,8 @@
 # HTTPS with it; the broker subscribes to the https endpoint, an update fires
 # the notification, and the subscription counters reflect the delivery.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification over HTTPS (self-signed endpoint) — delivered and counted
 

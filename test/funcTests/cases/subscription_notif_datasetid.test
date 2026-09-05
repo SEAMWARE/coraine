@@ -9,6 +9,8 @@
 # Only attribute instances whose datasetId is in the subscription's
 # datasetId list are included in the notification.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification datasetId filtering
 

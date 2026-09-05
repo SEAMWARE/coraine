@@ -13,6 +13,8 @@
 # carries no @context and the Link header carries it instead — and the Prefer
 # directive is NOT leaked to the receiver as a header (spec-doubt #101).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 geo+json notification @context — top-level FeatureCollection member; Prefer body=json -> Link
 

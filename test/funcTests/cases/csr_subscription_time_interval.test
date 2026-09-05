@@ -10,7 +10,7 @@
 # N seconds carrying the currently-matching CSRs (triggerReason
 # "updated"). Implemented via the shared periodic-dispatch engine.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 CSR-Sub timeInterval — periodic notifications (§ 5.11.7)

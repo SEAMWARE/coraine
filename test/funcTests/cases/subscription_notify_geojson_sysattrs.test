@@ -18,6 +18,8 @@
 # Same ldToGeoJson path as GET, exercised over the notification binding.
 # Spec-doubt #103.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — geo+json scope/expiresAt vs sysAttrs under properties (§ 5.3.3.3.1)
 

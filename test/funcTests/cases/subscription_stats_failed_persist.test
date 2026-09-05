@@ -10,6 +10,7 @@
 # verify timesFailed/lastFailure are counted AND survive restart.
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription timesFailed + lastFailure persist across broker restart
 

@@ -16,6 +16,8 @@
 # This pins which of attributeUpdated / attributeDeleted the broker reports for
 # each, via four single-trigger subscriptions.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notificationTrigger reasons for PUT-replace-instance and DELETE-instance / DELETE-attr
 

@@ -13,6 +13,8 @@
 #   - Missing ids don't appear in data[] (they produce errors in
 #     the BatchOperationResult response).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Batch Entity Delete — {id,type,deletedAt} payload (§ 5.8.6)
 

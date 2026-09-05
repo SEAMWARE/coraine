@@ -20,6 +20,8 @@
 #       against a live run. Verify on first execution (ETSI coverage run was in
 #       progress; DB was not free to validate).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 VocabProperty - create, GET, simplified, array reduction, notification, q+expandValues
 

@@ -10,6 +10,8 @@
 # must deliver/attempt both notifications and stay healthy (neither endpoint is
 # listening here; the point is that the HTTP+HTTPS pair does not affect the broker).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 An update matching both an HTTP and an HTTPS subscription leaves the broker healthy
 

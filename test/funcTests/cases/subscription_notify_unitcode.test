@@ -11,6 +11,8 @@
 # as it does on a GET. Here a Property with unitCode is created; the resulting
 # notification must echo "unitCode": "CEL".
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — unitCode sub-attribute round-trips into the notification body
 

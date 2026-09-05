@@ -11,6 +11,8 @@
 # — both on a GET and inside a notification (sysAttrs subscription firing on the
 # create). Coraine is not bound by a fixed metadata layout, so depth is arbitrary.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Deep sub-attribute nesting (5 levels): q on a.b.c.d.e + sysAttrs timestamps on GET and notification
 

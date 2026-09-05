@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notificationTrigger — all trigger types
 

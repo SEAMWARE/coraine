@@ -25,6 +25,8 @@
 #   - each entities item must carry 'type' (§ 5.2.6.6.3 EntitySelector, type
 #     cardinality 1); a selector with only id and/or idPattern is invalid.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription field validation (idPattern, notificationTrigger, timeInterval/throttling, georel, accept, entities type)
 

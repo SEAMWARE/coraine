@@ -16,6 +16,8 @@
 # (§ 6.5.2 absorption) rather than endpoint.accept — the broker absorbs it as
 # the effective accept, so the result is identical to accept=application/ld+json.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — ld+json carries @context inline in body, no Link (§ 5.8.6)
 

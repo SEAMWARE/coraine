@@ -17,6 +17,8 @@
 # The pernot loop fires every timeInterval seconds, querying for
 # matching entities and sending a notification with all results.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Periodic notification subscription (timeInterval)
 

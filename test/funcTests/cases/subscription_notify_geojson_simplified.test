@@ -12,6 +12,8 @@
 # the GeoProperty has collapsed to its bare value. The notification carries
 # Ngsild-Attribute-Format: simplified.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification — geo+json + format simplified (§ 5.2.14)
 

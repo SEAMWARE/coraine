@@ -169,6 +169,21 @@ jobs:
           - { db: mongoc, name: '413-end', from: 413, to: 0 }
           - { db: corDB,  name: '1-314',   from: 1,   to: 314 }
           - { db: corDB,  name: '315-end', from: 315, to: 0 }
+          #
+          # The reduced builds. Its own shard rather than a share of one,
+          # because it is the only case that COMPILES rather than requesting -
+          # it needs `-buildTests yes` to be in the run set at all, and giving
+          # it to a shard that also runs ordinary tests would run it in whatever
+          # index range it happened to fall into.
+          #
+          # About ten seconds and 100 MB of build trees on a workstation. Cheap
+          # for what it covers: the failures a reduced build produces are mostly
+          # upstream of any request - a link error, or a plugin whose driver
+          # table names a function its CMakeLists excluded, which links fine and
+          # dies at dlopen. Nothing that needs a running broker sees either,
+          # because there is no running broker.
+          #
+          - { db: corDB,  name: 'reduced-builds', from: 1, to: 0, buildTests: 'yes', only: 'test/funcTests/cases/feature_builds.test' }
 
     #
     # The base image is PUBLIC, so the job needs no registry credential at all -
@@ -332,8 +347,11 @@ jobs:
         run: |
           to=""
           [ "${{ matrix.shard.to }}" != "0" ] && to="--toIx ${{ matrix.shard.to }}"
-          ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor \
-              --fromIx ${{ matrix.shard.from }} $to
+          bt=""
+          [ -n "${{ matrix.shard.buildTests }}" ] && bt="-buildTests ${{ matrix.shard.buildTests }}"
+          # `only` names a single test file; empty means the shard's index range.
+          ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor $bt \
+              --fromIx ${{ matrix.shard.from }} $to ${{ matrix.shard.only }}
 
       #
       # ftClient's own stderr goes to /tmp/ftClient.<port>.log and is the only

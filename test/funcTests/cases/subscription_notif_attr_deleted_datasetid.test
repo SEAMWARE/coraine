@@ -20,6 +20,8 @@
 # which instances went away. Now one marker per removed instance is emitted,
 # each keyed by its datasetId (the default instance stays datasetId-less).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 attributeDeleted notification reports each removed dataset instance
 

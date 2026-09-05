@@ -10,6 +10,8 @@
 # header from the triggering request and forwards it on the
 # notification (extending § 4.3.6.5 by symmetry).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - receiverInfo "urn:ngsi-ld:request" substitution (§ 5.2.15 + § 4.3.6.5)
 

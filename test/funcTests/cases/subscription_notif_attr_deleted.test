@@ -11,6 +11,8 @@
 # DOES fire a notification when a merge removes an attribute via
 # urn:ngsi-ld:null.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 attributeDeleted trigger — notification fires when explicitly subscribed
 

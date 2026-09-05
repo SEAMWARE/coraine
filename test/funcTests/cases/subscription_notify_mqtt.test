@@ -13,6 +13,8 @@
 # config), ftClient subscribed to topic ngsild/notif. MQTT messages
 # land in the same dump array as HTTP notifications, with verb="MQTT".
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - MQTT delivery (§ 7)
 

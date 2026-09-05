@@ -12,6 +12,8 @@
 # matching entity produces one notification and a non-matching entity produces
 # none. The accumulator is reset between sections.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription q gates notifications — EQ / OR / AND / exists / not-exists
 

@@ -12,6 +12,8 @@
 #
 # Both should land in ftClient's MQTT dump with the published payload.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - MQTT QoS + MQTT-Version round-trip (§ 7.2)
 

@@ -15,6 +15,8 @@
 # "Next File Descriptor" (from /admin/version) is volatile, so the test computes
 # the delta in the shell and asserts only that there is no leak.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Notifications to an unresponsive endpoint do not leak file descriptors
 

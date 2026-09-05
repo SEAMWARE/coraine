@@ -18,7 +18,7 @@
 # Entity-subs keep the default-emit behaviour — checked elsewhere
 # (e.g. csr_subscription_crud).
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 CSR Subscription — notificationTrigger is not applicable (silently stripped)

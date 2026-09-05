@@ -18,6 +18,7 @@
 #  - Restart broker — GET sub shows timesSent=3 (mongo state)
 #
 # REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription stats — back-to-back flushes use deltas, no double count
 

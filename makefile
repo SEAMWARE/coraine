@@ -70,9 +70,23 @@ all:        release
 #
 SIBLING_LIBS = corRest corJsonld corNgsild
 
+#
+# COR_HTTP_SERVER - mhd | builtin. Passed DOWN to the libs, not only to cmake.
+#
+# The HTTP server lives in corRest, which builds with plain make and knows
+# nothing about the broker's cmake options - so setting it on the cmake side
+# alone would produce a broker that links (or does not link) libmicrohttpd
+# against a corRest compiled the other way. One variable, both builds, and
+# corRest's own makefile rejects a value it does not recognise.
+#
+# corRest's $(OBJDIR)/.flags catches the change: switching this alters the
+# compile line and nothing else, which no timestamp can see.
+#
+COR_HTTP_SERVER ?= mhd
+
 libs:
 	@for lib in $(SIBLING_LIBS); do \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) di || exit 1; \
 	done
 
 #
@@ -90,7 +104,7 @@ libs:
 libs-rebuild:
 	@for lib in $(SIBLING_LIBS); do \
 	  $(MAKE) -C $(SIBLING_DIR)/$$lib clean >/dev/null || exit 1; \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib di    || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) di || exit 1; \
 	done
 
 #
@@ -145,11 +159,11 @@ src/app/coraine/coraineBuild.h: FORCE
 	 } > $@
 
 release: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release $(CMAKE_FEATURES)
+	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug $(CMAKE_FEATURES)
+	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
@@ -248,7 +262,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
 	   $(MAKE) -C $(SIBLING_DIR)/$$d BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
 	 done
-	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER)
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
 # Stage the instrumented plugins in the INSTALLED layout. The harness composes

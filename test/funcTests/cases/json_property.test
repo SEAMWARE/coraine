@@ -17,6 +17,8 @@
 #         Coraine may legitimately KEEP ["json"] rather than reduce it to a
 #         scalar (V3 below). Decide broker-vs-expect on first run.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 JsonProperty - create, GET normalized + simplified, notification
 

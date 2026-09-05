@@ -9,6 +9,8 @@
 # to the Relationship instance under the "entity" sub-attribute
 # (§ 4.5.23.2).
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription notification - notification.join = inline (§ 5.2.14, § 4.5.23.2)
 

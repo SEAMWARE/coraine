@@ -8,7 +8,7 @@
 # REQUIRE_DB: mongoc
 # REQUIRE_HA: yes
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 HA - a second instance learns what the first one wrote (--high-availability mongo)

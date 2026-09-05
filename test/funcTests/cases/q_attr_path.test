@@ -10,6 +10,8 @@
 # expanded segment-wise at parse, compacted (or %-encoded) segment-wise
 # at render — and the matcher descends into sub-attributes.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 q attrPath — sub-attribute filtering, segment-wise context round-trip
 

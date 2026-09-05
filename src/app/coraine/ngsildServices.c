@@ -110,6 +110,12 @@
 #  define REGS(handler)   corNotInThisBuild
 #endif
 
+#if COR_FEATURE_SUBSCRIPTIONS
+#  define SUBS(handler)   handler
+#else
+#  define SUBS(handler)   corNotInThisBuild
+#endif
+
 //
 // Context Source Registration Subscriptions are subscriptions ON registrations,
 // so they need both features - as does the CMakeLists that builds them.
@@ -152,16 +158,16 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/attributes",       getAttributes,    LD_PARAMS_GET_ATTRIBUTES,     LdOpRetrieveAttrTypes         },
   { CorVerbGet,    "/ngsi-ld/v1/attributes/*",     getAttribute,     LD_PARAMS_GET_ATTRIBUTE,      LdOpRetrieveAttrTypeInfo      },
 
-  { CorVerbPost,   "/ngsi-ld/v1/subscriptions",   postSubscriptions,   LD_PARAMS_POST_SUBSCRIPTIONS,   LdOpCreateSubscription   },
-  { CorVerbGet,    "/ngsi-ld/v1/subscriptions",   getSubscriptions,    LD_PARAMS_GET_SUBSCRIPTIONS,    LdOpQuerySubscription    },
-  { CorVerbGet,    "/ngsi-ld/v1/subscriptions/*", getSubscription,     LD_PARAMS_GET_SUBSCRIPTION,     LdOpRetrieveSubscription },
-  { CorVerbPatch,  "/ngsi-ld/v1/subscriptions/*", patchSubscription,   LD_PARAMS_PATCH_SUBSCRIPTION,   LdOpUpdateSubscription   },
-  { CorVerbDelete, "/ngsi-ld/v1/subscriptions/*", deleteSubscription,  LD_PARAMS_DELETE_SUBSCRIPTION,  LdOpDeleteSubscription   },
+  { CorVerbPost,   "/ngsi-ld/v1/subscriptions",   SUBS(postSubscriptions),   LD_PARAMS_POST_SUBSCRIPTIONS,   LdOpCreateSubscription   },
+  { CorVerbGet,    "/ngsi-ld/v1/subscriptions",   SUBS(getSubscriptions),    LD_PARAMS_GET_SUBSCRIPTIONS,    LdOpQuerySubscription    },
+  { CorVerbGet,    "/ngsi-ld/v1/subscriptions/*", SUBS(getSubscription),     LD_PARAMS_GET_SUBSCRIPTION,     LdOpRetrieveSubscription },
+  { CorVerbPatch,  "/ngsi-ld/v1/subscriptions/*", SUBS(patchSubscription),   LD_PARAMS_PATCH_SUBSCRIPTION,   LdOpUpdateSubscription   },
+  { CorVerbDelete, "/ngsi-ld/v1/subscriptions/*", SUBS(deleteSubscription),  LD_PARAMS_DELETE_SUBSCRIPTION,  LdOpDeleteSubscription   },
 
   // Distributed-subscription notification receiver (§ 5.8.1.4) — invoked
   // by remote Context Sources when a derived sub fires; the body is
   // re-dispatched to the original local sub's notification endpoint.
-  { CorVerbPost,   "/ngsi-ld/ex/v1/notifications/*", postExNotification, 0, LdOpNone },
+  { CorVerbPost,   "/ngsi-ld/ex/v1/notifications/*", SUBS(postExNotification), 0, LdOpNone },
 
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT,  LdOpNone },

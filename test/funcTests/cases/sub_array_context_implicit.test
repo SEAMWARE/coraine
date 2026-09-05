@@ -11,6 +11,8 @@
 # jsonldContext with it. Notifications carry that URL in their Link
 # header, and GET of the URL returns the original array.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Array-@context subscription — ImplicitlyCreated jsonldContext, hosted and used
 

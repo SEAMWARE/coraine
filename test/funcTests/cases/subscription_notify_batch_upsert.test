@@ -15,6 +15,8 @@
 #   - Update branch (?options=update): first fragment merges yields
 #     LdNotifyEntityUpdate.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Batch Entity Upsert — notifications per fragment (create vs update)
 

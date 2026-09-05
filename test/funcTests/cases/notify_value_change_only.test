@@ -12,6 +12,8 @@
 # NGSI-LD-compliant behaviour — notify on every update — is covered by
 # notify_default_value_neutral.)
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 notifyValueChangeOnly flag — suppress notifications for value-neutral updates
 

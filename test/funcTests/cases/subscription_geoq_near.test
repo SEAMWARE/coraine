@@ -14,6 +14,8 @@
 #   - LineString and MultiPoint entity geometries against an intersects georel
 # Each subscription is isolated by entity type so they can't cross-match.
 #
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
 --NAME--
 Subscription geoQ — near (maxDistance/donut), custom geoproperty, LineString/MultiPoint
 

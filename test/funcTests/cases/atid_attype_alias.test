@@ -9,7 +9,7 @@
 # entity, subscription, registration and the batch operations; case 24 is a valid
 # @id/@type entity (201) guarding the alias. EXPECT carries Coraine's own wording.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
 --NAME--
 @id / @type alias validation across entity, subscription, registration, batch

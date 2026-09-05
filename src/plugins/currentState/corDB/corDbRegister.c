@@ -32,12 +32,14 @@
 #include "currentState/corDB/corDbEntityAttrsSet.h" // corDbEntityAttrsSet
 #include "currentState/corDB/corDbTypeList.h"       // corDbTypeList
 #include "currentState/corDB/corDbAttrList.h"       // corDbAttrList
+#if COR_FEATURE_SUBSCRIPTIONS
 #include "currentState/corDB/corDbSubscriptionCreate.h"    // corDbSubscriptionCreate
 #include "currentState/corDB/corDbSubscriptionRetrieve.h"  // corDbSubscriptionRetrieve
 #include "currentState/corDB/corDbSubscriptionQuery.h"     // corDbSubscriptionQuery
 #include "currentState/corDB/corDbSubscriptionUpdate.h"    // corDbSubscriptionUpdate
 #include "currentState/corDB/corDbSubscriptionReplace.h"   // corDbSubscriptionReplace
 #include "currentState/corDB/corDbSubscriptionDelete.h"    // corDbSubscriptionDelete
+#endif
 #if COR_FEATURE_REGISTRATIONS
 #include "currentState/corDB/corDbRegistrationCreate.h"    // corDbRegistrationCreate
 #include "currentState/corDB/corDbRegistrationRetrieve.h"  // corDbRegistrationRetrieve
@@ -117,6 +119,13 @@ void dbRegister(DbDriver* driverP)
   driverP->entityAttrsSet  = corDbEntityAttrsSet;
   driverP->typeList        = corDbTypeList;
   driverP->attrList        = corDbAttrList;
+  //
+  // With COR_FEATURE_SUBSCRIPTIONS off these sources leave the plugin build
+  // (CMakeLists.txt) and the slots stay NULL - the driver-slot convention for
+  // "this driver does not do that". Nothing calls them: the routes that would
+  // are answered by corNotInThisBuild before any driver is reached.
+  //
+#if COR_FEATURE_SUBSCRIPTIONS
   driverP->subscriptionCreate   = corDbSubscriptionCreate;
   driverP->subscriptionRetrieve = corDbSubscriptionRetrieve;
   driverP->subscriptionQuery    = corDbSubscriptionQuery;
@@ -124,6 +133,7 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionReplace  = corDbSubscriptionReplace;
   driverP->subscriptionDelete   = corDbSubscriptionDelete;
   driverP->subscriptionList     = corDbSubscriptions;
+#endif
   //
   // With COR_FEATURE_REGISTRATIONS off these sources leave the plugin build
   // (CMakeLists.txt) and the slots stay NULL - the driver-slot convention for
