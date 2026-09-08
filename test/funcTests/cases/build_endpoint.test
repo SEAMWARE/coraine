@@ -36,6 +36,12 @@
 #     about the code. httpServer in particular has to stay a pattern - it is a
 #     two-valued choice, and pinning one of them would make this test fail on
 #     the other build rather than report it.
+#   - the plugin `directory` is REGEXed down to its last component, for the same
+#     reason: it says where THIS RUN was pointed, not what the code does. The
+#     nightly's coverage job points it at the instrumented tree it measures and
+#     never installs, so pinning /opt/seamware/plugins here was the test
+#     asserting a deployment layout - and it went red there the first night the
+#     test existed.
 #   - the `built` plugin array and the loaded admin plugin DO depend on two
 #     features, hence the REQUIRE_FEATURE below. This is the test of the full
 #     plugin set; a build without mongoc is not one it can speak for.
@@ -135,7 +141,7 @@ Content-Length: REGEX([0-9]+)
         "name": "admin"
       }
     ],
-    "directory": "/opt/seamware/plugins",
+    "directory": "REGEX(.*/plugins)",
     "loaded": {
       "api": [],
       "currentState": {
@@ -219,7 +225,7 @@ Content-Length: REGEX([0-9]+)
         "name": "admin"
       }
     ],
-    "directory": "/opt/seamware/plugins",
+    "directory": "REGEX(.*/plugins)",
     "loaded": {
       "api": [
         {

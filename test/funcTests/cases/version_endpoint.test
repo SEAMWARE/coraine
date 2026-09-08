@@ -29,6 +29,16 @@
 # Nothing exercised this route before. A broken or renamed member here would
 # have reached a release unnoticed.
 #
+# The member LIST is what makes this an mhd-only test. `stack` answers "what is
+# linked into this binary", and corHttp is linked only into a built-in-server
+# build - so the two flavours legitimately report different member sets, and
+# neither one is a pattern the other can satisfy. The built-in set is pinned in
+# version_endpoint_builtin.test; between them every flavour the nightly builds
+# has its own list asserted, in full, rather than a REGEX that would accept any
+# list at all.
+#
+# REQUIRE_HTTPSERVER: mhd
+#
 --NAME--
 GET /version reports product and library versions
 
