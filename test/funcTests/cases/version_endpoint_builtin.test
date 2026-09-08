@@ -1,0 +1,83 @@
+#
+# FILE            version_endpoint_builtin.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /version on a broker built with the BUILT-IN HTTP server.
+#
+# The endpoint itself is covered by version_endpoint.test, which pins the
+# response shape, the headers and the mhd member list. This file exists for the
+# one thing that file cannot say: `stack` reports what is LINKED IN, and corHttp
+# is linked only here. On an mhd build corHttp is compiled but not linked, and
+# stackManifest.sh leaves it out on purpose - listing it would be a claim about
+# the binary that is not true of it.
+#
+# So the two flavours report two different member sets and each one is pinned in
+# full. The alternative - one test with a pattern loose enough for both - would
+# accept a build that linked neither, which is the only failure worth catching
+# here.
+#
+# The shas are REGEXed, as in version_endpoint.test: they change with every
+# library commit, and pinning them would make this a tripwire for other people's
+# merges.
+#
+# One request rather than two. The stateless-second-call assertion belongs to
+# the endpoint, and version_endpoint.test already makes it; repeating it here
+# would only duplicate the maintenance.
+#
+# REQUIRE_HTTPSERVER: builtin
+#
+--NAME--
+GET /version lists corHttp when the built-in HTTP server is linked
+
+--TAGS--
+version admin
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. GET /version"
+echo "================"
+corCurl --url /version
+echo
+echo
+
+
+--EXPECT--
+01. GET /version
+================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX([0-9]+)
+
+{
+  "product": "coraine",
+  "stack": {
+    "corHttp": "REGEX([0-9a-f]{40})",
+    "corJsonld": "REGEX([0-9a-f]{40})",
+    "corNgsild": "REGEX([0-9a-f]{40})",
+    "corPlugin": "REGEX([0-9a-f]{40})",
+    "corRest": "REGEX([0-9a-f]{40})",
+    "kalloc": "REGEX([0-9a-f]{40})",
+    "kargs": "REGEX([0-9a-f]{40})",
+    "kbase": "REGEX([0-9a-f]{40})",
+    "khash": "REGEX([0-9a-f]{40})",
+    "kjson": "REGEX([0-9a-f]{40})",
+    "klog": "REGEX([0-9a-f]{40})",
+    "kprom": "REGEX([0-9a-f]{40})",
+    "ktrace": "REGEX([0-9a-f]{40})"
+  },
+  "version": "0.4.0"
+}
+
+
+
+--TEARDOWN--
+coraineStop
