@@ -1,0 +1,193 @@
+#
+# FILE            at_prefixed_member_names.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The JSON-LD 1.1 keyword list (§ 1.7) is closed. A member name that starts with
+# '@' but is not on it — "@referredType", say — is not a keyword, and § 4.6.2
+# does not let an Attribute name start with '@' either, so it is nothing the
+# broker can store: 400.
+#
+# JSON-LD itself drops such a member with a warning. Silently dropping a member
+# of an Entity the client asked us to store is the worse of the two readings —
+# see the spec-doubt log.
+#
+# The rule is about NAME positions only. Inside a value — a Property's `value`,
+# a JsonProperty's `json`, a LanguageProperty's `languageMap` (where "@none" is
+# the core context's own key for an unlabelled entry) — the member names are
+# opaque JSON, and an '@' there means nothing to the broker.
+#
+--NAME--
+'@'-prefixed member names: rejected as terms, opaque inside a value
+
+--TAGS--
+validation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. @referredType as a sub-attribute of a Relationship — 400"
+echo "============================================================"
+payload='{
+  "id": "urn:ngsi-ld:catalog:C1",
+  "type": "catalog",
+  "relatedParty": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:organization:O1",
+    "@referredType": { "type": "Property", "value": "Organization" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. The entity was not created"
+echo "=============================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:catalog:C1
+echo
+echo
+
+
+echo "03. @weird as an Attribute name — 400"
+echo "====================================="
+payload='{ "id": "urn:ngsi-ld:catalog:C2", "type": "catalog", "@weird": { "type": "Property", "value": 42 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. @-prefixed name inside a value is opaque — 201"
+echo "=================================================="
+payload='{
+  "id": "urn:ngsi-ld:catalog:C3",
+  "type": "catalog",
+  "lang": { "type": "LanguageProperty", "languageMap": { "en": "hi", "@none": "unlabelled" } },
+  "js":   { "type": "JsonProperty", "json": { "@referredType": 1, "a": { "@foo": 2 } } },
+  "lit":  { "@type": "@json", "@value": { "@bar": 3 } },
+  "plain": { "type": "Property", "value": { "@deep": 5 } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. GET C3 — every @-name inside a value round-trips untouched"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:catalog:C3
+echo
+echo
+
+
+--EXPECT--
+01. @referredType as a sub-attribute of a Relationship — 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 228
+
+{
+  "detail": "'@referredType' is not a JSON-LD keyword, and § 4.6.2 does not allow a name to start with '@'",
+  "status": 400,
+  "title": "Invalid Member Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. The entity was not created
+==============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 167
+
+{
+  "detail": "entity 'urn:ngsi-ld:catalog:C1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+03. @weird as an Attribute name — 400
+=====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 221
+
+{
+  "detail": "'@weird' is not a JSON-LD keyword, and § 4.6.2 does not allow a name to start with '@'",
+  "status": 400,
+  "title": "Invalid Member Name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. @-prefixed name inside a value is opaque — 201
+==================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:catalog:C3
+Content-Length: 0
+
+
+
+
+05. GET C3 — every @-name inside a value round-trips untouched
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 517
+
+{
+  "id": "urn:ngsi-ld:catalog:C3",
+  "js": {
+    "json": {
+      "@referredType": 1,
+      "a": {
+        "@foo": 2
+      }
+    },
+    "type": "JsonProperty"
+  },
+  "lang": {
+    "languageMap": {
+      "@none": "unlabelled",
+      "en": "hi"
+    },
+    "type": "LanguageProperty"
+  },
+  "lit": {
+    "type": "Property",
+    "value": {
+      "@type": "@json",
+      "@value": {
+        "@bar": 3
+      }
+    }
+  },
+  "plain": {
+    "type": "Property",
+    "value": {
+      "@deep": 5
+    }
+  },
+  "type": "catalog"
+}
+
+
+
+--TEARDOWN--
+coraineStop
