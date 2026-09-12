@@ -32,3 +32,5 @@
 {"date": "2026-09-05T21:39:13Z", "db": "mongoc", "query_c200": 5970, "query_c50": 6014, "retrieve_c50": 15815, "run": "34240461746", "sha": "b0682e34"}
 {"date": "2026-09-08T14:48:03Z", "db": "corDB", "query_c200": 8085, "query_c50": 8092, "retrieve_c50": 41235, "run": "34322737906", "sha": "b0682e34"}
 {"date": "2026-09-08T14:48:03Z", "db": "mongoc", "query_c200": 4184, "query_c50": 4270, "retrieve_c50": 11421, "run": "34322737906", "sha": "b0682e34"}
+{"date": "2026-09-11T13:33:58Z", "db": "corDB", "query_c200": 8095, "query_c50": 8062, "retrieve_c50": 42398, "run": "34679603512", "sha": "0b799f35"}
+{"date": "2026-09-11T13:33:58Z", "db": "mongoc", "query_c200": 4264, "query_c50": 4336, "retrieve_c50": 11602, "run": "34679603512", "sha": "0b799f35"}
