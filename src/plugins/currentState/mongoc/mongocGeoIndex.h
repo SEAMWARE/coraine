@@ -26,6 +26,17 @@ extern void mongocGeoIndexInit(Tenant* tenantP, mongoc_collection_t* collP);
 
 // -----------------------------------------------------------------------------
 //
+// mongocGeoIndexExists - is there a 2dsphere index for this GeoProperty?
+//
+// "No index" means no Entity in this database has that GeoProperty, so no Entity can
+// match a geoquery on it - the answer is an empty array, not an error.
+//
+extern bool mongocGeoIndexExists(Tenant* tenantP, const char* geoproperty);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocGeoIndexEnsure - create the 2dsphere indexes this entity's GeoProperties need
 //
 // Call BEFORE the write. Returns NULL when every index is in place, or the (long)
