@@ -1,0 +1,341 @@
+#
+# FILE            distop_split_filter_after_assembly.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.4.3 - when Entities may be split over more than one Context Source, the filters
+# (q, geoquery, Scope query, Attributes) are removed before forwarding and applied AFTER the Entity
+# has been assembled.  A Context Source only ever holds its own part of the Entity, so a filter
+# evaluated there is evaluated against a fragment, and a "no match" from it costs the whole part.
+#
+# query_entities_distops_split.test already covers a 'q' that matches on a REMOTE Attribute.  This
+# one takes the other direction, which fails differently: the 'q' matches on an Attribute the LOCAL
+# broker holds, and it is the REMOTE half that has to survive - the source is the one asked about an
+# Attribute it does not have.  Same for the geoquery: the GeoProperty it filters on lives only on
+# the remote side.
+#
+# NOTE
+#   The geoquery half of this belongs here too, and is deliberately NOT in yet: a geoquery whose
+#   GeoProperty is held ONLY by the remote source answers 500 today (no local geo index to run
+#   $geoNear against), so there is nothing correct to assert.  Add those steps with that fix.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Split entities - a filter on a local Attribute keeps the remote half
+
+--TAGS--
+entity query distop distops q split
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+#
+# urn:A1 is split: CB holds 'name' + 'sex' (a VocabProperty), CP1 holds 'heartRate' + 'location'.
+# urn:A2 lives entirely on CB - it has no remote half at all.
+#
+# 01. Seed CB  - urn:A1 with name + sex=Male
+# 02. Seed CP1 - urn:A1 with heartRate + location
+# 03. Seed CB  - urn:A2 with sex=Female, nothing on CP1
+# 04. Register CB -> CP1 (inclusive, type=Animal)
+# 05. No filter at all - urn:A1 comes back whole
+# 06. q on 'sex' - an Attribute only CB holds - urn:A1 whole, CP1's half included
+# 07. The same q with splitEntities=false - CP1 is asked about 'sex', has none, and its half is lost
+# 08. q on 'heartRate' - an Attribute only CP1 holds - urn:A1 whole
+# 09. q=sex=="Female" - urn:A2, which has no remote half
+# 10. NEGATIVE: q=heartRate<60 matches nothing
+#
+
+CP1="http://localhost:${CP1_PORT}"
+
+
+echo "01. Seed CB - urn:A1 with name + sex=Male"
+echo "========================================="
+payload='{
+  "id": "urn:A1",
+  "type": "Animal",
+  "name": { "type": "Property", "value": "Giant" },
+  "sex":  { "type": "VocabProperty", "vocab": "Male" }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed CP1 - urn:A1 with heartRate + location"
+echo "==============================================="
+payload='{
+  "id": "urn:A1",
+  "type": "Animal",
+  "heartRate": { "type": "Property", "value": 62 },
+  "location": {
+    "type": "GeoProperty",
+    "value": { "type": "Point", "coordinates": [ 13.34695, 52.51965 ] }
+  }
+}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Seed CB - urn:A2 with sex=Female, nothing on CP1"
+echo "===================================================="
+payload='{
+  "id": "urn:A2",
+  "type": "Animal",
+  "sex": { "type": "VocabProperty", "vocab": "Female" }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. Register CB -> CP1 (inclusive, type=Animal)"
+echo "==============================================="
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "'"$CP1"'",
+  "mode": "inclusive",
+  "information": [ { "entities": [ { "type": "Animal" } ] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. No filter - urn:A1 comes back whole"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities?id=urn:A1&type=Animal&format=simplified'
+echo
+echo
+
+
+echo '06. q on a LOCAL Attribute (sex=="Male") - urn:A1 whole, CP1 half included'
+echo "=========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&q=sex==%22Male%22&expandValues=sex&format=simplified'
+echo
+echo
+
+
+echo "07. The same q with splitEntities=false - CP1 has no 'sex', so its half is lost"
+echo "==============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&q=sex==%22Male%22&expandValues=sex&splitEntities=false&format=simplified'
+echo
+echo
+
+
+echo "08. q on a REMOTE Attribute (heartRate>60) - urn:A1 whole"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&q=heartRate%3E60&format=simplified'
+echo
+echo
+
+
+echo '09. q=sex=="Female" - urn:A2, which has no remote half'
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&q=sex==%22Female%22&expandValues=sex&format=simplified'
+echo
+echo
+
+
+echo "10. NEGATIVE: q=heartRate<60 matches nothing"
+echo "============================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&q=heartRate%3C60&format=simplified'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CB - urn:A1 with name + sex=Male
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:A1
+Content-Length: 0
+
+
+
+
+02. Seed CP1 - urn:A1 with heartRate + location
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:A1
+Content-Length: 0
+
+
+
+
+03. Seed CB - urn:A2 with sex=Female, nothing on CP1
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:A2
+Content-Length: 0
+
+
+
+
+04. Register CB -> CP1 (inclusive, type=Animal)
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Content-Length: 0
+
+
+
+
+05. No filter - urn:A1 comes back whole
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 251
+
+[
+  {
+    "heartRate": 62,
+    "id": "urn:A1",
+    "location": {
+      "coordinates": [
+        13.34695,
+        52.51965
+      ],
+      "type": "Point"
+    },
+    "name": "Giant",
+    "sex": {
+      "vocab": "Male"
+    },
+    "type": "Animal"
+  }
+]
+
+
+
+06. q on a LOCAL Attribute (sex=="Male") - urn:A1 whole, CP1 half included
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 251
+
+[
+  {
+    "heartRate": 62,
+    "id": "urn:A1",
+    "location": {
+      "coordinates": [
+        13.34695,
+        52.51965
+      ],
+      "type": "Point"
+    },
+    "name": "Giant",
+    "sex": {
+      "vocab": "Male"
+    },
+    "type": "Animal"
+  }
+]
+
+
+
+07. The same q with splitEntities=false - CP1 has no 'sex', so its half is lost
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 116
+
+[
+  {
+    "id": "urn:A1",
+    "name": "Giant",
+    "sex": {
+      "vocab": "Male"
+    },
+    "type": "Animal"
+  }
+]
+
+
+
+08. q on a REMOTE Attribute (heartRate>60) - urn:A1 whole
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 251
+
+[
+  {
+    "heartRate": 62,
+    "id": "urn:A1",
+    "location": {
+      "coordinates": [
+        13.34695,
+        52.51965
+      ],
+      "type": "Point"
+    },
+    "name": "Giant",
+    "sex": {
+      "vocab": "Male"
+    },
+    "type": "Animal"
+  }
+]
+
+
+
+09. q=sex=="Female" - urn:A2, which has no remote half
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 97
+
+[
+  {
+    "id": "urn:A2",
+    "sex": {
+      "vocab": "Female"
+    },
+    "type": "Animal"
+  }
+]
+
+
+
+10. NEGATIVE: q=heartRate<60 matches nothing
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
