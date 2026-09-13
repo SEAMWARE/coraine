@@ -85,6 +85,7 @@ payload='{
   }
 }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+ftClientWait 1
 echo
 echo
 
@@ -100,6 +101,7 @@ payload='{
   }
 }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+ftClientWait 2
 echo
 echo
 
@@ -112,6 +114,7 @@ payload='{
   "V2": { "vocab": [ "test" ] }
 }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+ftClientWait 3
 echo
 echo
 
@@ -139,7 +142,6 @@ echo
 
 echo "08. Dump ftClient - notifications for E1, E2, E3"
 echo "================================================"
-sleep .2
 ftClientDump
 echo
 echo

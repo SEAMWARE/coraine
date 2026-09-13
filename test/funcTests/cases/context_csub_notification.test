@@ -66,6 +66,7 @@ payload='{
 }'
 corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+ftClientWait 1
 echo
 echo
 
@@ -86,13 +87,13 @@ payload='{
 }'
 corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" \
   -H 'Link: <http://localhost:7080/jsonldContexts/ctxB>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+ftClientWait 2
 echo
 echo
 
 
 echo "03. Dump — both notifications speak ctxA: Vehicle/spd"
 echo "======================================================"
-sleep .3
 ftClientDump
 echo
 echo
