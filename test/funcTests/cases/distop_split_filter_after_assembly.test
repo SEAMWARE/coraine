@@ -14,20 +14,16 @@
 # one takes the other direction, which fails differently: the 'q' matches on an Attribute the LOCAL
 # broker holds, and it is the REMOTE half that has to survive - the source is the one asked about an
 # Attribute it does not have.  Same for the geoquery: the GeoProperty it filters on lives only on
-# the remote side.
-#
-# NOTE
-#   The geoquery half of this belongs here too, and is deliberately NOT in yet: a geoquery whose
-#   GeoProperty is held ONLY by the remote source answers 500 today (no local geo index to run
-#   $geoNear against), so there is nothing correct to assert.  Add those steps with that fix.
+# the remote side, so pushing it down would drop the Entity, and never checking it after assembly
+# would return Entities that are nowhere near the area.
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #
 --NAME--
-Split entities - a filter on a local Attribute keeps the remote half
+Split entities - a filter on a local Attribute keeps the remote half, geoquery included
 
 --TAGS--
-entity query distop distops q split
+entity query distop distops q geo split
 
 --INIT--
 corDbDrop
@@ -51,6 +47,9 @@ coraineStart -role CP1 -dist
 # 08. q on 'heartRate' - an Attribute only CP1 holds - urn:A1 whole
 # 09. q=sex=="Female" - urn:A2, which has no remote half
 # 10. NEGATIVE: q=heartRate<60 matches nothing
+# 11. Geoquery near the animal - 'location' lives only on CP1
+# 12. NEGATIVE: the same geoquery 1500 km away
+# 13. Geoquery within a polygon around the animal
 #
 
 CP1="http://localhost:${CP1_PORT}"
@@ -149,6 +148,27 @@ echo
 echo "10. NEGATIVE: q=heartRate<60 matches nothing"
 echo "============================================"
 corCurl --url '/ngsi-ld/v1/entities?type=Animal&q=heartRate%3C60&format=simplified'
+echo
+echo
+
+
+echo "11. Geoquery near the animal - 'location' lives only on CP1"
+echo "==========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&georel=near%3BmaxDistance==1000&geometry=Point&coordinates=%5B13.34695,52.51965%5D&format=simplified'
+echo
+echo
+
+
+echo "12. NEGATIVE: the same geoquery, 1500 km away"
+echo "============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&georel=near%3BmaxDistance==1000&geometry=Point&coordinates=%5B2.1734,41.3851%5D&format=simplified'
+echo
+echo
+
+
+echo "13. Geoquery within a polygon around the animal"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal&georel=within&geometry=Polygon&coordinates=%5B%5B%5B13.0,52.0%5D,%5B14.0,52.0%5D,%5B14.0,53.0%5D,%5B13.0,53.0%5D,%5B13.0,52.0%5D%5D%5D&format=simplified'
 echo
 echo
 
@@ -331,6 +351,76 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: 3
 
 []
+
+
+
+11. Geoquery near the animal - 'location' lives only on CP1
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 251
+
+[
+  {
+    "heartRate": 62,
+    "id": "urn:A1",
+    "location": {
+      "coordinates": [
+        13.34695,
+        52.51965
+      ],
+      "type": "Point"
+    },
+    "name": "Giant",
+    "sex": {
+      "vocab": "Male"
+    },
+    "type": "Animal"
+  }
+]
+
+
+
+12. NEGATIVE: the same geoquery, 1500 km away
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+13. Geoquery within a polygon around the animal
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 251
+
+[
+  {
+    "heartRate": 62,
+    "id": "urn:A1",
+    "location": {
+      "coordinates": [
+        13.34695,
+        52.51965
+      ],
+      "type": "Point"
+    },
+    "name": "Giant",
+    "sex": {
+      "vocab": "Male"
+    },
+    "type": "Animal"
+  }
+]
 
 
 

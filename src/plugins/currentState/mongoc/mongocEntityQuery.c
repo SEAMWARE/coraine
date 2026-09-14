@@ -19,6 +19,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
 #include "corNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
+#include "currentState/mongoc/mongocGeoIndex.h"    // mongocGeoIndexExists
 #include "corNgsild/LdQ.h"                           // LdQNode, LdQTermNode, ...
 #include "corNgsild/LdScopeExpr.h"                    // LdScopeExpr
 #include "corNgsild/ldScopeMatch.h"                    // ldScopeToRegex
@@ -1250,6 +1251,37 @@ static void bsonAppendNonGeoMatch(bson_t* matchFilter, DbQueryFilter* filterP)
 //
 int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
 {
+  //
+  // A geoquery on a GeoProperty that has no 2dsphere index matches NOTHING - the indexes are
+  // driven entirely by the data (mongocGeoIndex.c), so no index means no Entity here has ever
+  // had that GeoProperty, and an Entity without it cannot be near/within/anything.
+  //
+  // The answer is therefore an empty array, and it has to be produced WITHOUT asking mongo:
+  // '$geoNear' is the one geo operator that REQUIRES its index and errors instead of returning
+  // nothing ("unable to find index for $geoNear query"), which surfaced as a 500 on any 'near'
+  // against a database that simply had no geo data yet.  ('within'/'intersects' scan happily
+  // and already answered [].)
+  //
+  // For a distributed query this is the LOCAL contribution being empty - the forwards still go
+  // out and the merge is unaffected.
+  //
+  if ((filterP != NULL) && (filterP->geoRel != NULL) && (filterP->geoproperty != NULL))
+  {
+    if (mongocGeoIndexExists(tenantP, filterP->geoproperty) == false)
+    {
+      //
+      // A failed index BUILD lands here too (geoIndexCreate caches only on success), and there
+      // Entities do have the GeoProperty - so say so, or the miss is completely silent.
+      //
+      KT_W("mongoc: no 2dsphere index for geoproperty '%s' in db '%s' - the geoquery matches nothing. "
+           "Expected when no Entity has that GeoProperty; if some do, look for an earlier index-build error",
+           filterP->geoproperty, tenantP->dbName);
+
+      *arrayPP = kjArray(corRest.kjsonP, NULL);
+      return DB_OK;
+    }
+  }
+
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
 

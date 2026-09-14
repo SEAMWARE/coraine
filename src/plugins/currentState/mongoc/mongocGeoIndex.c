@@ -87,6 +87,25 @@ static void geoIndexCacheAdd(Tenant* tenantP, const char* fieldPath)
 
 // -----------------------------------------------------------------------------
 //
+// mongocGeoIndexExists - is there a 2dsphere index for this GeoProperty?
+//
+// The indexes are driven entirely by the data (see the file header), so "no index" means
+// no Entity in this database has ever had that GeoProperty - and an Entity that does not
+// have it cannot match a geoquery on it.
+//
+bool mongocGeoIndexExists(Tenant* tenantP, const char* geoproperty)
+{
+  char fieldPath[1024];
+
+  snprintf(fieldPath, sizeof(fieldPath), "%s.@none.value", mongocEscapeDotsInKey(geoproperty));
+
+  return geoIndexCacheLookup(tenantP, fieldPath);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // geoIndexCreate - create a 2dsphere index on a specific field path and cache it
 //
 static bool geoIndexCreate(Tenant* tenantP, mongoc_collection_t* collP, const char* fieldPath)
