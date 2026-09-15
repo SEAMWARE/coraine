@@ -85,6 +85,30 @@ SIBLING_LIBS = corRest corJsonld corNgsild
 COR_HTTP_SERVER ?= mhd
 
 #
+# COR_WITH_ICU - 0 | 1. ICU root collation for orderBy on strings (§ 7.6.2.1).
+#
+# OFF by default: ON links libicu, which is three shared libraries and 39.2 MiB
+# (libicudata alone is 31.6 MiB, nine times the whole broker) for one sort order.
+#
+# ONE variable for what are two flags underneath - corNgsild's COR_WITH_ICU
+# selects the CODE PATH, coraine's cmake COR_FEATURE_ICU_COLLATION adds the ICU
+# LIBS to the broker link - because setting one without the other is the failure
+# this drives out: a lib compiled for the ASCII path inside a broker that links
+# ICU, or a lib calling ucol_strcollUTF8 in a broker that does not. Neither
+# combination announces itself; the second does not even fail to link, because
+# the lib's own .so pulled ICU in.
+#
+# Same spelling as corNgsild's own variable, so `make COR_WITH_ICU=1` does the
+# right thing whether it is run here or there.
+#
+COR_WITH_ICU ?= 0
+ifeq ($(COR_WITH_ICU),1)
+CMAKE_ICU = -DCOR_FEATURE_ICU_COLLATION=ON
+else
+CMAKE_ICU = -DCOR_FEATURE_ICU_COLLATION=OFF
+endif
+
+#
 # corHttp only exists in the link when it is the server in use, and it has to be
 # BUILT BEFORE corRest, which links it. Prepended rather than appended for that
 # reason - the loop below is ordered.
@@ -95,7 +119,7 @@ endif
 
 libs:
 	@for lib in $(SIBLING_LIBS); do \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di || exit 1; \
 	done
 
 #
@@ -113,7 +137,7 @@ libs:
 libs-rebuild:
 	@for lib in $(SIBLING_LIBS); do \
 	  $(MAKE) -C $(SIBLING_DIR)/$$lib clean >/dev/null || exit 1; \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di || exit 1; \
 	done
 
 #
@@ -168,11 +192,11 @@ src/app/coraine/coraineBuild.h: FORCE
 	 } > $@
 
 release: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
@@ -269,9 +293,9 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@for d in $(COV_LIBS); do \
 	   find $(SIBLING_DIR)/$$d -name '*.gcno' -delete; \
 	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
-	   $(MAKE) -C $(SIBLING_DIR)/$$d BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
+	   $(MAKE) -C $(SIBLING_DIR)/$$d COR_WITH_ICU=$(COR_WITH_ICU) BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
 	 done
-	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER)
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU)
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
 # Stage the instrumented plugins in the INSTALLED layout. The harness composes

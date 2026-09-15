@@ -31,6 +31,14 @@ option(COR_FEATURE_TENANTS         "Enable multi-tenancy (NGSILD-Tenant header)"
 option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
 option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
 option(COR_FEATURE_METRICS         "Enable Prometheus metrics via kprom (adds /admin/metrics)"  ON)
+#
+# OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
+# of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
+# a collation table. Every other feature here costs kilobytes of our own .text.
+# Must match corNgsild's COR_WITH_ICU (which selects the code path); the makefile
+# drives both from one variable so they cannot drift.
+#
+option(COR_FEATURE_ICU_COLLATION   "orderBy string ordering via ICU root collation (needs libicu)" OFF)
 option(COR_FEATURE_LOCATION         "Enable geo-aware dispatch on the 'location' GeoProperty"          ON)
 option(COR_FEATURE_OBSERVATION_SPACE "Enable geo-aware dispatch on the 'observationSpace' GeoProperty" OFF)
 option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operationSpace' GeoProperty"    OFF)
@@ -45,7 +53,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 foreach(feature ${COR_FEATURES})
   if (COR_FEATURE_${feature})
     add_compile_definitions(COR_FEATURE_${feature}=1)
@@ -182,18 +190,15 @@ if (COR_HTTP_SERVER STREQUAL "mhd")
 endif()
 
 #
-# ICU "root" collation for orderBy string ordering (§ 7.6.2.1). ON by default.
-# Must match corNgsild's COR_WITH_ICU build flag (which selects the code path);
-# this adds the matching ICU libs to the final broker link. Turn both off
-# together to build without the libicu dependency.
+# The link half of COR_FEATURE_ICU_COLLATION, declared with the other features
+# above (it has to be, to reach the COR_FEATURES loop that emits its 0/1 and
+# reports it on --version). This adds the ICU libs to the final broker link when
+# it is on; corNgsild's COR_WITH_ICU selects the code path that calls them.
 #
-option(COR_FEATURE_ICU_COLLATION "orderBy string ordering via ICU root collation (needs libicu)" ON)
 if (COR_FEATURE_ICU_COLLATION)
   find_package(ICU REQUIRED COMPONENTS i18n uc data)
   list(APPEND COR_DYNAMIC_LIBS ICU::i18n ICU::uc ICU::data)
-  message(STATUS "Feature ICU_COLLATION: ON (ICU ${ICU_VERSION})")
-else()
-  message(STATUS "Feature ICU_COLLATION: OFF")
+  message(STATUS "  ICU_COLLATION is ON - linking ICU ${ICU_VERSION}")
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
