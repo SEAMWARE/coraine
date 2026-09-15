@@ -110,7 +110,7 @@ observation/operation-space dispatch; toggle with `cmake -DCOR_FEATURE_X=OFF`.
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
 no subscription engine on a read-only edge node, no geo, no tenants, no Mongo.
 
-Where it stands today, honestly: **three of them work, the rest are declared and
+Where it stands today, honestly: **four of them work, the rest are declared and
 not implemented.**
 
 `-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
@@ -119,6 +119,22 @@ build host, run `--database corDB`).
 `-DCOR_FEATURE_REGISTRATIONS=OFF` drops the Context Source Registration,
 registration-subscription and EntityMap service routines, the forwarding
 library, and both DB plugins' registration code — about 24 kB of `.text`.
+
+`-DCOR_FEATURE_ICU_COLLATION=OFF` is the odd one out: it removes no routes and
+no capability, it swaps the implementation behind one. `orderBy` on strings still
+works, but through a dependency-free approximation instead of libicu — which
+takes **three shared libraries and 39.2 MiB** off what the broker installs
+(`libicudata` alone is 31.6 MiB, nine times the size of the broker, for a
+collation table). Build `corNgsild` to match — `make -C ../corNgsild
+COR_WITH_ICU=0 di` — or the broker links ICU against a library compiled for the
+other path.
+
+What is given up is measurable and small, and it is exactly three things:
+punctuation no longer sorts before digits (`1one` before `_under`), a
+non-ASCII letter takes its byte weight rather than its base letter's (`äpple`
+after `zebra` instead of beside `apple`), and `collation=<locale>` is ignored.
+Pure ASCII sorts identically either way. `orderby_collation_locale.test` is
+written to fail on this build and say so, rather than to stay green about it.
 
 `-DCOR_FEATURE_SUBSCRIPTIONS=OFF` drops the subscription CRUD, the
 distributed-subscription notification receiver, the subscription code in both DB

@@ -107,107 +107,54 @@ list, or pin the one you tested.
 
 ## Footprint and speed
 
-coraine is a **1 MB broker**. Not a 1 MB container image with a runtime inside —
-a 967 KiB stripped ELF binary that starts in 10 milliseconds and answers NGSI-LD
-requests on the 11th.
+A broker is not an executable. It is everything that has to be on the machine
+before it can answer: the binary, the plugins it loads, the libraries that were
+not there before it arrived, and any other server it needs running. That is what
+is counted here. A small `main` on top of large libraries is not a small broker,
+and quoting the `main` would be the wrong number.
 
-### Size
+Four builds, the two axes that change what a coraine process is made of — the
+HTTP server (`corHttp`, built in, or the external libmicrohttpd) and the
+current-state DB (`corDB`, entities in this process's RAM, or `mongoc`, entities
+in a MongoDB server). Broker pinned to **4 physical cores**, load generator kept
+off them:
 
-Release build, stripped, x86-64:
+| Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | p99 |
+|-------|-----------:|---------:|---------------------:|---------:|---------------:|----:|
+| `corHttp` + `corDB` | **4.3 MiB** | 17.5 MiB | 372 MiB | 12.8 ms | 4 937 | 9.0 ms |
+| `corHttp` + `mongoc` | 11.1 MiB | 24.0 MiB | 117 MiB *+ mongod* | 21.2 ms | 4 274 | 5.8 ms |
+| libmicrohttpd + `corDB` | 11.6 MiB | 13.1 MiB | 407 MiB | 10.3 ms | **6 483** | 25.6 ms |
+| libmicrohttpd + `mongoc` | 18.4 MiB | 19.6 MiB | 202 MiB *+ mongod* | 18.9 ms | 4 636 | **4.5 ms** |
 
-| Artifact | Size |
-|----------|-----:|
-| `coraine` — the broker | **967 KiB** |
-| `corDB.so` — in-memory DB | 39 KiB |
-| `mongoc.so` — MongoDB DB | 116 KiB |
-| `none.so` / `ramdb.so` — TRoE | 14 KiB each |
-| `timescale.so` — TRoE | 67 KiB |
-| `admin.so` — admin API | 23 KiB |
+<sub>AMD Ryzen 9 8940HX laptop, 16 physical cores, Ubuntu 26.04, release build,
+`COR_FEATURE_ICU_COLLATION=OFF`. **Disk added** counts only what a bare
+`ubuntu:26.04` does not already carry. `mongod` adds 1.02–1.15 GiB resident;
+`corDB` adds nothing.</sub>
 
-A complete, self-sufficient broker — binary + in-memory store + TRoE-off — is
-**~1.0 MiB** on disk and needs no external service at all.
+Four things worth taking from that table:
 
-Those figures are the code coraine itself ships. The shared libraries it links —
-`libmicrohttpd`, `libssl`/`libcrypto`, `libmosquitto` (MQTT notifications), ICU
-(orderBy collation), GEOS (geo-queries, via the DB plugin) — are mapped by the
-loader on top, and dominate the resident set: 14 MB RSS, of which only 2.6 MB is
-private and dirty.
+- **A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of files a
+  machine did not already have — and three libraries, two of which are GEOS.**
+  1.00 MiB of it is coraine, and the cor and k libraries are whole-archived into
+  that binary, so it is not a `main` calling out to something else: `corNgsild`,
+  `corRest`, `corJsonld`, `kjson`, `kalloc` and the rest are *in* the megabyte.
+- **`corDB` + `none` needs no other service at all.** One process, 18 MiB, one
+  socket. The comparison that matters is not coraine's libraries against another
+  broker's — it is one process against a broker plus a database server plus a
+  time-series database server.
+- **~6 000 requests/s per core**, which at 20 entities per response is ~126 000
+  entities/s per core. One core of a laptop CPU, through MongoDB, still serves
+  ~4 600 NGSI-LD queries a second.
+- **The two HTTP servers are not the same trade.** libmicrohttpd reaches a higher
+  peak and scales near-linearly (7.4× on 8 cores) with a long tail; `corHttp` is
+  faster on one core, holds p99 three to four times lower, needs nine fewer
+  libraries, and gives up throughput as cores are added (4.5× on 8). Pick the
+  peak or pick the tail.
 
-### Start-up
-
-From `exec` to a listening socket, median of five, and the resident set right
-after:
-
-| Configuration | Ready in | RSS |
-|---------------|---------:|----:|
-| `--database corDB` | **10 ms** | 14 MB |
-| `--database mongoc` (localhost Mongo) | **17 ms** | 21 MB |
-
-That is fast enough that the broker is not something you keep warm — it is
-something you start. Scale-to-zero, per-test instances, one broker per tenant on
-a gateway: all of them stop being awkward at 10 ms and 14 MB.
-
-### Throughput
-
-32-core x86-64, `wrk -t8`, `GET /ngsi-ld/v1/entities?type=Vehicle&limit=20` over
-100 preloaded five-attribute entities (~550 B each, ~11 KB per response), median
-of three 5 s runs:
-
-| DB plugin | c50 req/s | p99 | c200 req/s | p99 |
-|-----------|----------:|----:|-----------:|----:|
-| `mongoc` | 24 500 | 3.0 ms | 23 100 | 9.9 ms |
-| `corDB` | 30 400 | 2.6 ms | 28 800 | 9.9 ms |
-
-At 20 entities per response that is **~490 000 entities/s** against MongoDB and
-~610 000 in memory. Single-entity retrieve (`GET /entities/{id}`, corDB, c50):
-**181 000 req/s, p99 766 µs**.
-
-> Numbers are from one machine and one shape of request — reproduce them on yours
-> before quoting them. What travels is the shape: sub-millisecond work per
-> request, and a broker that saturates cleanly. Quadrupling concurrency from 50
-> to 200 costs 5% of throughput and multiplies p99 by 3.8 — which is what the
-> extra queue alone accounts for. The additional clients wait; they do not make
-> the broker slower at serving the ones already there.
-
-### Does it use the cores you give it?
-
-Saturating cleanly says what happens when clients pile onto fixed hardware. The
-other question is whether more hardware buys more throughput.
-
-The measurement uses **`--database corDB`**, the in-memory backend, and that
-choice is the point rather than a convenience. With `mongoc`, `mongod` runs on
-the same machine and takes cores of its own: give the broker four and MongoDB
-takes what it needs beside it, so the curve would describe *a broker and a
-database sharing one host*, and would bend where MongoDB stopped scaling rather
-than where the broker did. Both are real questions. This one is "does the broker
-use the cores it is given", so the storage engine has to be taken out of the
-answer — an in-memory backend does that, and leaves request parsing, matching,
-rendering and the HTTP layer as the only things being measured.
-
-Same query and fixture as above, broker pinned to *n* physical cores, load
-generator kept off those cores entirely:
-
-| Cores | req/s | vs 1 core | Efficiency |
-|------:|------:|----------:|-----------:|
-| 1 | 5 930 | — | — |
-| 2 | 11 609 | 1.96× | 98% |
-| 4 | 22 642 | 3.82× | 95% |
-| 8 | 42 560 | 7.18× | **90%** |
-
-Close to linear: eight cores do 7.2 times the work of one. That is the useful
-property — a bigger box is worth buying, and a smaller one costs you only what
-you took away. Repeat runs vary by a few percent; the ratios do not.
-
-> ⚠️ Two limits on that table, both from running `wrk` on the same machine. It
-> competes for cache and memory bandwidth, so the broker is if anything
-> understated. And it caps the sweep at half the cores: something has to drive
-> the load. A first attempt that ignored SMT — load generator on the *siblings*
-> of the broker's own cores — produced a neat regression at 16 cores that was
-> pure measurement artefact. Anything beyond that needs a second machine, and a
-> link faster than the ~4 Gbit/s these responses already push.
-
-Reproduce it with [`test/perf/coreScale.sh`](test/perf/coreScale.sh), which
-reads the topology rather than assuming it.
+📊 **[Performance and footprint](doc/performance.md)** has the rest: the core
+scaling curves, what is inside the megabyte, RAM per entity, what MongoDB and
+TimescaleDB cost beside the broker, why ICU is off, and how each number was
+measured.
 
 ### Compiling out what you don't need
 
@@ -217,11 +164,13 @@ tenants, no Mongo. The switches are `COR_FEATURE_*` at build time, which means
 **building it yourself** — a published image is compiled with everything on.
 
 ⚠ Be warned before planning around it: **the flags are declared, the work behind
-them has barely started.** Only `-DCOR_FEATURE_MONGOC=OFF` genuinely works today.
-Turn off anything else and the link fails, because the per-feature `#ifdef`s inside
-the C are next to nonexistent. It is a goal with a flag table, not a feature you can
-use yet. [Building from source](doc/building.md#compiling-out-what-you-dont-need)
-has the full list and the honest state of each.
+them is partly done.** `-DCOR_FEATURE_MONGOC=OFF` and
+`-DCOR_FEATURE_ICU_COLLATION=OFF` (the reference build above) genuinely work, and
+the subscription and registration engines now compile out; several of the
+remaining flags are still declarations with no `#ifdef` behind them, and turning
+one of those off changes nothing or fails the link.
+[Building from source](doc/building.md#compiling-out-what-you-dont-need) has the
+full list and the honest state of each.
 
 ---
 
@@ -328,6 +277,7 @@ repository, which is where to read them offline or alongside a checkout:
 | Document | What it covers |
 |----------|----------------|
 | [Installation & Administration](doc/installation.md) | dependencies, build, install, every option, the admin API, tenants |
+| [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |
 | [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
 | [Building from source](doc/building.md) | the source layout, the dependency stack, system packages, make targets, compiling features out |

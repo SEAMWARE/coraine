@@ -51,9 +51,9 @@ incorporated in the next release of the product:
 -   **A choice of HTTP implementation.** `corRest` is built on libmicrohttpd,
     which supplies a great deal for nothing: TLS, a thread pool, epoll, the
     connection lifecycle, header parsing and the HTTP/1.1 upgrade machinery. It
-    is also 607 KiB of shared library against a 967 KiB stripped broker — a
-    price that matters exactly where the broker is most interesting, on a device
-    with little storage and less RAM.
+    is also nine shared libraries and 7.3 MiB — GnuTLS and its tail come with it —
+    against a 963 KiB stripped broker, a price that matters exactly where the
+    broker is most interesting, on a device with little storage and less RAM.
 
     So: conditional compilation, and `corRest` builds against either
     libmicrohttpd or a lean in-house HTTP implementation — or, in principle, a
@@ -118,11 +118,32 @@ Take into account that there is no commitment to deliver them in a specific
 timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
 
+-   **Our own string collation, replacing ICU.** § 7.6.2.1 makes ICU "root"
+    collation the default order for `orderBy` on strings, and honouring it with
+    libicu costs three shared libraries and 39.2 MiB — `libicudata` alone is
+    31.6 MiB, nine times the size of the broker, for a table. That is the single
+    largest thing coraine can put on a machine and it is there for one sort
+    order.
+
+    So: an MVP of root collation in `corNgsild` — UTF-8 decoded to code points,
+    a primary/secondary/tertiary weight table covering the Latin ranges that
+    real deployments use, and the category order (punctuation < digits <
+    letters) that the current ASCII approximation gets wrong. Locale tailorings
+    (`collation=sv`, `collation=de-DE-u-co-phonebk`, …) added **on demand**, one
+    at a time, rather than by linking every locale on Earth in advance. ICU
+    stays available behind `COR_FEATURE_ICU_COLLATION=ON` for anyone who wants
+    the complete Unicode answer.
+
+    `test/funcTests/cases/orderby_collation_locale.test` is the discriminator
+    that already exists: it is written to fail on a build that does not
+    implement § 7.6.2.1, and it is what the MVP has to turn green without ICU.
+
 -   **Array reduction in `corJsonld`.** A single JSON-LD normalisation applied once
     at the input boundary rather than at each call site.
 
--   **Embedded deployment.** The broker is under 1 MiB and starts in 10 ms; running
-    it on constrained hardware is a question of build configuration, not redesign
+-   **Embedded deployment.** The broker is under 1 MiB, adds 4.3 MiB to a machine
+    and starts in 13 ms; running it on constrained hardware is a question of
+    build configuration, not redesign
     — the per-feature `#ifdef`s and the choice of HTTP implementation are what
     make that true rather than aspirational.
 

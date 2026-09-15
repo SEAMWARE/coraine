@@ -15,6 +15,14 @@ ENDIF()
 # referenced only via the dispatch table, constructor-registered hooks, or by
 # dlopen'd plugins resolving against the (rdynamic) broker — a plain static link
 # would strip those. The cor/k libs are whole-archived for the same reason.
+#
+# And it stays whole-archive rather than becoming a --gc-sections + --dynamic-list
+# export list, which would be the precise tool. The set of symbols to export is
+# the plugin ABI, and we do not know it: a plugin written by someone else, against
+# a future version, may reach for any of kjson, kalloc or corRest. An export list
+# is a guess about that, and a wrong guess fails at dlopen in someone else's
+# deployment rather than at link in ours. The cost of being blunt here is bounded
+# - it is measured in KiB of a ~1 MiB binary - and the cost of being wrong is not.
 TARGET_LINK_LIBRARIES(coraine
   -Wl,--whole-archive ${COR_BROKER_LIBS} ${COR_STATIC_LIBS} -Wl,--no-whole-archive
   ${COR_DYNAMIC_LIBS}
