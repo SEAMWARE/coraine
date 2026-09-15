@@ -4,8 +4,10 @@ suite with a **100% success rate**.\*
 
 What makes it worth a look:
 
-- **Small.** A stripped broker under 1 MiB, one process, no runtime and no JVM.
-- **Fast.** Written in C, and scaling near-linearly with cores.
+- **Small.** **4.3 MiB** of files a machine did not already have — the broker,
+  its in-memory store and three shared libraries. One process, no runtime, no
+  JVM, and no database server to install beside it.
+- **Fast.** ~6 300 requests/s **per core**, and answering 13 ms after `exec`.
 - **Plugin-driven.** Storage backend, temporal history and extra API surfaces are
   shared libraries loaded at startup. The core speaks NGSI-LD; the plugins decide
   where data lives and how the broker talks to the world.

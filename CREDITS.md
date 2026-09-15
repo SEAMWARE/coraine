@@ -6,19 +6,29 @@ coraine is developed and maintained by **Seamware**.
 
 ## Standing on
 
-coraine is a small program because other people wrote the hard parts first. It links,
-at build or at run time:
+The list below is short on purpose. coraine implements its own HTTP server, JSON
+parser, JSON-LD processor, NGSI-LD engine, memory allocator, argument parser,
+hash tables, metrics and test harness — the k-libs and the Cor-Libs named after
+the table, all of them in this project's own repositories and all of them inside
+the ~1 MiB binary. What it borrows is work that is genuinely someone else's
+speciality: TLS, computational geometry, Unicode collation, and the client
+libraries of two database servers. None of it is NGSI-LD, and most of it is
+optional.
 
-| Project | Used for |
-|---------|----------|
-| [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) | the HTTP server the REST layer sits on |
-| [MongoDB C driver](https://github.com/mongodb/mongo-c-driver) (v2) | the `mongoc` current-state plugin |
-| [GEOS](https://libgeos.org/) | geo-query evaluation in memory |
-| [libmosquitto](https://mosquitto.org/) | MQTT notifications |
-| [OpenSSL](https://www.openssl.org/) | TLS |
-| [ICU](https://icu.unicode.org/) | `orderBy` string collation |
-| [PostgreSQL / libpq](https://www.postgresql.org/) | the `timescale` temporal plugin |
-| [TimescaleDB](https://www.timescale.com/) | temporal storage (hypertables) |
+| Project | Used for | Needed when |
+|---------|----------|-------------|
+| [OpenSSL](https://www.openssl.org/) | TLS | always |
+| [libmosquitto](https://mosquitto.org/) | MQTT notifications | always |
+| [GEOS](https://libgeos.org/) | geo-query evaluation | with either current-state plugin |
+| [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) | the HTTP server the REST layer sits on | only `COR_HTTP_SERVER=mhd` — `corHttp`, ours, is the alternative |
+| [ICU](https://icu.unicode.org/) | `orderBy` string collation (§ 7.6.2.1) | only `COR_FEATURE_ICU_COLLATION=ON` |
+| [MongoDB C driver](https://github.com/mongodb/mongo-c-driver) (v2) | the `mongoc` current-state plugin | only `--database mongoc` |
+| [PostgreSQL / libpq](https://www.postgresql.org/) | the `timescale` temporal plugin | only `--troe timescale` |
+| [TimescaleDB](https://www.timescale.com/) | temporal storage (hypertables) | only `--troe timescale` |
+
+The last five are loaded only if you ask for them: a `corHttp` + `corDB` broker
+maps three libraries beyond what a bare `ubuntu:26.04` already has, and two of
+those three are GEOS.
 
 The **k-libs** (`kbase`, `kalloc`, `klog`, `khash`, `kjson`, `kargs`, `ktrace`,
 `kprom`) and the **Cor-Libs** (`corRest`, `corNgsild`, `corJsonld`, `corPlugin`,

@@ -11,6 +11,7 @@ extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 nav:
   - Home: index.md
   - Installation & Administration: installation.md
+  - Performance and footprint: performance.md
   - API walkthrough: api-walkthrough.md
   - Plugin architecture: plugin-architecture.md
   - Building from source: building.md
