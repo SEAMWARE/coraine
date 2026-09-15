@@ -33,7 +33,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake git pkg-config ca-certificates curl \
-      libssl-dev libgeos-dev libmosquitto-dev libpq-dev libicu-dev \
+      libssl-dev libgeos-dev libmosquitto-dev libpq-dev \
       libsasl2-dev libzstd-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -130,7 +130,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Runtime shared libraries only. curl is here for the healthcheck below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libssl3t64 libgeos-c1t64 libmosquitto1 libpq5 libicu78 \
+      libssl3t64 libgeos-c1t64 libmosquitto1 libpq5 \
       libsasl2-2 libzstd1 zlib1g curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

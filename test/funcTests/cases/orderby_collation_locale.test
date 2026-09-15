@@ -21,9 +21,18 @@
 # after 'z' - so collation=sv moves äpple to the very end. An unknown language tag
 # is not an error; ICU falls back to root.
 #
-# ⚠ This test fails on a `COR_WITH_ICU=0` build, and that is the intent. That build
-# is a deliberate opt-out of the libicu dependency and its approximation does not
-# implement § 7.6.2.1 - the suite should say so rather than stay green about it.
+# ⚠ This test needs an ICU build, and COR_FEATURE_ICU_COLLATION is OFF by default
+# - so by default this test is not a candidate for the run at all. `make
+# COR_WITH_ICU=1` builds the broker that it applies to, and then it runs.
+#
+# REQUIRE_FEATURE rather than a plain red on the default build: a red says the
+# broker is broken, and it is not - it is a broker that was deliberately built
+# without the 39.2 MiB of libicu, doing exactly what that build promises. The
+# claim this test makes is about § 7.6.2.1 collation, and only an ICU build makes
+# that claim. What the DEFAULT build promises is asserted by
+# orderby_string_collation.test, which is pure ASCII and runs either way.
+#
+# REQUIRE_FEATURE: ICU_COLLATION
 #
 --NAME--
 orderBy uses ICU root collation, and `collation` selects a locale (§ 7.6.2.1)
